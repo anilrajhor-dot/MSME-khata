@@ -7466,15 +7466,17 @@ function pgCFS() {
   var cfInvesting = faPurchases + disposalProceeds;
 
   // ── FINANCING ACTIVITIES ──
-  // Opening loans
-  var openLoans = 0;
+  // Opening loans — split TL and CC/OD
+  var openLoans = 0; var openCcOd = 0;
   (D.trialBalance||[]).forEach(function(r){
     if(r.head==='loan') openLoans += (+r.amount||0);
   });
-  // Current loans outstanding
-  var closLoans = 0;
+  // Current loans outstanding — split TL and CC/OD
+  var closLoans = 0; var closCcOd = 0;
   (D.loans||[]).forEach(function(l){
-    if(!l.undrawn) closLoans += (+l.outstandingBalance||0);
+    if(l.undrawn) return;
+    if(isCcOdLoan&&isCcOdLoan(l)) closCcOd += (+l.outstandingBalance||0);
+    else closLoans += (+l.outstandingBalance||0);
   });
   // Capital introduced (additional capital only — opening capital is in TB)
   var capitalIntroduced = (+D.capital.initialCapital||0)
@@ -7485,19 +7487,14 @@ function pgCFS() {
   // Loan receipts (net new borrowing = closing - opening loans)
   var netLoanChange = closLoans - openLoans;
 
-  var cfFinancing = netLoanChange + capitalIntroduced - drawings;
+  var netCcOdChange = closCcOd - openCcOd; // CC/OD net drawn is cash inflow
+  var cfFinancing = netLoanChange + netCcOdChange + capitalIntroduced - drawings;
 
   // Opening and closing cash+bank
   var openCash = (+D.opening.cash||0) + (+D.opening.bank||0);
-  // Include CC/OD net movements (these go through cashbook but not cash/bank balance)
-  var ccOdNet = 0;
-  (D.cashBook||[]).forEach(function(e){
-    var sm = e.subMode||e.mode||'';
-    if(sm.startsWith('cc')||sm==='od'||sm.startsWith('od')){
-      ccOdNet += e.type==='receipt' ? (+e.amount||0) : -(+e.amount||0);
-    }
-  });
-  var closCash = (g.cash||0) + (g.bank||0) + ccOdNet;
+  // Use getBalances() directly — pure cash+bank only (CC/OD excluded)
+  var balances = getBalances();
+  var closCash = (balances.cb||0) + (balances.bb||0);
   var netChange = cfOperating + cfInvesting + cfFinancing;
 
   // ── RENDER ──
