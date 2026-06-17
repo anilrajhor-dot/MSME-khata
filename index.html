@@ -10347,6 +10347,65 @@ function purgeAndRebuild(){
   toast('Done! Kept '+keepers.length+' businesses: '+keepers.map(function(f){return f.name;}).join(', '));
 }
 
+
+// ── WELCOME / INSTALL SCREEN — Multi Unit ──
+function showWelcomeIfNeeded(){
+  var dismissed = false;
+  try{ dismissed = localStorage.getItem('mfm_welcome_done') === '1'; }catch(e){}
+  var isPWA = window.navigator.standalone === true || 
+              window.matchMedia('(display-mode: standalone)').matches;
+  if(isPWA || dismissed) return;
+  
+  var overlay = document.createElement('div');
+  overlay.id = 'welcome-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:99999;overflow-y:auto;padding:0';
+  
+  overlay.innerHTML = '<div style="background:#0D2137;padding:20px 16px 16px;text-align:center">' +
+    '<div style="font-size:40px">🏢</div>' +
+    '<div style="font-size:22px;font-weight:700;color:#fff;margin-top:8px">ME Multi Unit Khata</div>' +
+    '<div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">MSME Free Accounting App | DAY-NRLM</div>' +
+    '</div>' +
+    '<div style="padding:16px">' +
+    '<div style="background:#E3F2FD;border-radius:10px;padding:14px;margin-bottom:16px">' +
+    '<div style="font-weight:700;font-size:15px;color:#1565C0;margin-bottom:8px">✨ Kya milega is App mein:</div>' +
+    '<div style="display:flex;align-items:center;margin-bottom:6px"><span style="color:#1565C0;margin-right:8px">✅</span><span style="font-size:13px">Ek App mein 10 tak alag-alag business</span></div>' +
+    '<div style="display:flex;align-items:center;margin-bottom:6px"><span style="color:#1565C0;margin-right:8px">✅</span><span style="font-size:13px">Trading, Manufacturing, Service — sab ek mein</span></div>' +
+    '<div style="display:flex;align-items:center;margin-bottom:6px"><span style="color:#1565C0;margin-right:8px">✅</span><span style="font-size:13px">Ek tap mein business switch karen</span></div>' +
+    '<div style="display:flex;align-items:center;margin-bottom:6px"><span style="color:#1565C0;margin-right:8px">✅</span><span style="font-size:13px">Sabhi units ki Consolidated Report</span></div>' +
+    '<div style="display:flex;align-items:center;margin-bottom:6px"><span style="color:#1565C0;margin-right:8px">✅</span><span style="font-size:13px">GST, Income Tax, Bank Loan Assessment</span></div>' +
+    '</div>' +
+    '<div style="background:#FFF8E1;border:2px solid #F57F17;border-radius:10px;padding:14px;margin-bottom:16px">' +
+    '<div style="font-weight:700;font-size:15px;color:#E65100;margin-bottom:10px">📱 Phone mein Save Karen (3 Steps)</div>' +
+    '<div style="display:flex;align-items:flex-start;margin-bottom:10px">' +
+    '<div style="background:#E65100;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;margin-right:10px">1</div>' +
+    '<div style="font-size:13px">Neeche <b>Share button</b> (□↑) dabayein — ya browser ke ⋯ menu mein jayein</div></div>' +
+    '<div style="display:flex;align-items:flex-start;margin-bottom:10px">' +
+    '<div style="background:#E65100;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;margin-right:10px">2</div>' +
+    '<div style="font-size:13px"><b>"Add to Home Screen"</b> par tap karen</div></div>' +
+    '<div style="display:flex;align-items:flex-start;margin-bottom:10px">' +
+    '<div style="background:#E65100;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;margin-right:10px">3</div>' +
+    '<div style="font-size:13px">Naam likhen: <b>ME Khata</b> → <b>Add</b> dabayein → Home Screen icon se kholen</div></div>' +
+    '<div style="background:#fff;border-radius:8px;padding:10px;margin-top:8px;text-align:center">' +
+    '<div style="font-size:12px;color:#546E7A">⚠️ Hamesha Home Screen icon se hi kholen</div>' +
+    '<div style="font-size:12px;color:#546E7A">Isse aapka data safe rahega aur app offline bhi chalega</div>' +
+    '</div></div>' +
+    '<div style="background:#E8F5E9;border-radius:10px;padding:12px;margin-bottom:16px">' +
+    '<div style="font-weight:700;font-size:13px;color:#2E7D32;margin-bottom:6px">💡 Bilkul Muft | Free | No Download</div>' +
+    '<div style="font-size:12px;color:#37474F">Koi app download nahi karna. Internet band hone par bhi kaam karta hai.</div>' +
+    '</div>' +
+    '<button onclick="startApp()" style="width:100%;padding:16px;background:#1565C0;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:12px">▶ App Shuru Karen — Use karna Seekhen</button>' +
+    '<div style="text-align:center;font-size:11px;color:#90A4AE;padding-bottom:20px">Developed by <b>Anil Sharma</b> | Former GM, Central Bank of India | NRP, DAY-NRLM</div>' +
+    '</div>';
+  
+  document.body.appendChild(overlay);
+}
+
+function startApp(){
+  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
+  var overlay = document.getElementById('welcome-overlay');
+  if(overlay) overlay.remove();
+}
+
 // ===== NAVIGATION & RENDER =====
 var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',production:'उत्पादन',consumption:'उपभोग',bizmanager:'व्यवसाय प्रबंधक',interunit:'अंतर-इकाई स्थानांतरण',consolidated:'समेकित रिपोर्ट'};
 var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',reminders:'Payment Reminders',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',consolidated:'Consolidated Reports'};
