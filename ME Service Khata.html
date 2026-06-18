@@ -761,11 +761,7 @@ function pgCap(){
     // Partner-wise capital section
     var partners = D.profile.partners||[];
     var constitution = D.profile.constitution||'Individual';
-    var isMultiOwner = constitution==='Partnership'||constitution==='LLP'||
-                       constitution==='Private Limited Company'||constitution==='Public Limited Company'||
-                       constitution==='Self Help Group (SHG)'||constitution==='Joint Liability Group (JLG)'||
-                       constitution==='Producer Group / FPO'||constitution==='Cooperative Society'||
-                       constitution==='Trust / Society';
+    var isMultiOwner = constitution!=='Individual' && constitution!=='Sole Proprietorship' && constitution!=='';
     var partnerCapHTML = '';
     if(isMultiOwner && partners.length>0){
       if(!D.capital.partnerCapital) D.capital.partnerCapital={};
@@ -1092,10 +1088,7 @@ function pgDrawings(f){
   var totalDrawings=0; (D.drawings||[]).forEach(function(d){totalDrawings+=d.amount;});
   var partners2 = D.profile.partners||[];
   var constitution2 = D.profile.constitution||'Individual';
-  var isMulti2 = constitution2==='Partnership'||constitution2==='LLP'||
-                 constitution2==='Private Limited Company'||constitution2==='Public Limited Company'||
-                 constitution2==='Self Help Group (SHG)'||constitution2==='Joint Liability Group (JLG)'||
-                 constitution2==='Producer Group / FPO'||constitution2==='Cooperative Society';
+  var isMulti2 = constitution2!=='' && constitution2!=='Individual' && constitution2!=='Sole Proprietorship';
   var h = '<div class="sg">'+sc('Total Drawings (all time)',fc(totalDrawings),'#C62828','')+sc("Owner's Capital (after drawings)",fc(f.cap),'#2E7D32','')+'</div>';
   // Partner-wise drawings summary
   if(isMulti2 && partners2.length>0){
@@ -2231,7 +2224,7 @@ function renderPartnerSection(c){
   var isPartnership = c==='Partnership'||c==='LLP';
   var isCompany = c==='Private Limited Company'||c==='Public Limited Company';
   var isSHG = c==='Self Help Group (SHG)'||c==='Joint Liability Group (JLG)'||c==='Producer Group / FPO'||c==='Cooperative Society'||c==='Trust / Society';
-  if(c==='Individual'||c==='Sole Proprietorship') return '';
+  if(!c || c==='' || c==='Individual'||c==='Sole Proprietorship') return '';
   var label = isPartnership?'Partners':isCompany?'Directors / Promoters':isSHG?'Office Bearers / Members':'Members / Associates';
   var addLabel = isPartnership?'+ Add Partner':isCompany?'+ Add Director':isSHG?'+ Add Office Bearer':'+ Add Member';
   var partners = p.partners||[];
@@ -2288,11 +2281,7 @@ function updatePartnerSection(){
 function partnerDropdown(id, label, includeAll){
   var partners = D.profile.partners||[];
   var constitution = D.profile.constitution||'Individual';
-  var isMulti = constitution==='Partnership'||constitution==='LLP'||
-                constitution==='Private Limited Company'||constitution==='Public Limited Company'||
-                constitution==='Self Help Group (SHG)'||constitution==='Joint Liability Group (JLG)'||
-                constitution==='Producer Group / FPO'||constitution==='Cooperative Society'||
-                constitution==='Trust / Society'||constitution==='HUF';
+  var isMulti = constitution!=='' && constitution!=='Individual' && constitution!=='Sole Proprietorship';
   if(!isMulti || partners.length===0) return '';
   var roleLabel = (constitution==='Partnership'||constitution==='LLP')?'Partner':
                   (constitution==='Private Limited Company'||constitution==='Public Limited Company')?'Director':
@@ -2504,9 +2493,7 @@ function pgFin(){
         var partners3 = D.profile.partners||[];
         var pc3 = D.capital.partnerCapital||{};
         var constitution3 = D.profile.constitution||'Individual';
-        var isMulti3 = constitution3==='Partnership'||constitution3==='LLP'||
-                       constitution3==='Private Limited Company'||constitution3==='Public Limited Company'||
-                       constitution3==='Self Help Group (SHG)'||constitution3==='Joint Liability Group (JLG)';
+        var isMulti3 = constitution3!=='' && constitution3!=='Individual' && constitution3!=='Sole Proprietorship';
         var capLabel = isMulti3 && partners3.length>0 ? 'Total Capital (All Partners)' : "Owner\'s Capital";
         var capTotal = (D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+(+D.opening.capital||0);
         var h3 = fsr(capLabel, capTotal, 0, 1);
