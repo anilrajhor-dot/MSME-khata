@@ -785,8 +785,21 @@ function pgCap(){
       partnerCapHTML = '<div style="background:#FFF8E1;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#E65100">'+
         '⚠️ No partners/members added. Go to <b>Profile → Constitution</b> and add partner names first to see partner-wise capital.</div>';
     }
+    // Build inline partner dropdown for Capital
+    var inlineCapDropdown = '';
+    if(isMultiOwner && partners.length>0){
+      var capPOpts = '<option value="">-- Select Partner / Director / Member --</option>'+
+        partners.map(function(pt){
+          return '<option value="'+esc(pt.id)+'">'+esc(pt.name)+
+                 (pt.role?' — '+esc(pt.role):'')+
+                 (pt.share?' ('+pt.share+'%)':'')+'</option>';
+        }).join('');
+      inlineCapDropdown = '<div class="fg"><label>Introduced By</label>'+
+        '<select id="c_partner" style="width:100%;padding:9px;border-radius:8px;border:2px solid #CE93D8;font-size:13px;box-sizing:border-box;background:#F3E5F5">'+
+        capPOpts+'</select></div>';
+    }
     h+=card('Capital',partnerCapHTML+
-      partnerDropdown('c_partner','Introduced By (Partner / Director / Member)', false)+
+      inlineCapDropdown+
       g2(inp('Initial Capital (₹)','c_i','number',D.capital.initialCapital),inp('Additional Capital (₹)','c_a','number',D.capital.additionalCapital))+
       sl('Where is/was this Capital amount (the increase) kept?','c_mode',capModeOpts,'cash')+
       '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">When you increase Initial or Additional Capital, the increase amount will be added to Cash or the selected Bank account (so the Balance Sheet stays tallied). Choose "Don\'t add" only if you have already entered this amount in Opening Balances.<br><br><b>Tip:</b> If this capital is in a bank account, set up that account\'s name and number first in Cash/Bank → Bank / Current Accounts, so it appears here and your records match your bank statement.</div>'+
