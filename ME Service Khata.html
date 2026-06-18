@@ -607,6 +607,7 @@ function getFGrouped(){
     advToSuppliers:f.advToSuppliers, advPrepaidExp:f.advPrepaidExp, advFromCustomers:f.advFromCustomers,
     fixedAssetsNet:fixedAssetsNet, currentAssets:currentAssets, otherNonCurrentAssets:otherNonCurrentAssets,
     closingStock:f.cs, closingStockIndig:f.csIndig, closingStockImp:f.csImp, cashBank:f.cb+f.bb, debtors:f.dr,
+    sundryDebtors:f.dr, sundryCreditors:f.cr,
     totalLiab:totalLiab, totalAssets:totalAssets, nwc:nwc, diff:totalLiab-totalAssets
   };
 }
@@ -7643,6 +7644,119 @@ function pgPartyCodes() {
 
 
 
+
+function pgAllHeads(){
+  function headRow(label,path,status){
+    var sc=status.indexOf('✅')>=0?'#2E7D32':'#E65100';
+    return '<div style="display:flex;align-items:center;padding:5px 8px;border-bottom:1px solid #F5F5F5">'+
+      '<div style="flex:1.2;font-size:11px;font-weight:600;color:#212121">'+esc(label)+'</div>'+
+      '<div style="flex:2;font-size:10px;color:#546E7A;padding:0 4px">'+esc(path)+'</div>'+
+      '<div style="font-size:10px;font-weight:700;color:'+sc+';white-space:nowrap">'+esc(status)+'</div>'+
+    '</div>';
+  }
+  function secH(t,bg,bdr){
+    return '<div style="font-weight:700;font-size:12px;color:#fff;background:'+bg+';padding:7px 10px;border-radius:6px 6px 0 0;margin-top:10px">'+esc(t)+'</div>'+
+           '<div style="border:1px solid '+bdr+';border-top:none;border-radius:0 0 6px 6px;margin-bottom:4px">';
+  }
+  var h='<div style="font-size:11px;color:#546E7A;padding:8px;background:#F5F5F5;border-radius:6px;margin-bottom:10px">'+
+    '✅ <b>Auto</b> = Captured automatically when you record transactions &nbsp;|&nbsp; ⚠️ <b>Manual</b> = Enter in specified module</div>';
+
+  // ASSETS
+  h+=secH('A. ASSETS','#1565C0','#BBDEFB');
+  h+='<div style="font-weight:700;font-size:11px;color:#1565C0;background:#E3F2FD;padding:5px 10px">Fixed Assets (Non-Current)</div>';
+  h+=headRow('Land & Building','Capital/Loans → Fixed Assets','✅ Auto in BS');
+  h+=headRow('Plant & Machinery','Capital/Loans → Fixed Assets','✅ Auto in BS');
+  h+=headRow('Furniture & Fixtures','Capital/Loans → Fixed Assets','✅ Auto in BS');
+  h+=headRow('Vehicle / Transport','Capital/Loans → Fixed Assets','✅ Auto in BS');
+  h+=headRow('Computer & IT Equipment','Capital/Loans → Fixed Assets','✅ Auto in BS');
+  h+=headRow('Office Equipment','Capital/Loans → Fixed Assets','✅ Auto in BS');
+  h+=headRow('Tools & Instruments','Capital/Loans → Fixed Assets','✅ Auto in BS');
+  h+=headRow('Goodwill (Intangible)','Capital/Loans → Fixed Assets → Intangible','✅ Auto in BS');
+  h+=headRow('Patents / Trademarks','Capital/Loans → Fixed Assets → Intangible','✅ Auto in BS');
+  h+=headRow('Software / Licenses','Capital/Loans → Fixed Assets → Intangible','✅ Auto in BS');
+  h+='<div style="font-weight:700;font-size:11px;color:#1565C0;background:#E3F2FD;padding:5px 10px">Other Non-Current Assets</div>';
+  h+=headRow('Security Deposit Paid','Capital/Loans → Other Assets → Add','⚠️ Manual entry');
+  h+=headRow('Long-term Investments','Capital/Loans → Other Assets → Add','⚠️ Manual entry');
+  h+=headRow('Capital Work in Progress','Capital/Loans → Other Assets → Add','⚠️ Manual entry');
+  h+='<div style="font-weight:700;font-size:11px;color:#1565C0;background:#E3F2FD;padding:5px 10px">Current Assets</div>';
+  h+=headRow('Closing Stock / Inventory','Inventory module — auto calculated','✅ Auto in BS');
+  h+=headRow('Sundry Debtors','Credit Sales — auto created','✅ Auto in BS');
+  h+=headRow('Cash in Hand','Cash/Bank transactions','✅ Auto in BS');
+  h+=headRow('Bank Balance','Cash/Bank transactions','✅ Auto in BS');
+  h+=headRow('UPI / Wallet Balance','Cash/Bank → Add as Bank Account','✅ Add as bank account');
+  h+=headRow('Advance to Suppliers','Capital/Loans → Advances → Paid to Supplier','✅ Auto in BS');
+  h+=headRow('Prepaid Expenses','Capital/Loans → Advances → Paid for Expense','✅ Auto in BS');
+  h+=headRow('Advance to Employees','Capital/Loans → Advances → Paid to Supplier','⚠️ Use Supplier type');
+  h+=headRow('TDS Receivable','Capital/Loans → Other Assets → Add','⚠️ Manual entry');
+  h+=headRow('GST Input Credit / Refund','Capital/Loans → Other Assets → Add','⚠️ Manual entry');
+  h+=headRow('Interest Accrued Receivable','Capital/Loans → Other Assets → Add','⚠️ Manual entry');
+  h+='</div>';
+
+  // LIABILITIES
+  h+=secH('B. LIABILITIES & CAPITAL','#6A1428','#F8BBD0');
+  h+='<div style="font-weight:700;font-size:11px;color:#6A1428;background:#FCE4EC;padding:5px 10px">Owner\'s Funds (Capital)</div>';
+  h+=headRow('Initial Capital','Capital/Loans → Capital → Initial Capital','✅ Auto in BS');
+  h+=headRow('Additional Capital','Capital/Loans → Capital → Add Capital','✅ Auto in BS');
+  h+=headRow('Net Profit (Current Period)','Auto from P&L calculations','✅ Auto in BS');
+  h+=headRow('Drawings by Owner','Capital/Loans → Drawings','✅ Auto in BS');
+  h+=headRow('Opening Capital (Prior Years)','Data → Trial Balance → Capital head','✅ Auto if in TB');
+  h+='<div style="font-weight:700;font-size:11px;color:#6A1428;background:#FCE4EC;padding:5px 10px">Long Term Liabilities</div>';
+  h+=headRow('Term Loan (Bank)','Capital/Loans → Loans → Term Loan','✅ Auto in BS');
+  h+=headRow('Vehicle Loan','Capital/Loans → Loans → Term Loan','✅ Auto in BS');
+  h+=headRow('Machinery Loan','Capital/Loans → Loans → Term Loan','✅ Auto in BS');
+  h+=headRow('Loan from SHG / MFI / SHPI','Capital/Loans → Loans → Term Loan','✅ Auto in BS');
+  h+=headRow('Loan from Family / Friends','Capital/Loans → Loans → Term Loan','✅ Auto in BS');
+  h+=headRow('Debentures / Bonds','Capital/Loans → Other Liabilities','⚠️ Manual entry');
+  h+='<div style="font-weight:700;font-size:11px;color:#6A1428;background:#FCE4EC;padding:5px 10px">Current Liabilities</div>';
+  h+=headRow('Cash Credit (CC)','Capital/Loans → Loans → Cash Credit','✅ Auto in BS');
+  h+=headRow('Overdraft (OD)','Capital/Loans → Loans → Overdraft','✅ Auto in BS');
+  h+=headRow('Sundry Creditors (Suppliers)','Credit Purchases — auto created','✅ Auto in BS');
+  h+=headRow('Advance Received from Customers','Capital/Loans → Advances → Received','✅ Auto in BS');
+  h+=headRow('Expenses Payable / Outstanding','Record expense as Credit payment','✅ Auto in BS');
+  h+=headRow('Salary Payable','Expenses → Credit → auto creditor created','✅ Auto if credit exp');
+  h+=headRow('Rent Payable','Expenses → Credit → auto creditor created','✅ Auto if credit exp');
+  h+=headRow('Electricity Bill Payable','Expenses → Credit → auto creditor created','✅ Auto if credit exp');
+  h+=headRow('Interest Payable','Expenses → Category: Interest → Credit','✅ Auto if credit exp');
+  h+=headRow('GST Payable (Output Tax)','GST Module → auto calculated','✅ Auto in GST');
+  h+=headRow('TDS Payable','Capital/Loans → Other Liabilities','⚠️ Manual entry');
+  h+=headRow('EMI Due (current portion)','Loans → EMI Schedule → auto tracked','✅ Auto in EMI');
+  h+='</div>';
+
+  // INCOME
+  h+=secH('C. INCOME (P&L)','#2E7060','#C8E6C9');
+  h+=headRow('Cash Sales','Sales menu → Mode: Cash / UPI / Bank','✅ Auto');
+  h+=headRow('Credit Sales','Sales menu → Mode: Credit','✅ Auto');
+  h+=headRow('Export Sales','Sales menu → Mark as Export','✅ Auto');
+  h+=headRow('Service Income','Sales menu → Item: Service name','✅ Auto');
+  h+=headRow('Commission Income','Cash/Bank → Receipt → Description','⚠️ Use Cash/Bank');
+  h+=headRow('Interest Income / Other Income','Cash/Bank → Receipt → Description','⚠️ Use Cash/Bank');
+  h+='</div>';
+
+  // EXPENSES
+  h+=secH('D. EXPENSES (P&L)','#E65100','#FFE0B2');
+  h+=headRow('Purchases / Cost of Goods','Purchase menu','✅ Auto in Trading A/c');
+  h+=headRow('Rent','Expenses → Category: Rent','✅ Auto');
+  h+=headRow('Salary / Wages','Expenses → Category: Salary','✅ Auto');
+  h+=headRow('Electricity','Expenses → Category: Electricity','✅ Auto');
+  h+=headRow('Fuel / Transportation','Expenses → Category: Fuel','✅ Auto');
+  h+=headRow('Telephone / Internet','Expenses → Category: Telephone','✅ Auto');
+  h+=headRow('Repair & Maintenance','Expenses → Category: Repair','✅ Auto');
+  h+=headRow('Marketing / Advertising','Expenses → Category: Marketing','✅ Auto');
+  h+=headRow('Interest on Loans','Expenses → Category: Interest Payment','✅ Auto');
+  h+=headRow('Bank Charges / Commission','Expenses → Category: Bank Charges','✅ Auto');
+  h+=headRow('Depreciation','Capital/Loans → Fixed Assets → Run Depreciation','✅ Auto in CFS');
+  h+=headRow('Professional / Legal Fees','Expenses → Category: Miscellaneous','✅ Auto');
+  h+=headRow('Insurance Premium','Expenses → Category: Miscellaneous','✅ Auto');
+  h+=headRow('Packing / Packaging','Expenses → Category: Miscellaneous','✅ Auto');
+  h+=headRow('Loading / Unloading','Expenses → Category: Transportation','✅ Auto');
+  h+=headRow('Customs / Import Duty','Expenses → Category: Miscellaneous','✅ Auto');
+  h+=headRow('Bad Debts','Expenses → Category: Miscellaneous','✅ Auto');
+  h+=headRow('Staff Welfare / Bonus','Expenses → Category: Salary','✅ Auto');
+  h+='</div>';
+
+  return card('📋 Complete Accounting Heads Reference',h);
+}
+
 // ===================================================================
 // ACTUAL CASH FLOW STATEMENT (Indirect Method) — reads live data
 // ===================================================================
@@ -7659,28 +7773,59 @@ function pgCFS() {
   (D.intangibleAssets||[]).forEach(function(a){ depreciation += (+a.accumAmort||0); });
 
   // ── WORKING CAPITAL CHANGES ──
-  // Opening values from Trial Balance / opening object
-  var openDebtors   = +D.opening.debtors  || 0;
-  var openStock     = +D.opening.stock    || 0;
-  var openCreditors = +D.opening.creditors|| 0;
+  // Opening values from Trial Balance (preferred) or opening object
+  var openDebtors   = 0;
+  var openCreditors = 0;
+  var openStock     = +D.opening.stock || 0;
 
-  // Current values
-  var closDebtors   = g.sundryDebtors  || 0;
-  var closStock     = f.cs             || 0;
-  var closCreditors = g.sundryCreditors|| 0;
+  // Check TB for opening debtors/creditors
+  var hasTBDeb = false, hasTBCrd = false;
+  (D.trialBalance||[]).forEach(function(r){
+    if(r.head==='debtor'||r.head==='debtors'||r.head==='sundrydebtors'){
+      openDebtors += (+r.amount||0); hasTBDeb = true;
+    }
+    if(r.head==='creditor'||r.head==='creditors'||r.head==='sundrycreditors'){
+      openCreditors += (+r.amount||0); hasTBCrd = true;
+    }
+    if(r.head==='stock'||r.head==='closingstock'||r.head==='openingstock'){
+      openStock += (+r.amount||0);
+    }
+  });
+  // Fall back to opening object if not in TB
+  if(!hasTBDeb) openDebtors   = +D.opening.debtors   || 0;
+  if(!hasTBCrd) openCreditors = +D.opening.creditors  || 0;
 
-  // Advances (current assets)
+  // Current values — use getF() directly for accuracy
+  var closDebtors   = f.dr || 0;   // sundry debtors net balance
+  var closStock     = f.cs || 0;   // closing stock
+  var closCreditors = f.cr || 0;   // sundry creditors net balance
+
+  // Expense creditors (accrued expenses payable)
+  var expPayable = f.expPayable || 0;
+  var openExpPayable = 0; // opening expense payable from TB
+  (D.trialBalance||[]).forEach(function(r){
+    if(r.head==='exppayable'||r.head==='accruedexp'||r.head==='outstandingexp'){
+      openExpPayable += (+r.amount||0);
+    }
+  });
+
+  // Advances paid (current assets)
   var advances = 0;
   (D.advances||[]).forEach(function(a){ if(a.type==='paid') advances += (+a.amount||0); });
+  var openAdvances = 0;
+  (D.trialBalance||[]).forEach(function(r){
+    if(r.head==='advance'||r.head==='advancepaid') openAdvances += (+r.amount||0);
+  });
 
   // Changes (increase in assets = negative cash; increase in liabilities = positive cash)
   var chgDebtors   = -(closDebtors   - openDebtors);    // increase in debtors = outflow
   var chgStock     = -(closStock     - openStock);       // increase in stock = outflow
-  var chgAdvances  = -advances;                          // advances paid = outflow
+  var chgAdvances  = -(advances      - openAdvances);    // advances paid = outflow
   var chgCreditors = +(closCreditors - openCreditors);   // increase in creditors = inflow
+  var chgExpPayable= +(expPayable    - openExpPayable);  // increase in exp payable = inflow
 
   var cfOperating = netProfit + depreciation
-                    + chgDebtors + chgStock + chgAdvances + chgCreditors;
+                    + chgDebtors + chgStock + chgAdvances + chgCreditors + chgExpPayable;
 
   // ── INVESTING ACTIVITIES ──
   // Fixed asset purchases (outflow) — from otherAssets minus opening FA
@@ -7760,6 +7905,7 @@ function pgCFS() {
   h += cRow('Change in Stock / Inventory'+(chgStock>=0?' (decreased — inflow)':' (increased — outflow)'), chgStock, false, true);
   h += cRow('Change in Advances Paid'+(chgAdvances>=0?' (recovered — inflow)':' (paid — outflow)'), chgAdvances, false, true);
   h += cRow('Change in Creditors / Payables'+(chgCreditors>=0?' (increased — inflow)':' (decreased — outflow)'), chgCreditors, false, true);
+  if(chgExpPayable!==0) h += cRow('Change in Expenses Payable'+(chgExpPayable>=0?' (increased — inflow)':' (decreased — outflow)'), chgExpPayable, false, true);
   h += cRow('A.  Net Cash from Operating Activities', cfOperating, true, false, true);
   h += '</div>';
 
