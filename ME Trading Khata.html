@@ -85,7 +85,7 @@ var BIZ_TYPE='Trading';
 
 function defD(){
   return {
-    profile:{businessName:'',ownerName:'',mobile:'',mobileExtended:false,address:'',businessType:BIZ_TYPE,businessStage:'existing',udyam:'',gst:'',pan:'',tan:''},
+    profile:{businessName:'',ownerName:'',mobile:'',mobileExtended:false,address:'',businessType:BIZ_TYPE,businessStage:'existing',udyam:'',gst:'',pan:'',tan:'',partners:[]},
     capital:{initialCapital:0,additionalCapital:0},
     loans:[],
     bankAccounts:[{id:'acc1',name:'Bank Account 1'}],
@@ -138,6 +138,7 @@ function migrateData(d){
   if(!d.profile)d.profile={businessName:'',ownerName:'',mobile:'',address:'',businessType:BIZ_TYPE,constitution:'Individual',commencementDate:'',udyam:'',gst:'',pan:'',tan:''};
   if(d.profile.mobileExtended===undefined)d.profile.mobileExtended=false;
   if(!d.profile.constitution)d.profile.constitution='Individual';
+  if(!d.profile.partners)d.profile.partners=[];
   if(!d.expenseCategories)d.expenseCategories=['Rent','Electricity','Salary','Transportation','Telephone','Fuel','Repair','Marketing','Interest Payment','Miscellaneous'];
   if(d.expenseCategories.indexOf('Interest Payment')<0)d.expenseCategories.push('Interest Payment');
   if(!d.projAssumptions)d.projAssumptions=null;
@@ -644,7 +645,64 @@ function pgProf(){
   var mobMax = p.mobileExtended ? '15' : '10';
   var mobField = '<div class="fg"><label>Mobile Number ('+(p.mobileExtended?'up to 15':'10')+' digits)</label><input id="p_mob" type="tel" inputmode="numeric" maxlength="'+mobMax+'" value="'+esc(p.mobile||'')+'" oninput="this.value=this.value.replace(/[^0-9]/g,String.fromCharCode(39,39).slice(1,1)).slice(0,'+mobMax+')" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;box-sizing:border-box"></div>';
   var CONSTITUTIONS=['Individual','Sole Proprietorship','Partnership','LLP','Private Limited Company','Public Limited Company','Self Help Group (SHG)','Joint Liability Group (JLG)','Producer Group / FPO','Trust / Society','Cooperative Society','HUF','Other'];
-  return card('Business Profile',g2(inp('Business Name','p_bn','text',p.businessName),inp('Owner Name','p_on','text',p.ownerName))+g2(mobField,'<div class="fg"><label>Business Type</label><input id="p_bt" value="'+esc(BIZ_TYPE)+'" readonly style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#F0F4FF;color:#546E7A;box-sizing:border-box"></div>')+'<div style="margin-bottom:10px"><label style="font-size:11px;color:#546E7A;display:flex;align-items:center;gap:6px"><input type="checkbox" id="p_mobext" '+(p.mobileExtended?'checked':'')+' style="width:auto"> Allow longer number (up to 15 digits, e.g. with country code)</label></div>'+sl('Constitution / Legal Form','p_const',CONSTITUTIONS,p.constitution||'Individual')+sl('Business Stage','p_stage',[{v:'existing',l:'Existing business (already running - I have opening balances to enter)'},{v:'new',l:'New business (starting fresh - no prior balances)'}],p.businessStage||'existing')+'<div style="font-size:11px;color:#546E7A;margin-bottom:8px">"New business" hides Trial Balance / Prior Period P&amp;L screens (Data tab) since there\'s no prior history to enter. You can change this anytime.</div>'+inp('Address','p_addr','ta',p.address)+g2(inp('Start Date','p_cd','date',p.commencementDate),inp('UDYAM No.','p_ud','text',p.udyam))+g2(inp('GST No.','p_gst','text',p.gst),inp('PAN','p_pan','text',p.pan))+inp('TAN','p_tan','text',p.tan)+btn('💾 Save Profile','saveProf()'))
+  return card('Business Profile',g2(inp('Business Name','p_bn','text',p.businessName),inp('Owner Name','p_on','text',p.ownerName))+g2(mobField,'<div class="fg"><label>Business Type</label><input id="p_bt" value="'+esc(BIZ_TYPE)+'" readonly style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#F0F4FF;color:#546E7A;box-sizing:border-box"></div>')+'<div style="margin-bottom:10px"><label style="font-size:11px;color:#546E7A;display:flex;align-items:center;gap:6px"><input type="checkbox" id="p_mobext" '+(p.mobileExtended?'checked':'')+' style="width:auto"> Allow longer number (up to 15 digits, e.g. with country code)</label></div>'+(function(){
+      var constOpts = CONSTITUTIONS.map(function(c){return '<option value="'+c+'"'+(( p.constitution||'Individual')===c?' selected':'')+'>'+c+'</option>';}).join('');
+      return '<div class="fg"><label>Constitution / Legal Form</label><select id="p_const" onchange="updatePartnerSection()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;box-sizing:border-box">'+constOpts+'</select></div>';
+    })()+sl('Business Stage','p_stage',[{v:'existing',l:'Existing business (already running - I have opening balances to enter)'},{v:'new',l:'New business (starting fresh - no prior balances)'}],p.businessStage||'existing')+'<div style="font-size:11px;color:#546E7A;margin-bottom:8px">"New business" hides Trial Balance / Prior Period P&amp;L screens (Data tab) since there\'s no prior history to enter. You can change this anytime.</div>'+inp('Address','p_addr','ta',p.address)+g2(inp('Start Date','p_cd','date',p.commencementDate),inp('UDYAM No.','p_ud','text',p.udyam))+g2(inp('GST No.','p_gst','text',p.gst),inp('PAN','p_pan','text',p.pan))+inp('TAN','p_tan','text',p.tan)+
+    // Partners / Directors / Members section — dynamic div
+    '<div id="partner_section">'+renderPartnerSection(p.constitution||'Individual')+'</div>'+
+    (false?'':'')+
+    (function(){
+      var c = 'SKIP';
+      var isPartnership = c==='Partnership'||c==='LLP';
+      var isCompany = c==='Private Limited Company'||c==='Public Limited Company';
+      var isSHG = c==='Self Help Group (SHG)'||c==='Joint Liability Group (JLG)'||c==='Producer Group / FPO'||c==='Cooperative Society'||c==='Trust / Society';
+      if(c==='Individual'||c==='Sole Proprietorship') return '';
+      var label = isPartnership?'Partners':isCompany?'Directors / Promoters':isSHG?'Office Bearers / Members':'Members / Associates';
+      var addLabel = isPartnership?'+ Add Partner':isCompany?'+ Add Director':isSHG?'+ Add Office Bearer':'+ Add Member';
+      var partners = p.partners||[];
+      var roleOptions = isPartnership?
+        [{v:'Managing Partner',l:'Managing Partner'},{v:'Working Partner',l:'Working Partner'},{v:'Sleeping Partner',l:'Sleeping Partner'},{v:'Partner',l:'Partner'}]:
+        isCompany?
+        [{v:'Managing Director',l:'Managing Director'},{v:'Director',l:'Director'},{v:'Promoter',l:'Promoter'},{v:'Shareholder',l:'Shareholder'}]:
+        isSHG?
+        [{v:'President',l:'President'},{v:'Secretary',l:'Secretary'},{v:'Treasurer',l:'Treasurer'},{v:'Member',l:'Member'},{v:'SHG Leader',l:'SHG Leader'}]:
+        [{v:'Member',l:'Member'},{v:'Associate',l:'Associate'}];
+      var roleOpts = roleOptions.map(function(o){return '<option value="'+o.v+'">'+o.l+'</option>';}).join('');
+      var partnerRows = partners.length?
+        '<table style="width:100%;border-collapse:collapse;margin-bottom:8px">'+
+        '<tr style="background:#E3F2FD"><th style="padding:6px;font-size:11px;text-align:left">Name</th><th style="padding:6px;font-size:11px">Role</th><th style="padding:6px;font-size:11px">Share%</th><th style="padding:6px;font-size:11px">PAN</th><th style="padding:6px;font-size:11px">DIN/Aadhar</th><th style="padding:6px;font-size:11px"></th></tr>'+
+        partners.map(function(pt,i){
+          return '<tr style="border-bottom:1px solid #F5F5F5">'+
+            '<td style="padding:5px;font-size:12px">'+esc(pt.name||'')+'</td>'+
+            '<td style="padding:5px;font-size:11px;text-align:center">'+esc(pt.role||'')+'</td>'+
+            '<td style="padding:5px;font-size:11px;text-align:center">'+(pt.share?pt.share+'%':'—')+'</td>'+
+            '<td style="padding:5px;font-size:11px;text-align:center">'+esc(pt.pan||'—')+'</td>'+
+            '<td style="padding:5px;font-size:11px;text-align:center">'+esc(pt.din||'—')+'</td>'+
+            '<td style="padding:5px;text-align:center"><button onclick="removePartner('+i+')" style="background:#FFEBEE;color:#C62828;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer">✕</button></td>'+
+          '</tr>';
+        }).join('')+
+        '</table>':
+        '<div style="font-size:11px;color:#90A4AE;padding:8px;text-align:center;background:#F5F5F5;border-radius:6px;margin-bottom:8px">No '+label+' added yet</div>';
+      return '<div style="margin-top:12px;padding:12px;background:#F3E5F5;border-radius:10px;border:1px solid #CE93D8">'+
+        '<div style="font-weight:700;font-size:13px;color:#6A1B9A;margin-bottom:8px">👥 '+label+'</div>'+
+        partnerRows+
+        '<div style="background:#fff;border-radius:8px;padding:10px;margin-top:4px">'+
+        '<div style="font-size:11px;font-weight:700;color:#546E7A;margin-bottom:6px">'+addLabel+':</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">'+
+          '<div><label style="font-size:10px;color:#546E7A">Full Name *</label><input id="pt_name" placeholder="Full name" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+          '<div><label style="font-size:10px;color:#546E7A">Role *</label><select id="pt_role" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box">'+roleOpts+'</select></div>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">'+
+          '<div><label style="font-size:10px;color:#546E7A">Share %</label><input id="pt_share" type="number" placeholder="0" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+          '<div><label style="font-size:10px;color:#546E7A">PAN</label><input id="pt_pan" placeholder="ABCDE1234F" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+          '<div><label style="font-size:10px;color:#546E7A">DIN / Aadhar</label><input id="pt_din" placeholder="DIN or Aadhar" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+        '</div>'+
+        '<button onclick="addPartner()" style="width:100%;padding:9px;background:#6A1B9A;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">'+addLabel+'</button>'+
+        '</div>'+
+        '</div>';
+    })()+
+    btn('💾 Save Profile','saveProf()'))
     + (function(){
         var accts3 = D.bankAccounts && D.bankAccounts.length ? D.bankAccounts : [{id:'acc1',name:'Bank Account 1',accountNumber:''}];
         var acctBal3 = getBankAccountBalances();
@@ -678,7 +736,7 @@ function saveProf(){
   var ext = mobExtEl ? mobExtEl.checked : false;
   var mobile=gv('p_mob');
   if(!ext && mobile && mobile.length!==10){toast('Mobile number must be 10 digits, or check "Allow longer number"','e');return;}
-  D.profile={businessName:gv('p_bn'),ownerName:gv('p_on'),mobile:mobile,mobileExtended:ext,address:gv('p_addr'),businessType:BIZ_TYPE,businessStage:gv('p_stage')||'existing',constitution:gv('p_const'),commencementDate:gv('p_cd'),udyam:gv('p_ud'),gst:gv('p_gst'),pan:gv('p_pan'),tan:gv('p_tan')};sv();renderPage();toast('Saved!');}
+  D.profile={businessName:gv('p_bn'),ownerName:gv('p_on'),mobile:mobile,mobileExtended:ext,address:gv('p_addr'),businessType:BIZ_TYPE,businessStage:gv('p_stage')||'existing',constitution:gv('p_const'),commencementDate:gv('p_cd'),udyam:gv('p_ud'),gst:gv('p_gst'),pan:gv('p_pan'),tan:gv('p_tan'),partners:D.profile.partners||[]};sv();renderPage();toast('Saved!');}
 // ===== CAPITAL & LOANS =====
 var LOAN_TYPES=['Term Loan','Cash Credit (CC)','Overdraft (OD)','Working Capital Loan','Vehicle Loan','Equipment Loan','MUDRA Loan','Gold Loan','Personal Loan (Business Use)','Friends/Family Loan','Supplier Credit','Other'];
 
@@ -1824,6 +1882,83 @@ function pgAdvances(){
 
   return h;
 }
+
+
+function renderPartnerSection(c){
+  var p = D.profile;
+  if(!c) c = p.constitution||'Individual';
+  var isPartnership = c==='Partnership'||c==='LLP';
+  var isCompany = c==='Private Limited Company'||c==='Public Limited Company';
+  var isSHG = c==='Self Help Group (SHG)'||c==='Joint Liability Group (JLG)'||c==='Producer Group / FPO'||c==='Cooperative Society'||c==='Trust / Society';
+  if(c==='Individual'||c==='Sole Proprietorship') return '';
+  var label = isPartnership?'Partners':isCompany?'Directors / Promoters':isSHG?'Office Bearers / Members':'Members / Associates';
+  var addLabel = isPartnership?'+ Add Partner':isCompany?'+ Add Director':isSHG?'+ Add Office Bearer':'+ Add Member';
+  var partners = p.partners||[];
+  var roleOptions = isPartnership?
+    [{v:'Managing Partner',l:'Managing Partner'},{v:'Working Partner',l:'Working Partner'},{v:'Sleeping Partner',l:'Sleeping Partner'},{v:'Partner',l:'Partner'}]:
+    isCompany?
+    [{v:'Managing Director',l:'Managing Director'},{v:'Director',l:'Director'},{v:'Promoter',l:'Promoter'},{v:'Shareholder',l:'Shareholder'}]:
+    isSHG?
+    [{v:'President',l:'President'},{v:'Secretary',l:'Secretary'},{v:'Treasurer',l:'Treasurer'},{v:'Member',l:'Member'},{v:'SHG Leader',l:'SHG Leader'}]:
+    [{v:'Member',l:'Member'},{v:'Associate',l:'Associate'}];
+  var roleOpts = roleOptions.map(function(o){return '<option value="'+o.v+'">'+o.l+'</option>';}).join('');
+  var partnerRows = partners.length?
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:8px">'+
+    '<tr style="background:#E3F2FD"><th style="padding:6px;font-size:11px;text-align:left">Name</th><th style="padding:6px;font-size:11px">Role</th><th style="padding:6px;font-size:11px">Share%</th><th style="padding:6px;font-size:11px">PAN</th><th style="padding:6px;font-size:11px">DIN/Aadhar</th><th style="padding:6px;font-size:11px"></th></tr>'+
+    partners.map(function(pt,i){
+      return '<tr style="border-bottom:1px solid #F5F5F5">'+
+        '<td style="padding:5px;font-size:12px">'+esc(pt.name||'')+'</td>'+
+        '<td style="padding:5px;font-size:11px;text-align:center">'+esc(pt.role||'')+'</td>'+
+        '<td style="padding:5px;font-size:11px;text-align:center">'+(pt.share?pt.share+'%':'—')+'</td>'+
+        '<td style="padding:5px;font-size:11px;text-align:center">'+esc(pt.pan||'—')+'</td>'+
+        '<td style="padding:5px;font-size:11px;text-align:center">'+esc(pt.din||'—')+'</td>'+
+        '<td style="padding:5px;text-align:center"><button onclick="removePartner('+i+')" style="background:#FFEBEE;color:#C62828;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer">✕</button></td>'+
+      '</tr>';
+    }).join('')+
+    '</table>':
+    '<div style="font-size:11px;color:#90A4AE;padding:8px;text-align:center;background:#F5F5F5;border-radius:6px;margin-bottom:8px">No '+label+' added yet</div>';
+  return '<div style="margin-top:12px;padding:12px;background:#F3E5F5;border-radius:10px;border:1px solid #CE93D8">'+
+    '<div style="font-weight:700;font-size:13px;color:#6A1B9A;margin-bottom:8px">👥 '+label+'</div>'+
+    partnerRows+
+    '<div style="background:#fff;border-radius:8px;padding:10px;margin-top:4px">'+
+    '<div style="font-size:11px;font-weight:700;color:#546E7A;margin-bottom:6px">'+addLabel+':</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">'+
+      '<div><label style="font-size:10px;color:#546E7A">Full Name *</label><input id="pt_name" placeholder="Full name" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+      '<div><label style="font-size:10px;color:#546E7A">Role *</label><select id="pt_role" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box">'+roleOpts+'</select></div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">'+
+      '<div><label style="font-size:10px;color:#546E7A">Share %</label><input id="pt_share" type="number" placeholder="0" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+      '<div><label style="font-size:10px;color:#546E7A">PAN</label><input id="pt_pan" placeholder="ABCDE1234F" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+      '<div><label style="font-size:10px;color:#546E7A">DIN / Aadhar</label><input id="pt_din" placeholder="DIN or Aadhar" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+    '</div>'+
+    '<button onclick="addPartner()" style="width:100%;padding:9px;background:#6A1B9A;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">'+addLabel+'</button>'+
+    '</div>'+
+    '</div>';
+}
+function updatePartnerSection(){
+  var sel = document.getElementById('p_const');
+  var div = document.getElementById('partner_section');
+  if(sel && div) div.innerHTML = renderPartnerSection(sel.value);
+}
+
+function addPartner(){
+  var name=(document.getElementById('pt_name')||{}).value||'';
+  var role=(document.getElementById('pt_role')||{}).value||'Partner';
+  var share=parseFloat((document.getElementById('pt_share')||{}).value||0)||0;
+  var pan=((document.getElementById('pt_pan')||{}).value||'').trim().toUpperCase();
+  var din=((document.getElementById('pt_din')||{}).value||'').trim();
+  if(!name){toast('Enter partner/director name','e');return;}
+  if(!D.profile.partners) D.profile.partners=[];
+  D.profile.partners.push({id:uid(),name:name,role:role,share:share,pan:pan,din:din});
+  sv();renderPage();toast('Added: '+name);
+}
+function removePartner(idx){
+  if(!D.profile.partners||idx<0||idx>=D.profile.partners.length) return;
+  var name=D.profile.partners[idx].name;
+  D.profile.partners.splice(idx,1);
+  sv();renderPage();toast('Removed: '+name);
+}
+
 function addAdvance(){
   var date=gv('adv_d')||td(), amt=gvn('adv_a'), typeSel=gv('adv_type'), party=gv('adv_party')||'', mode=gv('adv_mode')||'cash', notes=gv('adv_notes')||'';
   if(!amt || amt<=0){toast('Enter the advance amount','e');return;}
