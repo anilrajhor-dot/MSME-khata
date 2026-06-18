@@ -798,7 +798,36 @@ function pgCap(){
     var capAccts = D.bankAccounts && D.bankAccounts.length ? D.bankAccounts : [{id:'acc1',name:'Bank Account 1'}];
     capAccts.forEach(function(a){ capModeOpts.push({v:'bank:'+a.id,l:'Bank - '+a.name+(a.accountNumber?' (A/c '+a.accountNumber+')':'')}); });
     capModeOpts.push({v:'none',l:"Don't add to Cash/Bank (already counted elsewhere)"});
-    h+=card('Capital',g2(inp('Initial Capital (₹)','c_i','number',D.capital.initialCapital),inp('Additional Capital (₹)','c_a','number',D.capital.additionalCapital))+
+    // Partner-wise capital section
+    var partners = D.profile.partners||[];
+    var constitution = D.profile.constitution||'Individual';
+    var isMultiOwner = constitution==='Partnership'||constitution==='LLP'||
+                       constitution==='Private Limited Company'||constitution==='Public Limited Company'||
+                       constitution==='Self Help Group (SHG)'||constitution==='Joint Liability Group (JLG)'||
+                       constitution==='Producer Group / FPO'||constitution==='Cooperative Society'||
+                       constitution==='Trust / Society';
+    var partnerCapHTML = '';
+    if(isMultiOwner && partners.length>0){
+      if(!D.capital.partnerCapital) D.capital.partnerCapital={};
+      partnerCapHTML = '<div style="background:#F3E5F5;border-radius:8px;padding:10px;margin-bottom:10px">'+
+        '<div style="font-weight:700;font-size:12px;color:#6A1B9A;margin-bottom:8px">👥 Partner / Member wise Capital:</div>'+
+        partners.map(function(pt){
+          var pc = D.capital.partnerCapital[pt.id]||0;
+          return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+            '<div style="flex:1.5;font-size:12px;font-weight:600;color:#212121">'+esc(pt.name)+'<div style="font-size:10px;color:#546E7A">'+esc(pt.role||'')+(pt.share?' | '+pt.share+'% share':'')+'</div></div>'+
+            '<div style="flex:1"><input id="pc_'+pt.id+'" type="number" value="'+pc+'" placeholder="0" style="width:100%;padding:7px;border:1px solid #CE93D8;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+          '</div>';
+        }).join('')+
+        '<button onclick="savePartnerCapital()" style="width:100%;padding:8px;background:#6A1B9A;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;margin-top:4px">💾 Save Partner Capital</button>'+
+        '<div style="font-size:10px;color:#546E7A;margin-top:6px">Individual partner capital amounts — for reference and reports. Total appears in Balance Sheet.</div>'+
+        '</div>';
+    } else if(isMultiOwner && partners.length===0){
+      partnerCapHTML = '<div style="background:#FFF8E1;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#E65100">'+
+        '⚠️ No partners/members added. Go to <b>Profile → Constitution</b> and add partner names first to see partner-wise capital.</div>';
+    }
+    h+=card('Capital',partnerCapHTML+
+      partnerDropdown('c_partner','Introduced By (Partner / Director / Member)', false)+
+      g2(inp('Initial Capital (₹)','c_i','number',D.capital.initialCapital),inp('Additional Capital (₹)','c_a','number',D.capital.additionalCapital))+
       sl('Where is/was this Capital amount (the increase) kept?','c_mode',capModeOpts,'cash')+
       '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">When you increase Initial or Additional Capital, the increase amount will be added to Cash or the selected Bank account (so the Balance Sheet stays tallied). Choose "Don\'t add" only if you have already entered this amount in Opening Balances.<br><br><b>Tip:</b> If this capital is in a bank account, set up that account\'s name and number first in Cash/Bank → Bank / Current Accounts, so it appears here and your records match your bank statement.</div>'+
       btn('Save Capital','saveCap()'));
@@ -1088,7 +1117,31 @@ function drawingModeSel(id,val){
 }
 function pgDrawings(f){
   var totalDrawings=0; (D.drawings||[]).forEach(function(d){totalDrawings+=d.amount;});
+  var partners2 = D.profile.partners||[];
+  var constitution2 = D.profile.constitution||'Individual';
+  var isMulti2 = constitution2==='Partnership'||constitution2==='LLP'||
+                 constitution2==='Private Limited Company'||constitution2==='Public Limited Company'||
+                 constitution2==='Self Help Group (SHG)'||constitution2==='Joint Liability Group (JLG)'||
+                 constitution2==='Producer Group / FPO'||constitution2==='Cooperative Society';
   var h = '<div class="sg">'+sc('Total Drawings (all time)',fc(totalDrawings),'#C62828','')+sc("Owner's Capital (after drawings)",fc(f.cap),'#2E7D32','')+'</div>';
+  // Partner-wise drawings summary
+  if(isMulti2 && partners2.length>0){
+    var partnerDrawings = {};
+    (D.drawings||[]).forEach(function(d){
+      var pid = d.partnerId||'unassigned';
+      partnerDrawings[pid] = (partnerDrawings[pid]||0) + d.amount;
+    });
+    h += '<div style="background:#FCE4EC;border-radius:8px;padding:10px;margin-bottom:10px">'+
+      '<div style="font-weight:700;font-size:12px;color:#C62828;margin-bottom:6px">👥 Partner-wise Drawings:</div>'+
+      partners2.map(function(pt){
+        var pd = partnerDrawings[pt.id]||0;
+        return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #F8BBD0">'+
+          '<div style="font-size:12px">'+esc(pt.name)+'<span style="font-size:10px;color:#546E7A;margin-left:4px">('+esc(pt.role||'')+')</span></div>'+
+          '<div style="font-size:12px;font-weight:700;color:#C62828">'+fc(pd)+'</div>'+
+        '</div>';
+      }).join('')+
+      '</div>';
+  }
   h += card('Withdraw Capital (Drawings)',
     '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Use this when the owner takes money out of the business for personal use. This reduces Owner\'s Capital on the Balance Sheet and reduces the balance of the account you withdraw from.</div>'+
     g2(inp('Date','dw_d','date',td()),inp('Amount (₹)','dw_a','number',0))+
@@ -1114,7 +1167,13 @@ function addDrawing(){
     postCB(mode,'payment',amt,'Owner','Drawings'+(remarks?' - '+remarks:''),date);
     D.capital.additionalCapital = (D.capital.additionalCapital||0) - amt;
     D.drawings = D.drawings || [];
-    D.drawings.push({id:uid(),date:date,amount:amt,mode:mode,remarks:remarks});
+    var partnerId = gv('d_partner')||'';
+  var partnerName = '';
+  if(partnerId){
+    var pp=(D.profile.partners||[]).find(function(p){return p.id===partnerId;});
+    if(pp) partnerName=pp.name;
+  }
+  D.drawings.push({id:uid(),date:date,amount:amt,mode:mode,remarks:remarks,partnerId:partnerId,partnerName:partnerName});
     sv();
     window._captab='drawings';
     renderPage();
@@ -1149,9 +1208,20 @@ function saveCap(){
     // Capital reduced - withdraw from cash/bank
     postCB(mode,'payment',-delta,'Owner','Capital Reduced / Drawings',td());
   }
+  // Save partner info for capital entry
+  var capPartnerId = gv('c_partner')||'';
+  var capPartnerName = '';
+  if(capPartnerId){
+    var cpp=(D.profile.partners||[]).find(function(p){return p.id===capPartnerId;});
+    if(cpp) capPartnerName=cpp.name;
+    // Update partner capital
+    if(!D.capital.partnerCapital) D.capital.partnerCapital={};
+    var pDelta = delta;
+    D.capital.partnerCapital[capPartnerId] = (D.capital.partnerCapital[capPartnerId]||0) + pDelta;
+  }
   D.capital.initialCapital = newInit;
   D.capital.additionalCapital = newAdd;
-  sv();renderPage();toast('Capital saved!');
+  sv();renderPage();toast('Capital saved'+(capPartnerName?' for '+capPartnerName:'')+'!');
 }
 
 // Remove a loan record entirely. Use this to correct mistakes (e.g. a loan entered
@@ -1982,6 +2052,41 @@ function updatePartnerSection(){
   if(sel && div) div.innerHTML = renderPartnerSection(sel.value);
 }
 
+
+
+// Build partner/director dropdown for Capital and Drawings
+function partnerDropdown(id, label, includeAll){
+  var partners = D.profile.partners||[];
+  var constitution = D.profile.constitution||'Individual';
+  var isMulti = constitution==='Partnership'||constitution==='LLP'||
+                constitution==='Private Limited Company'||constitution==='Public Limited Company'||
+                constitution==='Self Help Group (SHG)'||constitution==='Joint Liability Group (JLG)'||
+                constitution==='Producer Group / FPO'||constitution==='Cooperative Society'||
+                constitution==='Trust / Society'||constitution==='HUF';
+  if(!isMulti || partners.length===0) return '';
+  var roleLabel = (constitution==='Partnership'||constitution==='LLP')?'Partner':
+                  (constitution==='Private Limited Company'||constitution==='Public Limited Company')?'Director':
+                  (constitution==='Self Help Group (SHG)'||constitution==='Joint Liability Group (JLG)'||
+                   constitution==='Producer Group / FPO'||constitution==='Cooperative Society')?'Member':
+                  'Member';
+  var opts = partners.map(function(pt){
+    return {v:pt.id, l:pt.name+' — '+( pt.role||roleLabel)+(pt.share?' ('+pt.share+'%)':'')};
+  });
+  if(includeAll) opts.unshift({v:'all', l:'All '+roleLabel+'s (Equal / As per Share%)'});
+  opts.unshift({v:'', l:'-- Select '+roleLabel+' --'});
+  return sl(label||('Introduced By ('+roleLabel+')'), id, opts, '');
+}
+
+function savePartnerCapital(){
+  if(!D.capital.partnerCapital) D.capital.partnerCapital={};
+  var partners = D.profile.partners||[];
+  partners.forEach(function(pt){
+    var el = document.getElementById('pc_'+pt.id);
+    if(el) D.capital.partnerCapital[pt.id] = parseFloat(el.value)||0;
+  });
+  sv(); toast('Partner capital saved ✅');
+}
+
 function addPartner(){
   var name=(document.getElementById('pt_name')||{}).value||'';
   var role=(document.getElementById('pt_role')||{}).value||'Partner';
@@ -2165,7 +2270,31 @@ function pgFin(){
     h+=card('Balance Sheet (as on '+td()+')',
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
       '<div><div style="font-weight:700;font-size:11px;padding:5px 7px;background:rgba(21,101,192,.1);border-radius:6px;color:#1565C0;margin-bottom:5px">LIABILITIES</div>'+
-        fsr("Owner's Capital",(D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+(+D.opening.capital||0),0,1)+
+        (function(){
+        var partners3 = D.profile.partners||[];
+        var pc3 = D.capital.partnerCapital||{};
+        var constitution3 = D.profile.constitution||'Individual';
+        var isMulti3 = constitution3==='Partnership'||constitution3==='LLP'||
+                       constitution3==='Private Limited Company'||constitution3==='Public Limited Company'||
+                       constitution3==='Self Help Group (SHG)'||constitution3==='Joint Liability Group (JLG)';
+        var capLabel = isMulti3 && partners3.length>0 ? 'Total Capital (All Partners)' : "Owner\'s Capital";
+        var capTotal = (D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+(+D.opening.capital||0);
+        var h3 = fsr(capLabel, capTotal, 0, 1);
+        if(isMulti3 && partners3.length>0){
+          h3 += partners3.map(function(pt){
+            return fsr('  '+esc(pt.name)+(pt.role?' ('+pt.role+')':''), pc3[pt.id]||0, 0, 0, 0, true);
+          }).join('');
+          // Profit sharing
+          var totalProfit = f.np;
+          h3 += '<div style="font-size:10px;font-weight:700;color:#546E7A;padding:4px 8px;background:#E8F5E9;margin:2px 0">Profit Share ('+totalProfit>=0?'Net Profit':'Net Loss'+'):</div>';
+          partners3.forEach(function(pt){
+            var share = pt.share||0;
+            var profitShare = share>0 ? (totalProfit * share/100) : 0;
+            if(profitShare!==0) h3 += fsr('  '+esc(pt.name)+' ('+share+'%)', profitShare, 0, 0, 0, true);
+          });
+        }
+        return h3;
+      })()+
         fsr('Net Profit (Reserves)',f.np,0,1)+
         fsr('A. Owned Funds',g.ownedFunds,1,0,1)+
         fsr('B. Term Liabilities',g.termLoans,1,0,1)+
