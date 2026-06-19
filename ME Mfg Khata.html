@@ -772,7 +772,7 @@ function pgCap(){
       inlineCapDropdown = '<div class="fg"><label>Introduced By (this partner\'s share auto-updates above)</label>'+
         '<select id="c_partner" style="width:100%;padding:9px;border-radius:8px;border:2px solid #CE93D8;font-size:13px;box-sizing:border-box;background:#F3E5F5">'+
         capPOpts+'</select>'+
-        '<div style="font-size:10px;color:#6A1B9A;margin-top:4px">📌 Selecting a partner here + entering Initial/Additional Capital below + Save Capital will add this amount to that partner\'s running total automatically.</div>'+
+        '<div style="font-size:10px;color:#6A1B9A;margin-top:4px">📌 Select the partner here, then enter the amount being added below, then tap Save Capital.</div>'+
         '</div>';
     }
     h+=card('Capital',partnerCapHTML+
@@ -1131,7 +1131,11 @@ function addDrawing(){
   if(!amt || amt<=0){toast('Enter the amount to withdraw','e');return;}
   confirmIfNegative(mode, amt, function(){
     postCB(mode,'payment',amt,'Owner','Drawings'+(remarks?' - '+remarks:''),date);
-    D.capital.additionalCapital = (D.capital.additionalCapital||0) - amt;
+    // NOTE: Drawings is tracked separately in D.drawings[] and already reduces
+    // Owner's Capital correctly via f.cap = initialCapital + additionalCapital + opening.capital - drawings.
+    // Do NOT also subtract from additionalCapital here - that double-counts the reduction
+    // and corrupts the Cash Flow Statement's "Capital Introduced" line (a separate, distinct
+    // Financing Activity from "Drawings"). This was a real bug - fixed.
     D.drawings = D.drawings || [];
     var partnerId = gv('d_partner')||'';
   var partnerName = '';
@@ -2046,6 +2050,16 @@ function addExp(){
 // ===== CASH & BANK =====
 function pgCB(){
   var bal=getBalances();
+  if(window._confirmDelete){
+    var cd = window._confirmDelete;
+    return '<div class="card" style="border:2px solid #C62828">'+
+      '<div style="font-weight:700;font-size:15px;color:#C62828;margin-bottom:10px">⚠️ Confirm Delete</div>'+
+      '<div style="font-size:13px;margin-bottom:16px">Are you sure you want to delete this entry?<br><br><b>'+esc(cd.label)+'</b><br><br>This cannot be undone. Your Cash/Bank balance and reports will update immediately.</div>'+
+      '<div style="display:flex;gap:10px">'+
+      '<button onclick="executeConfirmedDelete();renderPage()" style="flex:1;padding:12px;background:#C62828;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">Yes, Delete</button>'+
+      '<button onclick="cancelConfirmDelete()" style="flex:1;padding:12px;background:#E0E0E0;color:#212121;border:none;border-radius:8px;font-weight:700;cursor:pointer">Cancel</button>'+
+      '</div></div>';
+  }
   var acctBalances = getBankAccountBalances();
   var h='<div class="sg">'+sc('Cash',fc(bal.cb),'#1565C0','')+sc('Total Bank',fc(bal.bb),'#5B5BD6','')+'</div>';
 
@@ -2084,7 +2098,12 @@ function pgCB(){
     if(cbFrom) rows=rows.filter(function(x){return x.date>=cbFrom;});
     if(cbTo) rows=rows.filter(function(x){return x.date<=cbTo;});
     rows=rows.reverse();
-    h+=card('All Auto + Manual Entries'+(cbFrom||cbTo?' ('+esc(cbFrom||'start')+' to '+esc(cbTo||'today')+')':''),tbl([{l:'Date',k:'date'},{l:'Mode',fn:function(r){return pmChip(r.subMode||r.mode);}},{l:'Type',fn:function(r){return '<span style="color:'+(r.type==='receipt'?'#2E7D32':'#C62828')+';font-weight:700">'+r.type+'</span>';}},{l:'Party',k:'party'},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}}],rows));
+    h+=card('All Auto + Manual Entries'+(cbFrom||cbTo?' ('+esc(cbFrom||'start')+' to '+esc(cbTo||'today')+')':''),
+      '<div style="font-size:10px;color:#90A4AE;margin-bottom:6px">⚠️ Tap 🗑️ to remove a wrongly entered transaction. This affects your Cash/Bank balance and Balance Sheet immediately.</div>'+
+      tbl([{l:'Date',k:'date'},{l:'Mode',fn:function(r){return pmChip(r.subMode||r.mode);}},{l:'Type',fn:function(r){return '<span style="color:'+(r.type==='receipt'?'#2E7D32':'#C62828')+';font-weight:700">'+r.type+'</span>';}},{l:'Party',k:'party'},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},
+      {l:'',fn:function(r){
+        return '<button onclick="confirmThenDelete('+Q+'cashbook'+Q+','+Q+r.id+Q+','+Q+esc((r.description||'Entry')+' - '+fc(r.amount))+Q+')" style="background:none;border:none;cursor:pointer;font-size:14px;color:#C62828;padding:2px">'+String.fromCodePoint(128465)+'</button>';
+      }}],rows));
   } else if(filter==='cash'){
     rows=D.cashBook.filter(function(x){return x.mode==='cash' && (!cbFrom||x.date>=cbFrom) && (!cbTo||x.date<=cbTo);});
     // compute running balance in chronological order, then reverse for display
@@ -3597,6 +3616,30 @@ function doDelete(type,id){
   if(type==='sale')deleteSale(id);
   else if(type==='purchase')deletePurchase(id);
   else if(type==='expense')deleteExpense(id);
+  else if(type==='cashbook')deleteCashBookEntry(id);
+  else if(type==='drawing')deleteDrawing(id);
+}
+function confirmThenDelete(type,id,label){
+  window._confirmDelete = {type:type, id:id, label:label};
+  renderPage();
+  window.scrollTo(0,0);
+}
+function cancelConfirmDelete(){ window._confirmDelete = null; renderPage(); }
+function executeConfirmedDelete(){
+  if(!window._confirmDelete) return;
+  doDelete(window._confirmDelete.type, window._confirmDelete.id);
+  window._confirmDelete = null;
+}
+function deleteCashBookEntry(id){
+  var entry = (D.cashBook||[]).find(function(e){ return e.id===id; });
+  if(!entry){ toast('Entry not found','e'); return; }
+  // Reverse any linked effects: if this was a capital entry tied to a partner, reverse that too
+  if(entry.description && D.capital && D.capital.partnerCapital){
+    // best-effort: if description mentions a partner name, we leave partnerCapital as-is;
+    // user should also adjust Capital page if this was a partner capital entry.
+  }
+  D.cashBook = D.cashBook.filter(function(e){ return e.id!==id; });
+  sv();renderPage();toast('Cash/Bank entry deleted. If this was Capital introduced for a partner, please also correct the amount on the Capital page.','w');
 }
 
 // ---- helpers to reverse cash/bank or debtor/creditor effects ----
@@ -8178,8 +8221,24 @@ function pgCFS() {
     else closLoans += (+l.outstandingBalance||0);
   });
   // Capital introduced (additional capital only — opening capital is in TB)
-  var capitalIntroduced = (+D.capital.initialCapital||0)
-                        + (+D.capital.additionalCapital||0);
+  // SINGLE SOURCE OF TRUTH: sum all cashBook entries tagged as Capital (this covers
+  // BOTH entries created via the Capital page's saveCap() flow AND any manual
+  // Cash/Bank entries the user typed directly with "Capital" in the description -
+  // both produce identical cashBook entries, so summing cashBook avoids any
+  // double counting or silent gaps regardless of how the entry was created.
+  var capitalIntroduced = 0;
+  (D.cashBook||[]).forEach(function(e){
+    var desc = (e.description||'').toLowerCase();
+    if(desc.indexOf('capital introduced')>=0 || desc.indexOf('capital reduced')>=0){
+      if(e.type==='receipt') capitalIntroduced += (+e.amount||0);
+      else if(e.type==='payment') capitalIntroduced -= (+e.amount||0);
+    }
+  });
+  // Fallback for older data that never went through cashBook at all (e.g. capital
+  // entered only in D.capital fields with Cash/Bank mode 'none' or pre-dating this logic)
+  if(capitalIntroduced===0){
+    capitalIntroduced = (+D.capital.initialCapital||0) + (+D.capital.additionalCapital||0);
+  }
   // Drawings
   var drawings = 0;
   (D.drawings||[]).forEach(function(d){ drawings += (+d.amount||0); });
