@@ -758,7 +758,11 @@ function pgCap(){
     }
     h+=card('Capital',partnerCapHTML+
       inlineCapDropdown+
-      g2(inp(isMultiOwner?'Initial Capital — Business Total (₹)':'Initial Capital (₹)','c_i','number',D.capital.initialCapital),inp('Additional Capital — Business Total (₹)','c_a','number',D.capital.additionalCapital))+
+      (isMultiOwner ?
+        ('<div class="fg"><label>Amount to ADD now (₹)</label><input id="c_new" type="number" value="" placeholder="e.g. 50000" style="width:100%;padding:9px;border-radius:8px;border:2px solid #2E7D32;font-size:14px;box-sizing:border-box"></div>'+
+         '<div style="font-size:11px;color:#2E7D32;margin-bottom:8px">✅ This is the NEW amount being introduced right now (not the running total). Current business total so far: <b>'+fc((D.capital.initialCapital||0)+(D.capital.additionalCapital||0))+'</b></div>')
+        : g2(inp('Initial Capital (₹)','c_i','number',D.capital.initialCapital),inp('Additional Capital (₹)','c_a','number',D.capital.additionalCapital))
+      )+
       sl('Where is/was this Capital amount (the increase) kept?','c_mode',capModeOpts,'cash')+
       '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">When you increase Initial or Additional Capital, the increase amount will be added to Cash or the selected Bank account (so the Balance Sheet stays tallied). Choose "Don\'t add" only if you have already entered this amount in Opening Balances.<br><br><b>Tip:</b> If this capital is in a bank account, set up that account\'s name and number first in Cash/Bank → Bank / Current Accounts, so it appears here and your records match your bank statement.</div>'+
       btn('Save Capital','saveCap()'));
@@ -1136,34 +1140,51 @@ function deleteDrawing(id){
 }
 
 function saveCap(){
-  var oldInit = D.capital.initialCapital||0;
-  var oldAdd = D.capital.additionalCapital||0;
-  var newInit = gvn('c_i');
-  var newAdd = gvn('c_a');
+  var partners = D.profile.partners||[];
+  var constitution = D.profile.constitution||'Individual';
+  var isMultiOwner = constitution!=='Individual' && constitution!=='Sole Proprietorship' && constitution!=='';
   var mode = gv('c_mode');
-  var deltaInit = newInit - oldInit;
-  var deltaAdd = newAdd - oldAdd;
-  var delta = deltaInit + deltaAdd;
-  if(delta>0 && mode!=='none'){
-    var label = deltaInit>0 && deltaAdd>0 ? 'Initial + Additional Capital Introduced' : (deltaInit>0 ? 'Initial Capital Introduced' : 'Additional Capital Introduced');
-    postCB(mode,'receipt',delta,'Owner',label,td());
-  } else if(delta<0 && mode!=='none'){
-    // Capital reduced - withdraw from cash/bank
-    postCB(mode,'payment',-delta,'Owner','Capital Reduced / Drawings',td());
-  }
-  // Save partner info for capital entry
+  var delta = 0;
   var capPartnerId = gv('c_partner')||'';
   var capPartnerName = '';
-  if(capPartnerId){
-    var cpp=(D.profile.partners||[]).find(function(p){return p.id===capPartnerId;});
-    if(cpp) capPartnerName=cpp.name;
-    // Update partner capital
-    if(!D.capital.partnerCapital) D.capital.partnerCapital={};
-    var pDelta = delta;
-    D.capital.partnerCapital[capPartnerId] = (D.capital.partnerCapital[capPartnerId]||0) + pDelta;
+
+  if(isMultiOwner && partners.length>0){
+    // NEW explicit flow: c_new = amount being added right now (not a running total)
+    delta = gvn('c_new');
+    if(delta===0){ toast('Enter the amount to add','e'); return; }
+    if(!capPartnerId){ toast('Please select which partner/director/member is introducing this capital','e'); return; }
+    if(capPartnerId){
+      var cpp=(D.profile.partners||[]).find(function(p){return p.id===capPartnerId;});
+      if(cpp) capPartnerName=cpp.name;
+      if(!D.capital.partnerCapital) D.capital.partnerCapital={};
+      D.capital.partnerCapital[capPartnerId] = (D.capital.partnerCapital[capPartnerId]||0) + delta;
+    }
+    if(delta>0 && mode!=='none'){
+      postCB(mode,'receipt',delta,capPartnerName||'Owner','Capital Introduced'+(capPartnerName?' by '+capPartnerName:''),td());
+    } else if(delta<0 && mode!=='none'){
+      postCB(mode,'payment',-delta,capPartnerName||'Owner','Capital Reduced'+(capPartnerName?' by '+capPartnerName:''),td());
+    }
+    D.capital.initialCapital = (D.capital.initialCapital||0) + (delta>0?delta:0);
+    if(delta<0) D.capital.additionalCapital = (D.capital.additionalCapital||0) + delta;
+  } else {
+    // Original flow for Individual/Sole Proprietorship - unchanged
+    var oldInit = D.capital.initialCapital||0;
+    var oldAdd = D.capital.additionalCapital||0;
+    var newInit = gvn('c_i');
+    var newAdd = gvn('c_a');
+    var deltaInit = newInit - oldInit;
+    var deltaAdd = newAdd - oldAdd;
+    delta = deltaInit + deltaAdd;
+    if(delta>0 && mode!=='none'){
+      var label = deltaInit>0 && deltaAdd>0 ? 'Initial + Additional Capital Introduced' : (deltaInit>0 ? 'Initial Capital Introduced' : 'Additional Capital Introduced');
+      postCB(mode,'receipt',delta,'Owner',label,td());
+    } else if(delta<0 && mode!=='none'){
+      postCB(mode,'payment',-delta,'Owner','Capital Reduced / Drawings',td());
+    }
+    D.capital.initialCapital = newInit;
+    D.capital.additionalCapital = newAdd;
   }
-  D.capital.initialCapital = newInit;
-  D.capital.additionalCapital = newAdd;
+
   sv();renderPage();toast('Capital saved'+(capPartnerName?' for '+capPartnerName:'')+'!');
 }
 
