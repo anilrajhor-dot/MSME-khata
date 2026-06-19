@@ -5451,14 +5451,20 @@ function helpSec(title,bodyHtml,openFirst){
 function pgHelp(){
   var lang = window._helpLang || 'en';
   var isHi = lang === 'hi';
+  var isHeads = lang === 'allheads';
   var h = '';
 
-  // Language toggle
-  h += '<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">';
+  // Language / section toggle
+  h += '<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">';
   h += '<span style="font-size:12px;font-weight:700;color:#37474F">' + (isHi ? 'भाषा:' : 'Language:') + '</span>';
-  h += '<button class="' + (!isHi ? 'act' : '') + '" onclick="window._helpLang=\'en\';renderPage()" style="padding:5px 14px;border-radius:7px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:' + (!isHi ? '#1565C0' : '#E3F2FD') + ';color:' + (!isHi ? '#fff' : '#1565C0') + '">English</button>';
+  h += '<button class="' + (!isHi && !isHeads ? 'act' : '') + '" onclick="window._helpLang=\'en\';renderPage()" style="padding:5px 14px;border-radius:7px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:' + (!isHi && !isHeads ? '#1565C0' : '#E3F2FD') + ';color:' + (!isHi && !isHeads ? '#fff' : '#1565C0') + '">English</button>';
   h += '<button class="' + (isHi ? 'act' : '') + '" onclick="window._helpLang=\'hi\';renderPage()" style="padding:5px 14px;border-radius:7px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:' + (isHi ? '#1565C0' : '#E3F2FD') + ';color:' + (isHi ? '#fff' : '#1565C0') + '">हिंदी</button>';
+  h += '<button class="' + (isHeads ? 'act' : '') + '" onclick="window._helpLang=\'allheads\';renderPage()" style="padding:5px 14px;border-radius:7px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:' + (isHeads ? '#6A1B9A' : '#F3E5F5') + ';color:' + (isHeads ? '#fff' : '#6A1B9A') + '">📋 All Heads</button>';
   h += '</div>';
+
+  if(isHeads){
+    return h + pgAllHeads();
+  }
 
   // Credit banner
   h += '<div style="background:linear-gradient(135deg,#1565C0,#0D47A1);border-radius:10px;padding:14px 16px;margin-bottom:12px;color:#fff">';
