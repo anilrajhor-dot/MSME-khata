@@ -652,57 +652,6 @@ function pgProf(){
     })()+sl('Business Stage','p_stage',[{v:'existing',l:'Existing business (already running - I have opening balances to enter)'},{v:'new',l:'New business (starting fresh - no prior balances)'}],p.businessStage||'existing')+'<div style="font-size:11px;color:#546E7A;margin-bottom:8px">"New business" hides Trial Balance / Prior Period P&amp;L screens (Data tab) since there\'s no prior history to enter. You can change this anytime.</div>'+inp('Address','p_addr','ta',p.address)+g2(inp('Start Date','p_cd','date',p.commencementDate),inp('UDYAM No.','p_ud','text',p.udyam))+g2(inp('GST No.','p_gst','text',p.gst),inp('PAN','p_pan','text',p.pan))+inp('TAN','p_tan','text',p.tan)+
     // Partners / Directors / Members section — dynamic div
     '<div id="partner_section">'+renderPartnerSection(p.constitution||'Individual')+'</div>'+
-    (false?'':'')+
-    (function(){
-      var c = 'SKIP';
-      var isPartnership = c==='Partnership'||c==='LLP';
-      var isCompany = c==='Private Limited Company'||c==='Public Limited Company';
-      var isSHG = c==='Self Help Group (SHG)'||c==='Joint Liability Group (JLG)'||c==='Producer Group / FPO'||c==='Cooperative Society'||c==='Trust / Society';
-      if(c==='Individual'||c==='Sole Proprietorship') return '';
-      var label = isPartnership?'Partners':isCompany?'Directors / Promoters':isSHG?'Office Bearers / Members':'Members / Associates';
-      var addLabel = isPartnership?'+ Add Partner':isCompany?'+ Add Director':isSHG?'+ Add Office Bearer':'+ Add Member';
-      var partners = p.partners||[];
-      var roleOptions = isPartnership?
-        [{v:'Managing Partner',l:'Managing Partner'},{v:'Working Partner',l:'Working Partner'},{v:'Sleeping Partner',l:'Sleeping Partner'},{v:'Partner',l:'Partner'}]:
-        isCompany?
-        [{v:'Managing Director',l:'Managing Director'},{v:'Director',l:'Director'},{v:'Promoter',l:'Promoter'},{v:'Shareholder',l:'Shareholder'}]:
-        isSHG?
-        [{v:'President',l:'President'},{v:'Secretary',l:'Secretary'},{v:'Treasurer',l:'Treasurer'},{v:'Member',l:'Member'},{v:'SHG Leader',l:'SHG Leader'}]:
-        [{v:'Member',l:'Member'},{v:'Associate',l:'Associate'}];
-      var roleOpts = roleOptions.map(function(o){return '<option value="'+o.v+'">'+o.l+'</option>';}).join('');
-      var partnerRows = partners.length?
-        '<table style="width:100%;border-collapse:collapse;margin-bottom:8px">'+
-        '<tr style="background:#E3F2FD"><th style="padding:6px;font-size:11px;text-align:left">Name</th><th style="padding:6px;font-size:11px">Role</th><th style="padding:6px;font-size:11px">Share%</th><th style="padding:6px;font-size:11px">PAN</th><th style="padding:6px;font-size:11px">DIN/Aadhar</th><th style="padding:6px;font-size:11px"></th></tr>'+
-        partners.map(function(pt,i){
-          return '<tr style="border-bottom:1px solid #F5F5F5">'+
-            '<td style="padding:5px;font-size:12px">'+esc(pt.name||'')+'</td>'+
-            '<td style="padding:5px;font-size:11px;text-align:center">'+esc(pt.role||'')+'</td>'+
-            '<td style="padding:5px;font-size:11px;text-align:center">'+(pt.share?pt.share+'%':'—')+'</td>'+
-            '<td style="padding:5px;font-size:11px;text-align:center">'+esc(pt.pan||'—')+'</td>'+
-            '<td style="padding:5px;font-size:11px;text-align:center">'+esc(pt.din||'—')+'</td>'+
-            '<td style="padding:5px;text-align:center"><button onclick="removePartner('+i+')" style="background:#FFEBEE;color:#C62828;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer">✕</button></td>'+
-          '</tr>';
-        }).join('')+
-        '</table>':
-        '<div style="font-size:11px;color:#90A4AE;padding:8px;text-align:center;background:#F5F5F5;border-radius:6px;margin-bottom:8px">No '+label+' added yet</div>';
-      return '<div style="margin-top:12px;padding:12px;background:#F3E5F5;border-radius:10px;border:1px solid #CE93D8">'+
-        '<div style="font-weight:700;font-size:13px;color:#6A1B9A;margin-bottom:8px">👥 '+label+'</div>'+
-        partnerRows+
-        '<div style="background:#fff;border-radius:8px;padding:10px;margin-top:4px">'+
-        '<div style="font-size:11px;font-weight:700;color:#546E7A;margin-bottom:6px">'+addLabel+':</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">'+
-          '<div><label style="font-size:10px;color:#546E7A">Full Name *</label><input id="pt_name" placeholder="Full name" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
-          '<div><label style="font-size:10px;color:#546E7A">Role *</label><select id="pt_role" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box">'+roleOpts+'</select></div>'+
-        '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">'+
-          '<div><label style="font-size:10px;color:#546E7A">Share %</label><input id="pt_share" type="number" placeholder="0" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
-          '<div><label style="font-size:10px;color:#546E7A">PAN</label><input id="pt_pan" placeholder="ABCDE1234F" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
-          '<div><label style="font-size:10px;color:#546E7A">DIN / Aadhar</label><input id="pt_din" placeholder="DIN or Aadhar" style="width:100%;padding:7px;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
-        '</div>'+
-        '<button onclick="addPartner()" style="width:100%;padding:9px;background:#6A1B9A;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">'+addLabel+'</button>'+
-        '</div>'+
-        '</div>';
-    })()+
     btn('💾 Save Profile','saveProf()'))
 + (function(){
         var accts3 = D.bankAccounts && D.bankAccounts.length ? D.bankAccounts : [{id:'acc1',name:'Bank Account 1',accountNumber:''}];
