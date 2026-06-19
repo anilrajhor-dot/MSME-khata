@@ -701,11 +701,18 @@ function pgProf(){
       })();
 }
 function saveProf(){
-  var mobExtEl=document.getElementById('p_mobext');
-  var ext = mobExtEl ? mobExtEl.checked : false;
-  var mobile=gv('p_mob');
-  if(!ext && mobile && mobile.length!==10){toast('Mobile number must be 10 digits, or check "Allow longer number"','e');return;}
-  D.profile={businessName:gv('p_bn'),ownerName:gv('p_on'),mobile:mobile,mobileExtended:ext,address:gv('p_addr'),businessType:BIZ_TYPE,businessStage:gv('p_stage')||'existing',constitution:gv('p_const'),commencementDate:gv('p_cd'),udyam:gv('p_ud'),gst:gv('p_gst'),pan:gv('p_pan'),tan:gv('p_tan'),partners:D.profile.partners||[]};sv();renderPage();toast('Saved!');}
+  try{
+    var mobExtEl=document.getElementById('p_mobext');
+    var ext = mobExtEl ? mobExtEl.checked : false;
+    var mobile=gv('p_mob');
+    if(!ext && mobile && mobile.length!==10){toast('Mobile number must be 10 digits, or check "Allow longer number"','e');return;}
+    var existingPartners = (D.profile && Array.isArray(D.profile.partners)) ? D.profile.partners : [];
+    D.profile={businessName:gv('p_bn'),ownerName:gv('p_on'),mobile:mobile,mobileExtended:ext,address:gv('p_addr'),businessType:BIZ_TYPE,businessStage:gv('p_stage')||'existing',constitution:gv('p_const'),commencementDate:gv('p_cd'),udyam:gv('p_ud'),gst:gv('p_gst'),pan:gv('p_pan'),tan:gv('p_tan'),partners:existingPartners};
+    sv();renderPage();toast('Saved!');
+  }catch(e){
+    toast('Could not save profile: '+e.message,'e');
+  }
+}
 // ===== CAPITAL & LOANS =====
 var LOAN_TYPES=['Term Loan','Cash Credit (CC)','Overdraft (OD)','Working Capital Loan','Vehicle Loan','Equipment Loan','MUDRA Loan','Gold Loan','Personal Loan (Business Use)','Friends/Family Loan','Supplier Credit','Other'];
 
@@ -1076,8 +1083,22 @@ function pgDrawings(f){
       }).join('')+
       '</div>';
   }
+  // Inline partner dropdown for Drawings — uses live partners2/isMulti2 from above
+  var inlineDrawDropdown = '';
+  if(isMulti2 && partners2.length>0){
+    var drawPOpts = '<option value="">-- Select Partner / Director / Member --</option>'+
+      partners2.map(function(pt){
+        return '<option value="'+esc(pt.id)+'">'+esc(pt.name)+
+               (pt.role?' — '+esc(pt.role):'')+
+               (pt.share?' ('+pt.share+'%)':'')+'</option>';
+      }).join('');
+    inlineDrawDropdown = '<div class="fg"><label>Withdrawn By</label>'+
+      '<select id="d_partner" style="width:100%;padding:9px;border-radius:8px;border:2px solid #F8BBD0;font-size:13px;box-sizing:border-box;background:#FCE4EC">'+
+      drawPOpts+'</select></div>';
+  }
   h += card('Withdraw Capital (Drawings)',
     '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Use this when the owner takes money out of the business for personal use. This reduces Owner\'s Capital on the Balance Sheet and reduces the balance of the account you withdraw from.</div>'+
+    inlineDrawDropdown+
     g2(inp('Date','dw_d','date',td()),inp('Amount (₹)','dw_a','number',0))+
     drawingModeSel('dw_m','cash')+
     inp('Remarks (optional)','dw_r','text','')+
@@ -1086,6 +1107,7 @@ function pgDrawings(f){
   if(D.drawings && D.drawings.length){
     h += card('Drawings Register', tbl([
       {l:'Date',k:'date'},
+      {l:'By',fn:function(r){return r.partnerName?esc(r.partnerName):'Owner';}},
       {l:'Amount',r:1,fn:function(r){return fc(r.amount);}},
       {l:'From',fn:function(r){return pmChip(r.mode);}},
       {l:'Remarks',k:'remarks'},
@@ -2202,7 +2224,8 @@ function pgAdvances(){
 
 
 function renderPartnerSection(c){
-  var p = D.profile;
+  try{
+  var p = D.profile||{};
   if(!c) c = p.constitution||'Individual';
   var isPartnership = c==='Partnership'||c==='LLP';
   var isCompany = c==='Private Limited Company'||c==='Public Limited Company';
@@ -2251,11 +2274,18 @@ function renderPartnerSection(c){
     '<button onclick="addPartner()" style="width:100%;padding:9px;background:#6A1B9A;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">'+addLabel+'</button>'+
     '</div>'+
     '</div>';
+  }catch(e){
+    return '<div style="padding:10px;background:#FFEBEE;border-radius:8px;color:#C62828;font-size:11px">Partner section error: '+esc(e.message)+'</div>';
+  }
 }
 function updatePartnerSection(){
-  var sel = document.getElementById('p_const');
-  var div = document.getElementById('partner_section');
-  if(sel && div) div.innerHTML = renderPartnerSection(sel.value);
+  try{
+    var sel = document.getElementById('p_const');
+    var div = document.getElementById('partner_section');
+    if(sel && div) div.innerHTML = renderPartnerSection(sel.value);
+  }catch(e){
+    toast('Could not update section: '+e.message,'e');
+  }
 }
 
 
@@ -2290,21 +2320,30 @@ function savePartnerCapital(){
 }
 
 function addPartner(){
-  var name=(document.getElementById('pt_name')||{}).value||'';
-  var role=(document.getElementById('pt_role')||{}).value||'Partner';
-  var share=parseFloat((document.getElementById('pt_share')||{}).value||0)||0;
-  var pan=((document.getElementById('pt_pan')||{}).value||'').trim().toUpperCase();
-  var din=((document.getElementById('pt_din')||{}).value||'').trim();
-  if(!name){toast('Enter partner/director name','e');return;}
-  if(!D.profile.partners) D.profile.partners=[];
-  D.profile.partners.push({id:uid(),name:name,role:role,share:share,pan:pan,din:din});
-  sv();renderPage();toast('Added: '+name);
+  try{
+    var name=((document.getElementById('pt_name')||{}).value||'').trim();
+    var role=(document.getElementById('pt_role')||{}).value||'Partner';
+    var share=parseFloat((document.getElementById('pt_share')||{}).value||0)||0;
+    var pan=((document.getElementById('pt_pan')||{}).value||'').trim().toUpperCase();
+    var din=((document.getElementById('pt_din')||{}).value||'').trim();
+    if(!name){toast('Enter partner/director name','e');return;}
+    if(!D.profile) D.profile={};
+    if(!D.profile.partners || !Array.isArray(D.profile.partners)) D.profile.partners=[];
+    D.profile.partners.push({id:uid(),name:name,role:role,share:share,pan:pan,din:din});
+    sv();renderPage();toast('Added: '+name);
+  }catch(e){
+    toast('Could not add partner: '+e.message,'e');
+  }
 }
 function removePartner(idx){
-  if(!D.profile.partners||idx<0||idx>=D.profile.partners.length) return;
-  var name=D.profile.partners[idx].name;
-  D.profile.partners.splice(idx,1);
-  sv();renderPage();toast('Removed: '+name);
+  try{
+    if(!D.profile||!D.profile.partners||idx<0||idx>=D.profile.partners.length) return;
+    var name=D.profile.partners[idx].name;
+    D.profile.partners.splice(idx,1);
+    sv();renderPage();toast('Removed: '+name);
+  }catch(e){
+    toast('Could not remove partner: '+e.message,'e');
+  }
 }
 
 function addAdvance(){
@@ -2505,15 +2544,16 @@ function pgFin(){
         var h3 = fsr(capLabel, capTotal, 0, 1);
         if(isMulti3 && partners3.length>0){
           h3 += partners3.map(function(pt){
-            return fsr('  '+esc(pt.name)+(pt.role?' ('+pt.role+')':''), pc3[pt.id]||0, 0, 0, 0, true);
+            return fsr('  '+esc(pt.name)+(pt.role?' ('+pt.role+')':''), pc3[pt.id]||0, 0, 1);
           }).join('');
           // Profit sharing
           var totalProfit = f.np;
-          h3 += '<div style="font-size:10px;font-weight:700;color:#546E7A;padding:4px 8px;background:#E8F5E9;margin:2px 0">Profit Share ('+totalProfit>=0?'Net Profit':'Net Loss'+'):</div>';
+          var profitLabel = totalProfit>=0 ? 'Net Profit' : 'Net Loss';
+          h3 += '<div style="font-size:10px;font-weight:700;color:#546E7A;padding:4px 8px;background:#E8F5E9;margin:2px 0">Profit Share ('+profitLabel+'):</div>';
           partners3.forEach(function(pt){
             var share = pt.share||0;
             var profitShare = share>0 ? (totalProfit * share/100) : 0;
-            if(profitShare!==0) h3 += fsr('  '+esc(pt.name)+' ('+share+'%)', profitShare, 0, 0, 0, true);
+            if(profitShare!==0) h3 += fsr('  '+esc(pt.name)+' ('+share+'%)', profitShare, 0, 1, 0, profitShare<0?'#C62828':undefined);
           });
         }
         return h3;
