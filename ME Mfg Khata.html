@@ -740,17 +740,21 @@ function pgCap(){
     var partnerCapHTML = '';
     if(isMultiOwner && partners.length>0){
       if(!D.capital.partnerCapital) D.capital.partnerCapital={};
+      var pcTotal = 0;
       partnerCapHTML = '<div style="background:#F3E5F5;border-radius:8px;padding:10px;margin-bottom:10px">'+
-        '<div style="font-weight:700;font-size:12px;color:#6A1B9A;margin-bottom:8px">👥 Partner / Member wise Capital:</div>'+
+        '<div style="font-weight:700;font-size:12px;color:#6A1B9A;margin-bottom:8px">👥 Partner / Member wise Capital (running total)</div>'+
         partners.map(function(pt){
           var pc = D.capital.partnerCapital[pt.id]||0;
-          return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
-            '<div style="flex:1.5;font-size:12px;font-weight:600;color:#212121">'+esc(pt.name)+'<div style="font-size:10px;color:#546E7A">'+esc(pt.role||'')+(pt.share?' | '+pt.share+'% share':'')+'</div></div>'+
-            '<div style="flex:1"><input id="pc_'+pt.id+'" type="number" value="'+pc+'" placeholder="0" style="width:100%;padding:7px;border:1px solid #CE93D8;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+          pcTotal += pc;
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid #E1BEE7">'+
+            '<div style="font-size:12px;font-weight:600;color:#212121">'+esc(pt.name)+'<div style="font-size:10px;color:#546E7A;font-weight:400">'+esc(pt.role||'')+(pt.share?' | '+pt.share+'% share':'')+'</div></div>'+
+            '<div style="font-size:13px;font-weight:700;color:'+(pc<0?'#C62828':'#2E7D32')+'">'+fc(pc)+'</div>'+
           '</div>';
         }).join('')+
-        '<button onclick="savePartnerCapital()" style="width:100%;padding:8px;background:#6A1B9A;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;margin-top:4px">💾 Save Partner Capital</button>'+
-        '<div style="font-size:10px;color:#546E7A;margin-top:6px">Individual partner capital amounts — for reference and reports. Total appears in Balance Sheet.</div>'+
+        '<div style="display:flex;justify-content:space-between;padding:8px;margin-top:4px;background:#fff;border-radius:6px">'+
+          '<span style="font-size:12px;font-weight:700">Total</span><span style="font-size:13px;font-weight:700">'+fc(pcTotal)+'</span>'+
+        '</div>'+
+        '<div style="font-size:10px;color:#546E7A;margin-top:8px">⬇️ To add capital for a partner, use "Introduced By" + amount below — this list updates automatically. Do not edit these numbers directly.</div>'+
         '</div>';
     } else if(isMultiOwner && partners.length===0){
       partnerCapHTML = '<div style="background:#FFF8E1;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#E65100">'+
@@ -765,13 +769,15 @@ function pgCap(){
                  (pt.role?' — '+esc(pt.role):'')+
                  (pt.share?' ('+pt.share+'%)':'')+'</option>';
         }).join('');
-      inlineCapDropdown = '<div class="fg"><label>Introduced By</label>'+
+      inlineCapDropdown = '<div class="fg"><label>Introduced By (this partner\'s share auto-updates above)</label>'+
         '<select id="c_partner" style="width:100%;padding:9px;border-radius:8px;border:2px solid #CE93D8;font-size:13px;box-sizing:border-box;background:#F3E5F5">'+
-        capPOpts+'</select></div>';
+        capPOpts+'</select>'+
+        '<div style="font-size:10px;color:#6A1B9A;margin-top:4px">📌 Selecting a partner here + entering Initial/Additional Capital below + Save Capital will add this amount to that partner\'s running total automatically.</div>'+
+        '</div>';
     }
     h+=card('Capital',partnerCapHTML+
       inlineCapDropdown+
-      g2(inp('Initial Capital (₹)','c_i','number',D.capital.initialCapital),inp('Additional Capital (₹)','c_a','number',D.capital.additionalCapital))+
+      g2(inp(isMultiOwner?'Initial Capital — Business Total (₹)':'Initial Capital (₹)','c_i','number',D.capital.initialCapital),inp('Additional Capital — Business Total (₹)','c_a','number',D.capital.additionalCapital))+
       sl('Where is/was this Capital amount (the increase) kept?','c_mode',capModeOpts,'cash')+
       '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">When you increase Initial or Additional Capital, the increase amount will be added to Cash or the selected Bank account (so the Balance Sheet stays tallied). Choose "Don\'t add" only if you have already entered this amount in Opening Balances.<br><br><b>Tip:</b> If this capital is in a bank account, set up that account\'s name and number first in Cash/Bank → Bank / Current Accounts, so it appears here and your records match your bank statement.</div>'+
       btn('Save Capital','saveCap()'));
