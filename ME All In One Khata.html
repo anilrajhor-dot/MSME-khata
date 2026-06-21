@@ -3004,7 +3004,7 @@ function pgTrial(){
   h += card('📊 Full Business Data Upload (Excel — recommended for existing units)',
     '<div class="al ali">If your unit is already running with stock, fixed assets, loans, and partners/directors, use this ONE Excel file to bring in everything at once. It has separate sheets: Trial Balance, Inventory, Fixed Assets, Loans, and Partners. Fill in only the sheets you need — add or delete rows freely, just like any spreadsheet. Sheets you leave empty are simply skipped.</div>'+
     '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Download the template below, open in Excel/Google Sheets/phone spreadsheet app, fill your data, save, then upload the .xlsx file here.</div>'+
-    btn('⬇ Download Full Data Template (.xlsx)','downloadFullDataTemplate()','#2E7D32')+
+    btn('⬇ Download Full Data Template (.xlsx)','downloadFullDataTemplateXlsx()','#2E7D32')+
     '<div style="height:8px"></div>'+
     '<input type="file" id="fulldata_upload_file" accept=".xlsx" onchange="handleFullDataUpload(event)" style="width:100%;padding:9px;border:1px solid #A5D6A7;border-radius:8px;font-size:13px">'+
     '<div id="fulldata_upload_status" style="margin-top:8px"></div>'
@@ -5475,10 +5475,10 @@ function pgHelp(){
       bi('11. Manufacturing App — Production & Inventory', '11. Manufacturing App — उत्पादन और Inventory'),
       bi(
         '<p><b>Inventory Categories:</b> RM (Raw Material), WIP (Work in Progress), FG (Finished Goods), Consumable.</p>' +
-        '<p><b>Recording Production:</b> Inventory → Production. Enter finished goods item, quantity produced, and raw materials consumed. Stock updates automatically — RM stock decreases, FG stock increases.</p>' +
+        '<p><b>Recording Production / Consumption:</b> Inventory → Production. Use this any time Raw Materials, Spares, or Consumables are used up. Two modes: <b>"Produces a Finished Good" / "Produces an item for Resale"</b> — enter the item produced, quantity, and the materials consumed; stock for the produced item increases and RM/Spares stock decreases automatically at the cost of materials consumed. <b>"No output – write-off / usage only"</b> — use this when materials are consumed but nothing sellable comes out (used directly on a customer job, samples, spoilage, testing); only RM/Consumable stock decreases.</p>' +
         '<p><b>Important:</b> Always record Production before recording Sales, so the app knows the cost of manufactured goods.</p>',
         '<p><b>Inventory Categories:</b> RM (कच्चा माल), WIP (निर्माण में), FG (तैयार माल), Consumable।</p>' +
-        '<p><b>उत्पादन दर्ज करें:</b> Inventory → Production। तैयार माल का नाम, उत्पादित मात्रा और उपयोग किए गए कच्चे माल दर्ज करें। Stock automatically update होता है — RM stock घटता है, FG stock बढ़ता है।</p>' +
+        '<p><b>उत्पादन / खपत दर्ज करें:</b> Inventory → Production। जब भी Raw Material, Spares या Consumable इस्तेमाल हो, इसे उपयोग करें। दो तरीके: <b>"Produces a Finished Good" / "Produces an item for Resale"</b> — उत्पादित item, मात्रा और उपयोग किए गए कच्चे माल दर्ज करें; उत्पादित item का stock बढ़ता है और RM/Spares stock घटता है, खपत किए गए माल की लागत पर। <b>"No output - write-off / usage only"</b> — जब माल उपयोग हो पर कुछ बिकने लायक न बने (ग्राहक के काम में सीधे उपयोग, sample, खराबी, टेस्टिंग); सिर्फ RM/Consumable stock घटता है।</p>' +
         '<p><b>ध्यान रखें:</b> Sales दर्ज करने से पहले हमेशा Production दर्ज करें, ताकि app तैयार माल की लागत जान सके।</p>'
       )
     );
@@ -5494,14 +5494,16 @@ function pgHelp(){
       '<p><b>Bank Loan tabs show no data:</b> Go to Loan Details tab first, fill all fields, tap Save & Calculate.</p>' +
       '<p><b>Backup not restoring:</b> Ensure you paste the complete JSON (starts with { ends with }). Try Select All → Copy again.</p>' +
       '<p><b>App data missing after reopening:</b> Data is in browser local storage. Use the same browser and device. Restore from backup if needed.</p>' +
-      '<p><b>Party code not showing for old entries:</b> Codes are assigned for new entries only. Use Reports → Debtors → 🔑 Add/Edit Party ID for existing parties.</p>',
+      '<p><b>Party code not showing for old entries:</b> Codes are assigned for new entries only. Use Reports → Debtors → 🔑 Add/Edit Party ID for existing parties.</p>' +
+      '<p><b>"This will result in a negative balance" pop-up:</b> Appears whenever a Cash, Bank, or similar payment entry would take that account below ₹0 — for example, paying more in cash than you actually have on hand. This is just a warning, not a block: check the figures, and tap "Yes, proceed" only if the negative balance is correct (e.g. you will deposit cash later), or Cancel to fix the entry first.</p>',
       '<p><b>Balance Sheet tally नहीं:</b> Opening Trial Balance जांचें। Debit/Credit entries match करें।</p>' +
       '<p><b>Bills में GST fields नहीं:</b> पहले GST Module Enable करें (GST Module → Enable GST)।</p>' +
       '<p><b>HSN auto-fill नहीं:</b> GST Module → Setup → Auto-Fill All Items। अज्ञात items के लिए HSN/SAC Master menu।</p>' +
       '<p><b>Bank Loan tabs में data नहीं:</b> Loan Details tab में जाएं, सभी fields भरें, Save & Calculate दबाएं।</p>' +
       '<p><b>Backup restore नहीं:</b> पूरा JSON paste करें (शुरू { से, अंत } पर)। Select All → Copy फिर से करें।</p>' +
       '<p><b>App खोलने पर data नहीं:</b> Data browser local storage में है। वही browser और device use करें। ज़रूरत हो तो backup से restore करें।</p>' +
-      '<p><b>पुरानी entries में Party Code नहीं:</b> Codes सिर्फ नई entries के लिए auto-assign होते हैं। पुरानी parties के लिए Reports → Debtors → 🔑 Add/Edit Party ID।</p>'
+      '<p><b>पुरानी entries में Party Code नहीं:</b> Codes सिर्फ नई entries के लिए auto-assign होते हैं। पुरानी parties के लिए Reports → Debtors → 🔑 Add/Edit Party ID।</p>' +
+      '<p><b>"This will result in a negative balance" पॉप-अप:</b> यह तब दिखता है जब कोई Cash, Bank या ऐसी ही payment entry उस account को ₹0 से नीचे ले जाए — जैसे, हाथ में मौजूद नकद से ज़्यादा cash payment करना। यह सिर्फ चेतावनी है, रोक नहीं — आंकड़े जांचें, और अगर negative balance सही है (जैसे बाद में cash जमा करेंगे) तो "Yes, proceed" दबाएं, वरना पहले entry ठीक करने के लिए Cancel दबाएं।</p>'
     )
   );
 
