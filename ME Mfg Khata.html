@@ -1428,6 +1428,7 @@ function pgInv(){
       g2(inp('Item Name','iv_n','text',''),sl('Unit','iv_u',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
       g2(inp('Current Stock (on hand)','iv_os','number',0),inp('Cost per Unit (₹)','iv_pr','number',0))+
       inp('Reorder Level (for low-stock alert)','iv_rl','number',0)+
+      sl('Category','iv_cat',['Raw Material','FG','Consumable','Resale'],window._invCat||['Raw Material','FG','Consumable','Resale'][0])+
       (gstEnabled() ?
         g2(inp('HSN / SAC Code','iv_hsn','text','')+
            '<div style="font-size:10px;color:#546E7A;margin-top:2px">Type item name above and tap Auto-fill to get HSN & GST rate</div>',
@@ -1438,8 +1439,10 @@ function pgInv(){
         btn('🔍 Auto-fill HSN & Rate','autoFillHSN()','#546E7A')+' '
       : '')+
       btn('+ Add Item','addInv()'));
+  var catColor=function(cat){var m={'Raw Material':'#E65100','RM':'#E65100','FG':'#2E7D32','Resale':'#1565C0','Consumable':'#6A1B9A'};return m[cat]||'#546E7A';};
   var invCols=[
     {l:'Item',fn:function(r){return esc(r.itemName)+gstBadge(r);}},
+    {l:'Cat',fn:function(r){var cat=r.category||'—';return '<span style="font-size:10px;font-weight:700;color:'+catColor(cat)+';background:'+catColor(cat)+'18;padding:2px 5px;border-radius:4px">'+esc(cat)+'</span>';}},
     {l:'Unit',k:'unit'},
     {l:'Stock',r:1,fn:function(r){return fmt(r.currentStock);}},
     {l:'Cost',r:1,fn:function(r){return fc(r.avgCost);}}
@@ -1464,7 +1467,8 @@ function addInv(){
     if(lookup){hsn=lookup[0]; gstRate=+lookup[1];}
   }
   var item={id:uid(),itemName:n,unit:gv('iv_u'),openingStock:os,currentStock:os,avgCost:pr,
-            importedStock:0,importedAvgCost:0,reorderLevel:gvn('iv_rl')};
+            importedStock:0,importedAvgCost:0,reorderLevel:gvn('iv_rl'),category:gv('iv_cat')||'Resale'};
+  window._invCat=gv('iv_cat');
   if(hsn) item.hsnCode=hsn;
   if(gstRate!==undefined) item.gstRate=gstRate;
   D.inventory.push(item);
@@ -1528,7 +1532,7 @@ function pgPur(){
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="pu_import" '+(window._purImport?'checked':'')+' style="width:auto"> This is an Imported purchase (sourced from outside India)</label>'+
     btn('✓ Record Purchase','addPur()')
   );
-  h+=card('Purchase Register',tbl([{l:'Date',k:'date'},{l:'Supplier',fn:function(r){return esc(r.supplierName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',k:'itemName'},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'',fn:function(r){return actBtns('purchase',r.id);}}],[].concat(D.purchases).reverse()));
+  h+=card('Purchase Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('purchase',r.id);}},{l:'Date',k:'date'},{l:'Supplier',fn:function(r){return esc(r.supplierName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',k:'itemName'},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}}],[].concat(D.purchases).reverse()));
   return h;
 }
 // ===== CONSUMPTION OF RAW MATERIAL / CONSUMABLES (used in production, not sold) =====
@@ -1900,7 +1904,7 @@ function pgSal(){
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="sl_export" '+(window._salExport?'checked':'')+' style="width:auto"> This is an Export Sale (sold to a buyer outside India)</label>'+
     btn('✓ Record Sale','addSal()','#2E7D32')
   );
-  h+=card('Sales Register',tbl([{l:'Date',k:'date'},{l:'Customer',fn:function(r){return esc(r.customerName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',k:'itemName'},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'Amount',r:1,fn:function(r){return fc(r.totalAmount);}},{l:'Profit',r:1,fn:function(r){return fc(r.grossProfit);},c:function(){return'#2E7D32';}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'',fn:function(r){return actBtns('sale',r.id);}}],[].concat(D.sales).reverse()));
+  h+=card('Sales Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('sale',r.id);}},{l:'Date',k:'date'},{l:'Customer',fn:function(r){return esc(r.customerName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',k:'itemName'},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'₹',r:1,fn:function(r){return fc(r.totalAmount);}},{l:'GP',r:1,fn:function(r){return fc(r.grossProfit);},c:function(){return'#2E7D32';}}],[].concat(D.sales).reverse()));
   return h;
 }
 // Dropdown to optionally settle this transaction against an existing advance.
@@ -2033,7 +2037,7 @@ function pgExp(){
   );
 
   h+=card('Add Expense',g2(inp('Date','ex_d','date',td()),sl('Category','ex_c',D.expenseCategories,D.expenseCategories[0]))+g2(inp('Amount','ex_a','number',0),payModeSel('ex_m','cash'))+advanceSettleSel('ex_adv','paid_expense')+inp('Remarks','ex_r','text','')+btn('+ Add Expense','addExp()','#C62828'));
-  h+=card('Expense Register',tbl([{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'Remarks',k:'remarks'},{l:'',fn:function(r){return actBtns('expense',r.id);}}],[].concat(D.expenses).reverse()));
+  h+=card('Expense Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('expense',r.id);}},{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'Remarks',k:'remarks'}],[].concat(D.expenses).reverse()));
   return h;
 }
 function addCat(){var n=gv('newcat').trim();if(!n)return;if(D.expenseCategories.indexOf(n)>=0){toast('Category already exists','e');return;}D.expenseCategories.push(n);sv();renderPage();toast('Category added!');}
