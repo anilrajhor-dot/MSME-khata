@@ -1456,7 +1456,12 @@ function pgPur(){
   }
   var tot=0,i;for(i=0;i<D.purchases.length;i++)tot+=D.purchases[i].amount;
   var iOpts=[{v:'__new__',l:'+ New Item (type name below)'}];
-  for(i=0;i<D.inventory.length;i++)iOpts.push({v:D.inventory[i].id,l:D.inventory[i].itemName+' ('+D.inventory[i].unit+')'+(D.inventory[i].category==='Consumable'?' - Spares/Consumable':' - For Resale')});
+  for(i=0;i<D.inventory.length;i++){
+    var _it=D.inventory[i];
+    var _cat=_it.category||'';
+    var _catLabel=_cat?(' ['+(_cat==='Raw Material'?'RM':_cat)+']'):''; 
+    iOpts.push({v:_it.id,l:_it.itemName+_catLabel+' ('+_it.unit+', Stock:'+fmt(_it.currentStock)+')'});
+  }
   var sel=window._purItem||'__new__';
   var h='<div class="card"><div class="ch">Total Purchases: '+fc(tot)+'</div></div>';
   var itemBlock = sl('Item','pu_i',iOpts,sel)+' <div onchange="window._purItem=gv(\'pu_i\');renderPage()" style="display:none"></div>';
@@ -1545,7 +1550,16 @@ function pgSal(){
     if(es)return editSaleForm(es);
   }
   var tot=0,i;for(i=0;i<D.sales.length;i++)tot+=D.sales[i].totalAmount;
-  var iOpts=[{v:'',l:'-- Select Item --'},{v:'__service__',l:'⚙ Service Charge (no item/stock)'}];for(i=0;i<D.inventory.length;i++){var _it=D.inventory[i];var _totStock=_it.currentStock+(_it.importedStock||0);if(_totStock>0)iOpts.push({v:_it.id,l:_it.itemName+' (Stock:'+fmt(_totStock)+' '+_it.unit+') - '+((_it.category||'Resale')==='Consumable'?'Spares/Consumable':'For Resale')});}
+  var iOpts=[{v:'',l:'-- Select Item --'},{v:'__service__',l:'⚙ Service Charge (no item/stock)'}];
+  for(i=0;i<D.inventory.length;i++){
+    var _it=D.inventory[i];
+    var _totStock=_it.currentStock+(_it.importedStock||0);
+    if(_totStock>0){
+      var _sc=_it.category||'';
+      var _sl=_sc&&_sc!=='Resale'?(' ['+(_sc==='Raw Material'?'RM':_sc)+']'):''; 
+      iOpts.push({v:_it.id,l:_it.itemName+_sl+' (Stock:'+fmt(_totStock)+' '+_it.unit+')'});
+    }
+  }
   var selId=window._salItem||'';
   var selItem=null;for(i=0;i<D.inventory.length;i++)if(D.inventory[i].id===selId)selItem=D.inventory[i];
   var isService = selId==='__service__';
@@ -1669,7 +1683,8 @@ function pgConsumption(){
     if((it.category||'Resale')==='Consumable'){
       var inCart=0; cart.forEach(function(c){if(c.itemId===it.id)inCart+=c.qty;});
       var avail=(it.currentStock+(it.importedStock||0))-inCart;
-      consOpts.push({v:it.id,l:it.itemName+' ('+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'Out of stock')+')'});
+      var _cLabel=it.category==='Consumable'?'Consumable':'RM';
+      consOpts.push({v:it.id,l:it.itemName+' ['+_cLabel+'] '+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'⚠ Out of stock')});
     }
   }
 

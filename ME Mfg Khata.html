@@ -1508,7 +1508,12 @@ function pgPur(){
   var tot=0,i;for(i=0;i<D.purchases.length;i++)tot+=D.purchases[i].amount;
   var CAT_LABELS = {RM:'Raw Material', FG:'Finished Goods', Consumable:'Consumable'};
   var iOpts=[{v:'__new__',l:'+ New Item (type name below)'}];
-  for(i=0;i<D.inventory.length;i++)iOpts.push({v:D.inventory[i].id,l:D.inventory[i].itemName+' ('+D.inventory[i].unit+') - '+(CAT_LABELS[D.inventory[i].category]||'Finished Goods')});
+  for(i=0;i<D.inventory.length;i++){
+    var _it=D.inventory[i];
+    var _cat=_it.category||'';
+    var _catLabel=_cat?(' ['+(_cat==='Raw Material'?'RM':_cat)+']'):''; 
+    iOpts.push({v:_it.id,l:_it.itemName+_catLabel+' ('+_it.unit+', Stock:'+fmt(_it.currentStock)+')'});
+  }
   var sel=window._purItem||'__new__';
   var h='<div class="card"><div class="ch">Total Purchases: '+fc(tot)+'</div></div>';
   h+='<div style="margin-bottom:10px">'+btn('🏭 Record Production (Materials → Finished Good)','window._purMode=\'production\';window._prodCart=[];renderPage()','#6A1B9A')+'</div>';
@@ -1556,10 +1561,11 @@ function pgProduction(){
   var consOpts=[{v:'',l:'-- Select Item --'}];
   for(i=0;i<D.inventory.length;i++){
     var it=D.inventory[i];
-    if((it.category==='RM'||it.category==='Consumable')){
+    var isRMorCons=(it.category==='RM'||it.category==='Raw Material'||it.category==='Consumable');
+    if(isRMorCons){
       var inCart=0; cart.forEach(function(c){if(c.itemId===it.id)inCart+=c.qty;});
       var avail=(it.currentStock+(it.importedStock||0))-inCart;
-      consOpts.push({v:it.id,l:it.itemName+' ('+(it.category==='RM'?'Raw Material':'Consumable')+', '+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'Out of stock')+')'});
+      consOpts.push({v:it.id,l:it.itemName+' ['+(it.category==='Consumable'?'Consumable':'RM')+'] '+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'⚠ Out of stock')});
     }
   }
 
@@ -1875,7 +1881,11 @@ function pgSal(){
   for(i=0;i<D.inventory.length;i++){
     var _item=D.inventory[i];
     var _totStock=_item.currentStock+(_item.importedStock||0);
-    if(_totStock>0) iOpts.push({v:_item.id,l:_item.itemName+' (Stock:'+fmt(_totStock)+' '+_item.unit+') - '+(CAT_LABELS_SAL[_item.category]||'Finished Goods')});
+    if(_totStock>0){
+      var _sc=_item.category||'';
+      var _sl=_sc&&_sc!=='Resale'?(' ['+(_sc==='Raw Material'?'RM':_sc)+']'):'';
+      iOpts.push({v:_item.id,l:_item.itemName+_sl+' (Stock:'+fmt(_totStock)+' '+_item.unit+')'});
+    }
   }
   var selId=window._salItem||'';
   var selItem=null;for(i=0;i<D.inventory.length;i++)if(D.inventory[i].id===selId)selItem=D.inventory[i];
