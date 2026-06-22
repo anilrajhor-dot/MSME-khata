@@ -721,8 +721,28 @@ function saveProf(){
     var mobile=gv('p_mob');
     if(!ext && mobile && mobile.length!==10){toast('Mobile number must be 10 digits, or check "Allow longer number"','e');return;}
     var existingPartners = (D.profile && Array.isArray(D.profile.partners)) ? D.profile.partners : [];
-    D.profile={businessName:gv('p_bn'),ownerName:gv('p_on'),mobile:mobile,mobileExtended:ext,address:gv('p_addr'),businessType:BIZ_TYPE,businessStage:gv('p_stage')||'existing',constitution:gv('p_const'),commencementDate:gv('p_cd'),udyam:gv('p_ud'),gst:gv('p_gst'),pan:gv('p_pan'),tan:gv('p_tan'),partners:existingPartners};
-    sv();renderPage();toast('Saved!');
+    var newStage=gv('p_stage')||'existing';
+    var oldStage=D.profile.businessStage||'existing';
+    var hasTB=D.tbPosted||(D.trialBalance&&D.trialBalance.length>0);
+    var doSaveProfile=function(){
+      D.profile={businessName:gv('p_bn'),ownerName:gv('p_on'),mobile:mobile,mobileExtended:ext,address:gv('p_addr'),businessType:BIZ_TYPE,businessStage:newStage,constitution:gv('p_const'),commencementDate:gv('p_cd'),udyam:gv('p_ud'),gst:gv('p_gst'),pan:gv('p_pan'),tan:gv('p_tan'),partners:existingPartners};
+      // If switching to new business, clear TB opening data
+      if(newStage==='new' && oldStage!=='new' && hasTB){
+        D.trialBalance=[];D.tbPosted=false;D.tbPostedOn=null;
+        D.opening={cash:0,bank:0,stock:0,debtors:0,creditors:0,capital:0,takenOn:null};
+        D.fixedAssets=(D.fixedAssets||[]).filter(function(f){return !f.fromTB;});
+        D.loans=(D.loans||[]).filter(function(l){return !l.fromTB;});
+        D.debtors=(D.debtors||[]).filter(function(d){return !d.fromTB;});
+        D.creditors=(D.creditors||[]).filter(function(c){return !c.fromTB;});
+        D.inventory=(D.inventory||[]).filter(function(i){return !i.fromTB;});
+        D.otherAssets=(D.fixedAssets||[]).reduce(function(s,f){return s+(+f.cost||0);},0);
+        toast('Profile saved. Opening balances cleared for New Business. 🌱');
+      } else { toast('Saved!'); }
+      sv();renderPage();
+    };
+    if(newStage==='new' && oldStage!=='new' && hasTB){
+      confirmDialog('⚠️ Switching to New Business will clear all Opening Trial Balance data.\n\nYour transactions (sales, purchases, expenses) will be kept.\n\nProceed?', doSaveProfile);
+    } else { doSaveProfile(); }
   }catch(e){
     toast('Could not save profile: '+e.message,'e');
   }
@@ -10085,12 +10105,38 @@ function showBusinessChoice(){
 
 function chooseNewBusiness(){
   try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
-  D.profile.businessStage = 'new';
-  sv();
-  var overlay = document.getElementById('welcome-overlay');
-  if(overlay) overlay.remove();
-  go('profile');
-  toast('नया व्यवसाय सेट — Profile भरें और शुरू करें! 🌱');
+  // If TB data exists, warn user and clear it
+  var hasTB = D.tbPosted || (D.trialBalance && D.trialBalance.length>0);
+  var doSet = function(){
+    D.profile.businessStage = 'new';
+    // Clear all opening balance data — not needed for new business
+    D.trialBalance = [];
+    D.tbPosted = false;
+    D.tbPostedOn = null;
+    D.opening = {cash:0,bank:0,stock:0,debtors:0,creditors:0,capital:0,takenOn:null};
+    // Clear TB-sourced items from fixedAssets, loans, debtors, creditors, inventory
+    D.fixedAssets = (D.fixedAssets||[]).filter(function(f){return !f.fromTB;});
+    D.loans = (D.loans||[]).filter(function(l){return !l.fromTB;});
+    D.debtors = (D.debtors||[]).filter(function(d){return !d.fromTB;});
+    D.creditors = (D.creditors||[]).filter(function(c){return !c.fromTB;});
+    D.inventory = (D.inventory||[]).filter(function(i){return !i.fromTB;});
+    // Recalculate otherAssets from remaining fixedAssets
+    D.otherAssets = (D.fixedAssets||[]).reduce(function(s,f){return s+(+f.cost||0);},0);
+    D.otherAssetsNotes = (D.fixedAssets||[]).map(function(f){return {label:f.name+' ('+f.category+')',amount:f.cost};});
+    sv();
+    var overlay = document.getElementById('welcome-overlay');
+    if(overlay) overlay.remove();
+    go('profile');
+    toast('नया व्यवसाय सेट — Profile भरें और शुरू करें! 🌱');
+  };
+  if(hasTB){
+    confirmDialog(
+      '⚠️ Opening Trial Balance Data Found\n\nSwitching to New Business will CLEAR all opening balances (Trial Balance, opening debtors, creditors, fixed assets from TB).\n\nYour current transactions (sales, purchases, expenses) will be kept.\n\nAre you sure?',
+      doSet
+    );
+  } else {
+    doSet();
+  }
 }
 
 function showExistingChoice(){
