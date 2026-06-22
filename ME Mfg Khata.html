@@ -5611,6 +5611,85 @@ function pgHelp(){
 
   function bi(en, hi) { return isHi ? hi : en; }
 
+  // ── QUICK START GUIDE (New addition) ──
+  h += hs(
+    bi('🚀 Quick Start Guide — New & Existing Business', '🚀 त्वरित मार्गदर्शिका — नया और पुराना व्यवसाय'),
+    bi(
+      '<p style="font-weight:700;color:#2E7D32;font-size:13px">🌱 NEW BUSINESS (Starting Fresh)</p>' +
+      '<p>No prior accounts. Just start here:</p>' +
+      '<ol style="margin:4px 0 10px 16px">' +
+      '<li><b>Profile</b> → Fill Business Name, Type, Constitution → Save</li>' +
+      '<li><b>Capital / Loans → Capital</b> → Enter Initial Capital (Cash or Bank)</li>' +
+      '<li>Start recording <b>Sales, Purchase, Expenses</b> daily</li>' +
+      '<li>Add <b>Inventory items</b> before first sale/purchase</li>' +
+      '</ol>' +
+      '<p style="font-weight:700;color:#1565C0;font-size:13px">📒 EXISTING BUSINESS — Option A: Excel/CSV Upload</p>' +
+      '<p>Best if you have a computer or can use a spreadsheet app:</p>' +
+      '<ol style="margin:4px 0 10px 16px">' +
+      '<li><b>Data → Full Data Template (.xlsx)</b> → Download the template</li>' +
+      '<li>Fill the <b>Trial Balance</b> sheet (Cash, Bank, Stock, Debtors, FA, Loans, Creditors, Capital — DR must = CR)</li>' +
+      '<li>Fill <b>Inventory</b> sheet (items NOT already in Trial Balance)</li>' +
+      '<li>Fill <b>Fixed Assets, Loans, Partners</b> sheets if needed</li>' +
+      '<li>Upload the file: <b>Data → Upload Full Data File</b> → Trial Balance auto-posts ✅</li>' +
+      '</ol>' +
+      '<p style="font-weight:700;color:#6A1B9A;font-size:13px">📒 EXISTING BUSINESS — Option B: Manual Entry (Step by Step)</p>' +
+      '<p>No Excel needed — enter everything directly in the app:</p>' +
+      '<ol style="margin:4px 0 10px 16px">' +
+      '<li><b>Profile</b> → Fill Business Name, Type → Save</li>' +
+      '<li><b>Data → Opening Trial Balance</b> → Add each head one by one:<br>' +
+      '&nbsp;&nbsp;• <b>cash</b> — Opening cash balance<br>' +
+      '&nbsp;&nbsp;• <b>bank</b> — Opening bank balance<br>' +
+      '&nbsp;&nbsp;• <b>stockitem</b> — Each stock item (name, qty, rate)<br>' +
+      '&nbsp;&nbsp;• <b>debtors</b> — Each customer with outstanding amount<br>' +
+      '&nbsp;&nbsp;• <b>fixedassetitem</b> — Each fixed asset (cost, dep rate)<br>' +
+      '&nbsp;&nbsp;• <b>creditors</b> — Each supplier with outstanding amount<br>' +
+      '&nbsp;&nbsp;• <b>loan</b> — Each loan outstanding<br>' +
+      '&nbsp;&nbsp;• <b>capital</b> — Your total capital (balancing figure)</li>' +
+      '<li>When <b>DR = CR</b> → tap <b>Post to Books</b> ✅</li>' +
+      '<li>Now enter <b>Sales, Purchase, Expenses</b> — Balance Sheet auto-tallies</li>' +
+      '</ol>' +
+      '<p style="background:#FFF8E1;padding:8px;border-radius:6px;color:#E65100"><b>⚠️ Important:</b> For existing businesses, Trial Balance MUST be posted before adding individual stock items, fixed assets, debtors, creditors, or loans. This ensures your Balance Sheet stays in balance.</p>' +
+      '<p>💡 Tap the <b>🚀 Quick Start</b> button below to see this as an interactive guide.</p>' +
+      '<div style="margin-top:8px"><button onclick="showBusinessChoice()" style="padding:10px 18px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🚀 Quick Start Guide</button></div>',
+      '<p style="font-weight:700;color:#2E7D32;font-size:13px">🌱 नया व्यवसाय (नई शुरुआत)</p>' +
+      '<p>पहले कोई बही-खाता नहीं था। यहाँ से शुरू करें:</p>' +
+      '<ol style="margin:4px 0 10px 16px">' +
+      '<li><b>Profile</b> → Business Name, Type, Constitution भरें → Save करें</li>' +
+      '<li><b>Capital / Loans → Capital</b> → Initial Capital डालें (Cash या Bank में)</li>' +
+      '<li>रोज़ <b>Sales, Purchase, Expenses</b> record करें</li>' +
+      '<li>पहली sale/purchase से पहले <b>Inventory items</b> जोड़ें</li>' +
+      '</ol>' +
+      '<p style="font-weight:700;color:#1565C0;font-size:13px">📒 पुराना व्यवसाय — Option A: Excel/CSV Upload</p>' +
+      '<p>अगर आपके पास computer या spreadsheet app है:</p>' +
+      '<ol style="margin:4px 0 10px 16px">' +
+      '<li><b>Data → Full Data Template (.xlsx)</b> → Template download करें</li>' +
+      '<li><b>Trial Balance</b> sheet भरें (Cash, Bank, Stock, Debtors, FA, Loans, Creditors, Capital — DR = CR होना चाहिए)</li>' +
+      '<li><b>Inventory</b> sheet भरें (जो items Trial Balance में नहीं हैं)</li>' +
+      '<li>जरूरत हो तो <b>Fixed Assets, Loans, Partners</b> sheets भी भरें</li>' +
+      '<li>File upload करें: <b>Data → Upload Full Data File</b> → Trial Balance auto-post हो जाएगी ✅</li>' +
+      '</ol>' +
+      '<p style="font-weight:700;color:#6A1B9A;font-size:13px">📒 पुराना व्यवसाय — Option B: हाथ से Entry (Step by Step)</p>' +
+      '<p>Excel की जरूरत नहीं — App में ही एक-एक डालें:</p>' +
+      '<ol style="margin:4px 0 10px 16px">' +
+      '<li><b>Profile</b> → Business Name, Type भरें → Save करें</li>' +
+      '<li><b>Data → Opening Trial Balance</b> → हर head एक-एक करके डालें:<br>' +
+      '&nbsp;&nbsp;• <b>cash</b> — शुरुआती नकद<br>' +
+      '&nbsp;&nbsp;• <b>bank</b> — शुरुआती बैंक बैलेंस<br>' +
+      '&nbsp;&nbsp;• <b>stockitem</b> — हर माल (नाम, qty, rate)<br>' +
+      '&nbsp;&nbsp;• <b>debtors</b> — देनदार (जिन पर पैसा आना है)<br>' +
+      '&nbsp;&nbsp;• <b>fixedassetitem</b> — Fixed assets (cost, dep rate)<br>' +
+      '&nbsp;&nbsp;• <b>creditors</b> — लेनदार (जिन्हें देना है)<br>' +
+      '&nbsp;&nbsp;• <b>loan</b> — Loan outstanding<br>' +
+      '&nbsp;&nbsp;• <b>capital</b> — आपकी पूंजी (balancing figure)</li>' +
+      '<li>जब <b>DR = CR</b> हो जाए → <b>Post to Books</b> दबाएं ✅</li>' +
+      '<li>अब <b>Sales, Purchase, Expenses</b> डालें — Balance Sheet अपने आप tally होगी</li>' +
+      '</ol>' +
+      '<p style="background:#FFF8E1;padding:8px;border-radius:6px;color:#E65100"><b>⚠️ जरूरी:</b> पुराने व्यवसाय के लिए Trial Balance post होना जरूरी है इससे पहले कि stock items, FA, debtors, creditors या loans अलग से डालें। इससे Balance Sheet balance रहती है।</p>' +
+      '<div style="margin-top:8px"><button onclick="showBusinessChoice()" style="padding:10px 18px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🚀 Quick Start Guide</button></div>'
+    ),
+    true  // open by default
+  );
+
   // ── SECTION 1: GETTING STARTED ──
   h += hs(
     bi('1. Getting Started — Profile & Setup', '1. शुरुआत करें — प्रोफाइल और सेटअप'),
@@ -6309,14 +6388,19 @@ function importFullBusinessData(sheets){
     faObjs.forEach(function(o){
       var name = String(o['Name']||o['Asset Name']||'').trim();
       if(!name) return;
+      var faCost2 = parseAmount(o['Cost']||o['Amount']||0);
       D.fixedAssets.push({
         id:uid(), name:name, category:String(o['Category']||'Other').trim(),
-        cost:parseAmount(o['Cost']||o['Amount']||0),
+        cost:faCost2,
         depRate:parseAmount(o['DepRate']||o['Dep Rate']||o['RatePct']||0),
         purchaseDate: parseAnyDate(String(o['PurchaseDate']||o['Purchase Date']||o['Date']||''))||td(),
         accumDep:0, lastDepDate: parseAnyDate(String(o['PurchaseDate']||o['Purchase Date']||o['Date']||''))||td(),
         disposed:false
       });
+      // Keep D.otherAssets in sync so otherAssetsExclFA() stays correct
+      D.otherAssets = (+D.otherAssets||0) + faCost2;
+      D.otherAssetsNotes = D.otherAssetsNotes||[];
+      D.otherAssetsNotes.push({label:name+' ('+(String(o['Category']||'Other').trim())+')', amount:faCost2});
       summary.fixedAssets++;
     });
   }
@@ -6392,10 +6476,24 @@ async function handleFullDataUpload(ev){
     if(!proceed){ if(statusEl) statusEl.innerHTML=''; return; }
 
     var summary = importFullBusinessData(sheets);
+
+    // If Trial Balance rows were imported successfully, auto-post them now
+    // so that opening balances are set and other sheets (FA, Inventory) balance correctly
+    if(summary.tb && D.trialBalance && D.trialBalance.length>0 && !D.tbPosted){
+      var tbTotals = {dr:0, cr:0};
+      D.trialBalance.forEach(function(r){ if(r.side==='dr') tbTotals.dr+=(+r.amount||0); else tbTotals.cr+=(+r.amount||0); });
+      if(Math.abs(tbTotals.dr - tbTotals.cr) < 0.01){
+        postTBExecute();
+        summary.tbAutoPosted = true;
+      } else {
+        summary.errors.push('Trial Balance does not tally (DR '+tbTotals.dr+' vs CR '+tbTotals.cr+') — please correct and post manually via Data → Opening Trial Balance.');
+      }
+    }
+
     sv();
     var msg = 'Import complete: ';
     var parts = [];
-    if(summary.tb) parts.push(summary.tb+' Trial Balance row(s)');
+    if(summary.tb) parts.push(summary.tb+' Trial Balance row(s)'+(summary.tbAutoPosted?' (auto-posted ✅)':''));
     if(summary.inventory) parts.push(summary.inventory+' Inventory item(s)');
     if(summary.fixedAssets) parts.push(summary.fixedAssets+' Fixed Asset(s)');
     if(summary.loans) parts.push(summary.loans+' Loan(s)');
@@ -9918,6 +10016,142 @@ function showWelcomeIfNeeded(){
   `;
   
   document.body.appendChild(overlay);
+}
+
+function showBusinessChoice(){
+  var overlay = document.getElementById('welcome-overlay');
+  if(!overlay) return;
+  overlay.innerHTML = `
+    <div style="background:#1565C0;padding:20px 16px 16px;text-align:center">
+      <div style="font-size:36px">🛒</div>
+      <div style="font-size:20px;font-weight:700;color:#fff;margin-top:6px">आपका व्यवसाय कैसा है?</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">What type of business are you setting up?</div>
+    </div>
+    <div style="padding:16px">
+
+      <div onclick="chooseNewBusiness()" style="background:#E8F5E9;border:2px solid #2E7D32;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
+        <div style="font-size:22px;margin-bottom:6px">🌱</div>
+        <div style="font-weight:700;font-size:16px;color:#2E7D32;margin-bottom:4px">नया व्यवसाय — New Business</div>
+        <div style="font-size:13px;color:#37474F">अभी शुरू किया है। पहले कोई बही-खाता नहीं था।<br><span style="color:#546E7A">Just starting out. No prior accounts to enter.</span></div>
+        <div style="margin-top:10px;background:#C8E6C9;border-radius:8px;padding:8px;font-size:12px;color:#1B5E20">
+          ✅ सीधे Sales, Purchase, Expenses शुरू करें<br>
+          ✅ Capital screen पर शुरुआती पूंजी डालें<br>
+          ✅ कोई Trial Balance नहीं चाहिए
+        </div>
+      </div>
+
+      <div onclick="showExistingChoice()" style="background:#E3F2FD;border:2px solid #1565C0;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
+        <div style="font-size:22px;margin-bottom:6px">📒</div>
+        <div style="font-weight:700;font-size:16px;color:#1565C0;margin-bottom:4px">पुराना व्यवसाय — Existing Business</div>
+        <div style="font-size:13px;color:#37474F">पहले से चल रहा है। Cash, Bank, Stock, Debtors आदि का Opening Balance है।<br><span style="color:#546E7A">Running business with existing balances to bring in.</span></div>
+        <div style="margin-top:10px;background:#BBDEFB;border-radius:8px;padding:8px;font-size:12px;color:#0D47A1">
+          📋 Opening Trial Balance डालना होगा<br>
+          📂 Excel/CSV upload OR हाथ से एक-एक entry<br>
+          ✅ Balance Sheet automatically tally होगी
+        </div>
+      </div>
+
+      <div style="text-align:center;font-size:11px;color:#90A4AE;padding-bottom:8px">
+        आप यह बाद में Profile screen से भी बदल सकते हैं।<br>You can change this anytime from Profile.
+      </div>
+    </div>
+  `;
+}
+
+function chooseNewBusiness(){
+  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
+  D.profile.businessStage = 'new';
+  sv();
+  var overlay = document.getElementById('welcome-overlay');
+  if(overlay) overlay.remove();
+  go('profile');
+  toast('नया व्यवसाय सेट — Profile भरें और शुरू करें! 🌱');
+}
+
+function showExistingChoice(){
+  var overlay = document.getElementById('welcome-overlay');
+  if(!overlay) return;
+  overlay.innerHTML = `
+    <div style="background:#1565C0;padding:20px 16px 16px;text-align:center">
+      <div style="font-size:36px">📒</div>
+      <div style="font-size:20px;font-weight:700;color:#fff;margin-top:6px">Opening Balance कैसे डालें?</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">How would you like to enter your opening balances?</div>
+    </div>
+    <div style="padding:16px">
+
+      <div onclick="chooseExcelUpload()" style="background:#FFF8E1;border:2px solid #F57F17;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
+        <div style="font-size:22px;margin-bottom:6px">📂</div>
+        <div style="font-weight:700;font-size:16px;color:#E65100;margin-bottom:4px">Excel / CSV File Upload</div>
+        <div style="font-size:13px;color:#37474F">सारी जानकारी Excel में भरकर एक बार में upload करें।<br><span style="color:#546E7A">Fill the template on a computer/phone and upload at once.</span></div>
+        <div style="margin-top:10px;background:#FFE0B2;border-radius:8px;padding:8px;font-size:12px;color:#BF360C">
+          📥 Data → Full Data Template (.xlsx) download करें<br>
+          ✏️ Trial Balance, Stock, FA, Loans भरें<br>
+          📤 Data tab से upload करें — सब auto-post हो जाएगा
+        </div>
+      </div>
+
+      <div onclick="chooseManualEntry()" style="background:#F3E5F5;border:2px solid #7B1FA2;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
+        <div style="font-size:22px;margin-bottom:6px">✏️</div>
+        <div style="font-weight:700;font-size:16px;color:#6A1B9A;margin-bottom:4px">हाथ से डालें — Manual Entry (Step by Step)</div>
+        <div style="font-size:13px;color:#37474F">App में ही एक-एक जानकारी डालें — Excel की जरूरत नहीं।<br><span style="color:#546E7A">Enter everything directly in the app, step by step.</span></div>
+        <div style="margin-top:10px;background:#E1BEE7;border-radius:8px;padding:8px;font-size:12px;color:#4A148C">
+          <b>Step 1:</b> Profile — व्यवसाय की जानकारी भरें<br>
+          <b>Step 2:</b> Data → Opening Trial Balance → सभी heads डालें<br>
+          <b>Step 3:</b> Trial Balance tally होने पर Post to Books दबाएं<br>
+          <b>Step 4:</b> Inventory, FA, Loans अपने आप balance होंगे
+        </div>
+      </div>
+
+      <button onclick="showBusinessChoice()" style="width:100%;padding:10px;background:transparent;color:#546E7A;border:1px solid #BBDEFB;border-radius:8px;font-size:13px;cursor:pointer;margin-bottom:8px">
+        ← वापस जाएं / Go Back
+      </button>
+    </div>
+  `;
+}
+
+function chooseExcelUpload(){
+  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
+  D.profile.businessStage = 'existing';
+  sv();
+  var overlay = document.getElementById('welcome-overlay');
+  if(overlay) overlay.remove();
+  go('data');
+  toast('Data tab पर जाएं → Full Data Template download करें 📂');
+}
+
+function chooseManualEntry(){
+  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
+  D.profile.businessStage = 'existing';
+  sv();
+  var overlay = document.getElementById('welcome-overlay');
+  if(overlay) overlay.remove();
+  showManualEntryGuide();
+}
+
+function showManualEntryGuide(){
+  var div = document.createElement('div');
+  div.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:20px;max-width:400px;width:100%;max-height:90vh;overflow-y:auto">
+      <div style="font-size:18px;font-weight:700;color:#6A1B9A;margin-bottom:14px;text-align:center">✏️ Manual Entry Guide</div>
+      <div style="background:#F3E5F5;border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="font-weight:700;color:#6A1B9A;margin-bottom:6px">Step 1 — Profile</div>
+        <div style="font-size:13px;color:#37474F">Profile screen पर जाएं। Business name, type, constitution भरें। Save करें।</div>
+      </div>
+      <div style="background:#E3F2FD;border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="font-weight:700;color:#1565C0;margin-bottom:6px">Step 2 — Opening Trial Balance</div>
+        <div style="font-size:13px;color:#37474F">Data → Opening Trial Balance पर जाएं। हर head एक-एक करके डालें:<br>• Cash, Bank का balance<br>• Stock items (item का नाम, qty, rate)<br>• Debtors (ग्राहक जिन पर पैसा आना है)<br>• Fixed Assets (machinery, vehicle etc.)<br>• Creditors (supplier जिन्हें देना है)<br>• Loans outstanding<br>• Capital (आपकी पूंजी)<br><br>जब DR = CR हो जाए — <b>Post to Books</b> दबाएं।</div>
+      </div>
+      <div style="background:#E8F5E9;border-radius:8px;padding:12px;margin-bottom:14px">
+        <div style="font-weight:700;color:#2E7D32;margin-bottom:6px">Step 3 — रोज़ की entries शुरू करें</div>
+        <div style="font-size:13px;color:#37474F">Trial Balance post होने के बाद:<br>• Sales, Purchase, Expenses normally enter करें<br>• Balance Sheet automatically tally होगी ✅</div>
+      </div>
+      <button onclick="this.closest('div[style*=fixed]').remove();go('profile');" style="width:100%;padding:14px;background:#6A1B9A;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">
+        ✅ समझ गया — Profile से शुरू करें
+      </button>
+    </div>
+  `;
+  document.body.appendChild(div);
 }
 
 function startApp(){
