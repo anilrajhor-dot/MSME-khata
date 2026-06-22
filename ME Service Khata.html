@@ -1294,7 +1294,6 @@ function deleteLoan(id){
   });
 }
 function addLoan(){
-  if(!requireTBPosted()) return;
   var b=gv('l_b'),a=gvn('l_a'),lt=gv('l_type');
   if(!b){toast('Enter Lender Name','e');return;}
   var isCcOd = (lt==='Cash Credit (CC)' || lt==='Overdraft (OD)');
@@ -5203,7 +5202,6 @@ function updateFaSplitFields(){
 }
 
 function purchaseFA(){
-  if(!requireTBPosted()) return;
   var name=gv('fa_name'), cat=gv('fa_cat'), cost=gvn('fa_cost'), rate=gvn('fa_rate'), date=gv('fa_date')||td(), mode=gv('fa_mode');
   if(!name){toast('Enter asset name','e');return;}
   if(!cost){toast('Enter cost','e');return;}

@@ -1293,7 +1293,6 @@ function deleteLoan(id){
   });
 }
 function addLoan(){
-  if(!requireTBPosted()) return;
   var b=gv('l_b'),a=gvn('l_a'),lt=gv('l_type');
   if(!b){toast('Enter Lender Name','e');return;}
   var isCcOd = (lt==='Cash Credit (CC)' || lt==='Overdraft (OD)');
@@ -4912,12 +4911,9 @@ function updateFaSplitFields(){
 }
 
 function purchaseFA(){
-  if(!requireTBPosted()) return;
   var name=gv('fa_name'), cat=gv('fa_cat'), cost=gvn('fa_cost'), rate=gvn('fa_rate'), date=gv('fa_date')||td(), mode=gv('fa_mode');
   if(!name){toast('Enter asset name','e');return;}
   if(!cost){toast('Enter cost','e');return;}
-  var currentFATotal = (D.fixedAssets||[]).reduce(function(s,f){return s+(+f.cost||0);},0)+((D.intangibleAssets||[]).reduce(function(s,f){return s+(+f.cost||0);},0));
-  if(!checkTBHeadMatch(['fixedassetitem','fixedassets','intangibleitem'], currentFATotal+cost, 'Fixed Assets')) return;
   // Validate split-loan inputs BEFORE making any changes to D, so a validation error never leaves
   // behind an orphaned asset with no corresponding liability/payment.
   var splitLoanId='', loanAmt2=0, marginMode='cash', marginAmt=0;
