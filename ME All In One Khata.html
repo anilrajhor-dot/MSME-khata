@@ -567,7 +567,8 @@ function getF(){
     else purchasesByType.indigenous+=D.purchases[i].amount;
   }
   for(i=0;i<D.expenses.length;i++)te+=D.expenses[i].amount;
-  cap=(D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+(+D.opening.capital||0);
+  cap=(D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+((D.capital.initialCapital||0)===0?(+D.opening.capital||0):0);
+  var totalDrawings=0;(D.drawings||[]).forEach(function(d){totalDrawings+=(+d.amount||0);});cap-=totalDrawings;
   for(i=0;i<D.loans.length;i++)ltl+=(+D.loans[i].outstandingBalance||0);
   var gp=ts-(os+tp-cs);
   var dr=totalDebtors(),cr=totalCreditors(),expPayable=totalExpensesPayable();
@@ -2305,7 +2306,7 @@ function pgFin(){
         var constitution3 = D.profile.constitution||'Individual';
         var isMulti3 = constitution3!=='' && constitution3!=='Individual' && constitution3!=='Sole Proprietorship';
         var capLabel = isMulti3 && partners3.length>0 ? 'Total Capital (All Partners)' : "Owner\'s Capital";
-        var capTotal = (D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+(+D.opening.capital||0);
+        var capTotal = (D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+((D.capital.initialCapital||0)===0?(+D.opening.capital||0):0);
         var h3 = fsr(capLabel, capTotal, 0, 1);
         if(isMulti3 && partners3.length>0){
           h3 += partners3.map(function(pt){
@@ -3877,7 +3878,7 @@ function getYear0Base(){
     loanOutstanding: (function(){var t=0;for(var i=0;i<D.loans.length;i++)t+=(+D.loans[i].outstandingBalance||0);return t;})(),
     stBorrowings: (function(){var t=0;for(var i=0;i<D.loans.length;i++)if(isCcOdLoan(D.loans[i]))t+=(+D.loans[i].outstandingBalance||0);return t;})(),
     termLoans: (function(){var t=0;for(var i=0;i<D.loans.length;i++)if(!isCcOdLoan(D.loans[i]))t+=(+D.loans[i].outstandingBalance||0);return t;})(),
-    capital: (D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+(+D.opening.capital||0)+(function(){var ff=getF();return ff.np;})(),
+    capital: (D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+((D.capital.initialCapital||0)===0?(+D.opening.capital||0):0)+(function(){var ff=getF();return ff.np;})(),
     otherAssets: (function(){
       var faCost=0; (D.fixedAssets||[]).forEach(function(a){ faCost+=(+a.cost||0); });
       var iaCost=0; (D.intangibleAssets||[]).forEach(function(a){ iaCost+=(+a.cost||0); });
