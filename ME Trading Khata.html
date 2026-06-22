@@ -6042,10 +6042,23 @@ function importFullBusinessData(sheets){
   var faRows = findSheetByNames(sheets, ['Fixed Assets','FixedAssets','Assets']);
   if(faRows && faRows.length>1){
     var faObjs = rowsToObjects(faRows);
+    // TB FA total — used to validate we don't exceed opening FA
+    var tbFATotal = (D.trialBalance||[]).filter(function(r){return r.head==='fixedassetitem'||r.head==='fixedassets'||r.head==='intangibleitem';}).reduce(function(s,r){return s+(+r.amount||0);},0);
     faObjs.forEach(function(o){
       var name = String(o['Name']||o['Asset Name']||'').trim();
       if(!name) return;
+      // Skip if already exists in fixedAssets (by name) to prevent duplicates
+      var alreadyExists = (D.fixedAssets||[]).some(function(f){ return f.name.toLowerCase()===name.toLowerCase(); });
+      if(alreadyExists){ summary.errors.push('FA skipped (already exists): '+name); return; }
       var faCost2 = parseAmount(o['Cost']||o['Amount']||0);
+      // Validate: current FA total + new item must not exceed TB FA total (if TB posted)
+      if(D.tbPosted && tbFATotal>0){
+        var currentFATotal = (D.fixedAssets||[]).reduce(function(s,f){return s+(+f.cost||0);},0);
+        if(currentFATotal + faCost2 > tbFATotal + 0.01){
+          summary.errors.push('FA skipped (exceeds TB FA total of ₹'+tbFATotal.toLocaleString("en-IN")+'): '+name+' ₹'+faCost2.toLocaleString("en-IN"));
+          return;
+        }
+      }
       D.fixedAssets.push({
         id:uid(), name:name, category:String(o['Category']||'Other').trim(),
         cost:faCost2,
@@ -6057,7 +6070,7 @@ function importFullBusinessData(sheets){
       // Keep D.otherAssets in sync so otherAssetsExclFA() stays correct
       D.otherAssets = (+D.otherAssets||0) + faCost2;
       D.otherAssetsNotes = D.otherAssetsNotes||[];
-      D.otherAssetsNotes.push({label:name+' ('+(String(o['Category']||'Other').trim())+')', amount:faCost2});
+      D.otherAssetsNotes.push({label:name+' ('+String(o['Category']||'Other').trim()+')', amount:faCost2});
       summary.fixedAssets++;
     });
   }
@@ -8461,9 +8474,12 @@ function pgCFS() {
   });
   // Fallback for older data that never went through cashBook at all (e.g. capital
   // entered only in D.capital fields with Cash/Bank mode 'none' or pre-dating this logic)
-  if(capitalIntroduced===0){
+  // BUT: if TB is posted, opening capital came from TB (not this period) — do NOT include it
+  if(capitalIntroduced===0 && !D.tbPosted){
     capitalIntroduced = (+D.capital.initialCapital||0) + (+D.capital.additionalCapital||0);
   }
+  // For TB-posted businesses: only count additional capital added AFTER TB posting
+  // which would have CashBook entries with 'Capital Introduced' description
   // Drawings
   var drawings = 0;
   (D.drawings||[]).forEach(function(d){ drawings += (+d.amount||0); });
