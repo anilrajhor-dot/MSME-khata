@@ -1451,6 +1451,28 @@ function findOrCreateItem(name,unit,category){
   return item;
 }
 // ===== PURCHASE =====
+
+function itemwiseSummary(records, amtKey, qtyKey){
+  var map={};
+  records.forEach(function(r){
+    var key=r.itemName||'—';
+    if(!map[key]) map[key]={qty:0,amt:0};
+    map[key].qty += (+r[qtyKey]||0);
+    map[key].amt += (+r[amtKey]||0);
+  });
+  var rows=Object.keys(map).sort();
+  if(!rows.length) return '';
+  var h='<table style="width:100%;font-size:12px;border-collapse:collapse">';
+  h+='<thead><tr><th style="text-align:left;padding:4px 6px;background:#F5F5F5;border-bottom:1px solid #E0E0E0">Item</th><th style="text-align:right;padding:4px 6px;background:#F5F5F5;border-bottom:1px solid #E0E0E0">Total Qty</th><th style="text-align:right;padding:4px 6px;background:#F5F5F5;border-bottom:1px solid #E0E0E0">Total ₹</th></tr></thead><tbody>';
+  var totQty=0,totAmt=0;
+  rows.forEach(function(k){
+    h+='<tr><td style="padding:4px 6px;border-bottom:1px solid #F0F0F0">'+esc(k)+'</td><td style="text-align:right;padding:4px 6px;border-bottom:1px solid #F0F0F0">'+fmt(map[k].qty)+'</td><td style="text-align:right;padding:4px 6px;border-bottom:1px solid #F0F0F0">'+fc(map[k].amt)+'</td></tr>';
+    totQty+=map[k].qty; totAmt+=map[k].amt;
+  });
+  h+='<tr style="font-weight:700;background:#F5F5F5"><td style="padding:4px 6px">Total</td><td style="text-align:right;padding:4px 6px">'+fmt(totQty)+'</td><td style="text-align:right;padding:4px 6px">'+fc(totAmt)+'</td></tr>';
+  h+='</tbody></table>';
+  return h;
+}
 function pgPur(){
   if(window._editType==='purchase'){
     var ep=null;for(var kp=0;kp<D.purchases.length;kp++)if(D.purchases[kp].id===window._editId)ep=D.purchases[kp];
@@ -1489,7 +1511,8 @@ function pgPur(){
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="pu_import" '+(window._purImport?'checked':'')+' style="width:auto"> This is an Imported purchase (sourced from outside India)</label>'+
     btn('✓ Record Purchase','addPur()')
   );
-  h+=card('Purchase Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('purchase',r.id);}},{l:'Date',k:'date'},{l:'Supplier',fn:function(r){return esc(r.supplierName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',fn:function(r){var it=null;for(var ki=0;ki<D.inventory.length;ki++)if(D.inventory[ki].id===r.itemId){it=D.inventory[ki];break;}var cat=it?(it.category||''):'';var catColor={'Raw Material':'#E65100','RM':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var cc=catColor[cat]||'#546E7A';var cl=cat==='Raw Material'||cat==='RM'?'RM':(cat||'');return esc(r.itemName)+(cl?'<br><span style="font-size:9px;font-weight:700;color:'+cc+';background:'+cc+'18;padding:1px 4px;border-radius:3px">'+esc(cl)+'</span>':'');}},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}}],[].concat(D.purchases).reverse()));
+  h+=card('Purchase Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('purchase',r.id);}},{l:'Date',k:'date'},{l:'Supplier',fn:function(r){return esc(r.supplierName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',fn:function(r){var it=null;for(var ki=0;ki<D.inventory.length;ki++)if(D.inventory[ki].id===r.itemId){it=D.inventory[ki];break;}var cat=it?(it.category||''):'';var catColor={'Raw Material':'#E65100','RM':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var cc=catColor[cat]||'#546E7A';var cl=cat==='RM'?'Raw Material':(cat||'');return esc(r.itemName)+(cl&&cl!=='Resale'?'<br><span style="font-size:9px;font-weight:700;color:'+cc+';background:'+cc+'18;padding:1px 4px;border-radius:3px">'+esc(cl)+'</span>':'');}},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}}],[].concat(D.purchases).reverse()));
+  if(D.purchases.length>1) h+=card('Item-wise Purchase Summary',itemwiseSummary(D.purchases,'amount','qty'));
   return h;
 }
 function onPurItemChange(){window._purItem=gv('pu_i');window._purSupplier=gv('pu_s');window._purNewName=gv('pu_newname');window._purNewCat=gv('pu_newcat');window._purDate=gv('pu_d');window._purQty=gv('pu_q');window._purRate=gv('pu_r');window._purMode=gv('pu_m');window._purImport=document.getElementById('pu_import')?document.getElementById('pu_import').checked:false;renderPage();
@@ -1598,6 +1621,7 @@ function pgSal(){
     btn('✓ Record Sale','addSal()','#2E7D32')
   );
   h+=card('Sales Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('sale',r.id);}},{l:'Date',k:'date'},{l:'Customer',fn:function(r){return esc(r.customerName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',k:'itemName'},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'₹',r:1,fn:function(r){return fc(r.totalAmount);}},{l:'GP',r:1,fn:function(r){return fc(r.grossProfit);},c:function(){return'#2E7D32';}}],[].concat(D.sales).reverse()));
+  if(D.sales.length>1) h+=card('Item-wise Sales Summary',itemwiseSummary(D.sales,'totalAmount','qty'));
   return h;
 }
 // Dropdown to optionally settle this transaction against an existing advance.
