@@ -326,6 +326,38 @@ function postCB(mode,type,amount,party,desc,date){
   if(cbMode==='bank') entry.bankAccountId=bankAccountId;
   D.cashBook.push(entry);
 }
+// ── TB GUARD HELPERS ──────────────────────────────────────────────────────
+// Rule 1: Block entry if Trial Balance not yet posted
+function requireTBPosted(){
+  if(D.tbPosted) return true;
+  confirmDialog(
+    '⚠️ Opening Trial Balance Not Posted\n\n'+
+    'You must enter and post your Opening Trial Balance before adding individual items here.\n\n'+
+    'Go to: Data → Opening Trial Balance → enter your opening balances → Post to Books.\n\n'+
+    'This ensures your Balance Sheet stays in balance.',
+    function(){ go('data'); window._dtab='trial'; renderPage(); }
+  );
+  return false;
+}
+// Rule 2: Check that individual items total matches the corresponding TB head total
+// heads: array of TB head codes to sum; currentTotal: sum of items entered so far (BEFORE adding new item); newItemAmt: amount being added; label: display name
+function checkTBHeadMatch(heads, afterTotal, label){
+  var tbTotal = 0;
+  (D.trialBalance||[]).forEach(function(r){ if(heads.indexOf(r.head)>=0) tbTotal+=(+r.amount||0); });
+  if(tbTotal===0) return true; // no TB entry for this head — allow freely
+  if(Math.abs(afterTotal - tbTotal) < 0.01) return true;
+  var diff = afterTotal - tbTotal;
+  var msg = '⚠️ ' + label + ' Mismatch with Trial Balance\n\n' +
+    'Trial Balance total for this head: ₹' + tbTotal.toLocaleString('en-IN') + '\n' +
+    'Your entries now total:            ₹' + afterTotal.toLocaleString('en-IN') + '\n' +
+    'Difference:                        ₹' + Math.abs(diff).toLocaleString('en-IN') +
+    (diff > 0 ? ' (entries EXCEED Trial Balance)' : ' (entries are SHORT of Trial Balance)') + '\n\n' +
+    'Please reconcile so that your individual item entries match the Trial Balance total exactly. ' +
+    'Otherwise your Balance Sheet will not tally.';
+  alert(msg);
+  return false;
+}
+// ──────────────────────────────────────────────────────────────────────────
 function addDebtor(name,amount,date,ref){
   if(!amount)return;
   D.debtors.push({id:uid(),name:name||'Customer',amount:amount,date:date||td(),ref:ref||''});
@@ -1178,6 +1210,7 @@ function deleteDrawing(id){
 }
 
 function saveCap(){
+  if(!requireTBPosted()) return;
   var partners = D.profile.partners||[];
   var constitution = D.profile.constitution||'Individual';
   var isMultiOwner = constitution!=='Individual' && constitution!=='Sole Proprietorship' && constitution!=='';
@@ -1294,6 +1327,7 @@ function deleteLoan(id){
   });
 }
 function addLoan(){
+  if(!requireTBPosted()) return;
   var b=gv('l_b'),a=gvn('l_a'),lt=gv('l_type');
   if(!b){toast('Enter Lender Name','e');return;}
   var isCcOd = (lt==='Cash Credit (CC)' || lt==='Overdraft (OD)');
@@ -1431,9 +1465,13 @@ function pgInv(){
   return h;
 }
 function addInv(){
+  if(!requireTBPosted()) return;
   var n=gv('iv_n');
   if(!n){toast('Enter name','e');return;}
   var os=gvn('iv_os'),pr=gvn('iv_pr');
+  var newStockVal = (os||0)*(pr||0);
+  var currentStockTotal = D.inventory.reduce(function(s,i){return s+i.currentStock*i.avgCost+(i.importedStock||0)*(i.importedAvgCost||0);},0);
+  if(!checkTBHeadMatch(['stockitem','stock'], currentStockTotal+newStockVal, 'Inventory / Stock')) return;
   // Auto-lookup HSN if not manually entered
   var hsn=gv('iv_hsn')||'', gstRate=gstEnabled()?gvn('iv_gst'):undefined;
   if(gstEnabled() && !hsn){
@@ -3707,16 +3745,22 @@ function savePartyId(){
   toast(val?'ID saved for '+name:'ID removed for '+name);
 }
 function addManualDebtor(){
+  if(!requireTBPosted()) return;
   var name=gv('nd_name'),amt=gvn('nd_amt'),date=gv('nd_date')||td(),pid=gv('nd_id')||'';
   if(!name||!amt){toast('Enter name and amount','e');return;}
+  var currentDebtorTotal = D.debtors.reduce(function(s,x){return s+(+x.amount||0);},0);
+  if(!checkTBHeadMatch(['debtors'], currentDebtorTotal+amt, 'Debtors')) return;
   D.debtors.push({id:uid(),name:name,amount:amt,date:date,ref:'Opening Balance (Manual)',partyId:pid});
   // Store partyId in partyCodes directory
   if(pid){if(!D.partyCodes)D.partyCodes={};D.partyCodes['partyid:'+name.trim().toLowerCase()]=pid;}
   sv();window._drForm=null;renderPage();toast('Debtor added!');
 }
 function addManualCreditor(){
+  if(!requireTBPosted()) return;
   var name=gv('nc_name'),amt=gvn('nc_amt'),date=gv('nc_date')||td(),pid=gv('nc_id')||'';
   if(!name||!amt){toast('Enter name and amount','e');return;}
+  var currentCreditorTotal = D.creditors.filter(function(x){return (+x.amount||0)>0;}).reduce(function(s,x){return s+(+x.amount||0);},0);
+  if(!checkTBHeadMatch(['creditors'], currentCreditorTotal+amt, 'Creditors')) return;
   D.creditors.push({id:uid(),name:name,amount:amt,date:date,ref:'Opening Balance (Manual)',partyId:pid});
   if(pid){if(!D.partyCodes)D.partyCodes={};D.partyCodes['partyid:'+name.trim().toLowerCase()]=pid;}
   sv();window._drForm=null;renderPage();toast('Creditor added!');
@@ -3878,7 +3922,7 @@ function getYear0Base(){
     loanOutstanding: (function(){var t=0;for(var i=0;i<D.loans.length;i++)t+=(+D.loans[i].outstandingBalance||0);return t;})(),
     stBorrowings: (function(){var t=0;for(var i=0;i<D.loans.length;i++)if(isCcOdLoan(D.loans[i]))t+=(+D.loans[i].outstandingBalance||0);return t;})(),
     termLoans: (function(){var t=0;for(var i=0;i<D.loans.length;i++)if(!isCcOdLoan(D.loans[i]))t+=(+D.loans[i].outstandingBalance||0);return t;})(),
-    capital: (D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+((D.capital.initialCapital||0)===0?(+D.opening.capital||0):0)+(function(){var ff=getF();return ff.np;})(),
+    capital: (function(){var ff=getF();return ff.cap+ff.np;})(),
     otherAssets: (function(){
       var faCost=0; (D.fixedAssets||[]).forEach(function(a){ faCost+=(+a.cost||0); });
       var iaCost=0; (D.intangibleAssets||[]).forEach(function(a){ iaCost+=(+a.cost||0); });
@@ -4933,6 +4977,7 @@ function updateFaSplitFields(){
 }
 
 function purchaseFA(){
+  if(!requireTBPosted()) return;
   var name=gv('fa_name'), cat=gv('fa_cat'), cost=gvn('fa_cost'), rate=gvn('fa_rate'), date=gv('fa_date')||td(), mode=gv('fa_mode');
   if(!name){toast('Enter asset name','e');return;}
   if(!cost){toast('Enter cost','e');return;}
@@ -5107,9 +5152,13 @@ function otherItemsTotalLiab(){
   return t;
 }
 function addOtherAsset(){
+  if(!requireTBPosted()) return;
   var name=gv('oa_name'), amt=gvn('oa_amt'), date=gv('oa_date')||td(), source=gv('oa_source');
   if(!name){toast('Enter a name for this item','e');return;}
   if(!amt){toast('Enter amount','e');return;}
+  var faCost=(D.fixedAssets||[]).reduce(function(s,f){return s+(+f.cost||0);},0)+((D.intangibleAssets||[]).reduce(function(s,f){return s+(+f.cost||0);},0));
+  var currentOtherNCA = Math.max(0,(+D.otherAssets||0)-faCost);
+  if(!checkTBHeadMatch(['otherassets'], currentOtherNCA+amt, 'Other Assets')) return;
   D.otherAssetItems = D.otherAssetItems || [];
   D.otherAssetItems.push({id:uid(),name:name,amount:amt,date:date});
   D.otherAssets = (+D.otherAssets||0) + amt;
@@ -5140,9 +5189,11 @@ function removeOtherAsset(id){
 }
 
 function addOtherLiab(){
+  if(!requireTBPosted()) return;
   var name=gv('ol_name'), amt=gvn('ol_amt'), date=gv('ol_date')||td(), dest=gv('ol_dest');
   if(!name){toast('Enter a name for this item','e');return;}
   if(!amt){toast('Enter amount','e');return;}
+  if(!checkTBHeadMatch(['otherliab'], (+D.otherLiab||0)+amt, 'Other Liabilities')) return;
   D.otherLiabItems = D.otherLiabItems || [];
   D.otherLiabItems.push({id:uid(),name:name,amount:amt,date:date});
   D.otherLiab = (+D.otherLiab||0) + amt;
@@ -5922,6 +5973,17 @@ function rowsToObjects(rows){
 }
 function importFullBusinessData(sheets){
   var summary = {tb:0, inventory:0, fixedAssets:0, loans:0, partners:0, errors:[]};
+
+  // Check if non-TB sheets are present and TB is not yet posted
+  var hasNonTBSheets = findSheetByNames(sheets,['Inventory','Stock','Stock Items']) ||
+                       findSheetByNames(sheets,['Fixed Assets','FixedAssets','Assets']) ||
+                       findSheetByNames(sheets,['Loans','Loan']) ||
+                       findSheetByNames(sheets,['Partners','Directors','Members']);
+  var hasTBSheet = findSheetByNames(sheets,['Trial Balance','TrialBalance','TB','Opening Balances']);
+  if(hasNonTBSheets && !hasTBSheet && !D.tbPosted){
+    alert('⚠️ Opening Trial Balance Not Posted\n\nYour file contains Inventory / Fixed Assets / Loans / Partners sheets but your Opening Trial Balance has not been posted yet.\n\nPlease either:\n1. Include a \"Trial Balance\" sheet in this file, OR\n2. Post your Opening Trial Balance first (Data → Opening Trial Balance → Post to Books)\n\nThis ensures your Balance Sheet stays in balance.');
+    return summary;
+  }
 
   // 1. Trial Balance (reuses existing importTBRows logic on the matched sheet's rows)
   var tbRows = findSheetByNames(sheets, ['Trial Balance','TrialBalance','TB','Opening Balances']);
