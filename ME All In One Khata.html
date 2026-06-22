@@ -9737,7 +9737,7 @@ function pgProduction(){
     if(isRMorCons){
       var inCart=0; cart.forEach(function(c){if(c.itemId===it.id)inCart+=c.qty;});
       var avail=(it.currentStock+(it.importedStock||0))-inCart;
-      consOpts.push({v:it.id,l:it.itemName+' ['+(it.category==='Consumable'?'Consumable':'RM')+'] '+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'⚠ Out of stock')});
+      consOpts.push({v:it.id,l:it.itemName+' ['+(it.category==='Consumable'?'Consumable':'Raw Material')+'] '+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'⚠ Out of stock')});
     }
   }
 
@@ -9816,7 +9816,7 @@ function pgProduction(){
     h += card('Write-off / Usage Register', tbl([
       {l:'Date',k:'date'},
       {l:'Item',k:'itemName'},
-      {l:'Category',fn:function(r){return r.category==='RM'?'Raw Material':'Consumable';}},
+      {l:'Category',fn:function(r){return r.category==='Consumable'?'Consumable':'Raw Material';}},
       {l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},
       {l:'Value',r:1,fn:function(r){return fc(r.amount);}},
       {l:'Notes',k:'notes'},
