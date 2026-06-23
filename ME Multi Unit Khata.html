@@ -78,7 +78,410 @@ td{padding:6px 8px;border-bottom:1px solid #BBDEFB;white-space:nowrap}
 </div>
 
 <script>
-var SK = 'mefm_uni_v10';
+var SK = 'mefm_multi_v1'; // per-unit key, set dynamically
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MULTI-UNIT LAYER
+// MU = company-level object stored in localStorage under 'mefm_mu_company'
+// Each unit is a complete business dataset (same structure as defD())
+// ═══════════════════════════════════════════════════════════════════════════
+var MU_KEY = 'mefm_mu_company_v1';
+var MU = null;       // company-level object
+var MU_UNIT = 0;     // currently active unit index (0 = Unit 0)
+var D = null;        // points to MU.units[MU_UNIT].data (active unit data)
+
+function defMU(){
+  return {
+    company:{
+      name:'',
+      constitution:'Company',
+      pan:'',
+      tan:'',
+      gstin:'',
+      address:'',
+      fy:'2026-27'
+    },
+    units:[],
+    interUnit:[]   // inter-unit transactions for elimination in consolidation
+  };
+}
+
+function defUnit(name, type){
+  return {
+    id: uid(),
+    name: name||'Unit 1',
+    businessType: type||'Trading',
+    color: '#1565C0',
+    data: null  // will be defD() on first use
+  };
+}
+
+function muLoad(){
+  try{
+    var s = localStorage.getItem(MU_KEY);
+    if(s){ MU = JSON.parse(s); }
+  }catch(e){}
+  if(!MU || !MU.units){ MU = defMU(); }
+  // Ensure at least one unit
+  if(!MU.units.length){
+    var u = defUnit('Unit 1','Trading');
+    u.data = defD();
+    MU.units.push(u);
+  }
+  // Migrate unit data
+  MU.units.forEach(function(u){
+    if(!u.data) u.data = defD();
+    else migrateData(u.data);
+    if(!u.id) u.id = uid();
+    if(!u.color) u.color = '#1565C0';
+  });
+  if(!MU.interUnit) MU.interUnit = [];
+  // Set active unit
+  if(MU_UNIT >= MU.units.length) MU_UNIT = 0;
+  D = MU.units[MU_UNIT].data;
+}
+
+function muSave(){
+  // Sync D back to active unit
+  MU.units[MU_UNIT].data = D;
+  try{ localStorage.setItem(MU_KEY, JSON.stringify(MU)); }catch(e){ toast('Storage full!','e'); }
+}
+
+// Override sv() to use muSave()
+function sv(){ muSave(); }
+
+function switchUnit(idx){
+  // Save current before switching
+  muSave();
+  MU_UNIT = idx;
+  D = MU.units[MU_UNIT].data;
+  window._captab='overview'; window._dtab='overview';
+  window._purItem=null; window._salItem=null;
+  go('dashboard');
+  toast('Switched to '+MU.units[MU_UNIT].name);
+}
+
+function addUnit(){
+  muSave();
+  var name = prompt('Unit Name (e.g. Unit 2, Retail Branch, Factory):','Unit '+(MU.units.length+1));
+  if(!name||!name.trim()) return;
+  var types = ['Trading','Manufacturing','Service'];
+  var type = 'Trading';
+  var typeStr = prompt('Business Type:\n1. Trading\n2. Manufacturing\n3. Service\nEnter 1/2/3:','1');
+  if(typeStr==='2') type='Manufacturing';
+  else if(typeStr==='3') type='Service';
+  var colors = ['#1565C0','#2E7D32','#C62828','#6A1B9A','#E65100','#00695C'];
+  var u = defUnit(name.trim(), type);
+  u.color = colors[MU.units.length % colors.length];
+  u.data = defD();
+  u.data.profile.businessName = name.trim();
+  u.data.profile.businessType = type;
+  MU.units.push(u);
+  MU_UNIT = MU.units.length - 1;
+  D = MU.units[MU_UNIT].data;
+  muSave();
+  go('profile');
+  toast('Unit added! Fill in the Profile details.');
+}
+
+function deleteUnit(idx){
+  if(MU.units.length<=1){ toast('Cannot delete — must have at least one unit','e'); return; }
+  confirmDialog('Delete unit "'+MU.units[idx].name+'"? All its data will be permanently lost.',function(){
+    MU.units.splice(idx,1);
+    if(MU_UNIT>=MU.units.length) MU_UNIT=MU.units.length-1;
+    D = MU.units[MU_UNIT].data;
+    muSave(); renderPage(); toast('Unit deleted.');
+  });
+}
+
+function editUnitName(idx){
+  var name = prompt('New name for this unit:',MU.units[idx].name);
+  if(!name||!name.trim()) return;
+  MU.units[idx].name = name.trim();
+  if(idx===MU_UNIT && D && D.profile) D.profile.businessName = name.trim();
+  muSave(); renderPage();
+}
+
+// ─── INTER-UNIT TRANSACTIONS ─────────────────────────────────────────────────
+// When Unit A sells to Unit B: recorded as a normal sale in Unit A and
+// a normal purchase in Unit B, PLUS an inter-unit record for elimination.
+
+function addInterUnit(){
+  var fromIdx = parseInt(gv('iu_from')||'0');
+  var toIdx   = parseInt(gv('iu_to')||'1');
+  var amt     = gvn('iu_amt');
+  var desc    = gv('iu_desc')||'Inter-unit transfer';
+  var date    = gv('iu_date')||td();
+  if(fromIdx===toIdx){ toast('From and To unit must be different','e'); return; }
+  if(!amt||amt<=0){ toast('Enter amount','e'); return; }
+  MU.interUnit.push({
+    id:uid(), date:date, fromUnit:fromIdx, toUnit:toIdx,
+    amount:amt, description:desc
+  });
+  muSave(); renderPage(); toast('Inter-unit transaction recorded ✅');
+}
+
+function deleteInterUnit(id){
+  MU.interUnit = (MU.interUnit||[]).filter(function(x){return x.id!==id;});
+  muSave(); renderPage();
+}
+
+// ─── CONSOLIDATED FINANCIALS ──────────────────────────────────────────────────
+function getConsolidated(){
+  var C = {
+    ts:0,tc:0,os:0,tp:0,cs:0,te:0,np:0,
+    cap:0,ltl:0,stl:0,cb:0,bb:0,dr:0,cr:0,
+    oa:0,ol:0,faNet:0,ownedFunds:0,
+    termLoans:0,currentLiab:0,currentAssets:0,
+    totalLiab:0,totalAssets:0,diff:0,
+    unitDetails:[]
+  };
+
+  MU.units.forEach(function(u, idx){
+    var origD = D;
+    D = u.data;
+    var f = getF();
+    var fg = getFGrouped();
+    D = origD;  // restore
+
+    C.ts += f.ts; C.tc += f.tc; C.os += f.os; C.tp += f.tp;
+    C.cs += f.cs; C.te += f.te; C.np += f.np;
+    C.cap += f.cap; C.ltl += f.ltl;
+    C.cb += f.cb; C.bb += f.bb;
+    C.dr += f.dr; C.cr += f.cr;
+    C.oa += fg.otherNonCurrentAssets;
+    C.faNet += fg.fixedAssetsNet;
+    C.ownedFunds += fg.ownedFunds;
+    C.termLoans += fg.termLoans;
+    C.currentLiab += fg.currentLiab;
+    C.currentAssets += fg.currentAssets;
+
+    C.unitDetails.push({
+      name:u.name, color:u.color,
+      sales:f.ts, purchases:f.tp, expenses:f.te, np:f.np,
+      cash:f.cb, bank:f.bb, stock:f.cs,
+      debtors:f.dr, creditors:f.cr,
+      capital:f.cap, loans:f.ltl,
+      faNet:fg.fixedAssetsNet,
+      totalAssets:fg.totalAssets, totalLiab:fg.totalLiab
+    });
+  });
+
+  // Eliminate inter-unit transactions
+  var interUnitTotal = (MU.interUnit||[]).reduce(function(s,x){return s+(+x.amount||0);},0);
+  // In consolidation, inter-unit sales/purchases cancel out
+  // They inflate both Sales (seller) and Purchases (buyer) — eliminate both
+  C.ts -= interUnitTotal;
+  C.tp -= interUnitTotal;
+  // Recalculate GP and NP after elimination
+  C.np = (C.ts - (C.os + C.tp - C.cs)) - C.te;
+
+  C.totalLiab = C.ownedFunds + C.termLoans + C.currentLiab;
+  C.totalAssets = C.faNet + C.currentAssets + C.oa;
+  C.diff = C.totalLiab - C.totalAssets;
+  C.interUnitEliminated = interUnitTotal;
+
+  return C;
+}
+
+// ─── UNIT SWITCHER BAR ────────────────────────────────────────────────────────
+function unitSwitcherBar(){
+  var h = '<div style="background:#1A237E;padding:8px 12px;display:flex;align-items:center;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch">';
+  h += '<span style="font-size:10px;color:rgba(255,255,255,0.7);white-space:nowrap;flex-shrink:0">Units:</span>';
+  MU.units.forEach(function(u,i){
+    var active = (i===MU_UNIT);
+    h += '<button onclick="switchUnit('+i+')" style="flex-shrink:0;padding:5px 12px;border:2px solid '+(active?'#fff':u.color||'#90CAF9')+
+         ';border-radius:20px;background:'+(active?'#fff':'transparent')+
+         ';color:'+(active?'#1A237E':'#fff')+
+         ';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">'+
+         esc(u.name)+'</button>';
+  });
+  h += '<button onclick="go(\'units\')" style="flex-shrink:0;padding:5px 10px;border:1px dashed rgba(255,255,255,0.5);border-radius:20px;background:transparent;color:rgba(255,255,255,0.8);font-size:11px;cursor:pointer;white-space:nowrap">+ Unit</button>';
+  h += '<button onclick="go(\'consolidated\')" style="flex-shrink:0;padding:5px 10px;border:1px solid #FFD54F;border-radius:20px;background:transparent;color:#FFD54F;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📊 Consolidated</button>';
+  h += '</div>';
+  return h;
+}
+
+// ─── UNITS MANAGEMENT PAGE ────────────────────────────────────────────────────
+function pgUnits(){
+  var h = '';
+  // Company profile card
+  h += card('🏢 Company Profile',
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+    inp('Company Name','mu_cname','text',MU.company.name||'')+
+    inp('Constitution','mu_const','text',MU.company.constitution||'Company')+
+    inp('PAN','mu_pan','text',MU.company.pan||'')+
+    inp('GSTIN','mu_gstin','text',MU.company.gstin||'')+
+    '</div>'+
+    inp('Address','mu_addr','text',MU.company.address||'')+
+    btn('Save Company Profile','saveCompanyProfile()','#1565C0')
+  );
+
+  // Units list
+  h += '<div style="font-weight:700;font-size:15px;color:#1565C0;margin:16px 0 8px">Business Units</div>';
+  MU.units.forEach(function(u,i){
+    var origD=D; D=u.data;
+    var f=getF(); D=origD;
+    var active=(i===MU_UNIT);
+    h += '<div style="background:'+(active?'#E3F2FD':'#fff')+';border:2px solid '+(active?'#1565C0':'#E0E0E0')+';border-radius:12px;padding:14px;margin-bottom:10px">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+    h += '<div><span style="font-size:16px;font-weight:700;color:'+u.color+'">'+esc(u.name)+'</span>';
+    h += ' <span style="font-size:11px;color:#546E7A">'+esc(u.businessType)+'</span>';
+    if(active) h += ' <span style="font-size:10px;background:#1565C0;color:#fff;padding:2px 6px;border-radius:10px">Active</span>';
+    h += '</div>';
+    h += '<div style="display:flex;gap:6px">';
+    if(!active) h += btn('Switch','switchUnit('+i+')','#1565C0');
+    h += '<button onclick="editUnitName('+i+')" style="padding:4px 8px;border:1px solid #90A4AE;border-radius:6px;background:#fff;cursor:pointer;font-size:11px">✎ Rename</button>';
+    if(MU.units.length>1) h += '<button onclick="deleteUnit('+i+')" style="padding:4px 8px;border:1px solid #EF9A9A;border-radius:6px;background:#fff;color:#C62828;cursor:pointer;font-size:11px">✕</button>';
+    h += '</div></div>';
+    h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:12px">';
+    h += sc('Sales',fc(f.ts),u.color||'#1565C0','');
+    h += sc('Net Profit',fc(f.np),f.np>=0?'#2E7D32':'#C62828','');
+    h += sc('Cash+Bank',fc(f.cb+f.bb),'#37474F','');
+    h += '</div></div>';
+  });
+
+  h += btn('+ Add New Unit','addUnit()','#2E7D32');
+
+  // Inter-unit transactions
+  h += '<div style="font-weight:700;font-size:15px;color:#6A1B9A;margin:20px 0 8px">🔄 Inter-Unit Transactions</div>';
+  h += card('Record Inter-Unit Transaction',
+    '<div style="font-size:12px;color:#546E7A;margin-bottom:10px">When one unit sells/transfers to another unit. These are eliminated in the Consolidated view.</div>'+
+    g2(
+      sl('From Unit','iu_from', MU.units.map(function(u,i){return {v:i,l:u.name};}), MU_UNIT),
+      sl('To Unit','iu_to', MU.units.map(function(u,i){return {v:i,l:u.name};}), MU_UNIT===0?1:0)
+    )+
+    g2(inp('Amount (₹)','iu_amt','number',''), inp('Date','iu_date','date',td()))+
+    inp('Description','iu_desc','text','Inter-unit sale')+
+    btn('✓ Record Inter-Unit Transaction','addInterUnit()','#6A1B9A')
+  );
+
+  // Inter-unit register
+  if(MU.interUnit && MU.interUnit.length){
+    var rows=[];
+    MU.interUnit.slice().reverse().forEach(function(x){
+      var fromName=MU.units[x.fromUnit]?MU.units[x.fromUnit].name:'?';
+      var toName=MU.units[x.toUnit]?MU.units[x.toUnit].name:'?';
+      rows.push('<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #F0F0F0">'+
+        '<div><div style="font-size:12px;font-weight:700">'+esc(fromName)+' → '+esc(toName)+'</div>'+
+        '<div style="font-size:11px;color:#546E7A">'+x.date+' | '+esc(x.description)+'</div></div>'+
+        '<div style="display:flex;align-items:center;gap:8px"><b style="color:#6A1B9A">'+fc(x.amount)+'</b>'+
+        '<button onclick="deleteInterUnit(\''+x.id+'\')" style="padding:2px 6px;border:none;background:#FFEBEE;color:#C62828;border-radius:4px;font-size:11px;cursor:pointer">✕</button></div></div>');
+    });
+    h += card('Inter-Unit Register', rows.join(''));
+  }
+
+  return h;
+}
+
+function saveCompanyProfile(){
+  MU.company.name = gv('mu_cname');
+  MU.company.constitution = gv('mu_const');
+  MU.company.pan = gv('mu_pan');
+  MU.company.gstin = gv('mu_gstin');
+  MU.company.address = gv('mu_addr');
+  muSave(); toast('Company profile saved ✅'); renderPage();
+}
+
+// ─── CONSOLIDATED FINANCIALS PAGE ─────────────────────────────────────────────
+function pgConsolidated(){
+  var C = getConsolidated();
+  var h = '';
+
+  // Company header
+  if(MU.company.name){
+    h += '<div style="background:#1A237E;color:#fff;border-radius:12px;padding:14px;margin-bottom:12px;text-align:center">';
+    h += '<div style="font-size:18px;font-weight:700">'+esc(MU.company.name)+'</div>';
+    h += '<div style="font-size:12px;opacity:0.85">Consolidated Financial Statements | '+MU.units.length+' Units</div>';
+    if(C.interUnitEliminated>0) h += '<div style="font-size:11px;background:rgba(255,255,255,0.15);border-radius:6px;padding:4px 8px;margin-top:6px">Inter-unit eliminations: '+fc(C.interUnitEliminated)+'</div>';
+    h += '</div>';
+  }
+
+  // Unit-wise summary
+  h += '<div style="font-weight:700;font-size:14px;color:#1565C0;margin-bottom:8px">Unit-wise Summary</div>';
+  h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+  h += '<thead><tr style="background:#E3F2FD"><th style="padding:6px 8px;text-align:left">Unit</th><th style="padding:6px 8px;text-align:right">Sales</th><th style="padding:6px 8px;text-align:right">Purchases</th><th style="padding:6px 8px;text-align:right">Expenses</th><th style="padding:6px 8px;text-align:right">Net Profit</th><th style="padding:6px 8px;text-align:right">Assets</th></tr></thead><tbody>';
+  C.unitDetails.forEach(function(u){
+    h += '<tr style="border-bottom:1px solid #F0F0F0">';
+    h += '<td style="padding:6px 8px;font-weight:700;color:'+u.color+'">'+esc(u.name)+'</td>';
+    h += '<td style="padding:6px 8px;text-align:right">'+fc(u.sales)+'</td>';
+    h += '<td style="padding:6px 8px;text-align:right">'+fc(u.purchases)+'</td>';
+    h += '<td style="padding:6px 8px;text-align:right">'+fc(u.expenses)+'</td>';
+    h += '<td style="padding:6px 8px;text-align:right;color:'+(u.np>=0?'#2E7D32':'#C62828')+'"><b>'+fc(u.np)+'</b></td>';
+    h += '<td style="padding:6px 8px;text-align:right">'+fc(u.totalAssets)+'</td>';
+    h += '</tr>';
+  });
+  // Totals row
+  h += '<tr style="background:#F5F5F5;font-weight:700"><td style="padding:6px 8px">CONSOLIDATED</td>';
+  h += '<td style="padding:6px 8px;text-align:right">'+fc(C.ts)+'</td>';
+  h += '<td style="padding:6px 8px;text-align:right">'+fc(C.tp)+'</td>';
+  h += '<td style="padding:6px 8px;text-align:right">'+fc(C.te)+'</td>';
+  h += '<td style="padding:6px 8px;text-align:right;color:'+(C.np>=0?'#2E7D32':'#C62828')+'">'+fc(C.np)+'</td>';
+  h += '<td style="padding:6px 8px;text-align:right">'+fc(C.totalAssets)+'</td>';
+  h += '</tr></tbody></table></div>';
+
+  // Consolidated P&L
+  h += '<div style="font-weight:700;font-size:14px;color:#1565C0;margin:16px 0 8px">Consolidated P&L</div>';
+  h += '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #E0E0E0">';
+  h += row('Net Sales (after inter-unit elimination)',fc(C.ts));
+  h += row('Cost of Goods Sold',fc(C.os+C.tp-C.cs));
+  h += row('Gross Profit',fc(C.ts-(C.os+C.tp-C.cs)));
+  h += row('Total Expenses',fc(C.te));
+  h += '<div style="display:flex;justify-content:space-between;padding:10px 0;border-top:2px solid #1565C0;font-weight:700;font-size:15px">';
+  h += '<span>Consolidated Net Profit</span><span style="color:'+(C.np>=0?'#2E7D32':'#C62828')+'">'+fc(C.np)+'</span></div>';
+  h += '</div>';
+
+  // Consolidated Balance Sheet
+  h += '<div style="font-weight:700;font-size:14px;color:#1565C0;margin:16px 0 8px">Consolidated Balance Sheet</div>';
+  h += '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #E0E0E0">';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
+  h += '<div>';
+  h += '<div style="font-weight:700;color:#1565C0;margin-bottom:8px">LIABILITIES</div>';
+  h += row('Owned Funds',fc(C.ownedFunds));
+  h += row('Term Loans',fc(C.termLoans));
+  h += row('Current Liabilities',fc(C.currentLiab));
+  h += '<div style="border-top:2px solid #1565C0;margin-top:6px;padding-top:6px;font-weight:700">'+
+       row('TOTAL',fc(C.totalLiab))+'</div>';
+  h += '</div>';
+  h += '<div>';
+  h += '<div style="font-weight:700;color:#6A1B9A;margin-bottom:8px">ASSETS</div>';
+  h += row('Fixed Assets',fc(C.faNet));
+  h += row('Other NCA',fc(C.oa));
+  h += row('Current Assets',fc(C.currentAssets));
+  h += '<div style="border-top:2px solid #6A1B9A;margin-top:6px;padding-top:6px;font-weight:700">'+
+       row('TOTAL',fc(C.totalAssets))+'</div>';
+  h += '</div>';
+  h += '</div>';
+  if(Math.abs(C.diff)<0.01){
+    h += '<div style="background:#E8F5E9;border-radius:8px;padding:8px;margin-top:10px;color:#2E7D32;font-weight:700;text-align:center">✅ Balance Sheet Tallies</div>';
+  } else {
+    h += '<div style="background:#FFEBEE;border-radius:8px;padding:8px;margin-top:10px;color:#C62828;font-weight:700;text-align:center">⚠️ Difference: '+fc(Math.abs(C.diff))+'</div>';
+  }
+  h += '</div>';
+
+  // Cash position
+  h += '<div style="font-weight:700;font-size:14px;color:#1565C0;margin:16px 0 8px">Cash & Bank Position</div>';
+  h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">';
+  h += sc('Cash',fc(C.cb),'#1565C0','');
+  h += sc('Bank',fc(C.bb),'#5B5BD6','');
+  h += sc('Total Cash+Bank',fc(C.cb+C.bb),'#2E7D32','');
+  h += '</div>';
+
+  return h;
+}
+
+function row(l,v){ return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F5F5F5;font-size:13px"><span>'+l+'</span><b>'+v+'</b></div>'; }
+
+// ─── INIT OVERRIDE ────────────────────────────────────────────────────────────
+function loadFullApp(){
+  muLoad();
+  buildNav();
+  showWelcomeIfNeeded();
+  renderPage();
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// END MULTI-UNIT LAYER
+// ═══════════════════════════════════════════════════════════════════════════
 var D;
 if(typeof window._prodCart==='undefined') window._prodCart=[];
 var curPg='dashboard';
@@ -11356,6 +11759,9 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
+  // Inject unit switcher bar
+  var usb = document.getElementById('unit-switcher');
+  if(usb && typeof MU !== 'undefined' && MU && MU.units) usb.innerHTML = unitSwitcherBar();
   var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,expenses:pgExp,cashbank:pgCB,emi:pgEMI,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,reminders:pgReminders,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,production:pgProduction,consumption:pgConsumption,bizmanager:pgBizManager,interunit:pgInterUnit,template:pgTemplate};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
