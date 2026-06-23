@@ -1781,7 +1781,10 @@ function pgPur(){
   }
   var sel=window._purItem||'__new__';
   var h='<div class="card"><div class="ch">Total Purchases: '+fc(tot)+'</div></div>';
-  var itemBlock = (window._barcodeEnabled?'<button onclick="openScanner(\'purchase\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📷 Scan Barcode to Select Item</button>':'')+sl('Item','pu_i',iOpts,sel)+' <div onchange="window._purItem=gv(\'pu_i\');renderPage()" style="display:none"></div>';
+  var _scanPurBtn = window._barcodeEnabled ?
+    '<button onclick="openScanner(\'purchase\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📷 Scan Barcode / QR Code to Select Item</button>' :
+    '<button onclick="toast(\'Enable Barcode Scanner in Data tab first\',\'w\')" style="width:100%;padding:8px;background:#E0E0E0;color:#9E9E9E;border:none;border-radius:8px;font-size:12px;cursor:pointer;margin-bottom:8px">📷 Scan Barcode (Enable in Data tab → Barcode Scanner)</button>';
+  var itemBlock = _scanPurBtn+sl('Item','pu_i',iOpts,sel)+' <div onchange="window._purItem=gv(\'pu_i\');renderPage()" style="display:none"></div>';
   var newItemFields='';
   if(sel==='__new__'){
     var catOpts=[{v:'Resale',l:'Resale'},{v:'Raw Material',l:'Raw Material'},{v:'FG',l:'Finished Goods'},{v:'Consumable',l:'Consumable'}];
@@ -1893,7 +1896,9 @@ function pgSal(){
     costInfo='<div class="al ali"><div style="display:flex;justify-content:space-between"><span>Cost Price per '+esc(selItem.unit)+':</span><b>'+fc(cp)+'</b></div><div style="font-size:11px;color:#546E7A;margin-top:3px">Set your selling price above this to make a profit. Available stock: '+fmt(selItem.currentStock)+' '+esc(selItem.unit)+'</div></div>';
   }
 
-  if(window._barcodeEnabled) h+='<div style="margin-bottom:8px"><button onclick="openScanner(\'sale\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📷 Scan Barcode to Select Item</button></div>';
+  h += window._barcodeEnabled ?
+    '<div style="margin-bottom:8px"><button onclick="openScanner(\'sale\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📷 Scan Barcode / QR Code to Select Item</button></div>' :
+    '<div style="margin-bottom:8px"><button onclick="toast(\'Enable Barcode Scanner in Data tab first\',\'w\')" style="width:100%;padding:8px;background:#E0E0E0;color:#9E9E9E;border:none;border-radius:8px;font-size:12px;cursor:pointer">📷 Scan Barcode (Enable in Data tab → Barcode Scanner)</button></div>';
   h+=card('Record Sale',
     g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||''))+
     '<div class="fg"><label>Item</label><select id="sl_i" onchange="onSalItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
