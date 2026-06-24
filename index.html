@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,8 +19,6 @@ body{
   color:#1a1a2e;
   min-height:100vh;
 }
-
-/* HEADER */
 header{
   background:linear-gradient(135deg,#1565C0 0%,#0D47A1 100%);
   color:#fff;
@@ -25,153 +26,39 @@ header{
   text-align:center;
   position:relative;
 }
-header h1{
-  font-size:1.6rem;
-  font-weight:800;
-  color:#fff;
-  letter-spacing:-0.5px;
-  margin-bottom:4px;
-}
+header h1{font-size:1.6rem;font-weight:800;color:#fff;letter-spacing:-0.5px;margin-bottom:4px;}
 header h1 span{color:#FFD54F;}
-.dev-line{
-  font-size:0.75rem;
-  color:rgba(255,255,255,0.85);
-  margin-top:6px;
-  line-height:1.5;
-}
+.dev-line{font-size:0.75rem;color:rgba(255,255,255,0.85);margin-top:6px;line-height:1.5;}
 .dev-line b{color:#FFD54F;}
-.tagline{
-  font-size:0.82rem;
-  color:rgba(255,255,255,0.75);
-  margin-top:4px;
-}
-
-/* MAIN */
+.tagline{font-size:0.82rem;color:rgba(255,255,255,0.75);margin-top:4px;}
 main{max-width:700px; margin:0 auto; padding:16px 12px 60px;}
-
-/* SECTION TITLES */
-.sec-title{
-  font-size:0.78rem;
-  font-weight:800;
-  color:#1565C0;
-  text-transform:uppercase;
-  letter-spacing:1.2px;
-  margin:22px 0 10px 4px;
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-.sec-title::after{
-  content:'';
-  flex:1;
-  height:2px;
-  background:linear-gradient(to right,#1565C0,transparent);
-  border-radius:2px;
-}
-
-/* APP CARDS */
+.sec-title{font-size:0.78rem;font-weight:800;color:#1565C0;text-transform:uppercase;letter-spacing:1.2px;margin:22px 0 10px 4px;display:flex;align-items:center;gap:8px;}
+.sec-title::after{content:'';flex:1;height:2px;background:linear-gradient(to right,#1565C0,transparent);border-radius:2px;}
 .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
 @media(max-width:400px){.grid{grid-template-columns:1fr;}}
-
-.app-card{
-  background:#fff;
-  border-radius:12px;
-  padding:16px 14px;
-  text-decoration:none;
-  color:#1a1a2e;
-  display:block;
-  box-shadow:0 2px 8px rgba(0,0,0,0.08);
-  border:1px solid #e0e8f0;
-  transition:transform 0.15s, box-shadow 0.15s;
-  border-top:4px solid #1565C0;
-}
+.app-card{background:#fff;border-radius:12px;padding:16px 14px;text-decoration:none;color:#1a1a2e;display:block;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #e0e8f0;transition:transform 0.15s,box-shadow 0.15s;border-top:4px solid #1565C0;}
 .app-card:active{transform:scale(0.97);}
-.app-card:hover{box-shadow:0 4px 16px rgba(21,101,192,0.15); transform:translateY(-2px);}
-
-.app-card .icon{font-size:2rem; margin-bottom:8px; display:block;}
-.app-card h3{font-size:0.92rem; font-weight:700; color:#1565C0; margin-bottom:4px;}
-.app-card p{font-size:0.74rem; color:#555; line-height:1.5;}
-.app-card .pill{
-  display:inline-block;
-  font-size:0.62rem;
-  background:#E3F2FD;
-  color:#1565C0;
-  padding:2px 8px;
-  border-radius:10px;
-  margin-top:8px;
-  font-weight:700;
-  letter-spacing:0.3px;
-}
-
-/* CMA CARDS — highlighted differently */
-.cma-card{
-  background:#fff;
-  border-radius:12px;
-  padding:16px 14px;
-  text-decoration:none;
-  color:#1a1a2e;
-  display:block;
-  box-shadow:0 2px 8px rgba(0,0,0,0.08);
-  border:1px solid #e0e8f0;
-  transition:transform 0.15s, box-shadow 0.15s;
-  border-top:4px solid #0e5e4a;
-  margin-bottom:10px;
-}
+.app-card:hover{box-shadow:0 4px 16px rgba(21,101,192,0.15);transform:translateY(-2px);}
+.app-card .icon{font-size:2rem;margin-bottom:8px;display:block;}
+.app-card h3{font-size:0.92rem;font-weight:700;color:#1565C0;margin-bottom:4px;}
+.app-card p{font-size:0.74rem;color:#555;line-height:1.5;}
+.app-card .pill{display:inline-block;font-size:0.62rem;background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;margin-top:8px;font-weight:700;letter-spacing:0.3px;}
+.cma-card{background:#fff;border-radius:12px;padding:16px 14px;text-decoration:none;color:#1a1a2e;display:block;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #e0e8f0;transition:transform 0.15s,box-shadow 0.15s;border-top:4px solid #0e5e4a;margin-bottom:10px;}
 .cma-card:active{transform:scale(0.97);}
-.cma-card:hover{box-shadow:0 4px 16px rgba(14,94,74,0.15); transform:translateY(-2px);}
-.cma-card .icon{font-size:2rem; margin-bottom:8px; display:block;}
-.cma-card h3{font-size:0.95rem; font-weight:700; color:#0e5e4a; margin-bottom:4px;}
-.cma-card p{font-size:0.74rem; color:#555; line-height:1.5;}
-.cma-card .features{display:flex; flex-wrap:wrap; gap:4px; margin-top:8px;}
-.cma-card .feat{
-  font-size:0.62rem;
-  background:#E8F5E9;
-  color:#0e5e4a;
-  padding:2px 7px;
-  border-radius:10px;
-  font-weight:700;
-}
+.cma-card:hover{box-shadow:0 4px 16px rgba(14,94,74,0.15);transform:translateY(-2px);}
+.cma-card .icon{font-size:2rem;margin-bottom:8px;display:block;}
+.cma-card h3{font-size:0.95rem;font-weight:700;color:#0e5e4a;margin-bottom:4px;}
+.cma-card p{font-size:0.74rem;color:#555;line-height:1.5;}
+.cma-card .features{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
+.cma-card .feat{font-size:0.62rem;background:#E8F5E9;color:#0e5e4a;padding:2px 7px;border-radius:10px;font-weight:700;}
 .cma-card.new{border-top-color:#F57F17;}
 .cma-card.new h3{color:#F57F17;}
-.cma-card.new .feat{background:#FFF8E1; color:#F57F17;}
-
-/* CMA MENU LINK */
-.menu-link{
-  display:block;
-  background:linear-gradient(135deg,#0e5e4a,#0a3d2e);
-  color:#fff;
-  text-align:center;
-  padding:12px;
-  border-radius:10px;
-  text-decoration:none;
-  font-size:0.82rem;
-  font-weight:700;
-  margin-bottom:12px;
-  letter-spacing:0.3px;
-}
+.cma-card.new .feat{background:#FFF8E1;color:#F57F17;}
+.menu-link{display:block;background:linear-gradient(135deg,#0e5e4a,#0a3d2e);color:#fff;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-size:0.82rem;font-weight:700;margin-bottom:12px;letter-spacing:0.3px;}
 .menu-link span{color:#FFD54F;}
-
-/* INFO BOX */
-.info-box{
-  background:#fff;
-  border-radius:10px;
-  padding:14px;
-  font-size:0.76rem;
-  color:#555;
-  line-height:1.7;
-  border:1px solid #e0e8f0;
-  margin-top:6px;
-}
+.info-box{background:#fff;border-radius:10px;padding:14px;font-size:0.76rem;color:#555;line-height:1.7;border:1px solid #e0e8f0;margin-top:6px;}
 .info-box b{color:#1565C0;}
-
-footer{
-  background:#1565C0;
-  color:rgba(255,255,255,0.8);
-  text-align:center;
-  padding:16px;
-  font-size:0.72rem;
-  line-height:1.7;
-}
+footer{background:#1565C0;color:rgba(255,255,255,0.8);text-align:center;padding:16px;font-size:0.72rem;line-height:1.7;}
 footer b{color:#FFD54F;}
 </style>
 </head>
@@ -188,7 +75,6 @@ footer b{color:#FFD54F;}
 
 <main>
 
-  <!-- ACCOUNTING APPS -->
   <div class="sec-title">📒 ME Khata — Accounting Apps</div>
 
   <div class="grid">
@@ -220,15 +106,14 @@ footer b{color:#FFD54F;}
       <span class="pill">ALL-IN-ONE</span>
     </a>
 
-    <a href="ME%20Multi%20Unit%20Khata.html" class="app-card">
+    <a href="ME%20MultiUnit%20Khata.html" class="app-card" style="border-top-color:#2E7D32;">
       <span class="icon">🏢</span>
       <h3>Multi Unit Khata</h3>
       <p>Manage accounts for multiple business units or branches from one interface.</p>
-      <span class="pill">MULTI-UNIT</span>
+      <span class="pill" style="background:#E8F5E9;color:#2E7D32;">MULTI-UNIT</span>
     </a>
   </div>
 
-  <!-- CMA TOOLS -->
   <div class="sec-title">📈 CMA Tools — Bank Credit Appraisal</div>
 
   <a href="index-cma-links.html" class="menu-link">
