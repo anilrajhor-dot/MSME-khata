@@ -2,15 +2,10 @@
 <html lang="en">
 <head>
 <script>
-// Cache buster — forces fresh load on GitHub Pages
-var _BUILD = '202606240321';
-var _stored = sessionStorage.getItem('mfm_build');
-if(_stored && _stored !== _BUILD) {
-  sessionStorage.setItem('mfm_build', _BUILD);
-  location.reload(true);
-} else {
-  sessionStorage.setItem('mfm_build', _BUILD);
-}
+var _BUILD='202406240321';
+var _s=sessionStorage.getItem('mfm_build');
+if(_s&&_s!==_BUILD){sessionStorage.setItem('mfm_build',_BUILD);location.reload(true);}
+else{sessionStorage.setItem('mfm_build',_BUILD);}
 </script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -21,7 +16,7 @@ if(_stored && _stored !== _BUILD) {
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1565C0">
-<title>ME Khata — Multi-Unit Business Accounts | v202606240321</title>
+<title>ME Khata — Multi-Unit Business Accounts | v202406240321</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:sans-serif;margin:0;padding:0}
@@ -81,7 +76,7 @@ td{padding:6px 8px;border-bottom:1px solid #BBDEFB;white-space:nowrap}
 <div id="tb">
   <div style="flex:1">
     <b id="tbn">🛒 Trade Accounts</b>
-    <small id="tbp">Dashboard</small><small style="font-size:8px;opacity:.4;margin-left:6px">v202606240321</small>
+    <small id="tbp">Dashboard</small>
   </div>
   <button onclick="toggleHi()" id="lb">हि</button>
 </div>
@@ -691,6 +686,210 @@ function getFGrouped(){
   };
 }
 // ===== DASHBOARD =====
+var _scanTarget=null,_scanStream=null,_quaggaLoaded=false,_nativeScanInterval=null;
+
+// Toggle scanner (optional feature)
+function toggleBarcodeScanner(){
+  window._barcodeEnabled=!window._barcodeEnabled;
+  try{localStorage.setItem('mefm_barcode_enabled',window._barcodeEnabled?'1':'0');}catch(e){}
+  renderPage();
+  toast('Barcode Scanner '+(window._barcodeEnabled?'Enabled':'Disabled'));
+}
+(function(){
+  try{var p=localStorage.getItem('mefm_barcode_enabled');window._barcodeEnabled=(p===null)?false:(p==='1');}
+  catch(e){window._barcodeEnabled=false;}
+})();
+
+function barcodeBtn(target){
+  if(!window._barcodeEnabled) return '';
+  var html='<button onclick="openScanner(\'' + target + '\')" ';
+  html+='style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);';
+  html+='color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;';
+  html+='cursor:pointer;margin-bottom:8px">📷 Scan Barcode / QR Code</button>';
+  return html;
+}
+
+function openScanner(target){
+  _scanTarget=target;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    toast('Camera not available','e'); return;
+  }
+  var overlay=document.createElement('div');
+  overlay.id='barcode-overlay';
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:99999;display:flex;flex-direction:column';
+  var h='<div style="background:#1B5E20;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">';
+  h+='<div style="color:#fff;font-weight:700;font-size:16px">📷 Scan Item Barcode</div>';
+  h+='<button onclick="closeScanner()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 12px;border-radius:6px;font-size:14px;cursor:pointer">✕ Close</button></div>';
+  h+='<div style="flex:1;position:relative;overflow:hidden">';
+  h+='<video id="scan-video" style="width:100%;height:100%;object-fit:cover" playsinline autoplay muted></video>';
+  h+='<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:70%;max-width:280px;height:160px;border:3px solid #4CAF50;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,0.5)"></div>';
+  h+='<div style="position:absolute;bottom:20%;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,0.6);padding:6px 12px;border-radius:20px">Point at barcode or QR code</div>';
+  h+='</div>';
+  h+='<div style="background:#1B5E20;padding:12px 16px">';
+  h+='<div id="scan-status" style="color:#A5D6A7;font-size:12px;text-align:center;margin-bottom:8px">Initializing camera...</div>';
+  h+='<input id="scan-manual" type="text" placeholder="Or type barcode manually" ';
+  h+='style="width:100%;padding:10px;border-radius:8px;border:none;font-size:14px;box-sizing:border-box;margin-bottom:8px">';
+  h+='<button onclick="processBarcode(document.getElementById(\'scan-manual\').value.trim())" ';
+  h+='style="width:100%;padding:10px;background:#4CAF50;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">✓ Use Barcode</button>';
+  h+='</div>';
+  overlay.innerHTML=h;
+  document.body.appendChild(overlay);
+  startCamera();
+}
+
+function startCamera(){
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+  .then(function(stream){
+    _scanStream=stream;
+    var video=document.getElementById('scan-video');
+    if(video){video.srcObject=stream;video.play();}
+    setScanStatus('Camera ready — point at barcode');
+    if(window.BarcodeDetector){setScanStatus('Native scanner active ⚡');startNativeDetector(video);}
+    else loadQuagga();
+  }).catch(function(err){setScanStatus('Camera error: '+err.message);});
+}
+
+function setScanStatus(msg){var el=document.getElementById('scan-status');if(el)el.textContent=msg;}
+
+function startNativeDetector(video){
+  var detector=new BarcodeDetector({formats:['ean_13','ean_8','code_128','qr_code','upc_a','upc_e']});
+  _nativeScanInterval=setInterval(function(){
+    if(!video||video.readyState<2) return;
+    detector.detect(video).then(function(results){
+      if(results&&results.length){clearInterval(_nativeScanInterval);processBarcode(results[0].rawValue);}
+    }).catch(function(){});
+  },300);
+}
+
+function loadQuagga(){
+  setScanStatus('Loading scanner library...');
+  if(_quaggaLoaded){startQuagga();return;}
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js';
+  s.onload=function(){_quaggaLoaded=true;startQuagga();};
+  s.onerror=function(){setScanStatus('Use manual entry below');};
+  document.head.appendChild(s);
+}
+
+function startQuagga(){
+  if(typeof Quagga==='undefined'){setScanStatus('Use manual entry below');return;}
+  Quagga.init({
+    inputStream:{name:'Live',type:'LiveStream',target:document.getElementById('scan-video'),constraints:{facingMode:'environment'}},
+    decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','upc_reader']},locate:true
+  },function(err){
+    if(err){setScanStatus('Use manual entry below');return;}
+    Quagga.start();
+    Quagga.onDetected(function(r){if(r&&r.codeResult){Quagga.stop();processBarcode(r.codeResult.code);}});
+  });
+}
+
+function closeScanner(){
+  if(_scanStream){_scanStream.getTracks().forEach(function(t){t.stop();});_scanStream=null;}
+  if(_nativeScanInterval){clearInterval(_nativeScanInterval);_nativeScanInterval=null;}
+  try{if(typeof Quagga!=='undefined')Quagga.stop();}catch(e){}
+  var o=document.getElementById('barcode-overlay');if(o)o.remove();
+  _scanTarget=null;
+}
+
+function processBarcode(code){
+  if(!code||!code.trim()){toast('No barcode','e');return;}
+  closeScanner();
+  var found=null;
+  for(var i=0;i<D.inventory.length;i++){
+    if(D.inventory[i].barcode&&D.inventory[i].barcode===code){found=D.inventory[i];break;}
+  }
+  if(found){
+    toast('Found: '+found.itemName+' ✅');
+    if(_scanTarget==='purchase'){window._purItem=found.id;go('purchase');}
+    else{window._salItem=found.id;go('sales');}
+  } else {
+    showBarcodeAssign(code);
+  }
+}
+
+function showBarcodeAssign(code){
+  var opts=D.inventory.map(function(it){return '<option value="'+it.id+'">'+esc(it.itemName)+'</option>';}).join('');
+  var d=document.createElement('div');
+  d.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  d.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:400px">'+
+    '<div style="font-size:16px;font-weight:700;color:#1B5E20;margin-bottom:4px">📷 New Barcode: '+esc(code)+'</div>'+
+    '<div style="font-weight:700;font-size:13px;margin:12px 0 6px">Assign to existing item:</div>'+
+    '<select id="bc_item" style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:13px;margin-bottom:10px">'+
+    '<option value="">-- Select --</option>'+opts+'</select>'+
+    '<button onclick="assignBarcode(\''+code+'\',document.getElementById(\'bc_item\').value)" '+
+    'style="width:100%;padding:12px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px">Assign Barcode</button>'+
+    '<div style="font-weight:700;font-size:13px;margin-bottom:6px">OR create new item:</div>'+
+    '<input id="bc_name" placeholder="New item name" style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
+    '<button onclick="createItemWithBarcode(\''+code+'\',document.getElementById(\'bc_name\').value)" '+
+    'style="width:100%;padding:12px;background:#2E7D32;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px">+ Create New Item</button>'+
+    '<button onclick="this.closest(\'div[style*=fixed]\').remove()" '+
+    'style="width:100%;padding:10px;background:#F5F5F5;color:#546E7A;border:none;border-radius:8px;font-size:13px;cursor:pointer">Cancel</button>'+
+    '</div>';
+  document.body.appendChild(d);
+}
+
+function assignBarcode(code,itemId){
+  if(!itemId){toast('Select an item','e');return;}
+  for(var i=0;i<D.inventory.length;i++){
+    if(D.inventory[i].id===itemId){
+      D.inventory[i].barcode=code; sv();
+      var name=D.inventory[i].itemName;
+      var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
+      toast('Barcode assigned to '+name+' ✅');
+      if(_scanTarget==='purchase'){window._purItem=itemId;go('purchase');}
+      else{window._salItem=itemId;go('sales');}
+      return;
+    }
+  }
+}
+
+function createItemWithBarcode(code,name){
+  if(!name||!name.trim()){toast('Enter item name','e');return;}
+  var item={id:uid(),itemName:name.trim(),unit:'No.',openingStock:0,currentStock:0,avgCost:0,
+    importedStock:0,importedAvgCost:0,reorderLevel:0,category:'Resale',barcode:code};
+  D.inventory.push(item); sv();
+  var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
+  toast('Item created ✅');
+  if(_scanTarget==='purchase'){window._purItem=item.id;go('purchase');}
+  else{window._salItem=item.id;go('sales');}
+}
+
+function showItemBarcode(itemId){
+  var item=null;for(var i=0;i<D.inventory.length;i++)if(D.inventory[i].id===itemId){item=D.inventory[i];break;}
+  if(!item)return;
+  var d=document.createElement('div');
+  d.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  d.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:360px">'+
+    '<div style="font-size:16px;font-weight:700;color:#1565C0;margin-bottom:12px">'+esc(item.itemName)+'</div>'+
+    (item.barcode?'<div style="background:#E8F5E9;border-radius:8px;padding:10px;margin-bottom:10px;text-align:center"><div style="font-size:11px;color:#546E7A">Saved Barcode</div><div style="font-size:18px;font-weight:700;font-family:monospace;color:#1B5E20">'+esc(item.barcode)+'</div></div>':
+    '<div style="background:#FFF8E1;border-radius:8px;padding:10px;margin-bottom:10px;color:#E65100;text-align:center">No barcode assigned yet</div>')+
+    '<input id="bc_code" value="'+(item.barcode||'')+'" placeholder="Barcode number" '+
+    'style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:14px;margin-bottom:8px;box-sizing:border-box">'+
+    '<button onclick="saveItemBarcode(\''+itemId+'\',document.getElementById(\'bc_code\').value)" '+
+    'style="width:100%;padding:12px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px">💾 Save Barcode</button>'+
+    (item.barcode?'<button onclick="clearItemBarcode(\''+itemId+'\')" style="width:100%;padding:10px;background:#FFEBEE;color:#C62828;border:none;border-radius:8px;font-size:13px;cursor:pointer;margin-bottom:8px">✕ Remove Barcode</button>':'')+
+    '<button onclick="this.closest(\'div[style*=fixed]\').remove()" '+
+    'style="width:100%;padding:10px;background:#F5F5F5;color:#546E7A;border:none;border-radius:8px;font-size:13px;cursor:pointer">Close</button>'+
+    '</div>';
+  document.body.appendChild(d);
+}
+
+function saveItemBarcode(itemId,code){
+  var item=null;for(var i=0;i<D.inventory.length;i++)if(D.inventory[i].id===itemId){item=D.inventory[i];break;}
+  if(!item)return;
+  item.barcode=code.trim(); sv();
+  var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
+  toast('Barcode saved ✅'); renderPage();
+}
+
+function clearItemBarcode(itemId){
+  var item=null;for(var i=0;i<D.inventory.length;i++)if(D.inventory[i].id===itemId){item=D.inventory[i];break;}
+  if(!item)return;
+  delete item.barcode; sv();
+  var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
+  toast('Barcode removed'); renderPage();
+}
+// ── END BARCODE SCANNER ────────────────────────────────────────────────────
 function pgDash(){
   if(!D || !D.profile){ return card('Loading...','<div class="al ali">Loading business data...</div>'); }
   // Show home screen reminder on iPhone if not dismissed
@@ -1602,8 +1801,11 @@ function pgPur(){
     iOpts.push({v:_it.id,l:_it.itemName+_catLabel+' ('+_it.unit+', Stock:'+fmt(_it.currentStock)+')'});
   }
   var sel=window._purItem||'__new__';
+  var _scanPurBtn = window._barcodeEnabled ?
+    '<button onclick="openScanner(\'purchase\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📷 Scan Barcode / QR Code to Select Item</button>' :
+    '<button onclick="toast(\'Enable Barcode Scanner in Data tab first\',\'w\')" style="width:100%;padding:8px;background:#E0E0E0;color:#9E9E9E;border:none;border-radius:8px;font-size:12px;cursor:pointer;margin-bottom:8px">📷 Scan Barcode (Enable in Data tab → Barcode Scanner)</button>';
   var h='<div class="card"><div class="ch">Total Purchases: '+fc(tot)+'</div></div>';
-  var itemBlock = sl('Item','pu_i',iOpts,sel)+' <div onchange="window._purItem=gv(\'pu_i\');renderPage()" style="display:none"></div>';
+  var itemBlock = _scanPurBtn+sl('Item','pu_i',iOpts,sel)+' <div onchange="window._purItem=gv(\'pu_i\');renderPage()" style="display:none"></div>';
   var newItemFields='';
   if(sel==='__new__'){
     var catOpts=[{v:'Resale',l:'Resale'},{v:'Raw Material',l:'Raw Material'},{v:'FG',l:'Finished Goods'},{v:'Consumable',l:'Consumable'}];
@@ -1715,6 +1917,9 @@ function pgSal(){
     costInfo='<div class="al ali"><div style="display:flex;justify-content:space-between"><span>Cost Price per '+esc(selItem.unit)+':</span><b>'+fc(cp)+'</b></div><div style="font-size:11px;color:#546E7A;margin-top:3px">Set your selling price above this to make a profit. Available stock: '+fmt(selItem.currentStock)+' '+esc(selItem.unit)+'</div></div>';
   }
 
+    h += window._barcodeEnabled ?
+    '<div style="margin-bottom:8px"><button onclick="openScanner(\'sale\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📷 Scan Barcode / QR Code to Select Item</button></div>' :
+    '<div style="margin-bottom:8px"><button onclick="toast(\'Enable Barcode Scanner in Data tab first\',\'w\')" style="width:100%;padding:8px;background:#E0E0E0;color:#9E9E9E;border:none;border-radius:8px;font-size:12px;cursor:pointer">📷 Scan Barcode (Enable in Data tab → Barcode Scanner)</button></div>';
   h+=card('Record Sale',
     g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||''))+
     '<div class="fg"><label>Item</label><select id="sl_i" onchange="onSalItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
