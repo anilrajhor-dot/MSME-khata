@@ -275,8 +275,11 @@
       <button onclick="showHelpSection('industry')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">Industry Types</button>
       <button onclick="showHelpSection('projections')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">Projections</button>
       <button onclick="showHelpSection('cma')" class="action" style="font-size:0.75rem; padding:5px 12px;">CMA Forms</button>
+      <button onclick="showHelpSection('sales')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">Sales Analysis</button>
+      <button onclick="showHelpSection('nfb')" class="action" style="font-size:0.75rem; padding:5px 12px;">Non-Fund Limits</button>
       <button onclick="showHelpSection('loan')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">Loan / IRR</button>
       <button onclick="showHelpSection('data')" class="action" style="font-size:0.75rem; padding:5px 12px;">Data / Backup</button>
+      <button onclick="showHelpSection('glossary')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📖 Glossary</button>
     </div>
     <div id="helpSectionContent" style="font-size:0.88rem; line-height:1.7; color:#222;"></div>
   </div>
@@ -295,6 +298,8 @@
   <button data-panel="cma5">CMA-V MPBF</button>
   <button data-panel="ratios">Ratios</button>
   <button data-panel="dp">Drawing Power</button>
+  <button data-panel="sales">Sales Analysis</button>
+  <button data-panel="nfb">Non-Fund Limits</button>
   <button data-panel="loan">Loan / EMI</button>
   <button data-panel="irr">IRR / NPV</button>
   <button data-panel="files">📁 Files</button>
@@ -627,6 +632,87 @@
       </div>
     </div>
     <div class="scrollx"><table id="dpTable"></table></div>
+  </div>
+</div>
+
+<!-- ============ SALES ANALYSIS PANEL ============ -->
+<div class="panel" id="panel-sales">
+  <div class="card">
+    <h2>Sales Analysis <span class="tag">AUTO + EDITABLE</span></h2>
+    <div class="sub">Break-up of total sales into Export / Domestic and Cash / Credit. Enter actual year figures — projected years auto-filled proportionally from last actual year ratios.</div>
+
+    <h3 style="font-size:0.9rem; color:#0e5e4a; margin:10px 0 6px;">Sales Break-up by Market</h3>
+    <div class="scrollx"><table id="salesBreakupTable"></table></div>
+
+    <h3 style="font-size:0.9rem; color:#0e5e4a; margin:14px 0 6px;">Sales Break-up by Mode of Realisation</h3>
+    <div class="scrollx"><table id="salesModeTable"></table></div>
+
+    <h3 style="font-size:0.9rem; color:#0e5e4a; margin:14px 0 6px;">Purchase Break-up</h3>
+    <div class="scrollx"><table id="purchBreakupTable"></table></div>
+
+    <h3 style="font-size:0.9rem; color:#0e5e4a; margin:14px 0 6px;">Debtor Velocity Analysis</h3>
+    <div class="scrollx"><table id="debtorVelocityTable"></table></div>
+  </div>
+</div>
+
+<!-- ============ NON-FUND BASED LIMITS PANEL ============ -->
+<div class="panel" id="panel-nfb">
+  <div class="card">
+    <h2>Non-Fund Based Limits Assessment <span class="tag">AUTO + MANUAL OVERRIDE</span></h2>
+    <div class="sub">Inland LC, Foreign LC, and Bank Guarantee limits auto-calculated from TB data. Override any figure manually.</div>
+
+    <div class="note">All amounts in ₹'000s. Limits computed from projected year figures. Override fields accept manual values — clear to revert to auto-calculated.</div>
+
+    <h3 style="font-size:0.9rem; color:#0e5e4a; margin:10px 0 6px;">1. Inland Letter of Credit (ILC)</h3>
+    <div class="sub">Based on indigenous raw material purchases and supplier credit period.</div>
+    <div class="row">
+      <div class="field">
+        <label>Supplier Credit Period — Indigenous RM (days)</label>
+        <input type="number" id="ilcCreditDays" placeholder="e.g. 60" onfocus="this.select()" oninput="calcNFB()">
+      </div>
+      <div class="field">
+        <label>Margin on ILC (%)</label>
+        <input type="number" id="ilcMargin" value="25" onfocus="this.select()" oninput="calcNFB()">
+      </div>
+    </div>
+    <div class="scrollx"><table id="ilcTable"></table></div>
+
+    <h3 style="font-size:0.9rem; color:#0e5e4a; margin:14px 0 6px;">2. Foreign Letter of Credit (FLC)</h3>
+    <div class="sub">Based on imported raw material purchases and usance period.</div>
+    <div class="row">
+      <div class="field">
+        <label>Usance Period — Import LC (days)</label>
+        <input type="number" id="flcUsanceDays" placeholder="e.g. 90" onfocus="this.select()" oninput="calcNFB()">
+      </div>
+      <div class="field">
+        <label>Margin on FLC (%)</label>
+        <input type="number" id="flcMargin" value="15" onfocus="this.select()" oninput="calcNFB()">
+      </div>
+    </div>
+    <div class="scrollx"><table id="flcTable"></table></div>
+
+    <h3 style="font-size:0.9rem; color:#0e5e4a; margin:14px 0 6px;">3. Bank Guarantee (BG)</h3>
+    <div class="sub">For government / tender contracts. Enter contract-wise details below.</div>
+    <div class="row">
+      <div class="field">
+        <label>BG Margin (%)</label>
+        <input type="number" id="bgMargin" value="10" onfocus="this.select()" oninput="calcNFB()">
+      </div>
+      <div class="field">
+        <label>Counter Guarantee / Security (%)</label>
+        <input type="number" id="bgSecurity" value="100" onfocus="this.select()" oninput="calcNFB()">
+      </div>
+    </div>
+    <div id="bgContractsBox">
+      <div class="btnbar">
+        <button class="action" onclick="addBGContract()">+ Add Contract / Tender</button>
+      </div>
+      <div id="bgContractsList"></div>
+    </div>
+    <div class="scrollx" style="margin-top:10px;"><table id="bgTable"></table></div>
+
+    <h3 style="font-size:0.9rem; color:#0e5e4a; margin:14px 0 6px;">Non-Fund Based Limits Summary</h3>
+    <div class="scrollx"><table id="nfbSummaryTable"></table></div>
   </div>
 </div>
 
@@ -1283,6 +1369,10 @@ var COMMON_LIABILITIES = [
 ];
 var COMMON_INCOME = [
   {name:'Sales / Gross Revenue', cat:'sales'},
+  {name:'  — Export Sales (Direct)', cat:'sales_export'},
+  {name:'  — Export Sales (Deemed)', cat:'sales_export'},
+  {name:'  — Domestic Cash Sales', cat:'sales_cash'},
+  {name:'  — Domestic Credit Sales', cat:'sales_credit'},
   {name:'Other Income', cat:'other'}
 ];
 var COMMON_ADMIN = [
@@ -1328,12 +1418,17 @@ var DEFAULT_TB = {
     liabilities: COMMON_LIABILITIES,
     income: [
       {name:'Sales — Manufactured Goods', cat:'sales'},
+      {name:'  — Export Sales (Direct)', cat:'sales_export'},
+      {name:'  — Export Sales (Deemed)', cat:'sales_export'},
+      {name:'  — Domestic Cash Sales', cat:'sales_cash'},
+      {name:'  — Domestic Credit Sales', cat:'sales_credit'},
       {name:'Sales — Trading Goods', cat:'sales_trading'},
       {name:'Other Income', cat:'other'}
     ],
     expenses: [
       {name:'Opening Stock (Raw Material)', cat:'cogs'},
-      {name:'Purchases (Raw Material)', cat:'cogs'},
+      {name:'Purchases (Raw Material) — Indigenous', cat:'cogs_indigenous'},
+      {name:'Purchases (Raw Material) — Imported', cat:'cogs_imported'},
       {name:'Direct Wages / Labour', cat:'cogs'},
       {name:'Power & Fuel', cat:'cogs'},
       {name:'Other Manufacturing Expenses', cat:'cogs'},
@@ -2360,7 +2455,8 @@ function CALC_lastCogs(y){
     return o+p+f-c;
   } else if (t === 'manufacturing'){
     var o2 = itemVal('expenses','Opening Stock (Raw Material)',y);
-    var p2 = itemVal('expenses','Purchases (Raw Material)',y);
+    var p2 = itemVal('expenses','Purchases (Raw Material) — Indigenous',y)
+           + itemVal('expenses','Purchases (Raw Material) — Imported',y);
     var w  = itemVal('expenses','Direct Wages / Labour',y);
     var pf = itemVal('expenses','Power & Fuel',y);
     var om = itemVal('expenses','Other Manufacturing Expenses',y);
@@ -2391,9 +2487,16 @@ function recalcAll(){
       d.industryType = industryType;
 
       // ---- INCOME ----
-      d.sales = sumCat('income','sales',y);               // main sales (mfg goods / service fees / trading goods)
-      d.salesTrading = sumCat('income','sales_trading',y); // trading goods sold by mfg/service unit
+      d.sales = sumCat('income','sales',y);
+      d.salesTrading = sumCat('income','sales_trading',y);
       d.totalRevenue = d.sales + d.salesTrading;
+      // Sales break-up
+      d.salesExport  = sumCat('income','sales_export',y);
+      d.salesCash    = sumCat('income','sales_cash',y);
+      d.salesCredit  = sumCat('income','sales_credit',y);
+      d.salesDomestic= d.salesCash + d.salesCredit;
+      d.purchasesIndigenous = 0; // set per industry below
+      d.purchasesImported   = 0;
       d.otherIncome = sumCat('income','other',y);
 
       if (industryType === 'trading'){
@@ -2413,7 +2516,9 @@ function recalcAll(){
       } else if (industryType === 'manufacturing'){
         // ---- MANUFACTURING: Cost of Production + Trading section ----
         d.openingStockRM = itemVal('expenses','Opening Stock (Raw Material)',y);
-        d.purchases      = itemVal('expenses','Purchases (Raw Material)',y);
+        d.purchasesIndigenous = itemVal('expenses','Purchases (Raw Material) — Indigenous',y);
+        d.purchasesImported   = itemVal('expenses','Purchases (Raw Material) — Imported',y);
+        d.purchases      = d.purchasesIndigenous + d.purchasesImported;
         d.directWages    = itemVal('expenses','Direct Wages / Labour',y);
         d.powerFuel      = itemVal('expenses','Power & Fuel',y);
         d.otherMfgExp    = itemVal('expenses','Other Manufacturing Expenses',y);
@@ -2682,6 +2787,9 @@ function renderAllTables(){
   renderTB();
   renderAssumptions();
   renderManageItems();
+  renderSalesAnalysis();
+  calcNFB();
+  renderBGContracts();
 }
 
 /* ================= ASSUMPTIONS UI ================= */
@@ -2856,7 +2964,9 @@ function renderTradingTable(){
     html = tableHeader('Manufacturing Account');
     html += sectionRow('RAW MATERIAL CONSUMPTION');
     html += editRow('Opening Stock (Raw Material)', 'expenses', 'Opening Stock (Raw Material)');
-    html += editRow('Add: Purchases (Raw Material)', 'expenses', 'Purchases (Raw Material)');
+    html += editRow('Add: Purchases — Indigenous RM', 'expenses', 'Purchases (Raw Material) — Indigenous');
+    html += editRow('Add: Purchases — Imported RM', 'expenses', 'Purchases (Raw Material) — Imported');
+    html += dataRow('Total RM Purchases', function(d){return d.purchases;},{total:true});
     html += editRow('Add: Direct Wages / Labour', 'expenses', 'Direct Wages / Labour');
     html += editRow('Add: Power & Fuel', 'expenses', 'Power & Fuel');
     html += editRow('Add: Other Manufacturing Expenses', 'expenses', 'Other Manufacturing Expenses');
@@ -2930,9 +3040,16 @@ function renderTradingTable(){
 /* ---- P&L ---- */
 function renderPLTable(){
   var t = getIndustryType();
-  var revLabel = t==='service' ? 'Service Revenue + Trading Revenue' : t==='manufacturing' ? 'Mfg. + Trading Revenue' : 'Sales Revenue';
   var gpLabel  = t==='service' ? 'Combined Gross Margin (b/f)' : 'Gross Profit (b/f)';
   var html = tableHeader('Profit & Loss A/c');
+
+  // Sales break-up at top of P&L
+  html += sectionRow('INCOME — SALES ANALYSIS');
+  html += editRow('  Export Sales (Direct + Deemed)', 'income', '  — Export Sales (Direct)');
+  html += dataRow('  Domestic Sales (Cash + Credit)',function(d){return d.salesDomestic;});
+  html += dataRow('  Total Gross Sales',function(d){return d.totalRevenue;},{total:true});
+
+  html += sectionRow('COST & PROFITABILITY');
   html += dataRow(gpLabel, function(d){return d.grossProfit;});
   html += dataRow('Less: Administrative & Other Exp.', function(d){return -d.adminExp;});
   html += editRow('Less: Depreciation (editable for Actual years)', 'expenses', 'Depreciation');
@@ -3828,6 +3945,174 @@ function downloadManual(){
   }
 }
 
+/* ================= SALES ANALYSIS ================= */
+function renderSalesAnalysis(){
+  if(!CALC.data||!CALC.data.length){
+    ['salesBreakupTable','salesModeTable','purchBreakupTable','debtorVelocityTable']
+      .forEach(function(id){var el=document.getElementById(id);if(el)el.innerHTML='<tr><td>Set up year columns and enter Trial Balance data first.</td></tr>';});
+    return;
+  }
+
+  // Sales break-up by market
+  var h1=tableHeader('Sales Break-up by Market');
+  h1+=dataRow('Total Gross Sales',function(d){return d.totalRevenue;},{total:true});
+  h1+=dataRow('  Export Sales — Direct',function(d){return d.salesExport>0?d.salesExport:itemVal('income','  — Export Sales (Direct)',CALC.data.indexOf(d));});
+  h1+=dataRow('  Export Sales — Deemed',function(d){return itemVal('income','  — Export Sales (Deemed)',CALC.data.indexOf(d));});
+  h1+=dataRow('  Total Export Sales',function(d){return d.salesExport;});
+  h1+=dataRow('  Domestic Sales (Cash + Credit)',function(d){return d.salesDomestic;});
+  h1+=dataRow('Export Sales % of Total',function(d){return d.totalRevenue>0?(d.salesExport/d.totalRevenue*100):0;},{isPct:true});
+  document.getElementById('salesBreakupTable').innerHTML=h1;
+
+  // Sales break-up by mode
+  var h2=tableHeader('Sales Break-up by Mode of Realisation');
+  h2+=dataRow('Cash Sales',function(d){return d.salesCash;});
+  h2+=dataRow('Credit Sales',function(d){return d.salesCredit;});
+  h2+=dataRow('Export Sales',function(d){return d.salesExport;});
+  h2+=dataRow('Total Sales (Cross-check)',function(d){return d.salesCash+d.salesCredit+d.salesExport;},{total:true});
+  h2+=dataRow('Credit Sales % of Total',function(d){return d.totalRevenue>0?(d.salesCredit/d.totalRevenue*100):0;},{isPct:true});
+  document.getElementById('salesModeTable').innerHTML=h2;
+
+  // Purchase break-up
+  var h3=tableHeader('Purchase Break-up — Raw Material');
+  h3+=dataRow('Indigenous Purchases',function(d){return d.purchasesIndigenous;});
+  h3+=dataRow('Imported Purchases',function(d){return d.purchasesImported;});
+  h3+=dataRow('Total Purchases',function(d){return d.purchases;},{total:true});
+  h3+=dataRow('Import Content %',function(d){return d.purchases>0?(d.purchasesImported/d.purchases*100):0;},{isPct:true});
+  document.getElementById('purchBreakupTable').innerHTML=h3;
+
+  // Debtor velocity
+  var h4=tableHeader('Debtor Velocity Analysis');
+  h4+=dataRow('Total Debtors',function(d){return d.debtors;});
+  h4+=dataRow('Credit Sales',function(d){return d.salesCredit>0?d.salesCredit:d.sales;});
+  h4+=dataRow('Debtors Velocity (days)',function(d){
+    var base=d.salesCredit>0?d.salesCredit:d.sales;
+    return base>0?Math.round(d.debtors/base*365):0;
+  });
+  h4+=dataRow('Export Receivables',function(d){return d.salesExport>0?Math.round(d.debtors*(d.salesExport/d.totalRevenue)):0;});
+  h4+=dataRow('Domestic Receivables',function(d){return d.salesExport>0?Math.round(d.debtors*(1-d.salesExport/d.totalRevenue)):d.debtors;});
+  document.getElementById('debtorVelocityTable').innerHTML=h4;
+}
+
+/* ================= NON-FUND BASED LIMITS ================= */
+var BG_CONTRACTS = []; // [{description, value, period, margin}]
+
+function addBGContract(){
+  var desc = prompt('Contract / Tender description:');
+  if(!desc) return;
+  var val  = parseFloat(prompt('Contract value (₹\'000s):')||0);
+  var period = parseFloat(prompt('BG validity period (months):')||12);
+  BG_CONTRACTS.push({description:desc, value:val, period:period});
+  renderBGContracts();
+  calcNFB();
+}
+
+function removeBGContract(idx){
+  if(!confirm('Remove this contract?')) return;
+  BG_CONTRACTS.splice(idx,1);
+  renderBGContracts();
+  calcNFB();
+}
+
+function renderBGContracts(){
+  var box=document.getElementById('bgContractsList');
+  if(!BG_CONTRACTS.length){
+    box.innerHTML='<div class="note">No contracts added yet. Click "+ Add Contract / Tender" to add.</div>';
+    return;
+  }
+  var html='<div class="scrollx"><table><tr><th class="label">Description</th><th>Contract Value (₹\'000s)</th><th>Validity (months)</th><th>Del</th></tr>';
+  BG_CONTRACTS.forEach(function(c,i){
+    html+='<tr><td class="label">'+escapeHtml(c.description)+'</td><td>'+fmt(c.value)+'</td><td>'+c.period+'</td>'
+      +'<td><button class="action danger" style="padding:2px 8px;font-size:0.7rem;" onclick="removeBGContract('+i+')">x</button></td></tr>';
+  });
+  html+='</table></div>';
+  box.innerHTML=html;
+}
+
+function calcNFB(){
+  if(!CALC.data||!CALC.data.length){
+    ['ilcTable','flcTable','bgTable','nfbSummaryTable']
+      .forEach(function(id){var el=document.getElementById(id);if(el)el.innerHTML='<tr><td>Generate CMA data first.</td></tr>';});
+    return;
+  }
+
+  var ilcDays   = num(document.getElementById('ilcCreditDays').value)||0;
+  var ilcMargin = num(document.getElementById('ilcMargin').value)||25;
+  var flcDays   = num(document.getElementById('flcUsanceDays').value)||0;
+  var flcMargin = num(document.getElementById('flcMargin').value)||15;
+  var bgMargin  = num(document.getElementById('bgMargin').value)||10;
+
+  // ILC = Indigenous Purchases × Credit Days / 365 × (1 - Margin%)
+  var ilcHtml=tableHeader('Inland Letter of Credit (ILC)');
+  ilcHtml+=dataRow('Indigenous RM Purchases',function(d){return d.purchasesIndigenous>0?d.purchasesIndigenous:d.purchases;});
+  ilcHtml+=dataRow('Credit Period (days)',function(){return ilcDays;});
+  ilcHtml+=dataRow('Gross ILC Requirement',function(d){
+    var base=d.purchasesIndigenous>0?d.purchasesIndigenous:d.purchases;
+    return ilcDays>0?Math.round(base*ilcDays/365):0;
+  },{total:true});
+  ilcHtml+=dataRow('Less: Margin ('+ilcMargin+'%)',function(d){
+    var base=d.purchasesIndigenous>0?d.purchasesIndigenous:d.purchases;
+    var gross=ilcDays>0?Math.round(base*ilcDays/365):0;
+    return -Math.round(gross*ilcMargin/100);
+  });
+  ilcHtml+=dataRow('Recommended ILC Limit',function(d){
+    var base=d.purchasesIndigenous>0?d.purchasesIndigenous:d.purchases;
+    var gross=ilcDays>0?Math.round(base*ilcDays/365):0;
+    return Math.round(gross*(1-ilcMargin/100));
+  },{total:true});
+  document.getElementById('ilcTable').innerHTML=ilcHtml;
+
+  // FLC = Imported Purchases × Usance Period / 365 × (1 - Margin%)
+  var flcHtml=tableHeader('Foreign Letter of Credit (FLC)');
+  flcHtml+=dataRow('Imported RM Purchases',function(d){return d.purchasesImported;});
+  flcHtml+=dataRow('Usance Period (days)',function(){return flcDays;});
+  flcHtml+=dataRow('Gross FLC Requirement',function(d){
+    return flcDays>0?Math.round(d.purchasesImported*flcDays/365):0;
+  },{total:true});
+  flcHtml+=dataRow('Less: Margin ('+flcMargin+'%)',function(d){
+    var gross=flcDays>0?Math.round(d.purchasesImported*flcDays/365):0;
+    return -Math.round(gross*flcMargin/100);
+  });
+  flcHtml+=dataRow('Recommended FLC Limit',function(d){
+    var gross=flcDays>0?Math.round(d.purchasesImported*flcDays/365):0;
+    return Math.round(gross*(1-flcMargin/100));
+  },{total:true});
+  document.getElementById('flcTable').innerHTML=flcHtml;
+
+  // BG = Sum of contract values × (1 - Counter Guarantee%) + Margin
+  var bgSecurity=num(document.getElementById('bgSecurity').value)||100;
+  var totalBGValue=BG_CONTRACTS.reduce(function(s,c){return s+c.value;},0);
+  var recommendedBG=Math.round(totalBGValue*(1-bgSecurity/100)+totalBGValue*bgMargin/100);
+  var bgHtml='<tr><th class="label">Contract / Tender</th><th>Value (₹\'000s)</th><th>Validity</th><th>BG Required</th></tr>';
+  if(!BG_CONTRACTS.length){
+    bgHtml+='<tr><td colspan="4" class="label">No contracts added. Use "+ Add Contract / Tender" button above.</td></tr>';
+  }
+  BG_CONTRACTS.forEach(function(c){
+    var bgReq=Math.round(c.value*(bgMargin/100));
+    bgHtml+='<tr><td class="label">'+escapeHtml(c.description)+'</td><td>'+fmt(c.value)+'</td><td>'+c.period+' months</td><td>'+fmt(bgReq)+'</td></tr>';
+  });
+  bgHtml+='<tr class="total"><td class="label">TOTAL BG REQUIREMENT</td><td>'+fmt(totalBGValue)+'</td><td></td><td>'+fmt(recommendedBG)+'</td></tr>';
+  document.getElementById('bgTable').innerHTML=bgHtml;
+
+  // Summary
+  var lastY=CALC.data[CALC.data.length-1];
+  var ilcLimitLast=(function(d){
+    var base=d.purchasesIndigenous>0?d.purchasesIndigenous:d.purchases;
+    var gross=ilcDays>0?Math.round(base*ilcDays/365):0;
+    return Math.round(gross*(1-ilcMargin/100));
+  })(lastY);
+  var flcLimitLast=(function(d){
+    var gross=flcDays>0?Math.round(d.purchasesImported*flcDays/365):0;
+    return Math.round(gross*(1-flcMargin/100));
+  })(lastY);
+
+  var summHtml='<tr><th class="label">Facility</th><th>Basis</th><th>Recommended Limit (₹\'000s)</th><th>Margin %</th></tr>';
+  summHtml+='<tr><td class="label">Inland Letter of Credit (ILC)</td><td>Indigenous Purchases × '+ilcDays+' days / 365</td><td>'+fmt(ilcLimitLast)+'</td><td>'+ilcMargin+'%</td></tr>';
+  summHtml+='<tr><td class="label">Foreign Letter of Credit (FLC)</td><td>Imported Purchases × '+flcDays+' days / 365</td><td>'+fmt(flcLimitLast)+'</td><td>'+flcMargin+'%</td></tr>';
+  summHtml+='<tr><td class="label">Bank Guarantee (BG)</td><td>Govt/Tender contracts ('+BG_CONTRACTS.length+' nos.)</td><td>'+fmt(recommendedBG)+'</td><td>'+bgMargin+'%</td></tr>';
+  summHtml+='<tr class="total"><td class="label">TOTAL NON-FUND BASED LIMITS</td><td></td><td>'+fmt(ilcLimitLast+flcLimitLast+recommendedBG)+'</td><td></td></tr>';
+  document.getElementById('nfbSummaryTable').innerHTML=summHtml;
+}
+
 /* ================= NAVIGATION ================= */
 function setupNav(){
   var buttons = document.querySelectorAll('#navBar button');
@@ -3931,7 +4216,82 @@ var HELP_SECTIONS = {
     + '<p><b>Import JSON</b>: To restore, tap Import JSON and select your backup file. All data (TB, assumptions, loan, IRR) is restored.</p>'
     + '<p><b>New Unit</b>: Use "Start New Unit" in Setup tab — exports nothing automatically. Export first if you want to keep the current data.</p>'
     + '<p><b>Section-wise clear</b>: Clear individual sections (TB, Assumptions, Loan, IRR) without affecting the rest.</p>'
-    + '<p><b>Storage limit</b>: localStorage is typically 5–10 MB per browser. The storage meter in the header shows current usage. If it fills up, export and clear old data.</p>'
+    + '<p><b>Storage limit</b>: localStorage is typically 5–10 MB per browser. The storage meter in the header shows current usage. If it fills up, export and clear old data.</p>',
+
+  sales: '<h3 style="color:#0e5e4a;">Sales Analysis — Guidelines</h3>'
+    + '<p>The Sales Analysis tab breaks down your total sales into meaningful sub-categories for bank appraisal and working capital assessment.</p>'
+    + '<h4 style="margin:10px 0 4px; color:#0a1628;">Sales by Market</h4>'
+    + '<ul style="margin-left:16px;">'
+    + '<li><b>Export Sales — Direct</b>: Goods physically exported out of India under a shipping bill. Foreign currency received from overseas buyer.</li>'
+    + '<li><b>Export Sales — Deemed</b>: Goods supplied within India but treated as exports under government policy (e.g. supplies to SEZ, EOU, EPCG holders, government projects). No physical export but eligible for export incentives. <i>See Glossary for full definition.</i></li>'
+    + '<li><b>Domestic Cash Sales</b>: Sales within India where payment is received immediately — no credit extended to buyer.</li>'
+    + '<li><b>Domestic Credit Sales</b>: Sales within India on credit terms — payment received after a credit period (e.g. 30/45/60 days). These generate Sundry Debtors.</li>'
+    + '</ul>'
+    + '<h4 style="margin:10px 0 4px; color:#0a1628;">Purchase Break-up</h4>'
+    + '<ul style="margin-left:16px;">'
+    + '<li><b>Indigenous Purchases</b>: Raw materials purchased within India from domestic suppliers. These form the basis for <b>Inland LC (ILC)</b> limit assessment.</li>'
+    + '<li><b>Imported Purchases</b>: Raw materials imported from abroad. These form the basis for <b>Foreign LC (FLC)</b> limit assessment.</li>'
+    + '</ul>'
+    + '<p><b>Important</b>: Enter Export Sales and Domestic Cash/Credit Sales as sub-items in the Trial Balance income section. Their sum should equal Total Sales. The app cross-checks this automatically.</p>',
+
+  nfb: '<h3 style="color:#0e5e4a;">Non-Fund Based Limits — Guidelines</h3>'
+    + '<p>Non-Fund Based (NFB) limits do not involve actual disbursement of funds by the bank — the bank gives a commitment/guarantee on behalf of the borrower. These are contingent liabilities for the bank.</p>'
+    + '<h4 style="margin:10px 0 4px; color:#0a1628;">1. Inland Letter of Credit (ILC)</h4>'
+    + '<p>A guarantee issued by the borrower\'s bank to the domestic supplier that payment will be made on due date. Used when buying raw materials from indigenous suppliers on credit.</p>'
+    + '<p><b>Formula</b>: ILC Limit = (Indigenous RM Purchases ÷ 365) × Credit Period (days) × (1 − Margin %)</p>'
+    + '<p><b>Example</b>: Indigenous purchases = ₹36,00,000 p.a., Credit period = 60 days, Margin = 25%<br>ILC = (3600 ÷ 365) × 60 × 0.75 = ₹4,44,000</p>'
+    + '<h4 style="margin:10px 0 4px; color:#0a1628;">2. Foreign Letter of Credit (FLC)</h4>'
+    + '<p>A guarantee issued by the borrower\'s bank to the overseas supplier (confirmed by a foreign bank) that payment will be made on the due date. Used for importing raw materials.</p>'
+    + '<p><b>Usance Period</b>: The credit period allowed by the foreign supplier — the time between shipment/date of LC and actual payment. Typically 30, 60, 90, or 180 days. <i>See Glossary for full definition.</i></p>'
+    + '<p><b>Formula</b>: FLC Limit = (Imported RM Purchases ÷ 365) × Usance Period (days) × (1 − Margin %)</p>'
+    + '<p><b>Example</b>: Imported purchases = ₹18,00,000 p.a., Usance = 90 days, Margin = 15%<br>FLC = (1800 ÷ 365) × 90 × 0.85 = ₹3,76,000</p>'
+    + '<h4 style="margin:10px 0 4px; color:#0a1628;">3. Bank Guarantee (BG)</h4>'
+    + '<p>A guarantee issued by the bank on behalf of the borrower to a third party (government department, client, or tender authority) that the borrower will fulfil contractual obligations. If the borrower defaults, the bank pays.</p>'
+    + '<p><b>Types</b>: Performance Guarantee (to ensure contract completion), Financial Guarantee (to ensure payment), Bid Bond/Earnest Money Guarantee (for tenders).</p>'
+    + '<p><b>Basis</b>: Enter each government/tender contract separately with its value and validity period. BG limit = Contract Value × Margin % (typically 5–10%).</p>'
+    + '<p><b>Counter Guarantee</b>: Security provided by borrower to the bank as protection — typically 100% of BG value in the form of Fixed Deposits, cash margin, or property.</p>',
+
+  glossary: '<h3 style="color:#0e5e4a;">📖 Glossary of Banking & CMA Terms</h3>'
+    + '<div style="margin-bottom:10px; padding:8px; background:#e8f4f0; border-radius:4px;">'
+    + '<b style="color:#0e5e4a;">Deemed Export</b><br>'
+    + 'Deemed Export refers to transactions in which goods supplied do not leave India, yet the supplier is treated as an exporter and is eligible for export benefits. Under the Foreign Trade Policy of India, the following are classified as Deemed Exports: (1) Supply to Export Oriented Units (EOU); (2) Supply to units in Special Economic Zones (SEZ); (3) Supply against Advance Authorisation / DFIA; (4) Supply to projects funded by multilateral agencies (World Bank, ADB etc.); (5) Supply to Defence/Military establishments; (6) Supply to EPCG licence holders. The payment is received in Indian Rupees (not foreign currency), but the supplier gets benefits like duty drawback, refund of GST, and advance authorisation for inputs.'
+    + '</div>'
+    + '<div style="margin-bottom:10px; padding:8px; background:#fff8e8; border-radius:4px;">'
+    + '<b style="color:#b07800;">Usance Period (in LC context)</b><br>'
+    + 'Usance Period is the credit period allowed by the overseas supplier to the Indian importer — the time gap between the date of shipment (or date of LC negotiation) and the date on which payment is actually due. For example, a "90-day usance LC" means the Indian importer will pay the overseas supplier 90 days after the bill of lading date. During this period, the bank\'s commitment (LC) remains outstanding. Usance LCs are also called "Time LCs" or "Term LCs". A "Sight LC" (zero usance) means payment is immediate on presentation of documents. Longer usance periods mean larger FLC limits required.'
+    + '</div>'
+    + '<div style="margin-bottom:10px; padding:8px; background:#f0f4f8; border-radius:4px;">'
+    + '<b style="color:#0a1628;">MPBF — Maximum Permissible Bank Finance</b><br>'
+    + 'MPBF is the maximum Working Capital finance a bank can provide to a borrower, computed as per Tandon Committee norms. Method I: 75% of Current Assets minus Current Liabilities (excluding bank borrowing). Method II: 75% of Current Assets minus all Current Liabilities including bank borrowing (requires higher borrower margin of 25%).'
+    + '</div>'
+    + '<div style="margin-bottom:10px; padding:8px; background:#e8f4f0; border-radius:4px;">'
+    + '<b style="color:#0e5e4a;">DSCR — Debt Service Coverage Ratio</b><br>'
+    + 'DSCR = (PAT + Depreciation + Interest on Term Loan) ÷ (Term Loan Principal Repayment + Interest on Term Loan). It measures the borrower\'s ability to service the term loan from cash generation. Bank norm: Average DSCR ≥ 1.5 to 2.0 over the repayment period. DSCR below 1 means the unit cannot repay from its own cash flows.'
+    + '</div>'
+    + '<div style="margin-bottom:10px; padding:8px; background:#fff8e8; border-radius:4px;">'
+    + '<b style="color:#b07800;">CMA — Credit Monitoring Arrangement</b><br>'
+    + 'CMA data is a standardised format prescribed by RBI/IBA for assessment of Working Capital requirements of borrowers. It consists of 5 forms: Form I (Operating Statement), Form II (Balance Sheet Analysis), Form III (Comparative CA/CL), Form IV (Fund Flow), Form V (MPBF/Working Capital Assessment). Mandatory for Working Capital limits above ₹5 crore.'
+    + '</div>'
+    + '<div style="margin-bottom:10px; padding:8px; background:#f0f4f8; border-radius:4px;">'
+    + '<b style="color:#0a1628;">Drawing Power (DP)</b><br>'
+    + 'Drawing Power is the limit up to which a borrower can draw funds from the Cash Credit account on a given date, based on the value of stock and debtors pledged as security, after applying the bank\'s prescribed margins. DP = (Stock Value + Eligible Debtors) × (1 − Margin%) − Creditors. DP is calculated monthly from the Stock Statement submitted by the borrower.'
+    + '</div>'
+    + '<div style="margin-bottom:10px; padding:8px; background:#e8f4f0; border-radius:4px;">'
+    + '<b style="color:#0e5e4a;">WDV vs SLM Depreciation</b><br>'
+    + '<b>Written Down Value (WDV)</b>: Depreciation is charged as a fixed % on the opening book value each year. Since book value reduces every year, depreciation amount also reduces. WDV rates are prescribed by Income Tax Act. <b>Straight Line Method (SLM)</b>: Depreciation is charged as a fixed % on the original cost every year — the amount remains constant throughout the asset\'s useful life. SLM is prescribed by Companies Act 2013.'
+    + '</div>'
+    + '<div style="margin-bottom:10px; padding:8px; background:#fff8e8; border-radius:4px;">'
+    + '<b style="color:#b07800;">IRR — Internal Rate of Return</b><br>'
+    + 'IRR is the discount rate at which the Net Present Value (NPV) of all cash flows from a project equals zero. It represents the expected annual return on the project investment. Decision rule: If IRR > Cost of Capital (hurdle rate), the project is financially viable. For bank appraisal, IRR is compared against the weighted average cost of the project (term loan rate + equity cost).'
+    + '</div>'
+    + '<div style="margin-bottom:10px; padding:8px; background:#f0f4f8; border-radius:4px;">'
+    + '<b style="color:#0a1628;">Break-Even Point (BEP)</b><br>'
+    + 'BEP is the level of sales at which the unit neither makes a profit nor a loss — total revenue equals total costs. BEP (Sales) = Fixed Costs ÷ P/V Ratio (Contribution Margin Ratio). <b>Margin of Safety</b> = Actual Sales − BEP Sales. Higher margin of safety means the business can absorb a larger drop in sales before incurring a loss. For bank appraisal, BEP should ideally be below 60–70% of projected sales.'
+    + '</div>'
+    + '<div style="margin-bottom:10px; padding:8px; background:#e8f4f0; border-radius:4px;">'
+    + '<b style="color:#0e5e4a;">TOL/TNW — Total Outside Liabilities to Tangible Net Worth</b><br>'
+    + 'TOL = All liabilities except Net Worth (i.e. Term Loans + Current Liabilities). TNW = Net Worth minus Intangible Assets. TOL/TNW ratio measures the overall leverage of the unit. Bank norm: TOL/TNW ≤ 3:1 for most MSME units. Higher ratio means higher risk of financial distress.'
+    + '</div>'
 };
 
 function showHelp(){

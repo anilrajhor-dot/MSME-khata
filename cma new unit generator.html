@@ -105,9 +105,59 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
 
 <header>
   <h1><span>CMA</span> New Unit Generator</h1>
-  <div class="hdr-sub">Enter minimum data → Full CMA auto-generated</div>
+  <div class="hdr-sub">Enter minimum data → Full CMA auto-generated &nbsp;
+    <button onclick="document.getElementById('glossaryModal').style.display='block'" style="background:#f0a500;border:none;color:#0a1628;font-weight:700;font-size:0.72rem;padding:3px 10px;border-radius:3px;cursor:pointer;">📖 Glossary</button>
+  </div>
   <div class="dev-credit">Developed by Anil Sharma, Former General Manager, Central Bank of India</div>
 </header>
+
+<!-- GLOSSARY MODAL -->
+<div id="glossaryModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:999;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+  <div style="background:#fff;max-width:680px;margin:20px auto;border-radius:6px;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:3px solid #0e5e4a;padding-bottom:8px;">
+      <h2 style="margin:0;font-size:1.05rem;color:#0a1628;font-weight:700;">📖 Glossary of Banking & CMA Terms</h2>
+      <button onclick="document.getElementById('glossaryModal').style.display='none'" style="background:#0a1628;color:#fff;border:none;padding:6px 14px;border-radius:3px;cursor:pointer;">✕ Close</button>
+    </div>
+    <div style="font-size:0.85rem;line-height:1.7;color:#222;">
+      <div style="margin-bottom:12px;padding:10px;background:#e8f4f0;border-radius:5px;">
+        <b style="color:#0e5e4a;font-size:0.95rem;">Deemed Export</b><br>
+        Goods supplied within India but treated as exports under Govt. policy — eligible for export benefits without physical export. Examples: Supplies to SEZ, EOU, EPCG holders, Advance Authorisation holders, World Bank/ADB funded projects, Defence establishments. Payment received in Indian Rupees (not foreign currency) but supplier gets duty drawback, GST refund, and advance authorisation benefits.
+      </div>
+      <div style="margin-bottom:12px;padding:10px;background:#fff8e8;border-radius:5px;">
+        <b style="color:#b07800;font-size:0.95rem;">Usance Period (LC context)</b><br>
+        Credit period allowed by overseas supplier to Indian importer — time gap between shipment date and actual payment date. A "90-day Usance LC" means payment due 90 days after bill of lading. Also called "Time LC" or "Term LC". Sight LC = payment immediately on document presentation (zero usance). Longer usance = larger FLC limit required by bank.
+      </div>
+      <div style="margin-bottom:12px;padding:10px;background:#f0f4f8;border-radius:5px;">
+        <b style="color:#0a1628;font-size:0.95rem;">Inland LC (ILC)</b><br>
+        Guarantee by borrower's bank to domestic supplier that payment will be made on due date. Used for indigenous raw material purchases on credit. Limit = (Annual Indigenous Purchases ÷ 365) × Credit Period × (1 − Margin%).
+      </div>
+      <div style="margin-bottom:12px;padding:10px;background:#e8f4f0;border-radius:5px;">
+        <b style="color:#0e5e4a;font-size:0.95rem;">MPBF — Maximum Permissible Bank Finance</b><br>
+        Maximum Working Capital finance a bank can provide. Per Tandon Committee: Method I = 75% of CA minus other CL. Method II = 75% of CA minus all CL (requires 25% borrower margin). MPBF = recommended CC/OD limit.
+      </div>
+      <div style="margin-bottom:12px;padding:10px;background:#fff8e8;border-radius:5px;">
+        <b style="color:#b07800;font-size:0.95rem;">DSCR — Debt Service Coverage Ratio</b><br>
+        (PAT + Depreciation + TL Interest) ÷ (Principal Repayment + TL Interest). Measures ability to repay term loan. Bank norm: Average DSCR ≥ 1.5 to 2.0. Below 1.0 = unit cannot repay from own cash flows.
+      </div>
+      <div style="margin-bottom:12px;padding:10px;background:#f0f4f8;border-radius:5px;">
+        <b style="color:#0a1628;font-size:0.95rem;">IRR — Internal Rate of Return</b><br>
+        Discount rate at which NPV of all project cash flows = zero. Represents expected annual return on project investment. If IRR > Cost of Capital → project is financially viable. Used in project appraisal for term loans.
+      </div>
+      <div style="margin-bottom:12px;padding:10px;background:#e8f4f0;border-radius:5px;">
+        <b style="color:#0e5e4a;font-size:0.95rem;">Break-Even Point (BEP)</b><br>
+        Sales level where Total Revenue = Total Cost (zero profit/loss). BEP (₹) = Fixed Costs ÷ P/V Ratio. Margin of Safety = Actual Sales − BEP. For sound appraisal, BEP should be below 60–70% of projected sales capacity.
+      </div>
+      <div style="margin-bottom:12px;padding:10px;background:#fff8e8;border-radius:5px;">
+        <b style="color:#b07800;font-size:0.95rem;">Bank Guarantee (BG)</b><br>
+        Bank commits to pay a third party (govt dept / client / tender authority) if borrower defaults on contractual obligation. Types: Performance BG, Financial BG, Bid Bond/EMD. Counter guarantee = security given by borrower to bank (typically 100% in FDs or property).
+      </div>
+      <div style="padding:10px;background:#f0f4f8;border-radius:5px;">
+        <b style="color:#0a1628;font-size:0.95rem;">WDV vs SLM Depreciation</b><br>
+        <b>WDV</b>: Fixed % on opening book value each year — amount reduces as book value reduces. Prescribed by Income Tax Act. <b>SLM</b>: Fixed % on original cost every year — constant amount throughout asset life. Prescribed by Companies Act 2013.
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="step-nav" id="stepNav">
   <button class="step-btn active" data-step="1">1. Unit Info</button>
@@ -298,6 +348,29 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
         <div class="hint">For proprietorship: 30%; Company: 25%; Small firms: 0–15%</div>
       </div>
     </div>
+
+    <div class="note"><b>Sales Mix</b> — Enter the expected break-up of total sales. These are used for Sales Analysis and Non-Fund Based limit calculation. Leave blank if not applicable.</div>
+    <div class="row">
+      <div class="field">
+        <label>Export Sales % of Total Sales <span class="bench" onclick="setBench('exportPct',0)">0%</span><span class="bench" onclick="setBench('exportPct',20)">20%</span><span class="bench" onclick="setBench('exportPct',40)">40%</span></label>
+        <input type="number" step="0.1" id="exportPct" placeholder="0" onfocus="this.select()">
+        <div class="hint">Direct + Deemed exports combined</div>
+      </div>
+      <div class="field">
+        <label>Cash Sales % of Domestic Sales <span class="bench" onclick="setBench('cashSalesPct',30)">30%</span><span class="bench" onclick="setBench('cashSalesPct',50)">50%</span></label>
+        <input type="number" step="0.1" id="cashSalesPct" placeholder="e.g. 30" onfocus="this.select()">
+        <div class="hint">Remaining domestic sales treated as Credit Sales</div>
+      </div>
+    </div>
+
+    <div class="note"><b>Purchase Mix</b> — Split of raw material purchases between indigenous and imported sources.</div>
+    <div class="row">
+      <div class="field">
+        <label>Imported RM % of Total Purchases <span class="bench" onclick="setBench('importedPct',0)">0%</span><span class="bench" onclick="setBench('importedPct',20)">20%</span><span class="bench" onclick="setBench('importedPct',40)">40%</span></label>
+        <input type="number" step="0.1" id="importedPct" placeholder="0" onfocus="this.select()">
+        <div class="hint">Rest treated as Indigenous Purchases</div>
+      </div>
+    </div>
   </div>
   <div class="btnbar">
     <button class="btn btn-secondary" onclick="goStep(3)">← Back</button>
@@ -332,6 +405,41 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
         <label>Bank Margin on Working Capital (%)</label>
         <input type="number" step="0.1" id="bankMargin" value="25" onfocus="this.select()">
         <div class="hint">Tandon Committee norm: 25% minimum</div>
+      </div>
+    </div>
+
+    <div class="note"><b>Non-Fund Based Limits</b> — Enter parameters for Inland LC, Foreign LC, and Bank Guarantee assessment. Leave blank if not applicable.</div>
+    <div class="row">
+      <div class="field">
+        <label>ILC Credit Period — Indigenous Suppliers (days) <span class="bench" onclick="setBench('ilcDays',45)">45</span><span class="bench" onclick="setBench('ilcDays',60)">60</span><span class="bench" onclick="setBench('ilcDays',90)">90</span></label>
+        <input type="number" id="ilcDays" placeholder="0 = no ILC" onfocus="this.select()">
+        <div class="hint">Inland LC: credit period allowed by domestic supplier</div>
+      </div>
+      <div class="field">
+        <label>ILC Margin (%)</label>
+        <input type="number" id="ilcMarginNew" value="25" onfocus="this.select()">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>FLC Usance Period — Import (days) <span class="bench" onclick="setBench('flcDays',60)">60</span><span class="bench" onclick="setBench('flcDays',90)">90</span><span class="bench" onclick="setBench('flcDays',180)">180</span></label>
+        <input type="number" id="flcDays" placeholder="0 = no FLC" onfocus="this.select()">
+        <div class="hint">Foreign LC: time allowed by overseas supplier for payment</div>
+      </div>
+      <div class="field">
+        <label>FLC Margin (%)</label>
+        <input type="number" id="flcMarginNew" value="15" onfocus="this.select()">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Bank Guarantee — Total Contract Value (₹'000s)</label>
+        <input type="number" id="bgValueNew" placeholder="0 = no BG" onfocus="this.select()">
+        <div class="hint">Total value of govt/tender contracts requiring BG</div>
+      </div>
+      <div class="field">
+        <label>BG Margin (%)</label>
+        <input type="number" id="bgMarginNew" value="10" onfocus="this.select()">
       </div>
     </div>
   </div>
@@ -397,6 +505,18 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
     </div>
     <div id="irrSummary"></div>
     <div class="scrollx"><table id="irrTable"></table></div>
+  </div>
+
+  <div class="card">
+    <h2>Sales Analysis <span class="tag">ALL YEARS</span></h2>
+    <div class="sub">Break-up of projected sales into Export / Cash / Credit categories based on ratios entered in Step 4.</div>
+    <div class="scrollx"><table id="salesAnalysisTable"></table></div>
+  </div>
+
+  <div class="card">
+    <h2>Non-Fund Based Limits Assessment <span class="tag">AUTO-CALCULATED</span></h2>
+    <div class="sub">Inland LC, Foreign LC, and Bank Guarantee limits computed from projected purchase figures.</div>
+    <div class="scrollx"><table id="nfbTable"></table></div>
   </div>
 
   <div class="card">
@@ -932,6 +1052,9 @@ function renderResults(){
   // IRR/NPV auto-calculate with default discount rate
   calcIRRNPV();
 
+  // Sales Analysis & NFB
+  renderNewUnitSalesNFB();
+
   // EMI Schedule
   renderEMI();
 }
@@ -1141,6 +1264,76 @@ function calcIRRNPV(){
 }
 
 // ─── EXPORT TO EXCEL ──────────────────────────────────────
+/* ─── SALES ANALYSIS & NFB (NEW UNIT) ───────────────── */
+function renderNewUnitSalesNFB(){
+  var d=C.data; if(!d||!d.length) return;
+  var exportPct=n(document.getElementById('exportPct')?document.getElementById('exportPct').value:0)/100;
+  var cashPct=n(document.getElementById('cashSalesPct')?document.getElementById('cashSalesPct').value:50)/100;
+  var importedPct=n(document.getElementById('importedPct')?document.getElementById('importedPct').value:0)/100;
+  var ilcDays=n(document.getElementById('ilcDays')?document.getElementById('ilcDays').value:0);
+  var ilcMargin=n(document.getElementById('ilcMarginNew')?document.getElementById('ilcMarginNew').value:25)/100;
+  var flcDays=n(document.getElementById('flcDays')?document.getElementById('flcDays').value:0);
+  var flcMargin=n(document.getElementById('flcMarginNew')?document.getElementById('flcMarginNew').value:15)/100;
+  var bgValue=n(document.getElementById('bgValueNew')?document.getElementById('bgValueNew').value:0);
+  var bgMargin=n(document.getElementById('bgMarginNew')?document.getElementById('bgMarginNew').value:10)/100;
+
+  // Sales Analysis
+  var sa='<tr><th class="lbl" style="text-align:left;">Particulars</th>';
+  for(var y=0;y<NYears;y++) sa+='<th>'+YEARS[y]+'</th>';
+  sa+='</tr>';
+  sa+='<tr><td class="lbl">Total Sales</td>';
+  d.forEach(function(x){sa+='<td>'+fmt(x.sales)+'</td>';});sa+='</tr>';
+  sa+='<tr><td class="lbl">Export Sales</td>';
+  d.forEach(function(x){sa+='<td>'+fmt(Math.round(x.sales*exportPct))+'</td>';});sa+='</tr>';
+  sa+='<tr><td class="lbl">Domestic Cash Sales</td>';
+  d.forEach(function(x){var dom=x.sales*(1-exportPct); sa+='<td>'+fmt(Math.round(dom*cashPct))+'</td>';});sa+='</tr>';
+  sa+='<tr><td class="lbl">Domestic Credit Sales</td>';
+  d.forEach(function(x){var dom=x.sales*(1-exportPct); sa+='<td>'+fmt(Math.round(dom*(1-cashPct)))+'</td>';});sa+='</tr>';
+  sa+='<tr class="tot"><td class="lbl">Indigenous Purchases</td>';
+  d.forEach(function(x){sa+='<td>'+fmt(Math.round(x.rmCost*(1-importedPct)))+'</td>';});sa+='</tr>';
+  sa+='<tr class="tot"><td class="lbl">Imported Purchases</td>';
+  d.forEach(function(x){sa+='<td>'+fmt(Math.round(x.rmCost*importedPct))+'</td>';});sa+='</tr>';
+  document.getElementById('salesAnalysisTable').innerHTML=sa;
+
+  // NFB Limits
+  var nfb='<tr><th class="lbl" style="text-align:left;">Facility</th><th>Basis</th>';
+  for(var y=0;y<NYears;y++) nfb+='<th>'+YEARS[y]+'</th>';
+  nfb+='</tr>';
+
+  // ILC
+  nfb+='<tr><td class="lbl">Inland LC (ILC)</td><td style="font-size:0.75rem;">Indigenous Purch × '+ilcDays+' days ÷ 365 × '+(1-ilcMargin*1).toFixed(0)+'% </td>';
+  d.forEach(function(x){
+    var indig=Math.round(x.rmCost*(1-importedPct));
+    var ilc=ilcDays>0?Math.round(indig*ilcDays/365*(1-ilcMargin)):0;
+    nfb+='<td>'+fmt(ilc)+'</td>';
+  });nfb+='</tr>';
+
+  // FLC
+  nfb+='<tr><td class="lbl">Foreign LC (FLC)</td><td style="font-size:0.75rem;">Imported Purch × '+flcDays+' days ÷ 365 × '+(1-flcMargin*1).toFixed(0)+'%</td>';
+  d.forEach(function(x){
+    var imp=Math.round(x.rmCost*importedPct);
+    var flc=flcDays>0?Math.round(imp*flcDays/365*(1-flcMargin)):0;
+    nfb+='<td>'+fmt(flc)+'</td>';
+  });nfb+='</tr>';
+
+  // BG
+  var bgLimit=Math.round(bgValue*bgMargin);
+  nfb+='<tr><td class="lbl">Bank Guarantee (BG)</td><td style="font-size:0.75rem;">Contract ₹'+fmt(bgValue)+'K × '+Math.round(bgMargin*100)+'% margin</td>';
+  for(var y=0;y<NYears;y++) nfb+='<td>'+fmt(bgLimit)+'</td>';
+  nfb+='</tr>';
+
+  // Total NFB
+  nfb+='<tr class="tot"><td class="lbl">Total NFB Limits</td><td></td>';
+  d.forEach(function(x){
+    var indig=Math.round(x.rmCost*(1-importedPct));
+    var imp=Math.round(x.rmCost*importedPct);
+    var ilc=ilcDays>0?Math.round(indig*ilcDays/365*(1-ilcMargin)):0;
+    var flc=flcDays>0?Math.round(imp*flcDays/365*(1-flcMargin)):0;
+    nfb+='<td>'+fmt(ilc+flc+bgLimit)+'</td>';
+  });nfb+='</tr>';
+  document.getElementById('nfbTable').innerHTML=nfb;
+}
+
 function exportCMAExcel(){
   if(typeof XLSX==='undefined'){ alert('Excel library loading — please wait a moment and try again.'); return; }
   var wb=XLSX.utils.book_new();
