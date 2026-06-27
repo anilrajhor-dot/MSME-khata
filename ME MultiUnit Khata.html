@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <script>
-var _BUILD='202406240321';
-var _s=sessionStorage.getItem('mfm_build');
-if(_s&&_s!==_BUILD){sessionStorage.setItem('mfm_build',_BUILD);location.reload(true);}
-else{sessionStorage.setItem('mfm_build',_BUILD);}
+var _BUILD="202406270630";
+var _s=sessionStorage.getItem("mfm_build");
+if(_s&&_s!=="202406270630"){sessionStorage.setItem("mfm_build","202406270630");location.reload(true);}else{sessionStorage.setItem("mfm_build","202406270630");}
 </script>
+
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -16,7 +16,7 @@ else{sessionStorage.setItem('mfm_build',_BUILD);}
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1565C0">
-<title>ME Khata — Multi-Unit Business Accounts | v202406240321</title>
+<title>ME Khata — Multi-Unit Business Accounts</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:sans-serif;margin:0;padding:0}
@@ -128,7 +128,7 @@ function defD(){
     bills:[],
     nextBillNo:1,
     expenseCategories:['Rent','Electricity','Salary','Transportation','Telephone','Fuel','Repair','Marketing','Interest Payment','Miscellaneous'],
-    settings:{creditDays:30},
+    settings:{creditDays:30,defaultMargin:20},
     partyCodes:{},
     customHSN:{},
     incomeTax:{ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false},
@@ -205,7 +205,8 @@ function migrateData(d){
   if(d.loanAssessment && d.loanAssessment.marginPctTurnover===undefined) d.loanAssessment.marginPctTurnover=25;
   if(d.loanAssessment && d.loanAssessment.marginPctTandon===undefined) d.loanAssessment.marginPctTandon=25;
   if(d.loanAssessment && d.loanAssessment.useManual===undefined) d.loanAssessment.useManual=false;
-  if(!d.settings) d.settings={creditDays:30};
+  if(!d.settings) d.settings={creditDays:30,defaultMargin:20};
+  if(d.settings.defaultMargin===undefined) d.settings.defaultMargin=20;
   if(!d.partyCodes) d.partyCodes={};
   if(!d.customHSN) d.customHSN={};
   if(!d.incomeTax) d.incomeTax={ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false};
@@ -686,210 +687,6 @@ function getFGrouped(){
   };
 }
 // ===== DASHBOARD =====
-var _scanTarget=null,_scanStream=null,_quaggaLoaded=false,_nativeScanInterval=null;
-
-// Toggle scanner (optional feature)
-function toggleBarcodeScanner(){
-  window._barcodeEnabled=!window._barcodeEnabled;
-  try{localStorage.setItem('mefm_barcode_enabled',window._barcodeEnabled?'1':'0');}catch(e){}
-  renderPage();
-  toast('Barcode Scanner '+(window._barcodeEnabled?'Enabled':'Disabled'));
-}
-(function(){
-  try{var p=localStorage.getItem('mefm_barcode_enabled');window._barcodeEnabled=(p===null)?false:(p==='1');}
-  catch(e){window._barcodeEnabled=false;}
-})();
-
-function barcodeBtn(target){
-  if(!window._barcodeEnabled) return '';
-  var html='<button onclick="openScanner(\'' + target + '\')" ';
-  html+='style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);';
-  html+='color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;';
-  html+='cursor:pointer;margin-bottom:8px">📷 Scan Barcode / QR Code</button>';
-  return html;
-}
-
-function openScanner(target){
-  _scanTarget=target;
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    toast('Camera not available','e'); return;
-  }
-  var overlay=document.createElement('div');
-  overlay.id='barcode-overlay';
-  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:99999;display:flex;flex-direction:column';
-  var h='<div style="background:#1B5E20;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">';
-  h+='<div style="color:#fff;font-weight:700;font-size:16px">📷 Scan Item Barcode</div>';
-  h+='<button onclick="closeScanner()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 12px;border-radius:6px;font-size:14px;cursor:pointer">✕ Close</button></div>';
-  h+='<div style="flex:1;position:relative;overflow:hidden">';
-  h+='<video id="scan-video" style="width:100%;height:100%;object-fit:cover" playsinline autoplay muted></video>';
-  h+='<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:70%;max-width:280px;height:160px;border:3px solid #4CAF50;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,0.5)"></div>';
-  h+='<div style="position:absolute;bottom:20%;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,0.6);padding:6px 12px;border-radius:20px">Point at barcode or QR code</div>';
-  h+='</div>';
-  h+='<div style="background:#1B5E20;padding:12px 16px">';
-  h+='<div id="scan-status" style="color:#A5D6A7;font-size:12px;text-align:center;margin-bottom:8px">Initializing camera...</div>';
-  h+='<input id="scan-manual" type="text" placeholder="Or type barcode manually" ';
-  h+='style="width:100%;padding:10px;border-radius:8px;border:none;font-size:14px;box-sizing:border-box;margin-bottom:8px">';
-  h+='<button onclick="processBarcode(document.getElementById(\'scan-manual\').value.trim())" ';
-  h+='style="width:100%;padding:10px;background:#4CAF50;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">✓ Use Barcode</button>';
-  h+='</div>';
-  overlay.innerHTML=h;
-  document.body.appendChild(overlay);
-  startCamera();
-}
-
-function startCamera(){
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
-  .then(function(stream){
-    _scanStream=stream;
-    var video=document.getElementById('scan-video');
-    if(video){video.srcObject=stream;video.play();}
-    setScanStatus('Camera ready — point at barcode');
-    if(window.BarcodeDetector){setScanStatus('Native scanner active ⚡');startNativeDetector(video);}
-    else loadQuagga();
-  }).catch(function(err){setScanStatus('Camera error: '+err.message);});
-}
-
-function setScanStatus(msg){var el=document.getElementById('scan-status');if(el)el.textContent=msg;}
-
-function startNativeDetector(video){
-  var detector=new BarcodeDetector({formats:['ean_13','ean_8','code_128','qr_code','upc_a','upc_e']});
-  _nativeScanInterval=setInterval(function(){
-    if(!video||video.readyState<2) return;
-    detector.detect(video).then(function(results){
-      if(results&&results.length){clearInterval(_nativeScanInterval);processBarcode(results[0].rawValue);}
-    }).catch(function(){});
-  },300);
-}
-
-function loadQuagga(){
-  setScanStatus('Loading scanner library...');
-  if(_quaggaLoaded){startQuagga();return;}
-  var s=document.createElement('script');
-  s.src='https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js';
-  s.onload=function(){_quaggaLoaded=true;startQuagga();};
-  s.onerror=function(){setScanStatus('Use manual entry below');};
-  document.head.appendChild(s);
-}
-
-function startQuagga(){
-  if(typeof Quagga==='undefined'){setScanStatus('Use manual entry below');return;}
-  Quagga.init({
-    inputStream:{name:'Live',type:'LiveStream',target:document.getElementById('scan-video'),constraints:{facingMode:'environment'}},
-    decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','upc_reader']},locate:true
-  },function(err){
-    if(err){setScanStatus('Use manual entry below');return;}
-    Quagga.start();
-    Quagga.onDetected(function(r){if(r&&r.codeResult){Quagga.stop();processBarcode(r.codeResult.code);}});
-  });
-}
-
-function closeScanner(){
-  if(_scanStream){_scanStream.getTracks().forEach(function(t){t.stop();});_scanStream=null;}
-  if(_nativeScanInterval){clearInterval(_nativeScanInterval);_nativeScanInterval=null;}
-  try{if(typeof Quagga!=='undefined')Quagga.stop();}catch(e){}
-  var o=document.getElementById('barcode-overlay');if(o)o.remove();
-  _scanTarget=null;
-}
-
-function processBarcode(code){
-  if(!code||!code.trim()){toast('No barcode','e');return;}
-  closeScanner();
-  var found=null;
-  for(var i=0;i<D.inventory.length;i++){
-    if(D.inventory[i].barcode&&D.inventory[i].barcode===code){found=D.inventory[i];break;}
-  }
-  if(found){
-    toast('Found: '+found.itemName+' ✅');
-    if(_scanTarget==='purchase'){window._purItem=found.id;go('purchase');}
-    else{window._salItem=found.id;go('sales');}
-  } else {
-    showBarcodeAssign(code);
-  }
-}
-
-function showBarcodeAssign(code){
-  var opts=D.inventory.map(function(it){return '<option value="'+it.id+'">'+esc(it.itemName)+'</option>';}).join('');
-  var d=document.createElement('div');
-  d.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-  d.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:400px">'+
-    '<div style="font-size:16px;font-weight:700;color:#1B5E20;margin-bottom:4px">📷 New Barcode: '+esc(code)+'</div>'+
-    '<div style="font-weight:700;font-size:13px;margin:12px 0 6px">Assign to existing item:</div>'+
-    '<select id="bc_item" style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:13px;margin-bottom:10px">'+
-    '<option value="">-- Select --</option>'+opts+'</select>'+
-    '<button onclick="assignBarcode(\''+code+'\',document.getElementById(\'bc_item\').value)" '+
-    'style="width:100%;padding:12px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px">Assign Barcode</button>'+
-    '<div style="font-weight:700;font-size:13px;margin-bottom:6px">OR create new item:</div>'+
-    '<input id="bc_name" placeholder="New item name" style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
-    '<button onclick="createItemWithBarcode(\''+code+'\',document.getElementById(\'bc_name\').value)" '+
-    'style="width:100%;padding:12px;background:#2E7D32;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px">+ Create New Item</button>'+
-    '<button onclick="this.closest(\'div[style*=fixed]\').remove()" '+
-    'style="width:100%;padding:10px;background:#F5F5F5;color:#546E7A;border:none;border-radius:8px;font-size:13px;cursor:pointer">Cancel</button>'+
-    '</div>';
-  document.body.appendChild(d);
-}
-
-function assignBarcode(code,itemId){
-  if(!itemId){toast('Select an item','e');return;}
-  for(var i=0;i<D.inventory.length;i++){
-    if(D.inventory[i].id===itemId){
-      D.inventory[i].barcode=code; sv();
-      var name=D.inventory[i].itemName;
-      var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
-      toast('Barcode assigned to '+name+' ✅');
-      if(_scanTarget==='purchase'){window._purItem=itemId;go('purchase');}
-      else{window._salItem=itemId;go('sales');}
-      return;
-    }
-  }
-}
-
-function createItemWithBarcode(code,name){
-  if(!name||!name.trim()){toast('Enter item name','e');return;}
-  var item={id:uid(),itemName:name.trim(),unit:'No.',openingStock:0,currentStock:0,avgCost:0,
-    importedStock:0,importedAvgCost:0,reorderLevel:0,category:'Resale',barcode:code};
-  D.inventory.push(item); sv();
-  var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
-  toast('Item created ✅');
-  if(_scanTarget==='purchase'){window._purItem=item.id;go('purchase');}
-  else{window._salItem=item.id;go('sales');}
-}
-
-function showItemBarcode(itemId){
-  var item=null;for(var i=0;i<D.inventory.length;i++)if(D.inventory[i].id===itemId){item=D.inventory[i];break;}
-  if(!item)return;
-  var d=document.createElement('div');
-  d.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-  d.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:360px">'+
-    '<div style="font-size:16px;font-weight:700;color:#1565C0;margin-bottom:12px">'+esc(item.itemName)+'</div>'+
-    (item.barcode?'<div style="background:#E8F5E9;border-radius:8px;padding:10px;margin-bottom:10px;text-align:center"><div style="font-size:11px;color:#546E7A">Saved Barcode</div><div style="font-size:18px;font-weight:700;font-family:monospace;color:#1B5E20">'+esc(item.barcode)+'</div></div>':
-    '<div style="background:#FFF8E1;border-radius:8px;padding:10px;margin-bottom:10px;color:#E65100;text-align:center">No barcode assigned yet</div>')+
-    '<input id="bc_code" value="'+(item.barcode||'')+'" placeholder="Barcode number" '+
-    'style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:14px;margin-bottom:8px;box-sizing:border-box">'+
-    '<button onclick="saveItemBarcode(\''+itemId+'\',document.getElementById(\'bc_code\').value)" '+
-    'style="width:100%;padding:12px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px">💾 Save Barcode</button>'+
-    (item.barcode?'<button onclick="clearItemBarcode(\''+itemId+'\')" style="width:100%;padding:10px;background:#FFEBEE;color:#C62828;border:none;border-radius:8px;font-size:13px;cursor:pointer;margin-bottom:8px">✕ Remove Barcode</button>':'')+
-    '<button onclick="this.closest(\'div[style*=fixed]\').remove()" '+
-    'style="width:100%;padding:10px;background:#F5F5F5;color:#546E7A;border:none;border-radius:8px;font-size:13px;cursor:pointer">Close</button>'+
-    '</div>';
-  document.body.appendChild(d);
-}
-
-function saveItemBarcode(itemId,code){
-  var item=null;for(var i=0;i<D.inventory.length;i++)if(D.inventory[i].id===itemId){item=D.inventory[i];break;}
-  if(!item)return;
-  item.barcode=code.trim(); sv();
-  var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
-  toast('Barcode saved ✅'); renderPage();
-}
-
-function clearItemBarcode(itemId){
-  var item=null;for(var i=0;i<D.inventory.length;i++)if(D.inventory[i].id===itemId){item=D.inventory[i];break;}
-  if(!item)return;
-  delete item.barcode; sv();
-  var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
-  toast('Barcode removed'); renderPage();
-}
-// ── END BARCODE SCANNER ────────────────────────────────────────────────────
 function pgDash(){
   if(!D || !D.profile){ return card('Loading...','<div class="al ali">Loading business data...</div>'); }
   // Show home screen reminder on iPhone if not dismissed
@@ -1801,11 +1598,8 @@ function pgPur(){
     iOpts.push({v:_it.id,l:_it.itemName+_catLabel+' ('+_it.unit+', Stock:'+fmt(_it.currentStock)+')'});
   }
   var sel=window._purItem||'__new__';
-  var _scanPurBtn = window._barcodeEnabled ?
-    '<button onclick="openScanner(\'purchase\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📷 Scan Barcode / QR Code to Select Item</button>' :
-    '<button onclick="toast(\'Enable Barcode Scanner in Data tab first\',\'w\')" style="width:100%;padding:8px;background:#E0E0E0;color:#9E9E9E;border:none;border-radius:8px;font-size:12px;cursor:pointer;margin-bottom:8px">📷 Scan Barcode (Enable in Data tab → Barcode Scanner)</button>';
   var h='<div class="card"><div class="ch">Total Purchases: '+fc(tot)+'</div></div>';
-  var itemBlock = _scanPurBtn+sl('Item','pu_i',iOpts,sel)+' <div onchange="window._purItem=gv(\'pu_i\');renderPage()" style="display:none"></div>';
+  var itemBlock = sl('Item','pu_i',iOpts,sel)+' <div onchange="window._purItem=gv(\'pu_i\');renderPage()" style="display:none"></div>';
   var newItemFields='';
   if(sel==='__new__'){
     var catOpts=[{v:'Resale',l:'Resale'},{v:'Raw Material',l:'Raw Material'},{v:'FG',l:'Finished Goods'},{v:'Consumable',l:'Consumable'}];
@@ -1911,15 +1705,32 @@ function pgSal(){
   h+='<div class="card"><div class="ch">Total Sales: '+fc(tot)+'</div></div>';
   h+='<div style="margin-bottom:10px">'+btn('🧾 Create Bill (Multi-Item Invoice)','window._salMode=\'bill\';window._billCart=[];renderPage()','#1565C0')+'</div>';
 
+  var _defM=+(D.settings&&D.settings.defaultMargin)||20;
+  var _curM=(window._salMargin!=null)?window._salMargin:_defM;
+  if(selItem&&selItem.avgCost>0&&(!window._salPrice||window._salPrice===0)){
+    window._salPrice=Math.round(selItem.avgCost*(1+_curM/100));
+  }
   var costInfo='';
   if(selItem){
-    var cp=selItem.avgCost;
-    costInfo='<div class="al ali"><div style="display:flex;justify-content:space-between"><span>Cost Price per '+esc(selItem.unit)+':</span><b>'+fc(cp)+'</b></div><div style="font-size:11px;color:#546E7A;margin-top:3px">Set your selling price above this to make a profit. Available stock: '+fmt(selItem.currentStock)+' '+esc(selItem.unit)+'</div></div>';
+    var _cp=selItem.avgCost,_sp=window._salPrice||0,_pr=_sp-_cp;
+    var _pc=_cp>0?Math.round(_pr/_cp*100):0,_prc=_pr>=0?'#2E7D32':'#C62828';
+    costInfo='<div class="al ali" style="margin-bottom:8px">'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:6px">'+
+        '<span style="font-size:12px">Cost Price/'+esc(selItem.unit)+':</span><b>'+fc(_cp)+'</b>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'+
+        '<label style="font-size:12px;color:#546E7A">Margin %:</label>'+
+        '<input type="number" id="sl_margin" value="'+_curM+'" min="0" max="500" '+
+          'oninput="onSalMarginChange()" '+
+          'style="width:72px;padding:6px;border-radius:8px;border:2px solid #1565C0;font-size:14px;font-weight:700;text-align:center">'+
+        '<span id="sl_margin_info" style="font-size:12px;font-weight:700;color:'+_prc+'">'+
+          fc(_sp)+' | '+fc(_pr)+' ('+_pc+'%)'+
+        '</span>'+
+      '</div>'+
+      '<div style="font-size:10px;color:#90A4AE">Stock:'+fmt(selItem.currentStock)+' '+esc(selItem.unit)+' | Default:'+_defM+'% (Settings)</div>'+
+    '</div>';
   }
 
-    h += window._barcodeEnabled ?
-    '<div style="margin-bottom:8px"><button onclick="openScanner(\'sale\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📷 Scan Barcode / QR Code to Select Item</button></div>' :
-    '<div style="margin-bottom:8px"><button onclick="toast(\'Enable Barcode Scanner in Data tab first\',\'w\')" style="width:100%;padding:8px;background:#E0E0E0;color:#9E9E9E;border:none;border-radius:8px;font-size:12px;cursor:pointer">📷 Scan Barcode (Enable in Data tab → Barcode Scanner)</button></div>';
   h+=card('Record Sale',
     g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||''))+
     '<div class="fg"><label>Item</label><select id="sl_i" onchange="onSalItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
@@ -2001,7 +1812,32 @@ function restoreStock(item, fromIndig, fromImp, indigCostEach, impCostEach){
     item.importedStock=itq; item.importedAvgCost = itq>0 ? itv/itq : 0;
   }
 }
-function onSalItemChange(){window._salItem=gv('sl_i');window._salCustomer=gv('sl_c');window._salDate=gv('sl_d');window._salQty=gv('sl_q');window._salPrice=gv('sl_p');window._salMode=gv('sl_m');window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
+function onSalMarginChange(){
+  var m=gvn('sl_margin');
+  if(m===null||isNaN(m)) return;
+  window._salMargin=m;
+  var sid=window._salItem||'';
+  var it=null;
+  for(var i=0;i<D.inventory.length;i++) if(D.inventory[i].id===sid){it=D.inventory[i];break;}
+  if(it&&it.avgCost>0){
+    var np=Math.round(it.avgCost*(1+m/100));
+    window._salPrice=np;
+    var pEl=document.getElementById('sl_p');
+    if(pEl) pEl.value=np;
+    var iEl=document.getElementById('sl_margin_info');
+    if(iEl){
+      var pr=np-it.avgCost;
+      iEl.style.color=pr>=0?'#2E7D32':'#C62828';
+      iEl.textContent='Sale: '+fc(np)+' | Profit: '+fc(pr)+' ('+Math.round(pr/it.avgCost*100)+'%)';
+    }
+  }
+}
+function onSalItemChange(){window._salItem=gv('sl_i');window._salCustomer=gv('sl_c');window._salDate=gv('sl_d');window._salQty=gv('sl_q');window._salMode=gv('sl_m');
+  var _nm=gvn('sl_margin');if(_nm!==null&&!isNaN(_nm)) window._salMargin=_nm;
+  var _sid=window._salItem||'';var _sit=null;for(var _ii=0;_ii<D.inventory.length;_ii++)if(D.inventory[_ii].id===_sid){_sit=D.inventory[_ii];break;}
+  var _mg=(window._salMargin!=null)?window._salMargin:(+(D.settings&&D.settings.defaultMargin)||20);
+  if(_sit&&_sit.avgCost>0) window._salPrice=Math.round(_sit.avgCost*(1+_mg/100));
+  else window._salPrice=gvn('sl_p')||0;window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
 function addSal(){
   var c2=gv('sl_c')||window._salCustomer||'',iid=gv('sl_i'),q=gvn('sl_q'),p=gvn('sl_p');
   if(!c2){toast('Enter customer name','e');return;}
@@ -2769,6 +2605,101 @@ function pgAna(){
     if(pt.imported>0) purchaseBars.push({l:'Imported',v:pt.imported});
     if(purchaseBars.length>1) h+=card('Purchase Mix',bar(purchaseBars,'#E65100',55));
   }
+
+  // ── ITEM-WISE PROFIT ANALYSIS (with expense apportionment) ──
+  (function(){
+    if(!D.sales || D.sales.length===0) return;
+    // Build item map: sales, COGS, qty
+    var items={};
+    D.sales.forEach(function(s){
+      var k=s.itemName||'Unknown';
+      if(!items[k]) items[k]={name:k,sales:0,cogs:0,qty:0,txns:0};
+      items[k].sales += (s.totalAmount||0);
+      items[k].cogs  += (s.cogs||0);
+      items[k].qty   += (s.qty||0);
+      items[k].txns  += 1;
+    });
+    var itemList=[];
+    for(var k in items) itemList.push(items[k]);
+    if(itemList.length===0) return;
+    itemList.sort(function(a,b){return b.sales-a.sales;});
+
+    var totalSales = itemList.reduce(function(s,it){return s+it.sales;},0);
+    var totalExp   = f.te||0;
+
+    // Apportion expenses by sales value proportion
+    itemList.forEach(function(it){
+      it.gm       = it.sales - it.cogs;
+      it.gmPct    = it.sales>0 ? (it.gm/it.sales*100) : 0;
+      it.expShare = totalSales>0 ? (it.sales/totalSales)*totalExp : 0;
+      it.np       = it.gm - it.expShare;
+      it.npPct    = it.sales>0 ? (it.np/it.sales*100) : 0;
+      it.npPerUnit= it.qty>0 ? it.np/it.qty : 0;
+    });
+
+    // Table rows
+    var rows='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    rows+='<tr style="background:#1565C0;color:#fff">';
+    rows+='<th style="padding:6px 4px;text-align:left">Item</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Sales</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">COGS</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Gross Margin</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">GM%</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Exp (Apptd)</th>';
+    rows+='<th style="padding:6px 4px;text-align:right;font-weight:800">Net Profit</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">NP%</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">NP/Unit</th>';
+    rows+='</tr>';
+
+    itemList.forEach(function(it,idx){
+      var bg=idx%2===0?'#F9FAFB':'#fff';
+      var npColor=it.np>=0?'#2E7D32':'#C62828';
+      var gmColor=it.gmPct>=20?'#2E7D32':'#E65100';
+      rows+='<tr style="background:'+bg+'">';
+      rows+='<td style="padding:5px 4px;font-weight:600;color:#1565C0">'+esc(it.name)+'<br><span style="font-size:9px;color:#90A4AE">'+it.txns+' txn'+(it.txns>1?'s':'')+' · '+fmt(it.qty)+' units</span></td>';
+      rows+='<td style="padding:5px 4px;text-align:right">'+fc(it.sales)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right">'+fc(it.cogs)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+gmColor+';font-weight:700">'+fc(it.gm)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+gmColor+'">'+it.gmPct.toFixed(1)+'%</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:#E65100">'+fc(Math.round(it.expShare))+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+';font-weight:800">'+fc(Math.round(it.np))+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+';font-weight:700">'+it.npPct.toFixed(1)+'%</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+'">'+fc(Math.round(it.npPerUnit))+'</td>';
+      rows+='</tr>';
+    });
+
+    // Totals row
+    var totGM=itemList.reduce(function(s,it){return s+it.gm;},0);
+    var totNP=itemList.reduce(function(s,it){return s+it.np;},0);
+    rows+='<tr style="background:#E3F2FD;font-weight:800">';
+    rows+='<td style="padding:5px 4px">TOTAL</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">'+fc(totalSales)+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">'+fc(itemList.reduce(function(s,it){return s+it.cogs;},0))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#2E7D32">'+fc(totGM)+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#2E7D32">'+(totalSales>0?(totGM/totalSales*100).toFixed(1):0)+'%</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#E65100">'+fc(Math.round(totalExp))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:'+(totNP>=0?'#2E7D32':'#C62828')+'">'+fc(Math.round(totNP))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:'+(totNP>=0?'#2E7D32':'#C62828')+'">'+(totalSales>0?(totNP/totalSales*100).toFixed(1):0)+'%</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">—</td>';
+    rows+='</tr>';
+    rows+='</table></div>';
+
+    // Insights
+    var best=itemList[0], worst=itemList[itemList.length-1];
+    var profitable=itemList.filter(function(it){return it.np>0;});
+    var insight='<div style="margin-top:10px;font-size:11px;color:#37474F;line-height:1.7">';
+    insight+='<b>📌 Method:</b> Other expenses (₹'+fc(Math.round(totalExp))+') apportioned by sales value proportion.<br>';
+    if(itemList.length>1){
+      insight+='🏆 <b>Most Profitable:</b> '+esc(best.name)+' — NP ₹'+fc(Math.round(best.np))+' ('+best.npPct.toFixed(1)+'%)<br>';
+      if(worst.np<0) insight+='⚠️ <b>Loss-making:</b> '+esc(worst.name)+' — Loss ₹'+fc(Math.round(Math.abs(worst.np)))+'<br>';
+      insight+='✅ <b>'+profitable.length+' of '+itemList.length+' items</b> are profitable after expense apportionment.<br>';
+    }
+    insight+='<span style="font-size:10px;color:#90A4AE">To improve NP%: increase selling price, reduce COGS, or reduce overheads.</span>';
+    insight+='</div>';
+
+    h+=card('📦 Item-wise Profit Analysis (After Expense Apportionment)', rows+insight);
+  })();
+
   return h;
 }
 // ===== REPORTS =====
@@ -5949,6 +5880,20 @@ function pgHelp(){
     )
   );
 
+
+  h += hs(
+    bi('11. Auto Sale Price & Item-wise Profit', '11. Auto Sale Price & Item-wise Profit'),
+    bi(
+      '<p><b>Auto Sale Price:</b> In Sales page, select an item — the app shows Cost Price and auto-calculates Selling Price from your Default Margin %. Change margin for that sale anytime, price updates instantly. Or type price directly — margin updates automatically.</p>' +
+      '<p><b>Set Default Margin:</b> Reminders menu → Credit & Margin Settings → Default Sale Margin % (e.g. 20 = 20% profit on cost). Applies to all items. Change anytime.</p>' +
+      '<p><b>Example:</b> Cost ₹100, Margin 30% → Price ₹130, Profit ₹30.</p>' +
+      '<p><b>Item-wise Profit:</b> Analytics menu → scroll down → 📦 Item-wise Profit Analysis. Items come automatically from Sales — nothing extra to enter. No change in any other menu.</p>',
+      '<p><b>Auto Sale Price:</b> Sales page में item select करें — app Cost Price दिखाता है और Default Margin % से Selling Price calculate करता है। Margin बदलें — price तुरंत update। या price खुद टाइप करें — margin update हो जाता है।</p>' +
+      '<p><b>Default Margin set करें:</b> Reminders → Credit & Margin Settings → Default Sale Margin % डालें। सभी items पर apply। कभी भी बदलें।</p>' +
+      '<p><b>Example:</b> Cost ₹100, Margin 30% → Price ₹130, Profit ₹30।</p>' +
+      '<p><b>Item-wise Profit:</b> Analytics menu → नीचे → 📦 Item-wise Profit Analysis। Items sales से automatically आते हैं। कोई दूसरा menu नहीं बदला।</p>'
+    )
+  );
   // ── SECTION 11: MANUFACTURING APP ──
   if ((BIZ_TYPE==='Manufacturing'||BIZ_TYPE==='Trading + Manufacturing')) {
     h += hs(
@@ -8054,7 +7999,9 @@ function pgReminders(){
 
   h += card('Reminder Settings',
     '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Set the global credit period. Any debtor whose outstanding amount is older than this many days will appear in the overdue list.</div>'+
-    g2(inp('Credit Period (days)','rem_days','number',creditDays),''+
+    g2(inp('Credit Period (days)','rem_days','number',creditDays),inp('Default Sale Margin %','def_margin','number',+(D.settings&&D.settings.defaultMargin)||20))+
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Margin % auto-fills Selling Price in Sales. Override per sale.</div>'+
+      g2(''+
        '<div class="fg"><label>&nbsp;</label>'+btn('💾 Save','saveReminderSettings()','#2E7D32')+'</div>')
   );
 
@@ -8164,7 +8111,7 @@ function copyReminderMsg(name, d){
 
 function saveReminderSettings(){
   if(!D.settings) D.settings={};
-  D.settings.creditDays = gvn('rem_days')||30;
+  D.settings.creditDays=gvn('rem_days')||30;if(gvn('def_margin')!==null) D.settings.defaultMargin=gvn('def_margin')||20;
   sv(); renderPage(); toast('Credit period saved!');
 }
 

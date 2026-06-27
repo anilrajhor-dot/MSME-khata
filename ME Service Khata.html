@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>
-var _BUILD='202406240321';
-var _s=sessionStorage.getItem('mfm_build');
-if(_s&&_s!==_BUILD){sessionStorage.setItem('mfm_build',_BUILD);location.reload(true);}
-else{sessionStorage.setItem('mfm_build',_BUILD);}
-</script>
 <meta charset="UTF-8">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#2E7D32">
-<title>Service Accounts | सेवा लेखा | v202406240321</title>
+<title>Service Accounts | सेवा लेखा</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:sans-serif;margin:0;padding:0}
@@ -71,7 +62,7 @@ td{padding:6px 8px;border-bottom:1px solid #BBDEFB;white-space:nowrap}
 </head>
 <body>
 <div id="app">
-<div style="text-align:center;padding:8px 12px;background:linear-gradient(135deg,#1565C0,#0D47A1);border-bottom:3px solid #FFD700"><span style="font-size:11px;color:rgba(255,255,255,0.85);letter-spacing:0.5px">Application developed by</span> <b style="font-size:14px;color:#FFD700;letter-spacing:0.3px">Anil Sharma</b> <span style="font-size:11px;color:rgba(255,255,255,0.9)">| Former General Manager, Central Bank of India</span></div>
+<div style="text-align:center;padding:6px 8px;font-size:12px;color:#37474F;background:linear-gradient(90deg,#2E7D3215,#2E7D3205);border-bottom:2px solid #2E7D32">Developed by <b style="color:#2E7D32;font-size:13px">Anil Sharma</b><br><span style="font-size:10px;color:#607D8B">Former General Manager, Central Bank of India</span></div>
 <div id="tb">
   <div style="flex:1">
     <b id="tbn">🛠️ Service Accounts</b>
@@ -325,215 +316,6 @@ function postCB(mode,type,amount,party,desc,date){
   if(cbMode==='bank') entry.bankAccountId=bankAccountId;
   D.cashBook.push(entry);
 }
-
-
-
-// ── BARCODE SCANNER ──────────────────────────────────────────────────────────
-var _scanTarget=null,_scanStream=null,_quaggaLoaded=false,_nativeScanInterval=null;
-
-// Toggle scanner (optional feature)
-function toggleBarcodeScanner(){
-  window._barcodeEnabled=!window._barcodeEnabled;
-  try{localStorage.setItem('mefm_barcode_enabled',window._barcodeEnabled?'1':'0');}catch(e){}
-  renderPage();
-  toast('Barcode Scanner '+(window._barcodeEnabled?'Enabled':'Disabled'));
-}
-(function(){
-  try{var p=localStorage.getItem('mefm_barcode_enabled');window._barcodeEnabled=(p===null)?false:(p==='1');}
-  catch(e){window._barcodeEnabled=false;}
-})();
-
-function barcodeBtn(target){
-  if(!window._barcodeEnabled) return '';
-  var html='<button onclick="openScanner(\'' + target + '\')" ';
-  html+='style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);';
-  html+='color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;';
-  html+='cursor:pointer;margin-bottom:8px">📷 Scan Barcode / QR Code</button>';
-  return html;
-}
-
-function openScanner(target){
-  _scanTarget=target;
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    toast('Camera not available','e'); return;
-  }
-  var overlay=document.createElement('div');
-  overlay.id='barcode-overlay';
-  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:99999;display:flex;flex-direction:column';
-  var h='<div style="background:#1B5E20;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">';
-  h+='<div style="color:#fff;font-weight:700;font-size:16px">📷 Scan Item Barcode</div>';
-  h+='<button onclick="closeScanner()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 12px;border-radius:6px;font-size:14px;cursor:pointer">✕ Close</button></div>';
-  h+='<div style="flex:1;position:relative;overflow:hidden">';
-  h+='<video id="scan-video" style="width:100%;height:100%;object-fit:cover" playsinline autoplay muted></video>';
-  h+='<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:70%;max-width:280px;height:160px;border:3px solid #4CAF50;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,0.5)"></div>';
-  h+='<div style="position:absolute;bottom:20%;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,0.6);padding:6px 12px;border-radius:20px">Point at barcode or QR code</div>';
-  h+='</div>';
-  h+='<div style="background:#1B5E20;padding:12px 16px">';
-  h+='<div id="scan-status" style="color:#A5D6A7;font-size:12px;text-align:center;margin-bottom:8px">Initializing camera...</div>';
-  h+='<input id="scan-manual" type="text" placeholder="Or type barcode manually" ';
-  h+='style="width:100%;padding:10px;border-radius:8px;border:none;font-size:14px;box-sizing:border-box;margin-bottom:8px">';
-  h+='<button onclick="processBarcode(document.getElementById(\'scan-manual\').value.trim())" ';
-  h+='style="width:100%;padding:10px;background:#4CAF50;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">✓ Use Barcode</button>';
-  h+='</div>';
-  overlay.innerHTML=h;
-  document.body.appendChild(overlay);
-  startCamera();
-}
-
-function startCamera(){
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
-  .then(function(stream){
-    _scanStream=stream;
-    var video=document.getElementById('scan-video');
-    if(video){video.srcObject=stream;video.play();}
-    setScanStatus('Camera ready — point at barcode');
-    if(window.BarcodeDetector){setScanStatus('Native scanner active ⚡');startNativeDetector(video);}
-    else loadQuagga();
-  }).catch(function(err){setScanStatus('Camera error: '+err.message);});
-}
-
-function setScanStatus(msg){var el=document.getElementById('scan-status');if(el)el.textContent=msg;}
-
-function startNativeDetector(video){
-  var detector=new BarcodeDetector({formats:['ean_13','ean_8','code_128','qr_code','upc_a','upc_e']});
-  _nativeScanInterval=setInterval(function(){
-    if(!video||video.readyState<2) return;
-    detector.detect(video).then(function(results){
-      if(results&&results.length){clearInterval(_nativeScanInterval);processBarcode(results[0].rawValue);}
-    }).catch(function(){});
-  },300);
-}
-
-function loadQuagga(){
-  setScanStatus('Loading scanner library...');
-  if(_quaggaLoaded){startQuagga();return;}
-  var s=document.createElement('script');
-  s.src='https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js';
-  s.onload=function(){_quaggaLoaded=true;startQuagga();};
-  s.onerror=function(){setScanStatus('Use manual entry below');};
-  document.head.appendChild(s);
-}
-
-function startQuagga(){
-  if(typeof Quagga==='undefined'){setScanStatus('Use manual entry below');return;}
-  Quagga.init({
-    inputStream:{name:'Live',type:'LiveStream',target:document.getElementById('scan-video'),constraints:{facingMode:'environment'}},
-    decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','upc_reader']},locate:true
-  },function(err){
-    if(err){setScanStatus('Use manual entry below');return;}
-    Quagga.start();
-    Quagga.onDetected(function(r){if(r&&r.codeResult){Quagga.stop();processBarcode(r.codeResult.code);}});
-  });
-}
-
-function closeScanner(){
-  if(_scanStream){_scanStream.getTracks().forEach(function(t){t.stop();});_scanStream=null;}
-  if(_nativeScanInterval){clearInterval(_nativeScanInterval);_nativeScanInterval=null;}
-  try{if(typeof Quagga!=='undefined')Quagga.stop();}catch(e){}
-  var o=document.getElementById('barcode-overlay');if(o)o.remove();
-  _scanTarget=null;
-}
-
-function processBarcode(code){
-  if(!code||!code.trim()){toast('No barcode','e');return;}
-  closeScanner();
-  var found=null;
-  for(var i=0;i<D.inventory.length;i++){
-    if(D.inventory[i].barcode&&D.inventory[i].barcode===code){found=D.inventory[i];break;}
-  }
-  if(found){
-    toast('Found: '+found.itemName+' ✅');
-    if(_scanTarget==='purchase'){window._purItem=found.id;go('purchase');}
-    else{window._salItem=found.id;go('sales');}
-  } else {
-    showBarcodeAssign(code);
-  }
-}
-
-function showBarcodeAssign(code){
-  var opts=D.inventory.map(function(it){return '<option value="'+it.id+'">'+esc(it.itemName)+'</option>';}).join('');
-  var d=document.createElement('div');
-  d.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-  d.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:400px">'+
-    '<div style="font-size:16px;font-weight:700;color:#1B5E20;margin-bottom:4px">📷 New Barcode: '+esc(code)+'</div>'+
-    '<div style="font-weight:700;font-size:13px;margin:12px 0 6px">Assign to existing item:</div>'+
-    '<select id="bc_item" style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:13px;margin-bottom:10px">'+
-    '<option value="">-- Select --</option>'+opts+'</select>'+
-    '<button onclick="assignBarcode(\''+code+'\',document.getElementById(\'bc_item\').value)" '+
-    'style="width:100%;padding:12px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px">Assign Barcode</button>'+
-    '<div style="font-weight:700;font-size:13px;margin-bottom:6px">OR create new item:</div>'+
-    '<input id="bc_name" placeholder="New item name" style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
-    '<button onclick="createItemWithBarcode(\''+code+'\',document.getElementById(\'bc_name\').value)" '+
-    'style="width:100%;padding:12px;background:#2E7D32;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px">+ Create New Item</button>'+
-    '<button onclick="this.closest(\'div[style*=fixed]\').remove()" '+
-    'style="width:100%;padding:10px;background:#F5F5F5;color:#546E7A;border:none;border-radius:8px;font-size:13px;cursor:pointer">Cancel</button>'+
-    '</div>';
-  document.body.appendChild(d);
-}
-
-function assignBarcode(code,itemId){
-  if(!itemId){toast('Select an item','e');return;}
-  for(var i=0;i<D.inventory.length;i++){
-    if(D.inventory[i].id===itemId){
-      D.inventory[i].barcode=code; sv();
-      var name=D.inventory[i].itemName;
-      var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
-      toast('Barcode assigned to '+name+' ✅');
-      if(_scanTarget==='purchase'){window._purItem=itemId;go('purchase');}
-      else{window._salItem=itemId;go('sales');}
-      return;
-    }
-  }
-}
-
-function createItemWithBarcode(code,name){
-  if(!name||!name.trim()){toast('Enter item name','e');return;}
-  var item={id:uid(),itemName:name.trim(),unit:'No.',openingStock:0,currentStock:0,avgCost:0,
-    importedStock:0,importedAvgCost:0,reorderLevel:0,category:'Resale',barcode:code};
-  D.inventory.push(item); sv();
-  var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
-  toast('Item created ✅');
-  if(_scanTarget==='purchase'){window._purItem=item.id;go('purchase');}
-  else{window._salItem=item.id;go('sales');}
-}
-
-function showItemBarcode(itemId){
-  var item=null;for(var i=0;i<D.inventory.length;i++)if(D.inventory[i].id===itemId){item=D.inventory[i];break;}
-  if(!item)return;
-  var d=document.createElement('div');
-  d.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-  d.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:360px">'+
-    '<div style="font-size:16px;font-weight:700;color:#1565C0;margin-bottom:12px">'+esc(item.itemName)+'</div>'+
-    (item.barcode?'<div style="background:#E8F5E9;border-radius:8px;padding:10px;margin-bottom:10px;text-align:center"><div style="font-size:11px;color:#546E7A">Saved Barcode</div><div style="font-size:18px;font-weight:700;font-family:monospace;color:#1B5E20">'+esc(item.barcode)+'</div></div>':
-    '<div style="background:#FFF8E1;border-radius:8px;padding:10px;margin-bottom:10px;color:#E65100;text-align:center">No barcode assigned yet</div>')+
-    '<input id="bc_code" value="'+(item.barcode||'')+'" placeholder="Barcode number" '+
-    'style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:14px;margin-bottom:8px;box-sizing:border-box">'+
-    '<button onclick="saveItemBarcode(\''+itemId+'\',document.getElementById(\'bc_code\').value)" '+
-    'style="width:100%;padding:12px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px">💾 Save Barcode</button>'+
-    (item.barcode?'<button onclick="clearItemBarcode(\''+itemId+'\')" style="width:100%;padding:10px;background:#FFEBEE;color:#C62828;border:none;border-radius:8px;font-size:13px;cursor:pointer;margin-bottom:8px">✕ Remove Barcode</button>':'')+
-    '<button onclick="this.closest(\'div[style*=fixed]\').remove()" '+
-    'style="width:100%;padding:10px;background:#F5F5F5;color:#546E7A;border:none;border-radius:8px;font-size:13px;cursor:pointer">Close</button>'+
-    '</div>';
-  document.body.appendChild(d);
-}
-
-function saveItemBarcode(itemId,code){
-  var item=null;for(var i=0;i<D.inventory.length;i++)if(D.inventory[i].id===itemId){item=D.inventory[i];break;}
-  if(!item)return;
-  item.barcode=code.trim(); sv();
-  var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
-  toast('Barcode saved ✅'); renderPage();
-}
-
-function clearItemBarcode(itemId){
-  var item=null;for(var i=0;i<D.inventory.length;i++)if(D.inventory[i].id===itemId){item=D.inventory[i];break;}
-  if(!item)return;
-  delete item.barcode; sv();
-  var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
-  toast('Barcode removed'); renderPage();
-}
-// ── END BARCODE SCANNER ────────────────────────────────────────────────────
-
 // ── TB GUARD HELPERS ──────────────────────────────────────────────────────
 // Rule 1: Block entry if Trial Balance not yet posted
 function requireTBPosted(){
@@ -939,28 +721,8 @@ function saveProf(){
     var mobile=gv('p_mob');
     if(!ext && mobile && mobile.length!==10){toast('Mobile number must be 10 digits, or check "Allow longer number"','e');return;}
     var existingPartners = (D.profile && Array.isArray(D.profile.partners)) ? D.profile.partners : [];
-    var newStage=gv('p_stage')||'existing';
-    var oldStage=D.profile.businessStage||'existing';
-    var hasTB=D.tbPosted||(D.trialBalance&&D.trialBalance.length>0);
-    var doSaveProfile=function(){
-      D.profile={businessName:gv('p_bn'),ownerName:gv('p_on'),mobile:mobile,mobileExtended:ext,address:gv('p_addr'),businessType:BIZ_TYPE,businessStage:newStage,constitution:gv('p_const'),commencementDate:gv('p_cd'),udyam:gv('p_ud'),gst:gv('p_gst'),pan:gv('p_pan'),tan:gv('p_tan'),partners:existingPartners};
-      // If switching to new business, clear TB opening data
-      if(newStage==='new' && oldStage!=='new' && hasTB){
-        D.trialBalance=[];D.tbPosted=false;D.tbPostedOn=null;
-        D.opening={cash:0,bank:0,stock:0,debtors:0,creditors:0,capital:0,takenOn:null};
-        D.fixedAssets=(D.fixedAssets||[]).filter(function(f){return !f.fromTB;});
-        D.loans=(D.loans||[]).filter(function(l){return !l.fromTB;});
-        D.debtors=(D.debtors||[]).filter(function(d){return !d.fromTB;});
-        D.creditors=(D.creditors||[]).filter(function(c){return !c.fromTB;});
-        D.inventory=(D.inventory||[]).filter(function(i){return !i.fromTB;});
-        D.otherAssets=(D.fixedAssets||[]).reduce(function(s,f){return s+(+f.cost||0);},0);
-        toast('Profile saved. Opening balances cleared for New Business. 🌱');
-      } else { toast('Saved!'); }
-      sv();renderPage();
-    };
-    if(newStage==='new' && oldStage!=='new' && hasTB){
-      confirmDialog('⚠️ Switching to New Business will clear all Opening Trial Balance data.\n\nYour transactions (sales, purchases, expenses) will be kept.\n\nProceed?', doSaveProfile);
-    } else { doSaveProfile(); }
+    D.profile={businessName:gv('p_bn'),ownerName:gv('p_on'),mobile:mobile,mobileExtended:ext,address:gv('p_addr'),businessType:BIZ_TYPE,businessStage:gv('p_stage')||'existing',constitution:gv('p_const'),commencementDate:gv('p_cd'),udyam:gv('p_ud'),gst:gv('p_gst'),pan:gv('p_pan'),tan:gv('p_tan'),partners:existingPartners};
+    sv();renderPage();toast('Saved!');
   }catch(e){
     toast('Could not save profile: '+e.message,'e');
   }
@@ -1532,6 +1294,7 @@ function deleteLoan(id){
   });
 }
 function addLoan(){
+  if(!requireTBPosted()) return;
   var b=gv('l_b'),a=gvn('l_a'),lt=gv('l_type');
   if(!b){toast('Enter Lender Name','e');return;}
   var isCcOd = (lt==='Cash Credit (CC)' || lt==='Overdraft (OD)');
@@ -1640,8 +1403,6 @@ function recordRepay(){
 }
 // ===== INVENTORY =====
 function pgInv(){
-  // Normalize legacy 'RM' category to 'Raw Material'
-  for(var ni=0;ni<D.inventory.length;ni++){if(D.inventory[ni].category==='RM')D.inventory[ni].category='Raw Material';}
   var tv=0,i;for(i=0;i<D.inventory.length;i++)tv+=D.inventory[i].currentStock*D.inventory[i].avgCost+(D.inventory[i].importedStock||0)*(D.inventory[i].importedAvgCost||0);
   var hasImported = D.inventory.some(function(r){return (r.importedStock||0)>0;});
   var h='<div class="sg">'+sc('Items',D.inventory.length,'#1565C0','')+sc('Stock Value',fc(tv),'#2E7D32','')+'</div>';
@@ -1649,7 +1410,6 @@ function pgInv(){
       g2(inp('Item Name','iv_n','text',''),sl('Unit','iv_u',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
       g2(inp('Current Stock (on hand)','iv_os','number',0),inp('Cost per Unit (₹)','iv_pr','number',0))+
       inp('Reorder Level (for low-stock alert)','iv_rl','number',0)+
-      sl('Category','iv_cat',['Resale','Raw Material','Consumable','FG'],window._invCat||['Resale','Raw Material','Consumable','FG'][0])+
       (gstEnabled() ?
         g2(inp('HSN / SAC Code','iv_hsn','text','')+
            '<div style="font-size:10px;color:#546E7A;margin-top:2px">Type item name above and tap Auto-fill to get HSN & GST rate</div>',
@@ -1660,8 +1420,7 @@ function pgInv(){
         btn('🔍 Auto-fill HSN & Rate','autoFillHSN()','#546E7A')+' '
       : '')+
       btn('+ Add Item','addInv()'));
-  var catColor=function(cat){var m={'Raw Material':'#E65100','RM':'#E65100','FG':'#2E7D32','Resale':'#1565C0','Consumable':'#6A1B9A'};return m[cat]||'#546E7A';};
-  var invCols=[{l:'Item',fn:function(r){return esc(r.itemName)+gstBadge(r);}},{l:'Cat',fn:function(r){var cat=r.category||'Resale';return '<span style=\"font-size:10px;font-weight:700;color:'+catColor(cat)+';background:'+catColor(cat)+'18;padding:2px 5px;border-radius:4px\">'+esc(cat)+'</span>';}},{l:'Unit',k:'unit'},{l:'Stock',r:1,fn:function(r){return fmt(r.currentStock);}},{l:'Cost',r:1,fn:function(r){return fc(r.avgCost);}}];
+  var invCols=[{l:'Item',k:'itemName'},{l:'Unit',k:'unit'},{l:'Category',fn:function(r){return (r.category||'Resale')==='Consumable'?'Spares/Consumable':'For Resale';}},{l:'Stock',r:1,fn:function(r){return fmt(r.currentStock);}},{l:'Cost',r:1,fn:function(r){return fc(r.avgCost);}}];
   if(hasImported) invCols.push({l:'Imp. Stock',r:1,fn:function(r){return fmt(r.importedStock||0);}},{l:'Imp. Cost',r:1,fn:function(r){return fc(r.importedAvgCost||0);}});
   invCols.push({l:'Value',r:1,fn:function(r){return fc(r.currentStock*r.avgCost+(r.importedStock||0)*(r.importedAvgCost||0));}});
   h+=card('Inventory',tbl(invCols,D.inventory));
@@ -1673,9 +1432,7 @@ function addInv(){
   var newStockVal=(os||0)*(pr||0);
   var currentStockTotal=D.inventory.reduce(function(s,i){return s+i.currentStock*i.avgCost+(i.importedStock||0)*(i.importedAvgCost||0);},0);
   if(!checkTBHeadMatch(['stockitem','stock'],currentStockTotal+newStockVal,'Inventory / Stock')) return;
-  D.inventory.push({id:uid(),itemName:n,unit:gv('iv_u'),openingStock:os,currentStock:os,avgCost:pr,importedStock:0,importedAvgCost:0,reorderLevel:gvn('iv_rl'),category:gv('iv_cat')||'Resale'});
-  window._invCat=gv('iv_cat');
-  sv();go('inventory');toast('Added!');
+  D.inventory.push({id:uid(),itemName:n,unit:gv('iv_u'),openingStock:os,currentStock:os,avgCost:pr,importedStock:0,importedAvgCost:0,reorderLevel:gvn('iv_rl'),category:'Resale'});sv();go('inventory');toast('Added!');
 }
 // find or create inventory item by name (case-insensitive)
 function findOrCreateItem(name,unit,category){
@@ -1689,28 +1446,6 @@ function findOrCreateItem(name,unit,category){
   return item;
 }
 // ===== PURCHASE =====
-
-function itemwiseSummary(records, amtKey, qtyKey){
-  var map={};
-  records.forEach(function(r){
-    var key=r.itemName||'—';
-    if(!map[key]) map[key]={qty:0,amt:0};
-    map[key].qty += (+r[qtyKey]||0);
-    map[key].amt += (+r[amtKey]||0);
-  });
-  var rows=Object.keys(map).sort();
-  if(!rows.length) return '';
-  var h='<table style="width:100%;font-size:12px;border-collapse:collapse">';
-  h+='<thead><tr><th style="text-align:left;padding:4px 6px;background:#F5F5F5;border-bottom:1px solid #E0E0E0">Item</th><th style="text-align:right;padding:4px 6px;background:#F5F5F5;border-bottom:1px solid #E0E0E0">Total Qty</th><th style="text-align:right;padding:4px 6px;background:#F5F5F5;border-bottom:1px solid #E0E0E0">Total ₹</th></tr></thead><tbody>';
-  var totQty=0,totAmt=0;
-  rows.forEach(function(k){
-    h+='<tr><td style="padding:4px 6px;border-bottom:1px solid #F0F0F0">'+esc(k)+'</td><td style="text-align:right;padding:4px 6px;border-bottom:1px solid #F0F0F0">'+fmt(map[k].qty)+'</td><td style="text-align:right;padding:4px 6px;border-bottom:1px solid #F0F0F0">'+fc(map[k].amt)+'</td></tr>';
-    totQty+=map[k].qty; totAmt+=map[k].amt;
-  });
-  h+='<tr style="font-weight:700;background:#F5F5F5"><td style="padding:4px 6px">Total</td><td style="text-align:right;padding:4px 6px">'+fmt(totQty)+'</td><td style="text-align:right;padding:4px 6px">'+fc(totAmt)+'</td></tr>';
-  h+='</tbody></table>';
-  return h;
-}
 function pgPur(){
   if(window._editType==='purchase'){
     var ep=null;for(var kp=0;kp<D.purchases.length;kp++)if(D.purchases[kp].id===window._editId)ep=D.purchases[kp];
@@ -1718,27 +1453,16 @@ function pgPur(){
   }
   var tot=0,i;for(i=0;i<D.purchases.length;i++)tot+=D.purchases[i].amount;
   var iOpts=[{v:'__new__',l:'+ New Item (type name below)'}];
-  for(i=0;i<D.inventory.length;i++){
-    var _it=D.inventory[i];
-    var _cat=_it.category||'';
-    var _catLabel=_cat?(' ['+(_cat==='Raw Material'?'RM':_cat)+']'):''; 
-    iOpts.push({v:_it.id,l:_it.itemName+_catLabel+' ('+_it.unit+', Stock:'+fmt(_it.currentStock)+')'});
-  }
+  for(i=0;i<D.inventory.length;i++)iOpts.push({v:D.inventory[i].id,l:D.inventory[i].itemName+' ('+D.inventory[i].unit+')'+(D.inventory[i].category==='Consumable'?' - Spares/Consumable':' - For Resale')});
   var sel=window._purItem||'__new__';
   var h='<div class="card"><div class="ch">Total Purchases: '+fc(tot)+'</div></div>';
-  var _scanPurBtn = window._barcodeEnabled ?
-    '<button onclick="openScanner(\'purchase\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📷 Scan Barcode / QR Code to Select Item</button>' :
-    '<button onclick="toast(\'Enable Barcode Scanner in Data tab first\',\'w\')" style="width:100%;padding:8px;background:#E0E0E0;color:#9E9E9E;border:none;border-radius:8px;font-size:12px;cursor:pointer;margin-bottom:8px">📷 Scan Barcode (Enable in Data tab → Barcode Scanner)</button>';
-  var itemBlock = _scanPurBtn+sl('Item','pu_i',iOpts,sel)+' <div onchange="window._purItem=gv(\'pu_i\');renderPage()" style="display:none"></div>';
+  var itemBlock = sl('Item','pu_i',iOpts,sel)+' <div onchange="window._purItem=gv(\'pu_i\');renderPage()" style="display:none"></div>';
   var newItemFields='';
   if(sel==='__new__'){
     var catOpts=[{v:'Resale',l:'For Resale (sold directly to customers)'},{v:'Consumable',l:'Spares/Consumable (used while providing a service)'}];
     newItemFields = g2(inp('New Item Name','pu_newname','text',window._purNewName||''),sl('Unit','pu_newunit',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
       sl('Category','pu_newcat',catOpts,window._purNewCat||'Resale')+
       '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">For Resale: items you sell directly to customers (these appear in the Sales item dropdown). Spares/Consumable: parts and materials used up while performing a service - record their use via Sales → Record Consumption.</div>';
-  } else {
-    var _selItem=null;for(var ki2=0;ki2<D.inventory.length;ki2++)if(D.inventory[ki2].id===sel){_selItem=D.inventory[ki2];break;}
-    if(_selItem){var _cat=_selItem.category||'Resale';var _cat=_cat==='RM'?'Raw Material':_cat;var _cc={'Raw Material':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var _ccv=_cc[_cat]||'#546E7A';newItemFields='<div style="margin-bottom:8px"><span style="font-size:12px;font-weight:700;color:'+_ccv+';background:'+_ccv+'18;padding:4px 10px;border-radius:6px">'+esc(_cat)+'</span> <span style="font-size:11px;color:#546E7A">Avg Cost: '+fc(_selItem.avgCost)+' / '+esc(_selItem.unit)+' &nbsp;|&nbsp; Stock: '+fmt(_selItem.currentStock)+' '+esc(_selItem.unit)+'</span></div>';}
   }
   h+=card('Record Purchase',
     g2(inp('Date','pu_d','date',window._purDate||td()),inp('Supplier','pu_s','text',window._purSupplier||''))+
@@ -1752,8 +1476,7 @@ function pgPur(){
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="pu_import" '+(window._purImport?'checked':'')+' style="width:auto"> This is an Imported purchase (sourced from outside India)</label>'+
     btn('✓ Record Purchase','addPur()')
   );
-  h+=card('Purchase Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('purchase',r.id);}},{l:'Date',k:'date'},{l:'Supplier',fn:function(r){return esc(r.supplierName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',fn:function(r){var it=null;for(var ki=0;ki<D.inventory.length;ki++)if(D.inventory[ki].id===r.itemId){it=D.inventory[ki];break;}var cat=it?(it.category||''):'';var catColor={'Raw Material':'#E65100','RM':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var cc=catColor[cat]||'#546E7A';var cl=cat==='RM'?'Raw Material':(cat||'');return esc(r.itemName)+(cl&&cl!=='Resale'?'<br><span style="font-size:9px;font-weight:700;color:'+cc+';background:'+cc+'18;padding:1px 4px;border-radius:3px">'+esc(cl)+'</span>':'');}},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}}],[].concat(D.purchases).reverse()));
-  if(D.purchases.length>1) h+=card('Item-wise Purchase Summary',itemwiseSummary(D.purchases,'amount','qty'));
+  h+=card('Purchase Register',tbl([{l:'Date',k:'date'},{l:'Supplier',fn:function(r){return esc(r.supplierName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',k:'itemName'},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'',fn:function(r){return actBtns('purchase',r.id);}}],[].concat(D.purchases).reverse()));
   return h;
 }
 function onPurItemChange(){window._purItem=gv('pu_i');window._purSupplier=gv('pu_s');window._purNewName=gv('pu_newname');window._purNewCat=gv('pu_newcat');window._purDate=gv('pu_d');window._purQty=gv('pu_q');window._purRate=gv('pu_r');window._purMode=gv('pu_m');window._purImport=document.getElementById('pu_import')?document.getElementById('pu_import').checked:false;renderPage();
@@ -1819,16 +1542,7 @@ function pgSal(){
     if(es)return editSaleForm(es);
   }
   var tot=0,i;for(i=0;i<D.sales.length;i++)tot+=D.sales[i].totalAmount;
-  var iOpts=[{v:'',l:'-- Select Item --'},{v:'__service__',l:'⚙ Service Charge (no item/stock)'}];
-  for(i=0;i<D.inventory.length;i++){
-    var _it=D.inventory[i];
-    var _totStock=_it.currentStock+(_it.importedStock||0);
-    if(_totStock>0){
-      var _sc=_it.category||'';
-      var _sl=_sc&&_sc!=='Resale'?(' ['+(_sc==='Raw Material'?'RM':_sc)+']'):''; 
-      iOpts.push({v:_it.id,l:_it.itemName+_sl+' (Stock:'+fmt(_totStock)+' '+_it.unit+')'});
-    }
-  }
+  var iOpts=[{v:'',l:'-- Select Item --'},{v:'__service__',l:'⚙ Service Charge (no item/stock)'}];for(i=0;i<D.inventory.length;i++){var _it=D.inventory[i];var _totStock=_it.currentStock+(_it.importedStock||0);if(_totStock>0)iOpts.push({v:_it.id,l:_it.itemName+' (Stock:'+fmt(_totStock)+' '+_it.unit+') - '+((_it.category||'Resale')==='Consumable'?'Spares/Consumable':'For Resale')});}
   var selId=window._salItem||'';
   var selItem=null;for(i=0;i<D.inventory.length;i++)if(D.inventory[i].id===selId)selItem=D.inventory[i];
   var isService = selId==='__service__';
@@ -1849,9 +1563,6 @@ function pgSal(){
     ? g2(inp('Service Description','sl_svcdesc','text',window._salSvcDesc||''),inp('Amount (₹)','sl_svcamt','number',window._salSvcAmt||0))
     : g2(inp('Qty','sl_q','number',window._salQty||0),inp('Selling Price (₹/unit)','sl_p','number',window._salPrice||0));
 
-  h += window._barcodeEnabled ?
-    '<div style="margin-bottom:8px"><button onclick="openScanner(\'sale\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📷 Scan Barcode / QR Code to Select Item</button></div>' :
-    '<div style="margin-bottom:8px"><button onclick="toast(\'Enable Barcode Scanner in Data tab first\',\'w\')" style="width:100%;padding:8px;background:#E0E0E0;color:#9E9E9E;border:none;border-radius:8px;font-size:12px;cursor:pointer">📷 Scan Barcode (Enable in Data tab → Barcode Scanner)</button></div>';
   h+=card('Record Sale',
     g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||''))+
     '<div class="fg"><label>Item</label><select id="sl_i" onchange="onSalItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
@@ -1864,8 +1575,7 @@ function pgSal(){
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="sl_export" '+(window._salExport?'checked':'')+' style="width:auto"> This is an Export Sale (sold to a buyer outside India)</label>'+
     btn('✓ Record Sale','addSal()','#2E7D32')
   );
-  h+=card('Sales Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('sale',r.id);}},{l:'Date',k:'date'},{l:'Customer',fn:function(r){return esc(r.customerName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',k:'itemName'},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'₹',r:1,fn:function(r){return fc(r.totalAmount);}},{l:'GP',r:1,fn:function(r){return fc(r.grossProfit);},c:function(){return'#2E7D32';}}],[].concat(D.sales).reverse()));
-  if(D.sales.length>1) h+=card('Item-wise Sales Summary',itemwiseSummary(D.sales,'totalAmount','qty'));
+  h+=card('Sales Register',tbl([{l:'Date',k:'date'},{l:'Customer',fn:function(r){return esc(r.customerName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',k:'itemName'},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'Amount',r:1,fn:function(r){return fc(r.totalAmount);}},{l:'Profit',r:1,fn:function(r){return fc(r.grossProfit);},c:function(){return'#2E7D32';}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'',fn:function(r){return actBtns('sale',r.id);}}],[].concat(D.sales).reverse()));
   return h;
 }
 // Dropdown to optionally settle this transaction against an existing advance.
@@ -1956,8 +1666,7 @@ function pgConsumption(){
     if((it.category||'Resale')==='Consumable'){
       var inCart=0; cart.forEach(function(c){if(c.itemId===it.id)inCart+=c.qty;});
       var avail=(it.currentStock+(it.importedStock||0))-inCart;
-      var _cLabel=it.category==='Consumable'?'Consumable':'RM';
-      consOpts.push({v:it.id,l:it.itemName+' ['+_cLabel+'] '+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'⚠ Out of stock')});
+      consOpts.push({v:it.id,l:it.itemName+' ('+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'Out of stock')+')'});
     }
   }
 
@@ -2294,7 +2003,7 @@ function pgExp(){
   );
 
   h+=card('Add Expense',g2(inp('Date','ex_d','date',td()),sl('Category','ex_c',D.expenseCategories,D.expenseCategories[0]))+g2(inp('Amount','ex_a','number',0),payModeSel('ex_m','cash'))+advanceSettleSel('ex_adv','paid_expense')+inp('Remarks','ex_r','text','')+btn('+ Add Expense','addExp()','#C62828'));
-  h+=card('Expense Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('expense',r.id);}},{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'Remarks',k:'remarks'}],[].concat(D.expenses).reverse()));
+  h+=card('Expense Register',tbl([{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'Remarks',k:'remarks'},{l:'',fn:function(r){return actBtns('expense',r.id);}}],[].concat(D.expenses).reverse()));
   return h;
 }
 function addCat(){var n=gv('newcat').trim();if(!n)return;if(D.expenseCategories.indexOf(n)>=0){toast('Category already exists','e');return;}D.expenseCategories.push(n);sv();renderPage();toast('Category added!');}
@@ -5494,6 +5203,7 @@ function updateFaSplitFields(){
 }
 
 function purchaseFA(){
+  if(!requireTBPosted()) return;
   var name=gv('fa_name'), cat=gv('fa_cat'), cost=gvn('fa_cost'), rate=gvn('fa_rate'), date=gv('fa_date')||td(), mode=gv('fa_mode');
   if(!name){toast('Enter asset name','e');return;}
   if(!cost){toast('Enter cost','e');return;}
@@ -5834,7 +5544,7 @@ function pgHelp(){
   h += '<div style="background:linear-gradient(135deg,#1565C0,#0D47A1);border-radius:10px;padding:14px 16px;margin-bottom:12px;color:#fff">';
   h += '<div style="font-weight:700;font-size:14px">ME Khata Suite</div>';
   h += '<div style="font-size:11px;opacity:0.9;margin-top:2px">' + (isHi ? 'विकसित: अनिल शर्मा, पूर्व महाप्रबंधक — सेंट्रल बैंक ऑफ इंडिया' : 'Developed by: Anil Sharma, Former General Manager — Central Bank of India') + '</div>';
-  h += '<div style="font-size:11px;opacity:0.85">' + (isHi ? 'पूर्व महाप्रबंधक — सेंट्रल बैंक ऑफ इंडिया' : 'Former General Manager, Central Bank of India') + '</div>';
+  h += '<div style="font-size:11px;opacity:0.85">' + (isHi ? 'राष्ट्रीय संसाधन व्यक्ति, DAY-NRLM | ग्रामीण विकास मंत्रालय' : 'National Resource Person, DAY-NRLM | Ministry of Rural Development') + '</div>';
   h += '</div>';
 
   function hs(title, body, open) {
@@ -5846,130 +5556,6 @@ function pgHelp(){
   }
 
   function bi(en, hi) { return isHi ? hi : en; }
-
-  // ── QUICK START GUIDE (New addition) ──
-  h += hs(
-    bi('🚀 Quick Start Guide — New & Existing Business', '🚀 त्वरित मार्गदर्शिका — नया और पुराना व्यवसाय'),
-    bi(
-      '<p style="font-weight:700;color:#2E7D32;font-size:13px">🌱 NEW BUSINESS (Starting Fresh)</p>' +
-      '<p>No prior accounts. Just start here:</p>' +
-      '<ol style="margin:4px 0 10px 16px">' +
-      '<li><b>Profile</b> → Fill Business Name, Type, Constitution → Save</li>' +
-      '<li><b>Capital / Loans → Capital</b> → Enter Initial Capital (Cash or Bank)</li>' +
-      '<li>Start recording <b>Sales, Purchase, Expenses</b> daily</li>' +
-      '<li>Add <b>Inventory items</b> before first sale/purchase</li>' +
-      '</ol>' +
-      '<p style="font-weight:700;color:#1565C0;font-size:13px">📒 EXISTING BUSINESS — Option A: Excel/CSV Upload</p>' +
-      '<p>Best if you have a computer or can use a spreadsheet app:</p>' +
-      '<ol style="margin:4px 0 10px 16px">' +
-      '<li><b>Data → Full Data Template (.xlsx)</b> → Download the template</li>' +
-      '<li>Fill the <b>Trial Balance</b> sheet (Cash, Bank, Stock, Debtors, FA, Loans, Creditors, Capital — DR must = CR)</li>' +
-      '<li>Fill <b>Inventory</b> sheet (items NOT already in Trial Balance)</li>' +
-      '<li>Fill <b>Fixed Assets, Loans, Partners</b> sheets if needed</li>' +
-      '<li>Upload the file: <b>Data → Upload Full Data File</b> → Trial Balance auto-posts ✅</li>' +
-      '</ol>' +
-      '<p style="font-weight:700;color:#6A1B9A;font-size:13px">📒 EXISTING BUSINESS — Option B: Manual Entry (Step by Step)</p>' +
-      '<p>No Excel needed — enter everything directly in the app:</p>' +
-      '<ol style="margin:4px 0 10px 16px">' +
-      '<li><b>Profile</b> → Fill Business Name, Type → Save</li>' +
-      '<li><b>Data → Opening Trial Balance</b> → Add each head one by one:<br>' +
-      '&nbsp;&nbsp;• <b>cash</b> — Opening cash balance<br>' +
-      '&nbsp;&nbsp;• <b>bank</b> — Opening bank balance<br>' +
-      '&nbsp;&nbsp;• <b>stockitem</b> — Each stock item (name, qty, rate)<br>' +
-      '&nbsp;&nbsp;• <b>debtors</b> — Each customer with outstanding amount<br>' +
-      '&nbsp;&nbsp;• <b>fixedassetitem</b> — Each fixed asset (cost, dep rate)<br>' +
-      '&nbsp;&nbsp;• <b>creditors</b> — Each supplier with outstanding amount<br>' +
-      '&nbsp;&nbsp;• <b>loan</b> — Each loan outstanding<br>' +
-      '&nbsp;&nbsp;• <b>capital</b> — Your total capital (balancing figure)</li>' +
-      '<li>When <b>DR = CR</b> → tap <b>Post to Books</b> ✅</li>' +
-      '<li>Now enter <b>Sales, Purchase, Expenses</b> — Balance Sheet auto-tallies</li>' +
-      '</ol>' +
-      '<p style="background:#FFF8E1;padding:8px;border-radius:6px;color:#E65100"><b>⚠️ Important:</b> For existing businesses, Trial Balance MUST be posted before adding individual stock items, fixed assets, debtors, creditors, or loans. This ensures your Balance Sheet stays in balance.</p>' +
-      '<p>💡 Tap the <b>🚀 Quick Start</b> button below to see this as an interactive guide.</p>' +
-      '<div style="margin-top:8px"><button onclick="showBusinessChoice()" style="padding:10px 18px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🚀 Quick Start Guide</button></div>',
-      '<p style="font-weight:700;color:#2E7D32;font-size:13px">🌱 नया व्यवसाय (नई शुरुआत)</p>' +
-      '<p>पहले कोई बही-खाता नहीं था। यहाँ से शुरू करें:</p>' +
-      '<ol style="margin:4px 0 10px 16px">' +
-      '<li><b>Profile</b> → Business Name, Type, Constitution भरें → Save करें</li>' +
-      '<li><b>Capital / Loans → Capital</b> → Initial Capital डालें (Cash या Bank में)</li>' +
-      '<li>रोज़ <b>Sales, Purchase, Expenses</b> record करें</li>' +
-      '<li>पहली sale/purchase से पहले <b>Inventory items</b> जोड़ें</li>' +
-      '</ol>' +
-      '<p style="font-weight:700;color:#1565C0;font-size:13px">📒 पुराना व्यवसाय — Option A: Excel/CSV Upload</p>' +
-      '<p>अगर आपके पास computer या spreadsheet app है:</p>' +
-      '<ol style="margin:4px 0 10px 16px">' +
-      '<li><b>Data → Full Data Template (.xlsx)</b> → Template download करें</li>' +
-      '<li><b>Trial Balance</b> sheet भरें (Cash, Bank, Stock, Debtors, FA, Loans, Creditors, Capital — DR = CR होना चाहिए)</li>' +
-      '<li><b>Inventory</b> sheet भरें (जो items Trial Balance में नहीं हैं)</li>' +
-      '<li>जरूरत हो तो <b>Fixed Assets, Loans, Partners</b> sheets भी भरें</li>' +
-      '<li>File upload करें: <b>Data → Upload Full Data File</b> → Trial Balance auto-post हो जाएगी ✅</li>' +
-      '</ol>' +
-      '<p style="font-weight:700;color:#6A1B9A;font-size:13px">📒 पुराना व्यवसाय — Option B: हाथ से Entry (Step by Step)</p>' +
-      '<p>Excel की जरूरत नहीं — App में ही एक-एक डालें:</p>' +
-      '<ol style="margin:4px 0 10px 16px">' +
-      '<li><b>Profile</b> → Business Name, Type भरें → Save करें</li>' +
-      '<li><b>Data → Opening Trial Balance</b> → हर head एक-एक करके डालें:<br>' +
-      '&nbsp;&nbsp;• <b>cash</b> — शुरुआती नकद<br>' +
-      '&nbsp;&nbsp;• <b>bank</b> — शुरुआती बैंक बैलेंस<br>' +
-      '&nbsp;&nbsp;• <b>stockitem</b> — हर माल (नाम, qty, rate)<br>' +
-      '&nbsp;&nbsp;• <b>debtors</b> — देनदार (जिन पर पैसा आना है)<br>' +
-      '&nbsp;&nbsp;• <b>fixedassetitem</b> — Fixed assets (cost, dep rate)<br>' +
-      '&nbsp;&nbsp;• <b>creditors</b> — लेनदार (जिन्हें देना है)<br>' +
-      '&nbsp;&nbsp;• <b>loan</b> — Loan outstanding<br>' +
-      '&nbsp;&nbsp;• <b>capital</b> — आपकी पूंजी (balancing figure)</li>' +
-      '<li>जब <b>DR = CR</b> हो जाए → <b>Post to Books</b> दबाएं ✅</li>' +
-      '<li>अब <b>Sales, Purchase, Expenses</b> डालें — Balance Sheet अपने आप tally होगी</li>' +
-      '</ol>' +
-      '<p style="background:#FFF8E1;padding:8px;border-radius:6px;color:#E65100"><b>⚠️ जरूरी:</b> पुराने व्यवसाय के लिए Trial Balance post होना जरूरी है इससे पहले कि stock items, FA, debtors, creditors या loans अलग से डालें। इससे Balance Sheet balance रहती है।</p>' +
-      '<div style="margin-top:8px"><button onclick="showBusinessChoice()" style="padding:10px 18px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🚀 Quick Start Guide</button></div>'
-    ),
-    true  // open by default
-  );
-
-  // ── BARCODE SCANNER HELP ──
-  h += hs(
-    bi('📷 Barcode / QR Scanner — How to Use', '📷 बारकोड / QR स्कैनर — कैसे उपयोग करें'),
-    bi(
-      '<p><b>Step 1 — Enable the Scanner (Optional):</b><br>'+
-      'Data tab → 📷 Barcode Scanner section → tap <b>OFF</b> button → it turns <b>ON ✅</b><br>'+
-      'Scanner is disabled by default. Enable only when needed.</p>'+
-      '<p><b>Step 2 — Scan while Recording a Purchase:</b><br>'+
-      'Purchase tab → tap <b>📷 Scan Barcode</b> green button → camera opens → point at product barcode → item auto-selected in form.</p>'+
-      '<p><b>Step 3 — Scan while Recording a Sale:</b><br>'+
-      'Sales tab → tap <b>📷 Scan Barcode</b> green button → camera opens → scan → item auto-selected.</p>'+
-      '<p><b>New Barcode (item not in system):</b><br>'+
-      'A popup appears with two options:<br>'+
-      '• <b>Assign</b> to an existing inventory item<br>'+
-      '• <b>Create new item</b> with this barcode<br>'+
-      'Once assigned, future scans of the same barcode auto-select the item instantly.</p>'+
-      '<p><b>Manage barcodes in Inventory:</b><br>'+
-      'Inventory tab → tap <b>📷</b> icon next to any item → add, edit or remove barcode.</p>'+
-      '<p><b>Manual entry option:</b><br>'+
-      'If camera is unavailable, type the barcode number manually in the scanner box and tap Use Barcode.</p>'+
-      '<p style="background:#E8F5E9;padding:8px;border-radius:6px"><b>✅ Works on:</b> Android (Chrome) and iPhone (Safari 17+). '+
-      'Supports EAN-13, EAN-8, QR Code, Code-128, UPC-A barcodes.</p>',
-
-      '<p><b>Step 1 — स्कैनर चालू करें (Optional):</b><br>'+
-      'Data tab → 📷 Barcode Scanner → <b>OFF</b> बटन दबाएं → <b>ON ✅</b> हो जाएगा<br>'+
-      'स्कैनर by default बंद रहता है। जरूरत पड़ने पर ही चालू करें।</p>'+
-      '<p><b>Step 2 — Purchase करते समय Scan करें:</b><br>'+
-      'Purchase tab → <b>📷 Scan Barcode</b> बटन दबाएं → Camera खुलेगा → Product का barcode scan करें → Item automatically select हो जाएगा।</p>'+
-      '<p><b>Step 3 — Sale करते समय Scan करें:</b><br>'+
-      'Sales tab → <b>📷 Scan Barcode</b> बटन → Camera → Scan → Item auto-select।</p>'+
-      '<p><b>नया Barcode (item system में नहीं है):</b><br>'+
-      'Popup आएगा:<br>'+
-      '• किसी existing item को यह barcode <b>Assign</b> करें<br>'+
-      '• या <b>नया item create</b> करें इस barcode के साथ<br>'+
-      'एक बार assign होने पर अगली बार same barcode scan करने पर item automatically select होगा।</p>'+
-      '<p><b>Inventory में barcode manage करें:</b><br>'+
-      'Inventory tab → किसी item के पास <b>📷</b> icon tap करें → barcode add/edit/remove करें।</p>'+
-      '<p><b>Manual entry:</b><br>'+
-      'Camera नहीं है तो Scanner box में barcode number हाथ से type करें।</p>'+
-      '<p style="background:#E8F5E9;padding:8px;border-radius:6px"><b>✅ काम करता है:</b> Android (Chrome) और iPhone (Safari 17+) पर। '+
-      'EAN-13, EAN-8, QR Code, Code-128, UPC-A barcodes support होते हैं।</p>'
-    ),
-    false
-  );
 
   // ── SECTION 1: GETTING STARTED ──
   h += hs(
@@ -6219,7 +5805,7 @@ function pgHelp(){
   // Developer credit at bottom
   h += '<div style="margin-top:16px;padding:12px;background:#F0F4FF;border-radius:8px;text-align:center">';
   h += '<div style="font-size:11px;color:#1565C0;font-weight:700">ME Khata Suite</div>';
-  h += '<div style="font-size:10px;color:#546E7A;margin-top:2px">' + (isHi ? 'विकसित: अनिल शर्मा | पूर्व महाप्रबंधक — सेंट्रल बैंक ऑफ इंडिया' : 'Developed by Anil Sharma | Former General Manager — Central Bank of India') + '</div>';
+  h += '<div style="font-size:10px;color:#546E7A;margin-top:2px">' + (isHi ? 'विकसित: अनिल शर्मा | पूर्व महाप्रबंधक — सेंट्रल बैंक ऑफ इंडिया | राष्ट्रीय संसाधन व्यक्ति, DAY-NRLM' : 'Developed by Anil Sharma | Former General Manager — Central Bank of India | National Resource Person, DAY-NRLM') + '</div>';
   h += '<div style="font-size:10px;color:#90A4AE;margin-top:2px">Trading • Manufacturing • Service • Version 2025-26</div>';
   h += '</div>';
 
@@ -6668,35 +6254,17 @@ function importFullBusinessData(sheets){
   var faRows = findSheetByNames(sheets, ['Fixed Assets','FixedAssets','Assets']);
   if(faRows && faRows.length>1){
     var faObjs = rowsToObjects(faRows);
-    // TB FA total — used to validate we don't exceed opening FA
-    var tbFATotal = (D.trialBalance||[]).filter(function(r){return r.head==='fixedassetitem'||r.head==='fixedassets'||r.head==='intangibleitem';}).reduce(function(s,r){return s+(+r.amount||0);},0);
     faObjs.forEach(function(o){
       var name = String(o['Name']||o['Asset Name']||'').trim();
       if(!name) return;
-      // Skip if already exists in fixedAssets (by name) to prevent duplicates
-      var alreadyExists = (D.fixedAssets||[]).some(function(f){ return f.name.toLowerCase()===name.toLowerCase(); });
-      if(alreadyExists){ summary.errors.push('FA skipped (already exists): '+name); return; }
-      var faCost2 = parseAmount(o['Cost']||o['Amount']||0);
-      // Validate: current FA total + new item must not exceed TB FA total (if TB posted)
-      if(D.tbPosted && tbFATotal>0){
-        var currentFATotal = (D.fixedAssets||[]).reduce(function(s,f){return s+(+f.cost||0);},0);
-        if(currentFATotal + faCost2 > tbFATotal + 0.01){
-          summary.errors.push('FA skipped (exceeds TB FA total of ₹'+tbFATotal.toLocaleString("en-IN")+'): '+name+' ₹'+faCost2.toLocaleString("en-IN"));
-          return;
-        }
-      }
       D.fixedAssets.push({
         id:uid(), name:name, category:String(o['Category']||'Other').trim(),
-        cost:faCost2,
+        cost:parseAmount(o['Cost']||o['Amount']||0),
         depRate:parseAmount(o['DepRate']||o['Dep Rate']||o['RatePct']||0),
         purchaseDate: parseAnyDate(String(o['PurchaseDate']||o['Purchase Date']||o['Date']||''))||td(),
         accumDep:0, lastDepDate: parseAnyDate(String(o['PurchaseDate']||o['Purchase Date']||o['Date']||''))||td(),
         disposed:false
       });
-      // Keep D.otherAssets in sync so otherAssetsExclFA() stays correct
-      D.otherAssets = (+D.otherAssets||0) + faCost2;
-      D.otherAssetsNotes = D.otherAssetsNotes||[];
-      D.otherAssetsNotes.push({label:name+' ('+String(o['Category']||'Other').trim()+')', amount:faCost2});
       summary.fixedAssets++;
     });
   }
@@ -6772,24 +6340,10 @@ async function handleFullDataUpload(ev){
     if(!proceed){ if(statusEl) statusEl.innerHTML=''; return; }
 
     var summary = importFullBusinessData(sheets);
-
-    // If Trial Balance rows were imported successfully, auto-post them now
-    // so that opening balances are set and other sheets (FA, Inventory) balance correctly
-    if(summary.tb && D.trialBalance && D.trialBalance.length>0 && !D.tbPosted){
-      var tbTotals = {dr:0, cr:0};
-      D.trialBalance.forEach(function(r){ if(r.side==='dr') tbTotals.dr+=(+r.amount||0); else tbTotals.cr+=(+r.amount||0); });
-      if(Math.abs(tbTotals.dr - tbTotals.cr) < 0.01){
-        postTBExecute();
-        summary.tbAutoPosted = true;
-      } else {
-        summary.errors.push('Trial Balance does not tally (DR '+tbTotals.dr+' vs CR '+tbTotals.cr+') — please correct and post manually via Data → Opening Trial Balance.');
-      }
-    }
-
     sv();
     var msg = 'Import complete: ';
     var parts = [];
-    if(summary.tb) parts.push(summary.tb+' Trial Balance row(s)'+(summary.tbAutoPosted?' (auto-posted ✅)':''));
+    if(summary.tb) parts.push(summary.tb+' Trial Balance row(s)');
     if(summary.inventory) parts.push(summary.inventory+' Inventory item(s)');
     if(summary.fixedAssets) parts.push(summary.fixedAssets+' Fixed Asset(s)');
     if(summary.loans) parts.push(summary.loans+' Loan(s)');
@@ -9116,12 +8670,9 @@ function pgCFS() {
   });
   // Fallback for older data that never went through cashBook at all (e.g. capital
   // entered only in D.capital fields with Cash/Bank mode 'none' or pre-dating this logic)
-  // BUT: if TB is posted, opening capital came from TB (not this period) — do NOT include it
-  if(capitalIntroduced===0 && !D.tbPosted){
+  if(capitalIntroduced===0){
     capitalIntroduced = (+D.capital.initialCapital||0) + (+D.capital.additionalCapital||0);
   }
-  // For TB-posted businesses: only count additional capital added AFTER TB posting
-  // which would have CashBook entries with 'Capital Introduced' description
   // Drawings
   var drawings = 0;
   (D.drawings||[]).forEach(function(d){ drawings += (+d.amount||0); });
@@ -10280,7 +9831,7 @@ function showWelcomeIfNeeded(){
     <div style="background:#2E7060;padding:20px 16px 16px;text-align:center">
       <div style="font-size:40px">✂️</div>
       <div style="font-size:22px;font-weight:700;color:#fff;margin-top:8px">ME Service Khata</div>
-      <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">MSME Free Accounting App</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">MSME Free Accounting App | DAY-NRLM</div>
     </div>
     
     <div style="padding:16px">
@@ -10324,174 +9875,12 @@ function showWelcomeIfNeeded(){
       </button>
       
       <div style="text-align:center;font-size:11px;color:#90A4AE;padding-bottom:20px">
-        Developed by <b>Anil Sharma</b> | Former General Manager, Central Bank of India
+        Developed by <b>Anil Sharma</b> | Former GM, Central Bank of India | NRP, DAY-NRLM
       </div>
     </div>
   `;
   
   document.body.appendChild(overlay);
-}
-
-function showBusinessChoice(){
-  var overlay = document.getElementById('welcome-overlay');
-  if(!overlay) return;
-  overlay.innerHTML = `
-    <div style="background:#1565C0;padding:20px 16px 16px;text-align:center">
-      <div style="font-size:36px">🛒</div>
-      <div style="font-size:20px;font-weight:700;color:#fff;margin-top:6px">आपका व्यवसाय कैसा है?</div>
-      <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">What type of business are you setting up?</div>
-    </div>
-    <div style="padding:16px">
-
-      <div onclick="chooseNewBusiness()" style="background:#E8F5E9;border:2px solid #2E7D32;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
-        <div style="font-size:22px;margin-bottom:6px">🌱</div>
-        <div style="font-weight:700;font-size:16px;color:#2E7D32;margin-bottom:4px">नया व्यवसाय — New Business</div>
-        <div style="font-size:13px;color:#37474F">अभी शुरू किया है। पहले कोई बही-खाता नहीं था।<br><span style="color:#546E7A">Just starting out. No prior accounts to enter.</span></div>
-        <div style="margin-top:10px;background:#C8E6C9;border-radius:8px;padding:8px;font-size:12px;color:#1B5E20">
-          ✅ सीधे Sales, Purchase, Expenses शुरू करें<br>
-          ✅ Capital screen पर शुरुआती पूंजी डालें<br>
-          ✅ कोई Trial Balance नहीं चाहिए
-        </div>
-      </div>
-
-      <div onclick="showExistingChoice()" style="background:#E3F2FD;border:2px solid #1565C0;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
-        <div style="font-size:22px;margin-bottom:6px">📒</div>
-        <div style="font-weight:700;font-size:16px;color:#1565C0;margin-bottom:4px">पुराना व्यवसाय — Existing Business</div>
-        <div style="font-size:13px;color:#37474F">पहले से चल रहा है। Cash, Bank, Stock, Debtors आदि का Opening Balance है।<br><span style="color:#546E7A">Running business with existing balances to bring in.</span></div>
-        <div style="margin-top:10px;background:#BBDEFB;border-radius:8px;padding:8px;font-size:12px;color:#0D47A1">
-          📋 Opening Trial Balance डालना होगा<br>
-          📂 Excel/CSV upload OR हाथ से एक-एक entry<br>
-          ✅ Balance Sheet automatically tally होगी
-        </div>
-      </div>
-
-      <div style="text-align:center;font-size:11px;color:#90A4AE;padding-bottom:8px">
-        आप यह बाद में Profile screen से भी बदल सकते हैं।<br>You can change this anytime from Profile.
-      </div>
-    </div>
-  `;
-}
-
-function chooseNewBusiness(){
-  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
-  // If TB data exists, warn user and clear it
-  var hasTB = D.tbPosted || (D.trialBalance && D.trialBalance.length>0);
-  var doSet = function(){
-    D.profile.businessStage = 'new';
-    // Clear all opening balance data — not needed for new business
-    D.trialBalance = [];
-    D.tbPosted = false;
-    D.tbPostedOn = null;
-    D.opening = {cash:0,bank:0,stock:0,debtors:0,creditors:0,capital:0,takenOn:null};
-    // Clear TB-sourced items from fixedAssets, loans, debtors, creditors, inventory
-    D.fixedAssets = (D.fixedAssets||[]).filter(function(f){return !f.fromTB;});
-    D.loans = (D.loans||[]).filter(function(l){return !l.fromTB;});
-    D.debtors = (D.debtors||[]).filter(function(d){return !d.fromTB;});
-    D.creditors = (D.creditors||[]).filter(function(c){return !c.fromTB;});
-    D.inventory = (D.inventory||[]).filter(function(i){return !i.fromTB;});
-    // Recalculate otherAssets from remaining fixedAssets
-    D.otherAssets = (D.fixedAssets||[]).reduce(function(s,f){return s+(+f.cost||0);},0);
-    D.otherAssetsNotes = (D.fixedAssets||[]).map(function(f){return {label:f.name+' ('+f.category+')',amount:f.cost};});
-    sv();
-    var overlay = document.getElementById('welcome-overlay');
-    if(overlay) overlay.remove();
-    go('profile');
-    toast('नया व्यवसाय सेट — Profile भरें और शुरू करें! 🌱');
-  };
-  if(hasTB){
-    confirmDialog(
-      '⚠️ Opening Trial Balance Data Found\n\nSwitching to New Business will CLEAR all opening balances (Trial Balance, opening debtors, creditors, fixed assets from TB).\n\nYour current transactions (sales, purchases, expenses) will be kept.\n\nAre you sure?',
-      doSet
-    );
-  } else {
-    doSet();
-  }
-}
-
-function showExistingChoice(){
-  var overlay = document.getElementById('welcome-overlay');
-  if(!overlay) return;
-  overlay.innerHTML = `
-    <div style="background:#1565C0;padding:20px 16px 16px;text-align:center">
-      <div style="font-size:36px">📒</div>
-      <div style="font-size:20px;font-weight:700;color:#fff;margin-top:6px">Opening Balance कैसे डालें?</div>
-      <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">How would you like to enter your opening balances?</div>
-    </div>
-    <div style="padding:16px">
-
-      <div onclick="chooseExcelUpload()" style="background:#FFF8E1;border:2px solid #F57F17;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
-        <div style="font-size:22px;margin-bottom:6px">📂</div>
-        <div style="font-weight:700;font-size:16px;color:#E65100;margin-bottom:4px">Excel / CSV File Upload</div>
-        <div style="font-size:13px;color:#37474F">सारी जानकारी Excel में भरकर एक बार में upload करें।<br><span style="color:#546E7A">Fill the template on a computer/phone and upload at once.</span></div>
-        <div style="margin-top:10px;background:#FFE0B2;border-radius:8px;padding:8px;font-size:12px;color:#BF360C">
-          📥 Data → Full Data Template (.xlsx) download करें<br>
-          ✏️ Trial Balance, Stock, FA, Loans भरें<br>
-          📤 Data tab से upload करें — सब auto-post हो जाएगा
-        </div>
-      </div>
-
-      <div onclick="chooseManualEntry()" style="background:#F3E5F5;border:2px solid #7B1FA2;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
-        <div style="font-size:22px;margin-bottom:6px">✏️</div>
-        <div style="font-weight:700;font-size:16px;color:#6A1B9A;margin-bottom:4px">हाथ से डालें — Manual Entry (Step by Step)</div>
-        <div style="font-size:13px;color:#37474F">App में ही एक-एक जानकारी डालें — Excel की जरूरत नहीं।<br><span style="color:#546E7A">Enter everything directly in the app, step by step.</span></div>
-        <div style="margin-top:10px;background:#E1BEE7;border-radius:8px;padding:8px;font-size:12px;color:#4A148C">
-          <b>Step 1:</b> Profile — व्यवसाय की जानकारी भरें<br>
-          <b>Step 2:</b> Data → Opening Trial Balance → सभी heads डालें<br>
-          <b>Step 3:</b> Trial Balance tally होने पर Post to Books दबाएं<br>
-          <b>Step 4:</b> Inventory, FA, Loans अपने आप balance होंगे
-        </div>
-      </div>
-
-      <button onclick="showBusinessChoice()" style="width:100%;padding:10px;background:transparent;color:#546E7A;border:1px solid #BBDEFB;border-radius:8px;font-size:13px;cursor:pointer;margin-bottom:8px">
-        ← वापस जाएं / Go Back
-      </button>
-    </div>
-  `;
-}
-
-function chooseExcelUpload(){
-  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
-  D.profile.businessStage = 'existing';
-  sv();
-  var overlay = document.getElementById('welcome-overlay');
-  if(overlay) overlay.remove();
-  go('data');
-  toast('Data tab पर जाएं → Full Data Template download करें 📂');
-}
-
-function chooseManualEntry(){
-  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
-  D.profile.businessStage = 'existing';
-  sv();
-  var overlay = document.getElementById('welcome-overlay');
-  if(overlay) overlay.remove();
-  showManualEntryGuide();
-}
-
-function showManualEntryGuide(){
-  var div = document.createElement('div');
-  div.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
-  div.innerHTML = `
-    <div style="background:#fff;border-radius:14px;padding:20px;max-width:400px;width:100%;max-height:90vh;overflow-y:auto">
-      <div style="font-size:18px;font-weight:700;color:#6A1B9A;margin-bottom:14px;text-align:center">✏️ Manual Entry Guide</div>
-      <div style="background:#F3E5F5;border-radius:8px;padding:12px;margin-bottom:10px">
-        <div style="font-weight:700;color:#6A1B9A;margin-bottom:6px">Step 1 — Profile</div>
-        <div style="font-size:13px;color:#37474F">Profile screen पर जाएं। Business name, type, constitution भरें। Save करें।</div>
-      </div>
-      <div style="background:#E3F2FD;border-radius:8px;padding:12px;margin-bottom:10px">
-        <div style="font-weight:700;color:#1565C0;margin-bottom:6px">Step 2 — Opening Trial Balance</div>
-        <div style="font-size:13px;color:#37474F">Data → Opening Trial Balance पर जाएं। हर head एक-एक करके डालें:<br>• Cash, Bank का balance<br>• Stock items (item का नाम, qty, rate)<br>• Debtors (ग्राहक जिन पर पैसा आना है)<br>• Fixed Assets (machinery, vehicle etc.)<br>• Creditors (supplier जिन्हें देना है)<br>• Loans outstanding<br>• Capital (आपकी पूंजी)<br><br>जब DR = CR हो जाए — <b>Post to Books</b> दबाएं।</div>
-      </div>
-      <div style="background:#E8F5E9;border-radius:8px;padding:12px;margin-bottom:14px">
-        <div style="font-weight:700;color:#2E7D32;margin-bottom:6px">Step 3 — रोज़ की entries शुरू करें</div>
-        <div style="font-size:13px;color:#37474F">Trial Balance post होने के बाद:<br>• Sales, Purchase, Expenses normally enter करें<br>• Balance Sheet automatically tally होगी ✅</div>
-      </div>
-      <button onclick="this.closest('div[style*=fixed]').remove();go('profile');" style="width:100%;padding:14px;background:#6A1B9A;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">
-        ✅ समझ गया — Profile से शुरू करें
-      </button>
-    </div>
-  `;
-  document.body.appendChild(div);
 }
 
 function startApp(){

@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <script>
-var _BUILD='202406240321';
-var _s=sessionStorage.getItem('mfm_build');
-if(_s&&_s!==_BUILD){sessionStorage.setItem('mfm_build',_BUILD);location.reload(true);}
-else{sessionStorage.setItem('mfm_build',_BUILD);}
+var _BUILD="202406270630";
+var _s=sessionStorage.getItem("mfm_build");
+if(_s&&_s!=="202406270630"){sessionStorage.setItem("mfm_build","202406270630");location.reload(true);}else{sessionStorage.setItem("mfm_build","202406270630");}
 </script>
+
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -16,7 +16,7 @@ else{sessionStorage.setItem('mfm_build',_BUILD);}
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1565C0">
-<title>Trade Accounts | व्यापार लेखा | v202406240321</title>
+<title>Trade Accounts | व्यापार लेखा</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:sans-serif;margin:0;padding:0}
@@ -124,7 +124,7 @@ function defD(){
     bills:[],
     nextBillNo:1,
     expenseCategories:['Rent','Electricity','Salary','Transportation','Telephone','Fuel','Repair','Marketing','Interest Payment','Miscellaneous'],
-    settings:{creditDays:30},
+    settings:{creditDays:30,defaultMargin:20},
     partyCodes:{},
     customHSN:{},
     incomeTax:{ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false},
@@ -201,7 +201,8 @@ function migrateData(d){
   if(d.loanAssessment && d.loanAssessment.marginPctTurnover===undefined) d.loanAssessment.marginPctTurnover=25;
   if(d.loanAssessment && d.loanAssessment.marginPctTandon===undefined) d.loanAssessment.marginPctTandon=25;
   if(d.loanAssessment && d.loanAssessment.useManual===undefined) d.loanAssessment.useManual=false;
-  if(!d.settings) d.settings={creditDays:30};
+  if(!d.settings) d.settings={creditDays:30,defaultMargin:20};
+  if(d.settings.defaultMargin===undefined) d.settings.defaultMargin=20;
   if(!d.partyCodes) d.partyCodes={};
   if(!d.customHSN) d.customHSN={};
   if(!d.incomeTax) d.incomeTax={ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false};
@@ -1863,10 +1864,30 @@ function pgSal(){
   h+='<div class="card"><div class="ch">Total Sales: '+fc(tot)+'</div></div>';
   h+='<div style="margin-bottom:10px">'+btn('🧾 Create Bill (Multi-Item Invoice)','window._salMode=\'bill\';window._billCart=[];renderPage()','#1565C0')+'</div>';
 
+  var _defM=+(D.settings&&D.settings.defaultMargin)||20;
+  var _curM=(window._salMargin!=null)?window._salMargin:_defM;
+  if(selItem&&selItem.avgCost>0&&(!window._salPrice||window._salPrice===0)){
+    window._salPrice=Math.round(selItem.avgCost*(1+_curM/100));
+  }
   var costInfo='';
   if(selItem){
-    var cp=selItem.avgCost;
-    costInfo='<div class="al ali"><div style="display:flex;justify-content:space-between"><span>Cost Price per '+esc(selItem.unit)+':</span><b>'+fc(cp)+'</b></div><div style="font-size:11px;color:#546E7A;margin-top:3px">Set your selling price above this to make a profit. Available stock: '+fmt(selItem.currentStock)+' '+esc(selItem.unit)+'</div></div>';
+    var _cp=selItem.avgCost,_sp=window._salPrice||0,_pr=_sp-_cp;
+    var _pc=_cp>0?Math.round(_pr/_cp*100):0,_prc=_pr>=0?'#2E7D32':'#C62828';
+    costInfo='<div class="al ali" style="margin-bottom:8px">'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:6px">'+
+        '<span style="font-size:12px">Cost Price/'+esc(selItem.unit)+':</span><b>'+fc(_cp)+'</b>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'+
+        '<label style="font-size:12px;color:#546E7A">Margin %:</label>'+
+        '<input type="number" id="sl_margin" value="'+_curM+'" min="0" max="500" '+
+          'oninput="onSalMarginChange()" '+
+          'style="width:72px;padding:6px;border-radius:8px;border:2px solid #1565C0;font-size:14px;font-weight:700;text-align:center">'+
+        '<span id="sl_margin_info" style="font-size:12px;font-weight:700;color:'+_prc+'">'+
+          fc(_sp)+' | '+fc(_pr)+' ('+_pc+'%)'+
+        '</span>'+
+      '</div>'+
+      '<div style="font-size:10px;color:#90A4AE">Stock:'+fmt(selItem.currentStock)+' '+esc(selItem.unit)+' | Default:'+_defM+'% (Settings)</div>'+
+    '</div>';
   }
 
   h += window._barcodeEnabled ?
@@ -1953,7 +1974,32 @@ function restoreStock(item, fromIndig, fromImp, indigCostEach, impCostEach){
     item.importedStock=itq; item.importedAvgCost = itq>0 ? itv/itq : 0;
   }
 }
-function onSalItemChange(){window._salItem=gv('sl_i');window._salCustomer=gv('sl_c');window._salDate=gv('sl_d');window._salQty=gv('sl_q');window._salPrice=gv('sl_p');window._salMode=gv('sl_m');window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
+function onSalMarginChange(){
+  var m=gvn('sl_margin');
+  if(m===null||isNaN(m)) return;
+  window._salMargin=m;
+  var sid=window._salItem||'';
+  var it=null;
+  for(var i=0;i<D.inventory.length;i++) if(D.inventory[i].id===sid){it=D.inventory[i];break;}
+  if(it&&it.avgCost>0){
+    var np=Math.round(it.avgCost*(1+m/100));
+    window._salPrice=np;
+    var pEl=document.getElementById('sl_p');
+    if(pEl) pEl.value=np;
+    var iEl=document.getElementById('sl_margin_info');
+    if(iEl){
+      var pr=np-it.avgCost;
+      iEl.style.color=pr>=0?'#2E7D32':'#C62828';
+      iEl.textContent='Sale: '+fc(np)+' | Profit: '+fc(pr)+' ('+Math.round(pr/it.avgCost*100)+'%)';
+    }
+  }
+}
+function onSalItemChange(){window._salItem=gv('sl_i');window._salCustomer=gv('sl_c');window._salDate=gv('sl_d');window._salQty=gv('sl_q');window._salMode=gv('sl_m');
+  var _nm=gvn('sl_margin');if(_nm!==null&&!isNaN(_nm)) window._salMargin=_nm;
+  var _sid=window._salItem||'';var _sit=null;for(var _ii=0;_ii<D.inventory.length;_ii++)if(D.inventory[_ii].id===_sid){_sit=D.inventory[_ii];break;}
+  var _mg=(window._salMargin!=null)?window._salMargin:(+(D.settings&&D.settings.defaultMargin)||20);
+  if(_sit&&_sit.avgCost>0) window._salPrice=Math.round(_sit.avgCost*(1+_mg/100));
+  else window._salPrice=gvn('sl_p')||0;window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
 function addSal(){
   var c2=gv('sl_c')||window._salCustomer||'',iid=gv('sl_i'),q=gvn('sl_q'),p=gvn('sl_p');
   if(!c2){toast('Enter customer name','e');return;}
@@ -2697,6 +2743,101 @@ function pgAna(){
     if(pt.imported>0) purchaseBars.push({l:'Imported',v:pt.imported});
     if(purchaseBars.length>1) h+=card('Purchase Mix',bar(purchaseBars,'#E65100',55));
   }
+
+  // ── ITEM-WISE PROFIT ANALYSIS (with expense apportionment) ──
+  (function(){
+    if(!D.sales || D.sales.length===0) return;
+    // Build item map: sales, COGS, qty
+    var items={};
+    D.sales.forEach(function(s){
+      var k=s.itemName||'Unknown';
+      if(!items[k]) items[k]={name:k,sales:0,cogs:0,qty:0,txns:0};
+      items[k].sales += (s.totalAmount||0);
+      items[k].cogs  += (s.cogs||0);
+      items[k].qty   += (s.qty||0);
+      items[k].txns  += 1;
+    });
+    var itemList=[];
+    for(var k in items) itemList.push(items[k]);
+    if(itemList.length===0) return;
+    itemList.sort(function(a,b){return b.sales-a.sales;});
+
+    var totalSales = itemList.reduce(function(s,it){return s+it.sales;},0);
+    var totalExp   = f.te||0;
+
+    // Apportion expenses by sales value proportion
+    itemList.forEach(function(it){
+      it.gm       = it.sales - it.cogs;
+      it.gmPct    = it.sales>0 ? (it.gm/it.sales*100) : 0;
+      it.expShare = totalSales>0 ? (it.sales/totalSales)*totalExp : 0;
+      it.np       = it.gm - it.expShare;
+      it.npPct    = it.sales>0 ? (it.np/it.sales*100) : 0;
+      it.npPerUnit= it.qty>0 ? it.np/it.qty : 0;
+    });
+
+    // Table rows
+    var rows='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    rows+='<tr style="background:#1565C0;color:#fff">';
+    rows+='<th style="padding:6px 4px;text-align:left">Item</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Sales</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">COGS</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Gross Margin</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">GM%</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Exp (Apptd)</th>';
+    rows+='<th style="padding:6px 4px;text-align:right;font-weight:800">Net Profit</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">NP%</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">NP/Unit</th>';
+    rows+='</tr>';
+
+    itemList.forEach(function(it,idx){
+      var bg=idx%2===0?'#F9FAFB':'#fff';
+      var npColor=it.np>=0?'#2E7D32':'#C62828';
+      var gmColor=it.gmPct>=20?'#2E7D32':'#E65100';
+      rows+='<tr style="background:'+bg+'">';
+      rows+='<td style="padding:5px 4px;font-weight:600;color:#1565C0">'+esc(it.name)+'<br><span style="font-size:9px;color:#90A4AE">'+it.txns+' txn'+(it.txns>1?'s':'')+' · '+fmt(it.qty)+' units</span></td>';
+      rows+='<td style="padding:5px 4px;text-align:right">'+fc(it.sales)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right">'+fc(it.cogs)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+gmColor+';font-weight:700">'+fc(it.gm)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+gmColor+'">'+it.gmPct.toFixed(1)+'%</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:#E65100">'+fc(Math.round(it.expShare))+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+';font-weight:800">'+fc(Math.round(it.np))+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+';font-weight:700">'+it.npPct.toFixed(1)+'%</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+'">'+fc(Math.round(it.npPerUnit))+'</td>';
+      rows+='</tr>';
+    });
+
+    // Totals row
+    var totGM=itemList.reduce(function(s,it){return s+it.gm;},0);
+    var totNP=itemList.reduce(function(s,it){return s+it.np;},0);
+    rows+='<tr style="background:#E3F2FD;font-weight:800">';
+    rows+='<td style="padding:5px 4px">TOTAL</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">'+fc(totalSales)+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">'+fc(itemList.reduce(function(s,it){return s+it.cogs;},0))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#2E7D32">'+fc(totGM)+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#2E7D32">'+(totalSales>0?(totGM/totalSales*100).toFixed(1):0)+'%</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#E65100">'+fc(Math.round(totalExp))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:'+(totNP>=0?'#2E7D32':'#C62828')+'">'+fc(Math.round(totNP))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:'+(totNP>=0?'#2E7D32':'#C62828')+'">'+(totalSales>0?(totNP/totalSales*100).toFixed(1):0)+'%</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">—</td>';
+    rows+='</tr>';
+    rows+='</table></div>';
+
+    // Insights
+    var best=itemList[0], worst=itemList[itemList.length-1];
+    var profitable=itemList.filter(function(it){return it.np>0;});
+    var insight='<div style="margin-top:10px;font-size:11px;color:#37474F;line-height:1.7">';
+    insight+='<b>📌 Method:</b> Other expenses (₹'+fc(Math.round(totalExp))+') apportioned by sales value proportion.<br>';
+    if(itemList.length>1){
+      insight+='🏆 <b>Most Profitable:</b> '+esc(best.name)+' — NP ₹'+fc(Math.round(best.np))+' ('+best.npPct.toFixed(1)+'%)<br>';
+      if(worst.np<0) insight+='⚠️ <b>Loss-making:</b> '+esc(worst.name)+' — Loss ₹'+fc(Math.round(Math.abs(worst.np)))+'<br>';
+      insight+='✅ <b>'+profitable.length+' of '+itemList.length+' items</b> are profitable after expense apportionment.<br>';
+    }
+    insight+='<span style="font-size:10px;color:#90A4AE">To improve NP%: increase selling price, reduce COGS, or reduce overheads.</span>';
+    insight+='</div>';
+
+    h+=card('📦 Item-wise Profit Analysis (After Expense Apportionment)', rows+insight);
+  })();
+
   return h;
 }
 // ===== REPORTS =====
@@ -5868,6 +6009,20 @@ function pgHelp(){
     )
   );
 
+
+  h += hs(
+    bi('11. Auto Sale Price & Item-wise Profit', '11. Auto Sale Price & Item-wise Profit'),
+    bi(
+      '<p><b>Auto Sale Price:</b> In Sales page, select an item — the app shows Cost Price and auto-calculates Selling Price from your Default Margin %. Change margin for that sale anytime, price updates instantly. Or type price directly — margin updates automatically.</p>' +
+      '<p><b>Set Default Margin:</b> Reminders menu → Credit & Margin Settings → Default Sale Margin % (e.g. 20 = 20% profit on cost). Applies to all items. Change anytime.</p>' +
+      '<p><b>Example:</b> Cost ₹100, Margin 30% → Price ₹130, Profit ₹30.</p>' +
+      '<p><b>Item-wise Profit:</b> Analytics menu → scroll down → 📦 Item-wise Profit Analysis. Items come automatically from Sales — nothing extra to enter. No change in any other menu.</p>',
+      '<p><b>Auto Sale Price:</b> Sales page में item select करें — app Cost Price दिखाता है और Default Margin % से Selling Price calculate करता है। Margin बदलें — price तुरंत update। या price खुद टाइप करें — margin update हो जाता है।</p>' +
+      '<p><b>Default Margin set करें:</b> Reminders → Credit & Margin Settings → Default Sale Margin % डालें। सभी items पर apply। कभी भी बदलें।</p>' +
+      '<p><b>Example:</b> Cost ₹100, Margin 30% → Price ₹130, Profit ₹30।</p>' +
+      '<p><b>Item-wise Profit:</b> Analytics menu → नीचे → 📦 Item-wise Profit Analysis। Items sales से automatically आते हैं। कोई दूसरा menu नहीं बदला।</p>'
+    )
+  );
   // ── SECTION 11: MANUFACTURING APP ──
   if (BIZ_TYPE === 'Manufacturing') {
     h += hs(
@@ -7973,7 +8128,9 @@ function pgReminders(){
 
   h += card('Reminder Settings',
     '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Set the global credit period. Any debtor whose outstanding amount is older than this many days will appear in the overdue list.</div>'+
-    g2(inp('Credit Period (days)','rem_days','number',creditDays),''+
+    g2(inp('Credit Period (days)','rem_days','number',creditDays),inp('Default Sale Margin %','def_margin','number',+(D.settings&&D.settings.defaultMargin)||20))+
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Margin % auto-fills Selling Price in Sales. Override per sale.</div>'+
+      g2(''+
        '<div class="fg"><label>&nbsp;</label>'+btn('💾 Save','saveReminderSettings()','#2E7D32')+'</div>')
   );
 
@@ -8083,7 +8240,7 @@ function copyReminderMsg(name, d){
 
 function saveReminderSettings(){
   if(!D.settings) D.settings={};
-  D.settings.creditDays = gvn('rem_days')||30;
+  D.settings.creditDays=gvn('rem_days')||30;if(gvn('def_margin')!==null) D.settings.defaultMargin=gvn('def_margin')||20;
   sv(); renderPage(); toast('Credit period saved!');
 }
 
@@ -10251,6 +10408,10 @@ window.onerror = function(msg, url, line, col, err){
 };
 
 
+</script>
+
+<script>
+(function(){try{var ex=localStorage.getItem("mefm_tr_v10");if(ex){var e=JSON.parse(ex);if(e&&e.profile&&e.profile.businessName)return;}localStorage.setItem("mefm_tr_v10",JSON.stringify({"profile": {"businessName": "Sharma General Store", "ownerName": "Sunita Sharma", "mobile": "9810012345", "address": "12, Gandhi Nagar, Jaipur - 302001", "businessType": "Trading", "businessStage": "existing", "udyam": "UDYAM-RJ-08-0023456", "gst": "08ABCPS1234F1Z2", "pan": "ABCPS1234F", "tan": "", "constitution": "Individual", "partners": []}, "capital": {"initialCapital": 500000, "additionalCapital": 50000, "partnerCapital": {}}, "opening": {"cash": 25000, "bank": 120000, "stock": 0, "debtors": 0, "creditors": 0, "capital": 500000, "takenOn": "2026-04-01"}, "trialBalance": [{"id": "83f1535f99ab", "head": "cash", "label": "Cash in Hand", "amount": 25000, "side": "dr", "notes": ""}, {"id": "0f826a89cf68", "head": "bank", "label": "SBI Bank Balance", "amount": 120000, "side": "dr", "notes": "SBI CA 001122"}, {"id": "0b8854ad38f0", "head": "stockitem", "label": "Basmati Rice", "amount": 75000, "side": "dr", "notes": "500 kg @ ₹150", "itemName": "Basmati Rice", "unit": "Kg", "qty": 500, "rate": 150, "category": "Resale"}, {"id": "1051527638b9", "head": "stockitem", "label": "Refined Oil", "amount": 48000, "side": "dr", "notes": "200 Ltrs @ ₹240", "itemName": "Refined Oil", "unit": "Ltr", "qty": 200, "rate": 240, "category": "Resale"}, {"id": "df2184f4b46d", "head": "capital", "label": "Sunita Sharma Capital", "amount": 500000, "side": "cr", "notes": "Opening capital"}, {"id": "a77cca9bd375", "head": "creditors", "label": "Shri Ram Traders", "amount": 50000, "side": "cr", "notes": "Prior purchase o/s", "party": "Shri Ram Traders"}, {"id": "3685708fd594", "head": "otherassets", "label": "Shop Deposit", "amount": 60000, "side": "dr", "notes": "Security deposit", "customName": "Shop Security Deposit"}, {"id": "531a93a176df", "head": "loan", "label": "Micro Finance Loan", "amount": 100000, "side": "cr", "notes": "@18% pa", "lender": "Jaipur MFI", "rate": 18, "tenure": 24, "sanctionDate": "2026-01-01"}], "tbPosted": true, "tbPostedOn": "2026-04-01", "bankAccounts": [{"id": "ba1", "name": "SBI CA-001122"}, {"id": "ba2", "name": "PNB SB-334455"}], "inventory": [{"id": "c7cac60d751e", "itemName": "Basmati Rice", "unit": "Kg", "category": "Resale", "currentStock": 500, "avgCost": 150, "importedStock": 0, "importedAvgCost": 0, "reorderLevel": 100}, {"id": "1c3a26dcbd4f", "itemName": "Refined Oil", "unit": "Ltr", "category": "Resale", "currentStock": 200, "avgCost": 240, "importedStock": 0, "importedAvgCost": 0, "reorderLevel": 50}, {"id": "29c0542a8d80", "itemName": "Wheat Flour", "unit": "Kg", "category": "Resale", "currentStock": 0, "avgCost": 0, "importedStock": 0, "importedAvgCost": 0, "reorderLevel": 100}, {"id": "4a6ee7000aff", "itemName": "Sugar", "unit": "Kg", "category": "Resale", "currentStock": 0, "avgCost": 0, "importedStock": 0, "importedAvgCost": 0}], "purchases": [{"id": "35a448b5c901", "date": "2026-04-03", "supplier": "Shri Ram Traders", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 300, "rate": 148, "amount": 44400, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": "April stock"}, {"id": "98d648825b69", "date": "2026-04-04", "supplier": "Agro Supplies", "itemId": "29c0542a8d80", "itemName": "Wheat Flour", "qty": 500, "rate": 42, "amount": 21000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": ""}, {"id": "32efe2815eb7", "date": "2026-04-06", "supplier": "Oil India Ltd", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 100, "rate": 235, "amount": 23500, "paymentMode": "cash", "bankAccountId": "ba1", "isImported": false, "notes": ""}, {"id": "6042914ceeeb", "date": "2026-04-09", "supplier": "Shri Ram Traders", "itemId": "4a6ee7000aff", "itemName": "Sugar", "qty": 200, "rate": 44, "amount": 8800, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": ""}, {"id": "e6405a7c082e", "date": "2026-05-03", "supplier": "Shri Ram Traders", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 400, "rate": 150, "amount": 60000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": "May restock"}, {"id": "9d85436709a5", "date": "2026-05-06", "supplier": "Agro Supplies", "itemId": "29c0542a8d80", "itemName": "Wheat Flour", "qty": 300, "rate": 43, "amount": 12900, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": ""}], "sales": [{"id": "ea712e2a8ab4", "date": "2026-04-04", "customer": "Meena Devi", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 50, "price": 180, "totalAmount": 9000, "cogs": 7500, "grossProfit": 1500, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "0d587b1203d6", "date": "2026-04-06", "customer": "Ramu Kirana", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 40, "price": 285, "totalAmount": 11400, "cogs": 9600, "grossProfit": 1800, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "b9786c2c544d", "date": "2026-04-09", "customer": "Hotel Annapoorna", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 100, "price": 175, "totalAmount": 17500, "cogs": 15000, "grossProfit": 2500, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "074bb1826731", "date": "2026-04-11", "customer": "Meena Devi", "itemId": "29c0542a8d80", "itemName": "Wheat Flour", "qty": 50, "price": 55, "totalAmount": 2750, "cogs": 2100, "grossProfit": 650, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "e7de145a6717", "date": "2026-04-13", "customer": "Suresh General", "itemId": "4a6ee7000aff", "itemName": "Sugar", "qty": 80, "price": 58, "totalAmount": 4640, "cogs": 3520, "grossProfit": 1120, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "cc978225dad4", "date": "2026-05-06", "customer": "Hotel Annapoorna", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 150, "price": 178, "totalAmount": 26700, "cogs": 22500, "grossProfit": 4200, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "53994e7b1630", "date": "2026-05-09", "customer": "Ramu Kirana", "itemId": "29c0542a8d80", "itemName": "Wheat Flour", "qty": 100, "price": 56, "totalAmount": 5600, "cogs": 4200, "grossProfit": 1400, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "9ce664a5ca90", "date": "2026-05-13", "customer": "Meena Devi", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 60, "price": 288, "totalAmount": 17280, "cogs": 14400, "grossProfit": 2880, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}], "expenses": [{"id": "a7c2a9cd39a5", "date": "2026-04-02", "category": "Rent", "amount": 8000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Shop Rent April", "remarks": "April 2026"}, {"id": "eeaab52fffc5", "date": "2026-05-02", "category": "Rent", "amount": 8000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Shop Rent May", "remarks": ""}, {"id": "518fa2090099", "date": "2026-05-01", "category": "Salary", "amount": 12000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Shop Assistant April", "remarks": ""}, {"id": "03cceb4d8f20", "date": "2026-05-31", "category": "Salary", "amount": 12000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Shop Assistant May", "remarks": ""}, {"id": "5d7a73b0531e", "date": "2026-04-16", "category": "Electricity", "amount": 2200, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Electricity Bill April", "remarks": ""}, {"id": "f95489346588", "date": "2026-05-16", "category": "Electricity", "amount": 1950, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Electricity Bill May", "remarks": ""}, {"id": "952a1f1a8c9c", "date": "2026-04-11", "category": "Transportation", "amount": 3500, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Freight charges April", "remarks": ""}, {"id": "0e0d22d80484", "date": "2026-05-11", "category": "Transportation", "amount": 2800, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Freight charges May", "remarks": ""}, {"id": "5015bb23f7ea", "date": "2026-04-21", "category": "Interest Payment", "amount": 1500, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "MFI Loan Interest April", "remarks": ""}, {"id": "33cdfd5dc76f", "date": "2026-05-21", "category": "Interest Payment", "amount": 1500, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "MFI Loan Interest May", "remarks": ""}], "cashBook": [{"id": "f39ebd26b091", "date": "2026-04-04", "type": "receipt", "mode": "cash", "amount": 9000, "party": "Meena Devi", "desc": "Rice sale", "bankAccountId": "ba1"}, {"id": "810b6770523c", "date": "2026-04-06", "type": "receipt", "mode": "cash", "amount": 11400, "party": "Ramu Kirana", "desc": "Oil sale", "bankAccountId": "ba1"}, {"id": "864755a20e3c", "date": "2026-04-09", "type": "receipt", "mode": "bank", "amount": 17500, "party": "Hotel Annapoorna", "desc": "Rice sale", "bankAccountId": "ba1"}, {"id": "e286ad2a6f50", "date": "2026-05-01", "type": "payment", "mode": "bank", "amount": 12000, "party": "Salary", "desc": "April salary", "bankAccountId": "ba1"}, {"id": "37411c294399", "date": "2026-05-06", "type": "receipt", "mode": "bank", "amount": 26700, "party": "Hotel Annapoorna", "desc": "May rice sale", "bankAccountId": "ba1"}], "debtors": [{"id": "76f1fdb0f940", "name": "Hotel Annapoorna", "amount": 17500, "date": "2026-04-09", "ref": "Rice 100kg"}], "creditors": [{"id": "1906916cf7af", "name": "Shri Ram Traders", "amount": 50000, "date": "2026-03-01", "ref": "Prior balance", "type": "supplier", "fromTB": true}, {"id": "ea8009f260fc", "name": "Agro Supplies", "amount": 21000, "date": "2026-04-04", "ref": "Flour purchase", "type": "supplier"}], "loans": [{"id": "3e8789240d01", "loanType": "Micro Finance Loan", "lender": "Jaipur MFI", "sanctionDate": "2026-01-01", "sanctionedAmount": 100000, "outstandingBalance": 90000, "rate": 18, "tenure": 24, "emi": 5000, "lastInterestDate": "2026-01-01", "accountNumber": "MFI-JA-0056789", "undrawn": false, "payments": [{"id": "08dc49753413", "date": "2026-05-01", "principal": 5000, "interest": 1500, "total": 6500}]}], "fixedAssets": [{"id": "11cc5a9e041f", "name": "Shop Furniture", "purchaseDate": "2025-04-01", "cost": 45000, "life": 10, "accumDep": 4500, "disposed": false}], "drawings": [{"id": "f213e08d4326", "date": "2026-05-01", "amount": 15000, "partner": "", "desc": "Personal withdrawal April"}, {"id": "9eaef90d4175", "date": "2026-05-31", "amount": 15000, "partner": "", "desc": "Personal withdrawal May"}], "advances": [{"id": "c1f52e4bb1dc", "date": "2026-04-06", "type": "paid", "category": "supplier", "party": "Agro Supplies", "amount": 10000, "desc": "Advance for June order", "settled": false}], "bills": [{"id": "80e910ed4e56", "billNo": "INV/2026-27/001", "date": "2026-04-09", "customer": "Hotel Annapoorna", "items": [{"itemName": "Basmati Rice", "qty": 100, "price": 175, "amount": 17500}], "total": 17500, "paid": 0, "status": "unpaid", "notes": "30 day credit"}], "nextBillNo": 2, "otherAssets": 60000, "otherLiab": 0, "otherAssetsNotes": [{"id": "a8c8a13b912c", "label": "Shop Security Deposit", "amount": 60000}], "otherLiabNotes": [], "otherAssetItems": [], "otherLiabItems": [], "intangibleAssets": [], "productions": [], "consumptions": [], "expenseCategories": ["Rent", "Electricity", "Salary", "Transportation", "Telephone", "Fuel", "Repair", "Marketing", "Interest Payment", "Miscellaneous"], "settings": {"creditDays": 30, "defaultMargin": 20}, "partyCodes": {"Hotel Annapoorna": "HA001", "Shri Ram Traders": "SRT001"}, "customHSN": {}, "security": {"pinEnabled": false, "pinHash": ""}, "priorPeriod": {"enabled": true, "fromDate": "2025-04-01", "toDate": "2026-03-31", "sales": 850000, "cogs": 680000, "expenseByCat": {"Rent": 96000, "Salary": 144000, "Electricity": 22000, "Transportation": 35000, "Interest Payment": 18000}}, "incomeTax": {"ay": "2026-27", "taxpayerType": "individual", "gender": "female", "section": "new", "useManual": false}, "gst": {"enabled": true, "gstin": "08ABCPS1234F1Z2", "type": "regular", "defaultRate": 5, "supplyType": "intra", "stateCode": "08"}, "loanAssessment": {"ccLimit": 200000, "tlAmount": 150000, "ccRate": 12, "tlRate": 9, "tlTenure": 60, "salesGrowth": 15, "stockDays": 30, "debtorDays": 30, "creditorDays": 30, "expGrowth": 8, "marginPctTurnover": 20, "marginPctTandon": 25, "useManual": false}}));}catch(err){}})();
 </script>
 </body>
 </html>

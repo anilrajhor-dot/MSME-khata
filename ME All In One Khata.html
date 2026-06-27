@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <script>
-var _BUILD='202406240321';
-var _s=sessionStorage.getItem('mfm_build');
-if(_s&&_s!==_BUILD){sessionStorage.setItem('mfm_build',_BUILD);location.reload(true);}
-else{sessionStorage.setItem('mfm_build',_BUILD);}
+var _BUILD="202406270630";
+var _s=sessionStorage.getItem("mfm_build");
+if(_s&&_s!=="202406270630"){sessionStorage.setItem("mfm_build","202406270630");location.reload(true);}else{sessionStorage.setItem("mfm_build","202406270630");}
 </script>
+
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -16,7 +16,7 @@ else{sessionStorage.setItem('mfm_build',_BUILD);}
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1565C0">
-<title>ME Khata — Universal Business Accounts | v202406240321</title>
+<title>ME Khata — Universal Business Accounts</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:sans-serif;margin:0;padding:0}
@@ -128,7 +128,7 @@ function defD(){
     bills:[],
     nextBillNo:1,
     expenseCategories:['Rent','Electricity','Salary','Transportation','Telephone','Fuel','Repair','Marketing','Interest Payment','Miscellaneous'],
-    settings:{creditDays:30},
+    settings:{creditDays:30,defaultMargin:20},
     partyCodes:{},
     customHSN:{},
     incomeTax:{ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false},
@@ -205,7 +205,8 @@ function migrateData(d){
   if(d.loanAssessment && d.loanAssessment.marginPctTurnover===undefined) d.loanAssessment.marginPctTurnover=25;
   if(d.loanAssessment && d.loanAssessment.marginPctTandon===undefined) d.loanAssessment.marginPctTandon=25;
   if(d.loanAssessment && d.loanAssessment.useManual===undefined) d.loanAssessment.useManual=false;
-  if(!d.settings) d.settings={creditDays:30};
+  if(!d.settings) d.settings={creditDays:30,defaultMargin:20};
+  if(d.settings.defaultMargin===undefined) d.settings.defaultMargin=20;
   if(!d.partyCodes) d.partyCodes={};
   if(!d.customHSN) d.customHSN={};
   if(!d.incomeTax) d.incomeTax={ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false};
@@ -1899,10 +1900,30 @@ function pgSal(){
   h+='<div class="card"><div class="ch">Total Sales: '+fc(tot)+'</div></div>';
   h+='<div style="margin-bottom:10px">'+btn('🧾 Create Bill (Multi-Item Invoice)','window._salMode=\'bill\';window._billCart=[];renderPage()','#1565C0')+'</div>';
 
+  var _defM=+(D.settings&&D.settings.defaultMargin)||20;
+  var _curM=(window._salMargin!=null)?window._salMargin:_defM;
+  if(selItem&&selItem.avgCost>0&&(!window._salPrice||window._salPrice===0)){
+    window._salPrice=Math.round(selItem.avgCost*(1+_curM/100));
+  }
   var costInfo='';
   if(selItem){
-    var cp=selItem.avgCost;
-    costInfo='<div class="al ali"><div style="display:flex;justify-content:space-between"><span>Cost Price per '+esc(selItem.unit)+':</span><b>'+fc(cp)+'</b></div><div style="font-size:11px;color:#546E7A;margin-top:3px">Set your selling price above this to make a profit. Available stock: '+fmt(selItem.currentStock)+' '+esc(selItem.unit)+'</div></div>';
+    var _cp=selItem.avgCost,_sp=window._salPrice||0,_pr=_sp-_cp;
+    var _pc=_cp>0?Math.round(_pr/_cp*100):0,_prc=_pr>=0?'#2E7D32':'#C62828';
+    costInfo='<div class="al ali" style="margin-bottom:8px">'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:6px">'+
+        '<span style="font-size:12px">Cost Price/'+esc(selItem.unit)+':</span><b>'+fc(_cp)+'</b>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'+
+        '<label style="font-size:12px;color:#546E7A">Margin %:</label>'+
+        '<input type="number" id="sl_margin" value="'+_curM+'" min="0" max="500" '+
+          'oninput="onSalMarginChange()" '+
+          'style="width:72px;padding:6px;border-radius:8px;border:2px solid #1565C0;font-size:14px;font-weight:700;text-align:center">'+
+        '<span id="sl_margin_info" style="font-size:12px;font-weight:700;color:'+_prc+'">'+
+          fc(_sp)+' | '+fc(_pr)+' ('+_pc+'%)'+
+        '</span>'+
+      '</div>'+
+      '<div style="font-size:10px;color:#90A4AE">Stock:'+fmt(selItem.currentStock)+' '+esc(selItem.unit)+' | Default:'+_defM+'% (Settings)</div>'+
+    '</div>';
   }
 
   h += window._barcodeEnabled ?
@@ -1989,7 +2010,32 @@ function restoreStock(item, fromIndig, fromImp, indigCostEach, impCostEach){
     item.importedStock=itq; item.importedAvgCost = itq>0 ? itv/itq : 0;
   }
 }
-function onSalItemChange(){window._salItem=gv('sl_i');window._salCustomer=gv('sl_c');window._salDate=gv('sl_d');window._salQty=gv('sl_q');window._salPrice=gv('sl_p');window._salMode=gv('sl_m');window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
+function onSalMarginChange(){
+  var m=gvn('sl_margin');
+  if(m===null||isNaN(m)) return;
+  window._salMargin=m;
+  var sid=window._salItem||'';
+  var it=null;
+  for(var i=0;i<D.inventory.length;i++) if(D.inventory[i].id===sid){it=D.inventory[i];break;}
+  if(it&&it.avgCost>0){
+    var np=Math.round(it.avgCost*(1+m/100));
+    window._salPrice=np;
+    var pEl=document.getElementById('sl_p');
+    if(pEl) pEl.value=np;
+    var iEl=document.getElementById('sl_margin_info');
+    if(iEl){
+      var pr=np-it.avgCost;
+      iEl.style.color=pr>=0?'#2E7D32':'#C62828';
+      iEl.textContent='Sale: '+fc(np)+' | Profit: '+fc(pr)+' ('+Math.round(pr/it.avgCost*100)+'%)';
+    }
+  }
+}
+function onSalItemChange(){window._salItem=gv('sl_i');window._salCustomer=gv('sl_c');window._salDate=gv('sl_d');window._salQty=gv('sl_q');window._salMode=gv('sl_m');
+  var _nm=gvn('sl_margin');if(_nm!==null&&!isNaN(_nm)) window._salMargin=_nm;
+  var _sid=window._salItem||'';var _sit=null;for(var _ii=0;_ii<D.inventory.length;_ii++)if(D.inventory[_ii].id===_sid){_sit=D.inventory[_ii];break;}
+  var _mg=(window._salMargin!=null)?window._salMargin:(+(D.settings&&D.settings.defaultMargin)||20);
+  if(_sit&&_sit.avgCost>0) window._salPrice=Math.round(_sit.avgCost*(1+_mg/100));
+  else window._salPrice=gvn('sl_p')||0;window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
 function addSal(){
   var c2=gv('sl_c')||window._salCustomer||'',iid=gv('sl_i'),q=gvn('sl_q'),p=gvn('sl_p');
   if(!c2){toast('Enter customer name','e');return;}
@@ -2733,6 +2779,101 @@ function pgAna(){
     if(pt.imported>0) purchaseBars.push({l:'Imported',v:pt.imported});
     if(purchaseBars.length>1) h+=card('Purchase Mix',bar(purchaseBars,'#E65100',55));
   }
+
+  // ── ITEM-WISE PROFIT ANALYSIS (with expense apportionment) ──
+  (function(){
+    if(!D.sales || D.sales.length===0) return;
+    // Build item map: sales, COGS, qty
+    var items={};
+    D.sales.forEach(function(s){
+      var k=s.itemName||'Unknown';
+      if(!items[k]) items[k]={name:k,sales:0,cogs:0,qty:0,txns:0};
+      items[k].sales += (s.totalAmount||0);
+      items[k].cogs  += (s.cogs||0);
+      items[k].qty   += (s.qty||0);
+      items[k].txns  += 1;
+    });
+    var itemList=[];
+    for(var k in items) itemList.push(items[k]);
+    if(itemList.length===0) return;
+    itemList.sort(function(a,b){return b.sales-a.sales;});
+
+    var totalSales = itemList.reduce(function(s,it){return s+it.sales;},0);
+    var totalExp   = f.te||0;
+
+    // Apportion expenses by sales value proportion
+    itemList.forEach(function(it){
+      it.gm       = it.sales - it.cogs;
+      it.gmPct    = it.sales>0 ? (it.gm/it.sales*100) : 0;
+      it.expShare = totalSales>0 ? (it.sales/totalSales)*totalExp : 0;
+      it.np       = it.gm - it.expShare;
+      it.npPct    = it.sales>0 ? (it.np/it.sales*100) : 0;
+      it.npPerUnit= it.qty>0 ? it.np/it.qty : 0;
+    });
+
+    // Table rows
+    var rows='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    rows+='<tr style="background:#1565C0;color:#fff">';
+    rows+='<th style="padding:6px 4px;text-align:left">Item</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Sales</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">COGS</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Gross Margin</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">GM%</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Exp (Apptd)</th>';
+    rows+='<th style="padding:6px 4px;text-align:right;font-weight:800">Net Profit</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">NP%</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">NP/Unit</th>';
+    rows+='</tr>';
+
+    itemList.forEach(function(it,idx){
+      var bg=idx%2===0?'#F9FAFB':'#fff';
+      var npColor=it.np>=0?'#2E7D32':'#C62828';
+      var gmColor=it.gmPct>=20?'#2E7D32':'#E65100';
+      rows+='<tr style="background:'+bg+'">';
+      rows+='<td style="padding:5px 4px;font-weight:600;color:#1565C0">'+esc(it.name)+'<br><span style="font-size:9px;color:#90A4AE">'+it.txns+' txn'+(it.txns>1?'s':'')+' · '+fmt(it.qty)+' units</span></td>';
+      rows+='<td style="padding:5px 4px;text-align:right">'+fc(it.sales)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right">'+fc(it.cogs)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+gmColor+';font-weight:700">'+fc(it.gm)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+gmColor+'">'+it.gmPct.toFixed(1)+'%</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:#E65100">'+fc(Math.round(it.expShare))+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+';font-weight:800">'+fc(Math.round(it.np))+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+';font-weight:700">'+it.npPct.toFixed(1)+'%</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+'">'+fc(Math.round(it.npPerUnit))+'</td>';
+      rows+='</tr>';
+    });
+
+    // Totals row
+    var totGM=itemList.reduce(function(s,it){return s+it.gm;},0);
+    var totNP=itemList.reduce(function(s,it){return s+it.np;},0);
+    rows+='<tr style="background:#E3F2FD;font-weight:800">';
+    rows+='<td style="padding:5px 4px">TOTAL</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">'+fc(totalSales)+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">'+fc(itemList.reduce(function(s,it){return s+it.cogs;},0))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#2E7D32">'+fc(totGM)+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#2E7D32">'+(totalSales>0?(totGM/totalSales*100).toFixed(1):0)+'%</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#E65100">'+fc(Math.round(totalExp))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:'+(totNP>=0?'#2E7D32':'#C62828')+'">'+fc(Math.round(totNP))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:'+(totNP>=0?'#2E7D32':'#C62828')+'">'+(totalSales>0?(totNP/totalSales*100).toFixed(1):0)+'%</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">—</td>';
+    rows+='</tr>';
+    rows+='</table></div>';
+
+    // Insights
+    var best=itemList[0], worst=itemList[itemList.length-1];
+    var profitable=itemList.filter(function(it){return it.np>0;});
+    var insight='<div style="margin-top:10px;font-size:11px;color:#37474F;line-height:1.7">';
+    insight+='<b>📌 Method:</b> Other expenses (₹'+fc(Math.round(totalExp))+') apportioned by sales value proportion.<br>';
+    if(itemList.length>1){
+      insight+='🏆 <b>Most Profitable:</b> '+esc(best.name)+' — NP ₹'+fc(Math.round(best.np))+' ('+best.npPct.toFixed(1)+'%)<br>';
+      if(worst.np<0) insight+='⚠️ <b>Loss-making:</b> '+esc(worst.name)+' — Loss ₹'+fc(Math.round(Math.abs(worst.np)))+'<br>';
+      insight+='✅ <b>'+profitable.length+' of '+itemList.length+' items</b> are profitable after expense apportionment.<br>';
+    }
+    insight+='<span style="font-size:10px;color:#90A4AE">To improve NP%: increase selling price, reduce COGS, or reduce overheads.</span>';
+    insight+='</div>';
+
+    h+=card('📦 Item-wise Profit Analysis (After Expense Apportionment)', rows+insight);
+  })();
+
   return h;
 }
 // ===== REPORTS =====
@@ -5935,6 +6076,20 @@ function pgHelp(){
     )
   );
 
+
+  h += hs(
+    bi('11. Auto Sale Price & Item-wise Profit', '11. Auto Sale Price & Item-wise Profit'),
+    bi(
+      '<p><b>Auto Sale Price:</b> In Sales page, select an item — the app shows Cost Price and auto-calculates Selling Price from your Default Margin %. Change margin for that sale anytime, price updates instantly. Or type price directly — margin updates automatically.</p>' +
+      '<p><b>Set Default Margin:</b> Reminders menu → Credit & Margin Settings → Default Sale Margin % (e.g. 20 = 20% profit on cost). Applies to all items. Change anytime.</p>' +
+      '<p><b>Example:</b> Cost ₹100, Margin 30% → Price ₹130, Profit ₹30.</p>' +
+      '<p><b>Item-wise Profit:</b> Analytics menu → scroll down → 📦 Item-wise Profit Analysis. Items come automatically from Sales — nothing extra to enter. No change in any other menu.</p>',
+      '<p><b>Auto Sale Price:</b> Sales page में item select करें — app Cost Price दिखाता है और Default Margin % से Selling Price calculate करता है। Margin बदलें — price तुरंत update। या price खुद टाइप करें — margin update हो जाता है।</p>' +
+      '<p><b>Default Margin set करें:</b> Reminders → Credit & Margin Settings → Default Sale Margin % डालें। सभी items पर apply। कभी भी बदलें।</p>' +
+      '<p><b>Example:</b> Cost ₹100, Margin 30% → Price ₹130, Profit ₹30।</p>' +
+      '<p><b>Item-wise Profit:</b> Analytics menu → नीचे → 📦 Item-wise Profit Analysis। Items sales से automatically आते हैं। कोई दूसरा menu नहीं बदला।</p>'
+    )
+  );
   // ── SECTION 11: MANUFACTURING APP ──
   if ((BIZ_TYPE==='Manufacturing'||BIZ_TYPE==='Trading + Manufacturing')) {
     h += hs(
@@ -8040,7 +8195,9 @@ function pgReminders(){
 
   h += card('Reminder Settings',
     '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Set the global credit period. Any debtor whose outstanding amount is older than this many days will appear in the overdue list.</div>'+
-    g2(inp('Credit Period (days)','rem_days','number',creditDays),''+
+    g2(inp('Credit Period (days)','rem_days','number',creditDays),inp('Default Sale Margin %','def_margin','number',+(D.settings&&D.settings.defaultMargin)||20))+
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Margin % auto-fills Selling Price in Sales. Override per sale.</div>'+
+      g2(''+
        '<div class="fg"><label>&nbsp;</label>'+btn('💾 Save','saveReminderSettings()','#2E7D32')+'</div>')
   );
 
@@ -8150,7 +8307,7 @@ function copyReminderMsg(name, d){
 
 function saveReminderSettings(){
   if(!D.settings) D.settings={};
-  D.settings.creditDays = gvn('rem_days')||30;
+  D.settings.creditDays=gvn('rem_days')||30;if(gvn('def_margin')!==null) D.settings.defaultMargin=gvn('def_margin')||20;
   sv(); renderPage(); toast('Credit period saved!');
 }
 

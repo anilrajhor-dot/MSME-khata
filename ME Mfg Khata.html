@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <script>
-var _BUILD='202406240321';
-var _s=sessionStorage.getItem('mfm_build');
-if(_s&&_s!==_BUILD){sessionStorage.setItem('mfm_build',_BUILD);location.reload(true);}
-else{sessionStorage.setItem('mfm_build',_BUILD);}
+var _BUILD="202406270630";
+var _s=sessionStorage.getItem("mfm_build");
+if(_s&&_s!=="202406270630"){sessionStorage.setItem("mfm_build","202406270630");location.reload(true);}else{sessionStorage.setItem("mfm_build","202406270630");}
 </script>
+
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -16,7 +16,7 @@ else{sessionStorage.setItem('mfm_build',_BUILD);}
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#6A1428">
-<title>Manufacturing Accounts | उत्पादन लेखा | v202406240321</title>
+<title>Manufacturing Accounts | उत्पादन लेखा</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:sans-serif;margin:0;padding:0}
@@ -126,7 +126,7 @@ function defD(){
     bills:[],
     nextBillNo:1,
     expenseCategories:['Rent','Electricity','Salary','Transportation','Telephone','Fuel','Repair','Marketing','Interest Payment','Miscellaneous'],
-    settings:{creditDays:30},
+    settings:{creditDays:30,defaultMargin:20},
     partyCodes:{},
     customHSN:{},
     incomeTax:{ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false},
@@ -209,7 +209,8 @@ function migrateData(d){
   if(d.loanAssessment && d.loanAssessment.marginPctTurnover===undefined) d.loanAssessment.marginPctTurnover=25;
   if(d.loanAssessment && d.loanAssessment.marginPctTandon===undefined) d.loanAssessment.marginPctTandon=25;
   if(d.loanAssessment && d.loanAssessment.useManual===undefined) d.loanAssessment.useManual=false;
-  if(!d.settings) d.settings={creditDays:30};
+  if(!d.settings) d.settings={creditDays:30,defaultMargin:20};
+  if(d.settings.defaultMargin===undefined) d.settings.defaultMargin=20;
   if(!d.partyCodes) d.partyCodes={};
   if(!d.customHSN) d.customHSN={};
   if(!d.incomeTax) d.incomeTax={ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false};
@@ -2171,10 +2172,30 @@ function pgSal(){
   h+='<div class="card"><div class="ch">Total Sales: '+fc(tot)+'</div></div>';
   h+='<div style="margin-bottom:10px">'+btn('🧾 Create Bill (Multi-Item Invoice)','window._salMode=\'bill\';window._billCart=[];renderPage()','#1565C0')+'</div>';
 
+  var _defM=+(D.settings&&D.settings.defaultMargin)||20;
+  var _curM=(window._salMargin!=null)?window._salMargin:_defM;
+  if(selItem&&selItem.avgCost>0&&(!window._salPrice||window._salPrice===0)){
+    window._salPrice=Math.round(selItem.avgCost*(1+_curM/100));
+  }
   var costInfo='';
   if(selItem){
-    var cp=selItem.avgCost;
-    costInfo='<div class="al ali"><div style="display:flex;justify-content:space-between"><span>Cost Price per '+esc(selItem.unit)+':</span><b>'+fc(cp)+'</b></div><div style="font-size:11px;color:#546E7A;margin-top:3px">Set your selling price above this to make a profit. Available stock: '+fmt(selItem.currentStock)+' '+esc(selItem.unit)+'</div></div>';
+    var _cp=selItem.avgCost,_sp=window._salPrice||0,_pr=_sp-_cp;
+    var _pc=_cp>0?Math.round(_pr/_cp*100):0,_prc=_pr>=0?'#2E7D32':'#C62828';
+    costInfo='<div class="al ali" style="margin-bottom:8px">'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:6px">'+
+        '<span style="font-size:12px">Cost Price/'+esc(selItem.unit)+':</span><b>'+fc(_cp)+'</b>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'+
+        '<label style="font-size:12px;color:#546E7A">Margin %:</label>'+
+        '<input type="number" id="sl_margin" value="'+_curM+'" min="0" max="500" '+
+          'oninput="onSalMarginChange()" '+
+          'style="width:72px;padding:6px;border-radius:8px;border:2px solid #1565C0;font-size:14px;font-weight:700;text-align:center">'+
+        '<span id="sl_margin_info" style="font-size:12px;font-weight:700;color:'+_prc+'">'+
+          fc(_sp)+' | '+fc(_pr)+' ('+_pc+'%)'+
+        '</span>'+
+      '</div>'+
+      '<div style="font-size:10px;color:#90A4AE">Stock:'+fmt(selItem.currentStock)+' '+esc(selItem.unit)+' | Default:'+_defM+'% (Settings)</div>'+
+    '</div>';
   }
 
   h += window._barcodeEnabled ?
@@ -2261,7 +2282,32 @@ function restoreStock(item, fromIndig, fromImp, indigCostEach, impCostEach){
     item.importedStock=itq; item.importedAvgCost = itq>0 ? itv/itq : 0;
   }
 }
-function onSalItemChange(){window._salItem=gv('sl_i');window._salCustomer=gv('sl_c');window._salDate=gv('sl_d');window._salQty=gv('sl_q');window._salPrice=gv('sl_p');window._salMode=gv('sl_m');window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
+function onSalMarginChange(){
+  var m=gvn('sl_margin');
+  if(m===null||isNaN(m)) return;
+  window._salMargin=m;
+  var sid=window._salItem||'';
+  var it=null;
+  for(var i=0;i<D.inventory.length;i++) if(D.inventory[i].id===sid){it=D.inventory[i];break;}
+  if(it&&it.avgCost>0){
+    var np=Math.round(it.avgCost*(1+m/100));
+    window._salPrice=np;
+    var pEl=document.getElementById('sl_p');
+    if(pEl) pEl.value=np;
+    var iEl=document.getElementById('sl_margin_info');
+    if(iEl){
+      var pr=np-it.avgCost;
+      iEl.style.color=pr>=0?'#2E7D32':'#C62828';
+      iEl.textContent='Sale: '+fc(np)+' | Profit: '+fc(pr)+' ('+Math.round(pr/it.avgCost*100)+'%)';
+    }
+  }
+}
+function onSalItemChange(){window._salItem=gv('sl_i');window._salCustomer=gv('sl_c');window._salDate=gv('sl_d');window._salQty=gv('sl_q');window._salMode=gv('sl_m');
+  var _nm=gvn('sl_margin');if(_nm!==null&&!isNaN(_nm)) window._salMargin=_nm;
+  var _sid=window._salItem||'';var _sit=null;for(var _ii=0;_ii<D.inventory.length;_ii++)if(D.inventory[_ii].id===_sid){_sit=D.inventory[_ii];break;}
+  var _mg=(window._salMargin!=null)?window._salMargin:(+(D.settings&&D.settings.defaultMargin)||20);
+  if(_sit&&_sit.avgCost>0) window._salPrice=Math.round(_sit.avgCost*(1+_mg/100));
+  else window._salPrice=gvn('sl_p')||0;window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
 function addSal(){
   var c2=gv('sl_c')||window._salCustomer||'',iid=gv('sl_i'),q=gvn('sl_q'),p=gvn('sl_p');
   if(!c2){toast('Enter customer name','e');return;}
@@ -3016,6 +3062,101 @@ function pgAna(){
     if(pt.imported>0) purchaseBars.push({l:'Imported',v:pt.imported});
     if(purchaseBars.length>1) h+=card('Purchase Mix',bar(purchaseBars,'#E65100',55));
   }
+
+  // ── ITEM-WISE PROFIT ANALYSIS (with expense apportionment) ──
+  (function(){
+    if(!D.sales || D.sales.length===0) return;
+    // Build item map: sales, COGS, qty
+    var items={};
+    D.sales.forEach(function(s){
+      var k=s.itemName||'Unknown';
+      if(!items[k]) items[k]={name:k,sales:0,cogs:0,qty:0,txns:0};
+      items[k].sales += (s.totalAmount||0);
+      items[k].cogs  += (s.cogs||0);
+      items[k].qty   += (s.qty||0);
+      items[k].txns  += 1;
+    });
+    var itemList=[];
+    for(var k in items) itemList.push(items[k]);
+    if(itemList.length===0) return;
+    itemList.sort(function(a,b){return b.sales-a.sales;});
+
+    var totalSales = itemList.reduce(function(s,it){return s+it.sales;},0);
+    var totalExp   = f.te||0;
+
+    // Apportion expenses by sales value proportion
+    itemList.forEach(function(it){
+      it.gm       = it.sales - it.cogs;
+      it.gmPct    = it.sales>0 ? (it.gm/it.sales*100) : 0;
+      it.expShare = totalSales>0 ? (it.sales/totalSales)*totalExp : 0;
+      it.np       = it.gm - it.expShare;
+      it.npPct    = it.sales>0 ? (it.np/it.sales*100) : 0;
+      it.npPerUnit= it.qty>0 ? it.np/it.qty : 0;
+    });
+
+    // Table rows
+    var rows='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    rows+='<tr style="background:#1565C0;color:#fff">';
+    rows+='<th style="padding:6px 4px;text-align:left">Item</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Sales</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">COGS</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Gross Margin</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">GM%</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">Exp (Apptd)</th>';
+    rows+='<th style="padding:6px 4px;text-align:right;font-weight:800">Net Profit</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">NP%</th>';
+    rows+='<th style="padding:6px 4px;text-align:right">NP/Unit</th>';
+    rows+='</tr>';
+
+    itemList.forEach(function(it,idx){
+      var bg=idx%2===0?'#F9FAFB':'#fff';
+      var npColor=it.np>=0?'#2E7D32':'#C62828';
+      var gmColor=it.gmPct>=20?'#2E7D32':'#E65100';
+      rows+='<tr style="background:'+bg+'">';
+      rows+='<td style="padding:5px 4px;font-weight:600;color:#1565C0">'+esc(it.name)+'<br><span style="font-size:9px;color:#90A4AE">'+it.txns+' txn'+(it.txns>1?'s':'')+' · '+fmt(it.qty)+' units</span></td>';
+      rows+='<td style="padding:5px 4px;text-align:right">'+fc(it.sales)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right">'+fc(it.cogs)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+gmColor+';font-weight:700">'+fc(it.gm)+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+gmColor+'">'+it.gmPct.toFixed(1)+'%</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:#E65100">'+fc(Math.round(it.expShare))+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+';font-weight:800">'+fc(Math.round(it.np))+'</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+';font-weight:700">'+it.npPct.toFixed(1)+'%</td>';
+      rows+='<td style="padding:5px 4px;text-align:right;color:'+npColor+'">'+fc(Math.round(it.npPerUnit))+'</td>';
+      rows+='</tr>';
+    });
+
+    // Totals row
+    var totGM=itemList.reduce(function(s,it){return s+it.gm;},0);
+    var totNP=itemList.reduce(function(s,it){return s+it.np;},0);
+    rows+='<tr style="background:#E3F2FD;font-weight:800">';
+    rows+='<td style="padding:5px 4px">TOTAL</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">'+fc(totalSales)+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">'+fc(itemList.reduce(function(s,it){return s+it.cogs;},0))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#2E7D32">'+fc(totGM)+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#2E7D32">'+(totalSales>0?(totGM/totalSales*100).toFixed(1):0)+'%</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:#E65100">'+fc(Math.round(totalExp))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:'+(totNP>=0?'#2E7D32':'#C62828')+'">'+fc(Math.round(totNP))+'</td>';
+    rows+='<td style="padding:5px 4px;text-align:right;color:'+(totNP>=0?'#2E7D32':'#C62828')+'">'+(totalSales>0?(totNP/totalSales*100).toFixed(1):0)+'%</td>';
+    rows+='<td style="padding:5px 4px;text-align:right">—</td>';
+    rows+='</tr>';
+    rows+='</table></div>';
+
+    // Insights
+    var best=itemList[0], worst=itemList[itemList.length-1];
+    var profitable=itemList.filter(function(it){return it.np>0;});
+    var insight='<div style="margin-top:10px;font-size:11px;color:#37474F;line-height:1.7">';
+    insight+='<b>📌 Method:</b> Other expenses (₹'+fc(Math.round(totalExp))+') apportioned by sales value proportion.<br>';
+    if(itemList.length>1){
+      insight+='🏆 <b>Most Profitable:</b> '+esc(best.name)+' — NP ₹'+fc(Math.round(best.np))+' ('+best.npPct.toFixed(1)+'%)<br>';
+      if(worst.np<0) insight+='⚠️ <b>Loss-making:</b> '+esc(worst.name)+' — Loss ₹'+fc(Math.round(Math.abs(worst.np)))+'<br>';
+      insight+='✅ <b>'+profitable.length+' of '+itemList.length+' items</b> are profitable after expense apportionment.<br>';
+    }
+    insight+='<span style="font-size:10px;color:#90A4AE">To improve NP%: increase selling price, reduce COGS, or reduce overheads.</span>';
+    insight+='</div>';
+
+    h+=card('📦 Item-wise Profit Analysis (After Expense Apportionment)', rows+insight);
+  })();
+
   return h;
 }
 // ===== REPORTS =====
@@ -6216,6 +6357,20 @@ function pgHelp(){
     )
   );
 
+
+  h += hs(
+    bi('11. Auto Sale Price & Item-wise Profit', '11. Auto Sale Price & Item-wise Profit'),
+    bi(
+      '<p><b>Auto Sale Price:</b> In Sales page, select an item — the app shows Cost Price and auto-calculates Selling Price from your Default Margin %. Change margin for that sale anytime, price updates instantly. Or type price directly — margin updates automatically.</p>' +
+      '<p><b>Set Default Margin:</b> Reminders menu → Credit & Margin Settings → Default Sale Margin % (e.g. 20 = 20% profit on cost). Applies to all items. Change anytime.</p>' +
+      '<p><b>Example:</b> Cost ₹100, Margin 30% → Price ₹130, Profit ₹30.</p>' +
+      '<p><b>Item-wise Profit:</b> Analytics menu → scroll down → 📦 Item-wise Profit Analysis. Items come automatically from Sales — nothing extra to enter. No change in any other menu.</p>',
+      '<p><b>Auto Sale Price:</b> Sales page में item select करें — app Cost Price दिखाता है और Default Margin % से Selling Price calculate करता है। Margin बदलें — price तुरंत update। या price खुद टाइप करें — margin update हो जाता है।</p>' +
+      '<p><b>Default Margin set करें:</b> Reminders → Credit & Margin Settings → Default Sale Margin % डालें। सभी items पर apply। कभी भी बदलें।</p>' +
+      '<p><b>Example:</b> Cost ₹100, Margin 30% → Price ₹130, Profit ₹30।</p>' +
+      '<p><b>Item-wise Profit:</b> Analytics menu → नीचे → 📦 Item-wise Profit Analysis। Items sales से automatically आते हैं। कोई दूसरा menu नहीं बदला।</p>'
+    )
+  );
   // ── SECTION 11: MANUFACTURING APP ──
   if (BIZ_TYPE === 'Manufacturing') {
     h += hs(
@@ -8322,7 +8477,9 @@ function pgReminders(){
 
   h += card('Reminder Settings',
     '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Set the global credit period. Any debtor whose outstanding amount is older than this many days will appear in the overdue list.</div>'+
-    g2(inp('Credit Period (days)','rem_days','number',creditDays),''+
+    g2(inp('Credit Period (days)','rem_days','number',creditDays),inp('Default Sale Margin %','def_margin','number',+(D.settings&&D.settings.defaultMargin)||20))+
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Margin % auto-fills Selling Price in Sales. Override per sale.</div>'+
+      g2(''+
        '<div class="fg"><label>&nbsp;</label>'+btn('💾 Save','saveReminderSettings()','#2E7D32')+'</div>')
   );
 
@@ -8432,7 +8589,7 @@ function copyReminderMsg(name, d){
 
 function saveReminderSettings(){
   if(!D.settings) D.settings={};
-  D.settings.creditDays = gvn('rem_days')||30;
+  D.settings.creditDays=gvn('rem_days')||30;if(gvn('def_margin')!==null) D.settings.defaultMargin=gvn('def_margin')||20;
   sv(); renderPage(); toast('Credit period saved!');
 }
 
@@ -10600,6 +10757,10 @@ window.onerror = function(msg, url, line, col, err){
 };
 
 
+</script>
+
+<script>
+(function(){try{var ex=localStorage.getItem("mefm_mfg_v10");if(ex){var e=JSON.parse(ex);if(e&&e.profile&&e.profile.businessName)return;}localStorage.setItem("mefm_mfg_v10",JSON.stringify({"profile": {"businessName": "Sharma Pickle Works", "ownerName": "Ramesh Sharma", "mobile": "9876543210", "address": "45, Industrial Area, Agra - 282001", "businessType": "Manufacturing", "businessStage": "existing", "udyam": "UDYAM-UP-09-0045678", "gst": "09ABCPS5678G1Z3", "pan": "ABCPS5678G", "constitution": "Individual", "partners": []}, "capital": {"initialCapital": 800000, "additionalCapital": 100000, "partnerCapital": {}}, "opening": {"cash": 30000, "bank": 180000, "stock": 0, "debtors": 0, "creditors": 0, "capital": 800000, "takenOn": "2026-04-01"}, "trialBalance": [{"id": "ae7be26cdaa7", "head": "cash", "label": "Cash", "amount": 30000, "side": "dr", "notes": ""}, {"id": "aaf2f8999237", "head": "bank", "label": "Bank - PNB", "amount": 180000, "side": "dr", "notes": "PNB CA 223344"}, {"id": "9678f7a7939f", "head": "stockitem", "label": "Raw Mango", "amount": 60000, "side": "dr", "notes": "2000 kg @ ₹30", "itemName": "Raw Mango", "unit": "Kg", "qty": 2000, "rate": 30, "category": "RM"}, {"id": "fd6b6fc9220b", "head": "stockitem", "label": "Spices Mix", "amount": 25000, "side": "dr", "notes": "100 kg @ ₹250", "itemName": "Spices Mix", "unit": "Kg", "qty": 100, "rate": 250, "category": "Consumable"}, {"id": "7b1f6dff14d8", "head": "capital", "label": "Ramesh Sharma Capital", "amount": 800000, "side": "cr", "notes": ""}, {"id": "36604411a85d", "head": "fixedassetitem", "label": "Pickle Making Machine", "amount": 350000, "side": "dr", "notes": "", "itemName": "Pickle Making Machine", "purchaseDate": "2025-01-01", "life": 10, "accumDep": 29167}, {"id": "0449904fbf32", "head": "loan", "label": "SBI Term Loan", "amount": 175000, "side": "cr", "notes": "Machine loan @9%", "lender": "State Bank of India", "rate": 9, "tenure": 60, "sanctionDate": "2025-01-01"}, {"id": "980b79c2a71b", "head": "creditors", "label": "Agro Inputs Ltd", "amount": 35000, "side": "cr", "notes": "RM purchase o/s", "party": "Agro Inputs Ltd"}], "tbPosted": true, "tbPostedOn": "2026-04-01", "bankAccounts": [{"id": "ba1", "name": "PNB CA-223344"}], "inventory": [{"id": "968f3512115f", "itemName": "Raw Mango", "unit": "Kg", "category": "RM", "currentStock": 2000, "avgCost": 30, "importedStock": 0, "importedAvgCost": 0}, {"id": "b1bf8e6f2cb4", "itemName": "Spices Mix", "unit": "Kg", "category": "Consumable", "currentStock": 100, "avgCost": 250, "importedStock": 0, "importedAvgCost": 0}, {"id": "bc9488aeead7", "itemName": "Salt", "unit": "Kg", "category": "Consumable", "currentStock": 0, "avgCost": 0, "importedStock": 0, "importedAvgCost": 0}, {"id": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "unit": "Jar", "category": "FG", "currentStock": 0, "avgCost": 0, "importedStock": 0, "importedAvgCost": 0}, {"id": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "unit": "Jar", "category": "FG", "currentStock": 0, "avgCost": 0, "importedStock": 0, "importedAvgCost": 0}], "purchases": [{"id": "48d54f43c30a", "date": "2026-04-03", "supplier": "Agro Inputs Ltd", "itemId": "968f3512115f", "itemName": "Raw Mango", "qty": 3000, "rate": 28, "amount": 84000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": "Summer season stock"}, {"id": "defc72a96803", "date": "2026-04-04", "supplier": "Spice World", "itemId": "b1bf8e6f2cb4", "itemName": "Spices Mix", "qty": 150, "rate": 245, "amount": 36750, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": ""}, {"id": "28dafd4a8cb5", "date": "2026-04-05", "supplier": "Salt Depot", "itemId": "bc9488aeead7", "itemName": "Salt", "qty": 200, "rate": 18, "amount": 3600, "paymentMode": "cash", "bankAccountId": "ba1", "isImported": false, "notes": ""}, {"id": "4866d635ea7b", "date": "2026-05-06", "supplier": "Agro Inputs Ltd", "itemId": "968f3512115f", "itemName": "Raw Mango", "qty": 1000, "rate": 35, "amount": 35000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": "May top-up"}], "productions": [{"id": "179baa46d1a8", "date": "2026-04-11", "fgItemId": "bc824fd7a78c", "fgItemName": "Mango Pickle (500g jar)", "qtyProduced": 800, "consumedItems": [{"itemId": "968f3512115f", "itemName": "Raw Mango", "unit": "Kg", "qty": 600, "cost": 16800, "fromIndig": 600, "fromImp": 0, "indigCostEach": 28, "impCostEach": 0}, {"itemId": "b1bf8e6f2cb4", "itemName": "Spices Mix", "unit": "Kg", "qty": 60, "cost": 14700, "fromIndig": 60, "fromImp": 0, "indigCostEach": 245, "impCostEach": 0}, {"itemId": "bc9488aeead7", "itemName": "Salt", "unit": "Kg", "qty": 30, "cost": 540, "fromIndig": 30, "fromImp": 0, "indigCostEach": 18, "impCostEach": 0}], "totalCost": 32040, "notes": "April production batch 1"}, {"id": "9c3db6b8fd0f", "date": "2026-04-16", "fgItemId": "d223c94cade9", "fgItemName": "Mango Pickle (1kg jar)", "qtyProduced": 400, "consumedItems": [{"itemId": "968f3512115f", "itemName": "Raw Mango", "unit": "Kg", "qty": 560, "cost": 15680, "fromIndig": 560, "fromImp": 0, "indigCostEach": 28, "impCostEach": 0}, {"itemId": "b1bf8e6f2cb4", "itemName": "Spices Mix", "unit": "Kg", "qty": 48, "cost": 11760, "fromIndig": 48, "fromImp": 0, "indigCostEach": 245, "impCostEach": 0}, {"itemId": "bc9488aeead7", "itemName": "Salt", "unit": "Kg", "qty": 24, "cost": 432, "fromIndig": 24, "fromImp": 0, "indigCostEach": 18, "impCostEach": 0}], "totalCost": 27872, "notes": "April production batch 2"}], "consumptions": [{"id": "cae0bc703569", "date": "2026-04-13", "itemId": "968f3512115f", "itemName": "Raw Mango", "category": "RM", "qty": 50, "amount": 1400, "notes": "Damaged - write off", "fromIndig": 50, "fromImp": 0, "indigCostEach": 28, "impCostEach": 0}], "sales": [{"id": "c498c329342d", "date": "2026-04-19", "customer": "Reliance Fresh", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 300, "price": 65, "totalAmount": 19500, "cogs": 12015, "grossProfit": 7485, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "d9c2a84bca85", "date": "2026-04-21", "customer": "Local Market", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 200, "price": 60, "totalAmount": 12000, "cogs": 8010, "grossProfit": 3990, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "52d2a7b1ada1", "date": "2026-04-26", "customer": "Reliance Fresh", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 150, "price": 120, "totalAmount": 18000, "cogs": 10452, "grossProfit": 7548, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "a052aeb3458b", "date": "2026-05-11", "customer": "Export Foods Dubai", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 200, "price": 90, "totalAmount": 18000, "cogs": 8010, "grossProfit": 9990, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": true}, {"id": "7e2b38b62271", "date": "2026-05-16", "customer": "Local Market", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 100, "price": 115, "totalAmount": 11500, "cogs": 6968, "grossProfit": 4532, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "b436f0a9f24d", "date": "2026-05-19", "customer": "Big Bazaar", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 250, "price": 68, "totalAmount": 17000, "cogs": 10013, "grossProfit": 6988, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "b18a8d2ac7e1", "date": "2026-05-23", "customer": "Local Market", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 120, "price": 118, "totalAmount": 14160, "cogs": 8362, "grossProfit": 5799, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "7251d521c5db", "date": "2026-05-26", "customer": "Reliance Fresh", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 300, "price": 65, "totalAmount": 19500, "cogs": 12015, "grossProfit": 7485, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "375a6942ab47", "date": "2026-05-29", "customer": "Export Foods Dubai", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 100, "price": 140, "totalAmount": 14000, "cogs": 6968, "grossProfit": 7032, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": true}], "expenses": [{"id": "0aa2de4196bc", "date": "2026-04-02", "category": "Rent", "amount": 15000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Factory Rent April"}, {"id": "d58e6bc31392", "date": "2026-05-02", "category": "Rent", "amount": 15000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Factory Rent May"}, {"id": "a93ed035b2ef", "date": "2026-05-01", "category": "Salary", "amount": 35000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Workers Wages April"}, {"id": "31f82514bef3", "date": "2026-05-31", "category": "Salary", "amount": 35000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Workers Wages May"}, {"id": "8e8faf5312f6", "date": "2026-04-16", "category": "Electricity", "amount": 8500, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Power Bill"}, {"id": "5f7a1738d4d8", "date": "2026-04-11", "category": "Fuel", "amount": 4200, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Generator diesel"}, {"id": "1f6e6e6daef2", "date": "2026-04-21", "category": "Transportation", "amount": 6500, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Delivery charges"}, {"id": "9a2ea125d6d9", "date": "2026-05-01", "category": "Interest Payment", "amount": 1313, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "SBI TL Interest April"}], "loans": [{"id": "ed05c1a98a54", "loanType": "Term Loan", "lender": "State Bank of India", "sanctionDate": "2025-01-01", "sanctionedAmount": 350000, "outstandingBalance": 175000, "rate": 9, "tenure": 60, "emi": 7266, "lastInterestDate": "2025-01-01", "accountNumber": "SBI-TL-UP0023", "undrawn": false, "payments": []}], "fixedAssets": [{"id": "915c19098389", "name": "Pickle Making Machine", "purchaseDate": "2025-01-01", "cost": 350000, "life": 10, "accumDep": 29167, "disposed": false}], "debtors": [{"id": "1b047d16e3a0", "name": "Reliance Fresh", "amount": 19500, "date": "2026-04-19", "ref": "Pickle 300 jars"}, {"id": "c267c02ee2b6", "name": "Reliance Fresh", "amount": 18000, "date": "2026-04-26", "ref": "1kg Pickle 150 jars"}, {"id": "b1a5b773db04", "name": "Big Bazaar", "amount": 17000, "date": "2026-05-19", "ref": "500g Pickle 250 jars"}, {"id": "c93d3bf7a7c4", "name": "Reliance Fresh", "amount": 19500, "date": "2026-05-26", "ref": "500g Pickle 300 jars"}], "creditors": [{"id": "ce7af47187c4", "name": "Agro Inputs Ltd", "amount": 35000, "date": "2026-03-01", "ref": "Prior RM purchase", "type": "supplier", "fromTB": true}], "cashBook": [{"id": "1381604b928e", "date": "2026-04-21", "type": "receipt", "mode": "cash", "amount": 12000, "party": "Local Market", "desc": "Pickle sale", "bankAccountId": "ba1"}, {"id": "8c0b9f6726b9", "date": "2026-04-26", "type": "payment", "mode": "bank", "amount": 35000, "party": "Workers", "desc": "April wages", "bankAccountId": "ba1"}], "drawings": [{"id": "f49d23640c0e", "date": "2026-05-01", "amount": 20000, "partner": "", "desc": "Owner withdrawal April"}], "advances": [], "bills": [], "nextBillNo": 1, "otherAssets": 0, "otherLiab": 0, "otherAssetsNotes": [], "otherLiabNotes": [], "otherAssetItems": [], "otherLiabItems": [], "intangibleAssets": [], "expenseCategories": ["Rent", "Electricity", "Salary", "Transportation", "Telephone", "Fuel", "Repair", "Marketing", "Interest Payment", "Miscellaneous"], "settings": {"creditDays": 45, "defaultMargin": 25}, "partyCodes": {"Reliance Fresh": "RF001", "Export Foods Dubai": "EFD001"}, "customHSN": {}, "security": {"pinEnabled": false, "pinHash": ""}, "priorPeriod": {"enabled": false, "fromDate": "", "toDate": "", "sales": 0, "cogs": 0, "expenseByCat": {}}, "incomeTax": {"ay": "2026-27", "taxpayerType": "individual", "gender": "male", "section": "new", "useManual": false}, "gst": {"enabled": true, "gstin": "09ABCPS5678G1Z3", "type": "regular", "defaultRate": 12, "supplyType": "intra", "stateCode": "09"}, "loanAssessment": {"ccLimit": 300000, "tlAmount": 350000, "ccRate": 11, "tlRate": 9, "tlTenure": 60, "salesGrowth": 20, "stockDays": 45, "debtorDays": 30, "creditorDays": 30, "expGrowth": 10, "marginPctTurnover": 25, "marginPctTandon": 25, "useManual": false}}));}catch(err){}})();
 </script>
 </body>
 </html>
