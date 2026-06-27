@@ -6020,6 +6020,72 @@ function pgHelp(){
     )
   );
 
+
+  h += hs(
+    bi('13. Payment Due Dates — How App Calculates', '13. Payment Due Dates — App कैसे Calculate करता है'),
+    bi(
+      '<p><b>Debtor (Customer) Due Date:</b></p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:2">' +
+      '<li>Due Date = <b>Date of Sale + Credit Period (days)</b></li>' +
+      '<li>Example: Sale on 5-Apr, Credit 30 days → Due Date = 5-May</li>' +
+      '<li>If payment not received by 5-May → shown as <b>Overdue</b> in Payment Reminders</li>' +
+      '<li>Alert appears in popup if due within 3 days or already overdue</li>' +
+      '</ul>' +
+      '<p><b>Creditor (Supplier) Due Date:</b></p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:2">' +
+      '<li>Due Date = <b>Date of Purchase + Credit Period (days)</b></li>' +
+      '<li>Example: Purchase on 10-Apr, Credit 30 days → You must pay by 10-May</li>' +
+      '<li>If not paid by 10-May → shown as <b>Overdue</b></li>' +
+      '</ul>' +
+      '<p><b>Loan EMI Due Date:</b></p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:2">' +
+      '<li>EMI Scheduled Date = Sanction Date + n months (same day each month)</li>' +
+      '<li>Example: Loan sanctioned 1-Jan → EMI due on 1st of every month</li>' +
+      '<li><b>Grace Period = 30 days</b> from scheduled date</li>' +
+      '<li>Pay by scheduled date → OK</li>' +
+      '<li>Pay within 30 days of scheduled date → Warning (within grace)</li>' +
+      '<li>Not paid within 30 days → <b>EMI OVERDUE</b> alert</li>' +
+      '</ul>' +
+      '<p><b>Loan Interest Due Date:</b></p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:2">' +
+      '<li>Interest accrues monthly from last payment/sanction date</li>' +
+      '<li><b>Grace Period = 30 days</b> from accrual date</li>' +
+      '<li>Not paid within 30 days of accrual → Interest Overdue alert</li>' +
+      '</ul>' +
+      '<p><b>CC/Overdraft Accounts:</b> No EMI alert. Only CC Limit Exceeded or CC Near Limit (90%) alert.</p>' +
+      '<p><b>New Business:</b> Trial Balance is NOT required for new businesses. Simply go to Profile → set Business Stage = New Business → then directly start entering Sales, Purchases and Expenses. Capital can be entered in Capital/Loans menu.</p>',
+      '<p><b>Debtor (ग्राहक) की Due Date:</b></p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:2">' +
+      '<li>Due Date = <b>Sale की तारीख + Credit Period (दिन)</b></li>' +
+      '<li>Example: Sale 5-Apr, Credit 30 दिन → Due Date = 5-May</li>' +
+      '<li>5-May तक payment नहीं आई → Payment Reminders में <b>Overdue</b> दिखेगा</li>' +
+      '<li>3 दिन में due या पहले से overdue → popup alert आएगा</li>' +
+      '</ul>' +
+      '<p><b>Creditor (आपूर्तिकर्ता) की Due Date:</b></p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:2">' +
+      '<li>Due Date = <b>Purchase की तारीख + Credit Period (दिन)</b></li>' +
+      '<li>Example: Purchase 10-Apr, Credit 30 दिन → 10-May तक pay करना है</li>' +
+      '<li>10-May तक नहीं दिया → <b>Overdue</b> alert</li>' +
+      '</ul>' +
+      '<p><b>Loan EMI की Due Date:</b></p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:2">' +
+      '<li>EMI Schedule Date = Sanction Date + n months (हर महीने उसी तारीख को)</li>' +
+      '<li>Example: Loan 1-Jan को मिला → EMI हर महीने 1 तारीख को due</li>' +
+      '<li><b>Grace Period = 30 दिन</b> scheduled date से</li>' +
+      '<li>Scheduled date पर pay → OK</li>' +
+      '<li>30 दिन के अंदर pay → Warning (grace में है)</li>' +
+      '<li>30 दिन के बाद भी नहीं pay → <b>EMI OVERDUE</b> alert</li>' +
+      '</ul>' +
+      '<p><b>Loan Interest की Due Date:</b></p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:2">' +
+      '<li>Interest हर महीने accrue होता है last payment/sanction date से</li>' +
+      '<li><b>Grace Period = 30 दिन</b> accrual date से</li>' +
+      '<li>30 दिन में interest नहीं दिया → Interest Overdue alert</li>' +
+      '</ul>' +
+      '<p><b>CC/Overdraft:</b> कोई EMI alert नहीं। केवल CC Limit Exceeded या CC Near Limit (90%) alert।</p>' +
+      '<p><b>नया व्यवसाय (New Business):</b> नए व्यवसाय के लिए Trial Balance की जरूरत नहीं। Profile → Business Stage = New Business करें → सीधे Sales, Purchases, Expenses enter करें। Capital Capital/Loans menu में डालें।</p>'
+    )
+  );
   // Developer credit at bottom
   h += '<div style="margin-top:16px;padding:12px;background:#F0F4FF;border-radius:8px;text-align:center">';
   h += '<div style="font-size:11px;color:#1565C0;font-weight:700">ME Khata Suite</div>';
