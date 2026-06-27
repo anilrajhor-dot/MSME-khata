@@ -67,6 +67,40 @@ td{padding:6px 8px;border-bottom:1px solid #BBDEFB;white-space:nowrap}
 .tag{display:inline-flex;align-items:center;gap:5px;background:#F0F4FF;border:1px solid #BBDEFB;border-radius:18px;padding:4px 10px;font-size:12px;margin:2px}
 .tag span.x{cursor:pointer;color:#C62828;font-weight:700}
 .chip{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700}
+
+/* ── DESKTOP / LAPTOP RESPONSIVE ── */
+@media (min-width: 768px) {
+  #app { max-width: 900px !important; }
+  #bn  { max-width: 900px !important; }
+  #tb  { font-size: 16px; padding: 10px 18px; }
+  #tb b{ font-size: 17px; }
+  .card{ padding: 18px; border-radius: 14px; margin-bottom: 16px; }
+  .ch  { font-size: 15px; }
+  .fg label { font-size: 13px; }
+  .fg input, .fg select, .fg textarea { font-size: 14px; padding: 11px; }
+  .btn { font-size: 14px; padding: 12px; }
+  .g2  { grid-template-columns: 1fr 1fr; gap: 14px; }
+  .g3  { grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .sg  { grid-template-columns: 1fr 1fr; gap: 14px; }
+  #nav { gap: 4px; padding: 4px 8px; }
+  #nav button { font-size: 11px; padding: 6px 10px; }
+  table { font-size: 13px; }
+  table th, table td { padding: 9px 10px; }
+  .al  { font-size: 13px; }
+  .alt { font-size: 14px; font-weight: 700; }
+  #biz-switcher-wrap button { font-size: 13px; padding: 8px 14px; }
+}
+@media (min-width: 1024px) {
+  #app { max-width: 1100px !important; }
+  #bn  { max-width: 1100px !important; }
+  #tb  { padding: 12px 24px; }
+  #pg  { padding: 0 8px; }
+  .card{ padding: 22px; border-radius: 16px; }
+  .fg input, .fg select { font-size: 15px; padding: 12px; }
+  table { font-size: 14px; }
+  table th, table td { padding: 10px 12px; }
+}
+
 </style>
 </head>
 <body>
@@ -6409,6 +6443,42 @@ function pgHelp(){
     )
   );
 
+
+  h += hs(
+    bi('12. Startup Alerts & Margin Settings Menu', '12. Startup Alerts & Margin Settings Menu'),
+    bi(
+      '<p><b>Startup Alert Popup:</b> Every time you open the app, it automatically checks for pending actions and shows a popup if any are found. You do NOT need to go anywhere — the popup appears on its own within 1 second of opening.</p>' +
+      '<p><b>Alerts covered:</b></p>' +
+      '<ul style="margin:6px 0 6px 16px;line-height:2">' +
+      '<li>🔴 <b>Debtor Overdue</b> — customer has not paid beyond credit period</li>' +
+      '<li>🟡 <b>Debtor Due Soon</b> — payment due within 3 days</li>' +
+      '<li>🔴 <b>Creditor Due</b> — you need to pay supplier, past due date</li>' +
+      '<li>🟡 <b>Creditor Due Soon</b> — you need to pay within 3 days</li>' +
+      '<li>🏦 <b>EMI Overdue</b> — loan EMI not paid on time</li>' +
+      '<li>🏦 <b>EMI Due Soon</b> — EMI due within 3 days</li>' +
+      '<li>🚨 <b>CC Limit Exceeded</b> — outstanding balance exceeds sanctioned CC limit</li>' +
+      '<li>⚠️ <b>CC Near Limit</b> — 90% or more of CC limit used</li>' +
+      '</ul>' +
+      '<p><b>How to act:</b> Each alert has an action button — tap it to go directly to the relevant menu. Tap "Dismiss" to close the popup for that session. The popup reappears next time you open the app if the issue is not resolved.</p>' +
+      '<p><b>Margin Settings Menu:</b> A new separate menu called <b>Margin Settings</b> (visible in the top navigation bar). Set your default profit margin % here — e.g. 20% means if cost is ₹100, sale price is auto-filled as ₹120. A live preview table shows the auto-price for ₹100, ₹250, ₹500, ₹1000, ₹2500 cost items. Also shows every inventory item with its auto-calculated sale price.</p>' +
+      '<p><b>Payment Reminders menu</b> now has a button to jump directly to Margin Settings. Credit period setting remains in Payment Reminders.</p>',
+      '<p><b>Startup Alert Popup:</b> App खोलते ही अपने आप 1 सेकंड में popup आता है अगर कोई pending action है। खुद कहीं जाने की जरूरत नहीं।</p>' +
+      '<p><b>Alerts क्या-क्या आते हैं:</b></p>' +
+      '<ul style="margin:6px 0 6px 16px;line-height:2">' +
+      '<li>🔴 <b>Debtor Overdue</b> — ग्राहक ने credit period के बाद भी payment नहीं की</li>' +
+      '<li>🟡 <b>Debtor Due Soon</b> — 3 दिन में payment due है</li>' +
+      '<li>🔴 <b>Creditor Due</b> — आपको supplier को payment करनी है, due हो गई</li>' +
+      '<li>🟡 <b>Creditor Due Soon</b> — 3 दिन में payment करनी है</li>' +
+      '<li>🏦 <b>EMI Overdue</b> — loan की EMI समय पर नहीं भरी</li>' +
+      '<li>🏦 <b>EMI Due Soon</b> — 3 दिन में EMI due है</li>' +
+      '<li>🚨 <b>CC Limit Exceeded</b> — CC limit से ज्यादा outstanding है</li>' +
+      '<li>⚠️ <b>CC Near Limit</b> — CC limit का 90% या ज्यादा use हो गया</li>' +
+      '</ul>' +
+      '<p><b>कैसे act करें:</b> हर alert में एक action button है — tap करें, सीधे उस menu में चले जाएंगे। "Dismiss" tap करने से popup बंद हो जाता है उस session के लिए। अगली बार app खोलने पर फिर आएगा अगर problem solve नहीं हुई।</p>' +
+      '<p><b>Margin Settings Menu:</b> Navigation bar में नया <b>Margin Settings</b> menu है। यहाँ default profit margin % set करें — जैसे 20% मतलब ₹100 cost पर sale price ₹120 auto-fill होगी। Live preview table दिखाता है ₹100 से ₹2500 cost items पर auto price। हर inventory item का auto sale price भी दिखता है।</p>' +
+      '<p><b>Payment Reminders menu</b> में अब Margin Settings पर जाने का button भी है।</p>'
+    )
+  );
   // ── QUICK CHECKLISTS ──
   h += hs(
     bi('13. Quick Checklists', '13. त्वरित Checklist'),
@@ -8471,16 +8541,125 @@ function saveLoanAssess() {
 // ===================================================================
 // PAYMENT REMINDER SYSTEM
 // ===================================================================
+function pgConsumption(){
+  var cart = window._prodCart || [];
+  var hasOutput = window._prodHasOutput===true; // default false (write-off/usage only)
+
+  // Items for resale: existing Resale-category items, plus option to create a new one
+  var fgOpts=[{v:'__new__',l:'+ New Item for Resale (type name below)'}];
+  for(var i=0;i<D.inventory.length;i++){
+    if((D.inventory[i].category||'Resale')==='Resale') fgOpts.push({v:D.inventory[i].id,l:D.inventory[i].itemName+' ('+D.inventory[i].unit+', current stock: '+fmt(D.inventory[i].currentStock)+')'});
+  }
+  var fgSel = window._prodFG || '__new__';
+  var newFgFields='';
+  if(fgSel==='__new__'){
+    newFgFields = g2(inp('New Item Name','prod_newname','text',window._prodNewName||''),sl('Unit','prod_newunit',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'));
+  }
+
+  // Items available to consume: Spares/Consumable with stock
+  var consOpts=[{v:'',l:'-- Select Item --'}];
+  for(i=0;i<D.inventory.length;i++){
+    var it=D.inventory[i];
+    if((it.category||'Resale')==='Consumable'){
+      var inCart=0; cart.forEach(function(c){if(c.itemId===it.id)inCart+=c.qty;});
+      var avail=(it.currentStock+(it.importedStock||0))-inCart;
+      consOpts.push({v:it.id,l:it.itemName+' ('+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'Out of stock')+')'});
+    }
+  }
+
+  var h = '<div style="margin-bottom:8px">'+btn('← Back to Sales','window._salMode=null;renderPage()','#546E7A')+'</div>';
+  h += '<div class="al ali"><div class="alt">Record Production / Consumption</div><p>Use this whenever Spares or Consumables are used up. If this produces an item you will sell (e.g., parts assembled into a repaired/refurbished product), choose "Produces an item for Resale" below and that item\'s stock will increase at the cost of materials consumed. If nothing is produced for sale (used directly on a customer\'s job, samples, spoilage, testing), choose "No output - write-off / usage only".</p></div>';
+
+  h += card('What does this consumption produce?',
+    '<div class="fg"><label>Output</label><select id="prod_output" onchange="onProdOutputChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
+    '<option value="no"'+(!hasOutput?' selected':'')+'>No output - write-off / usage only</option>'+
+    '<option value="yes"'+(hasOutput?' selected':'')+'>Produces an item for Resale</option>'+
+    '</select></div>'
+  );
+
+  if(hasOutput){
+    h += card('Item Produced (for Resale)',
+      '<div class="fg"><label>Item</label><select id="prod_fg" onchange="onProdFGChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
+      fgOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===fgSel?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
+      '</select></div>'+
+      '<div id="prod_newwrap">'+newFgFields+'</div>'+
+      g2(inp('Date','prod_d','date',window._prodDate||td()),inp('Quantity Produced','prod_qty','number',window._prodQty||''))
+    );
+  } else {
+    h += card('Write-off / Usage Details',
+      '<div class="al alw" style="margin-bottom:8px"><b>Important:</b> This reduces stock and Net Profit with nothing added to any other item\'s stock. Use this for spares/materials used directly on a job, samples, spoilage, breakage, testing, etc.</div>'+
+      inp('Date','prod_d','date',window._prodDate||td())
+    );
+  }
+
+  // Add material row
+  var selId = window._prodItem || '';
+  var selItem=null; for(i=0;i<D.inventory.length;i++) if(D.inventory[i].id===selId) selItem=D.inventory[i];
+  var costInfo='';
+  if(selItem){
+    var totQty=selItem.currentStock+(selItem.importedStock||0);
+    var totVal=selItem.currentStock*selItem.avgCost+(selItem.importedStock||0)*(selItem.importedAvgCost||0);
+    var blended = totQty>0?totVal/totQty:0;
+    costInfo='<div class="al ali">Average Cost: '+fc(blended)+' per '+esc(selItem.unit)+'. Available: '+fmt(totQty)+' '+esc(selItem.unit)+'</div>';
+  }
+  h += card('Add Spares/Consumable Used',
+    sl('Item','prod_item',consOpts,selId)+
+    costInfo+
+    inp('Quantity','prod_mq','number',window._prodMQty||'')+
+    btn('+ Add Item','addToProductionCart()','#6A1B9A')
+  );
+
+  // Cart table
+  if(cart.length){
+    var total=0;
+    var rows = cart.map(function(c,idx){
+      total += c.cost;
+      return '<tr><td style="padding:6px 4px">'+esc(c.itemName)+'</td><td style="padding:6px;text-align:right">'+fmt(c.qty)+' '+esc(c.unit)+'</td><td style="padding:6px;text-align:right">'+fc(c.cost)+'</td><td style="padding:6px;text-align:right">'+btn('✕','removeFromProductionCart('+idx+')','#C62828')+'</td></tr>';
+    }).join('');
+    var qtyProd = gvn('prod_qty')||window._prodQty||0;
+    h += card('Items to be Consumed',
+      '<table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px 4px">Item</th><th style="text-align:right;padding:6px">Qty</th><th style="text-align:right;padding:6px">Cost</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      '<div style="margin-top:8px;font-weight:700">Total Material Cost: '+fc(total)+'</div>'+
+      (hasOutput ? (qtyProd>0 ? '<div style="font-size:12px;color:#546E7A">Cost per unit produced: '+fc(total/qtyProd)+'</div>' : '<div class="al ali">Enter Quantity Produced above to see cost per unit.</div>') : '')+
+      inp('Notes (optional)','prod_notes','text',window._prodNotes||'')+
+      btn(hasOutput?'✓ Record Production':'✓ Record Write-off','addProduction()','#2E7D32')
+    );
+  }
+
+  if(D.productions && D.productions.length){
+    h += card('Production Register', tbl([
+      {l:'Date',k:'date'},
+      {l:'Item Produced',k:'fgItemName'},
+      {l:'Qty Produced',r:1,fn:function(r){return fmt(r.qtyProduced);}},
+      {l:'Material Cost',r:1,fn:function(r){return fc(r.totalCost);}},
+      {l:'Cost/Unit',r:1,fn:function(r){return fc(r.qtyProduced>0?r.totalCost/r.qtyProduced:0);}},
+      {l:'Notes',k:'notes'},
+      {l:'',fn:function(r){return btn('Delete','deleteProduction('+Q+r.id+Q+')','#C62828');}}
+    ],[].concat(D.productions).reverse()));
+  }
+
+  if(D.consumptions && D.consumptions.length){
+    h += card('Write-off / Usage Register', tbl([
+      {l:'Date',k:'date'},
+      {l:'Item',k:'itemName'},
+      {l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},
+      {l:'Value',r:1,fn:function(r){return fc(r.amount);}},
+      {l:'Notes',k:'notes'},
+      {l:'',fn:function(r){return btn('Delete','deleteConsumption('+Q+r.id+Q+')','#C62828');}}
+    ],[].concat(D.consumptions).reverse()));
+  }
+  return h;
+}
 function pgReminders(){
   var creditDays = +(D.settings&&D.settings.creditDays)||30;
   var h = '';
 
   h += card('Reminder Settings',
     '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Set the global credit period. Any debtor whose outstanding amount is older than this many days will appear in the overdue list.</div>'+
-    g2(inp('Credit Period (days)','rem_days','number',creditDays),inp('Default Sale Margin %','def_margin','number',+(D.settings&&D.settings.defaultMargin)||20))+
-      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Margin % auto-fills Selling Price in Sales. Override per sale.</div>'+
-      g2(''+
-       '<div class="fg"><label>&nbsp;</label>'+btn('💾 Save','saveReminderSettings()','#2E7D32')+'</div>')
+    g2(inp('Credit Period (days)','rem_days','number',creditDays),'')+
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Set credit period for debtor/creditor overdue alerts.</div>'+
+      btn('💾 Save Credit Period','saveReminderSettings()','#2E7D32')+
+      '<div style="margin-top:8px">'+btn('💰 Profit Margin Settings',"go('margin')",'#1565C0')+'</div>'
   );
 
   // Build overdue list
@@ -10696,9 +10875,9 @@ function startApp(){
 }
 
 // ===== NAVIGATION & RENDER =====
-var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',reminders:'Payment Reminders',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template'};
-var NAV_ALL = ['profile','dashboard','capital','inventory','purchase','sales','expenses','cashbank','recon','emi','financials','projections','analytics','loanassess','reminders','gstmodule','partycodes','hsnmaster','incometax','reports','data','template','help'];
+var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',reminders:'Payment Reminders',margin:'Margin Settings',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template'};
+var NAV_ALL = ['profile','dashboard','capital','inventory','purchase','sales','expenses','cashbank','recon','emi','financials','projections','analytics','loanassess','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','data','template','help'];
 var BN_PAGES = ['dashboard','sales','purchase','financials','data'];
 var BN_ICONS = ['🏠','🏷️','🛒','📄','⚙️'];
 
@@ -10732,17 +10911,141 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,expenses:pgExp,cashbank:pgCB,emi:pgEMI,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,reminders:pgReminders,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate};
+  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,expenses:pgExp,cashbank:pgCB,emi:pgEMI,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
 }
 
 function toggleHi(){window._hi=!window._hi;var lb=document.getElementById('lb');if(lb)lb.textContent=window._hi?'EN':'हि';buildNav();renderPage();}
 
+
+function pgMargin(){
+  var defM=+(D.settings&&D.settings.defaultMargin)||20;
+  var h='';
+  h+=card('💰 Profit Margin Settings',
+    '<div style="font-size:12px;color:#546E7A;margin-bottom:10px">Set a global default margin % on cost price. Auto-fills selling price in Sales page for every item. Override per sale anytime.</div>'+
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'+
+      '<label style="font-size:14px;font-weight:700;color:#1565C0">Default Margin % on Cost:</label>'+
+      '<input type="number" id="mg_val" value="'+defM+'" min="0" max="500" oninput="onMgPreview(this.value)" '+
+        'style="width:90px;padding:10px;border-radius:10px;border:2px solid #1565C0;font-size:20px;font-weight:800;text-align:center">'+
+    '</div>'+
+    '<div id="mg_preview">'+mgPreviewHtml(defM)+'</div>'+
+    '<div style="margin-top:12px">'+btn('💾 Save Default Margin','saveMargin()','#2E7D32')+'</div>'+
+    '<div style="font-size:11px;color:#90A4AE;margin-top:8px">After saving, go to Sales — select any item — price auto-fills.</div>'
+  );
+  if(D.inventory&&D.inventory.length>0){
+    var rows='',hasCost=false;
+    D.inventory.forEach(function(it){
+      if(!it.avgCost||it.avgCost<=0) return;
+      hasCost=true;
+      var sp=Math.round(it.avgCost*(1+defM/100));
+      rows+='<tr><td style="padding:7px 8px;font-weight:600">'+esc(it.itemName)+'</td>'+
+        '<td style="padding:7px 8px;text-align:right">'+fc(it.avgCost)+'/'+esc(it.unit)+'</td>'+
+        '<td style="padding:7px 8px;text-align:right;color:#1565C0;font-weight:700">'+fc(sp)+'</td>'+
+        '<td style="padding:7px 8px;text-align:right;color:#2E7D32;font-weight:700">'+fc(sp-it.avgCost)+' ('+defM+'%)</td></tr>';
+    });
+    if(hasCost) h+=card('📦 Price Preview at '+defM+'% Margin',
+      '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+      '<tr style="background:#1565C0;color:#fff"><th style="padding:7px 8px;text-align:left">Item</th>'+
+      '<th style="padding:7px 8px;text-align:right">Cost</th><th style="padding:7px 8px;text-align:right">Sale Price</th>'+
+      '<th style="padding:7px 8px;text-align:right">Profit</th></tr>'+rows+'</table></div>');
+  }
+  return h;
+}
+function mgPreviewHtml(m){
+  m=+m||0;
+  var ex=[100,250,500,1000,2500],s='<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px">';
+  ex.forEach(function(c){var sp=Math.round(c*(1+m/100));s+='<div style="background:#E8F5E9;border-radius:8px;padding:7px;text-align:center"><div style="font-size:10px;color:#546E7A">Cost ₹'+c+'</div><div style="font-size:13px;font-weight:800;color:#1565C0">₹'+sp+'</div><div style="font-size:10px;color:#2E7D32">+₹'+(sp-c)+'</div></div>';});
+  return s+'</div>';
+}
+function onMgPreview(v){var el=document.getElementById('mg_preview');if(el)el.innerHTML=mgPreviewHtml(v);}
+function saveMargin(){
+  var m=gvn('mg_val');
+  if(m===null||isNaN(m)||m<0){toast('Enter valid margin %','e');return;}
+  if(!D.settings) D.settings={};
+  D.settings.defaultMargin=m;sv();
+  toast('Default margin saved: '+m+'%');renderPage();
+}
+
+
+function checkStartupAlerts(){
+  var alerts=[],today=td();
+  var creditDays=+(D.settings&&D.settings.creditDays)||30;
+
+  // Debtors
+  var dMap={};
+  (D.debtors||[]).forEach(function(d){if(d.amount>0&&d.date){if(!dMap[d.name]||d.date<dMap[d.name])dMap[d.name]=d.date;}});
+  debtorBalances().forEach(function(d){
+    if(d.balance<=0) return;
+    var date=dMap[d.name]||today,age=daysBetween(date,today),left=creditDays-age;
+    if(age>creditDays) alerts.push({urg:0,icon:'🔴',title:'Debtor Overdue: '+d.name,msg:fc(d.balance)+' overdue by '+(age-creditDays)+' days',action:"go('reminders')",btn:'Send Reminder'});
+    else if(left<=3&&left>=0) alerts.push({urg:1,icon:'🟡',title:'Payment Due Soon: '+d.name,msg:fc(d.balance)+' due in '+left+' day'+(left===1?'':'s'),action:"go('reminders')",btn:'View'});
+  });
+
+  // Creditors
+  var cMap={};
+  (D.creditors||[]).forEach(function(c){if(c.amount>0&&c.date){if(!cMap[c.name]||c.date<cMap[c.name])cMap[c.name]=c.date;}});
+  creditorBalances().forEach(function(c){
+    if(c.balance<=0) return;
+    var date=cMap[c.name];if(!date)return;
+    var age=daysBetween(date,today),left=creditDays-age;
+    if(age>creditDays) alerts.push({urg:0,icon:'🔴',title:'Pay Creditor: '+c.name,msg:fc(c.balance)+' pending '+age+' days',action:"go('reminders')",btn:'View'});
+    else if(left<=3&&left>=0) alerts.push({urg:1,icon:'🟡',title:'Creditor Due Soon: '+c.name,msg:fc(c.balance)+' due in '+left+' day'+(left===1?'':'s'),action:"go('reminders')",btn:'View'});
+  });
+
+  // Loans EMI
+  (D.loans||[]).forEach(function(l){
+    if(!l.outstandingBalance||l.outstandingBalance<=0||!l.emi) return;
+    var last=l.lastInterestDate||l.sanctionDate||'';if(!last)return;
+    var days=daysBetween(last,today),left=30-days;
+    if(left<0) alerts.push({urg:0,icon:'🏦',title:'EMI Overdue: '+l.lender,msg:'EMI '+fc(l.emi)+' overdue by '+(-left)+' days | O/S: '+fc(l.outstandingBalance),action:"go('capital')",btn:'View Loan'});
+    else if(left<=3) alerts.push({urg:1,icon:'🏦',title:'EMI Due Soon: '+l.lender,msg:'EMI '+fc(l.emi)+' due in '+left+' day'+(left===1?'':'s'),action:"go('capital')",btn:'View Loan'});
+  });
+
+  // CC Limit
+  (D.loans||[]).forEach(function(l){
+    var t=l.loanType||'';
+    if(t.indexOf('CC')<0&&t.indexOf('Cash Credit')<0&&t.indexOf('Overdraft')<0) return;
+    var limit=l.sanctionedAmount||0,used=l.outstandingBalance||0;
+    if(limit>0&&used>limit) alerts.push({urg:0,icon:'🚨',title:'CC Limit EXCEEDED: '+l.lender,msg:'Used '+fc(used)+' vs limit '+fc(limit)+'. Over by '+fc(used-limit)+'. Regularise immediately!',action:"go('capital')",btn:'View CC'});
+    else if(limit>0&&used>limit*0.9) alerts.push({urg:1,icon:'⚠️',title:'CC Near Limit: '+l.lender,msg:'Used '+Math.round(used/limit*100)+'% of '+fc(limit)+'. Only '+fc(limit-used)+' available.',action:"go('capital')",btn:'View CC'});
+  });
+
+  if(!alerts.length) return;
+  alerts.sort(function(a,b){return a.urg-b.urg;});
+  var colors=['#B71C1C','#E65100'],bgs=['#FFEBEE','#FFF3E0'];
+  var body=alerts.map(function(a){
+    var col=colors[Math.min(a.urg,1)],bg=bgs[Math.min(a.urg,1)];
+    return '<div style="background:'+bg+';border-left:4px solid '+col+';border-radius:8px;padding:10px 12px;margin-bottom:8px">'+
+      '<div style="font-weight:700;font-size:13px;color:'+col+'">'+a.icon+' '+esc(a.title)+'</div>'+
+      '<div style="font-size:12px;color:#37474F;margin:3px 0 6px">'+esc(a.msg)+'</div>'+
+      '<button onclick="'+a.action+';closeStartupPopup()" style="padding:5px 12px;border-radius:6px;background:'+col+';color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer">'+esc(a.btn)+'</button>'+
+    '</div>';
+  }).join('');
+
+  var d=document.createElement('div');
+  d.id='startup_popup';
+  d.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  d.innerHTML='<div style="background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.3)">'+
+    '<div style="background:#1565C0;color:#fff;padding:14px 18px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">'+
+      '<div><div style="font-weight:800;font-size:15px">⚠️ '+alerts.length+' Alert'+(alerts.length>1?'s':'')+' — Action Required</div>'+
+      '<div style="font-size:11px;opacity:.8">Tap action button or dismiss</div></div>'+
+      '<button onclick="closeStartupPopup()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:20px;font-weight:700;border-radius:8px;padding:2px 10px;cursor:pointer">✕</button>'+
+    '</div>'+
+    '<div style="overflow-y:auto;padding:14px">'+body+'</div>'+
+    '<div style="padding:12px;border-top:1px solid #eee">'+
+      '<button onclick="closeStartupPopup()" style="width:100%;padding:11px;border-radius:8px;background:#546E7A;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer">✓ Dismiss — I will act on these today</button>'+
+    '</div>'+
+  '</div>';
+  document.body.appendChild(d);
+}
+function closeStartupPopup(){var d=document.getElementById('startup_popup');if(d)d.parentNode.removeChild(d);}
+
 function loadFullApp() {
   D = ld();
   buildNav();
   renderPage();
+  setTimeout(checkStartupAlerts,800);
   // Show welcome screen for new visitors
   showWelcomeIfNeeded();
 }
@@ -10759,8 +11062,10 @@ window.onerror = function(msg, url, line, col, err){
 
 </script>
 
+
+
 <script>
-(function(){try{var ex=localStorage.getItem("mefm_mfg_v10");if(ex){var e=JSON.parse(ex);if(e&&e.profile&&e.profile.businessName)return;}localStorage.setItem("mefm_mfg_v10",JSON.stringify({"profile": {"businessName": "Sharma Pickle Works", "ownerName": "Ramesh Sharma", "mobile": "9876543210", "address": "45, Industrial Area, Agra - 282001", "businessType": "Manufacturing", "businessStage": "existing", "udyam": "UDYAM-UP-09-0045678", "gst": "09ABCPS5678G1Z3", "pan": "ABCPS5678G", "constitution": "Individual", "partners": []}, "capital": {"initialCapital": 800000, "additionalCapital": 100000, "partnerCapital": {}}, "opening": {"cash": 30000, "bank": 180000, "stock": 0, "debtors": 0, "creditors": 0, "capital": 800000, "takenOn": "2026-04-01"}, "trialBalance": [{"id": "ae7be26cdaa7", "head": "cash", "label": "Cash", "amount": 30000, "side": "dr", "notes": ""}, {"id": "aaf2f8999237", "head": "bank", "label": "Bank - PNB", "amount": 180000, "side": "dr", "notes": "PNB CA 223344"}, {"id": "9678f7a7939f", "head": "stockitem", "label": "Raw Mango", "amount": 60000, "side": "dr", "notes": "2000 kg @ ₹30", "itemName": "Raw Mango", "unit": "Kg", "qty": 2000, "rate": 30, "category": "RM"}, {"id": "fd6b6fc9220b", "head": "stockitem", "label": "Spices Mix", "amount": 25000, "side": "dr", "notes": "100 kg @ ₹250", "itemName": "Spices Mix", "unit": "Kg", "qty": 100, "rate": 250, "category": "Consumable"}, {"id": "7b1f6dff14d8", "head": "capital", "label": "Ramesh Sharma Capital", "amount": 800000, "side": "cr", "notes": ""}, {"id": "36604411a85d", "head": "fixedassetitem", "label": "Pickle Making Machine", "amount": 350000, "side": "dr", "notes": "", "itemName": "Pickle Making Machine", "purchaseDate": "2025-01-01", "life": 10, "accumDep": 29167}, {"id": "0449904fbf32", "head": "loan", "label": "SBI Term Loan", "amount": 175000, "side": "cr", "notes": "Machine loan @9%", "lender": "State Bank of India", "rate": 9, "tenure": 60, "sanctionDate": "2025-01-01"}, {"id": "980b79c2a71b", "head": "creditors", "label": "Agro Inputs Ltd", "amount": 35000, "side": "cr", "notes": "RM purchase o/s", "party": "Agro Inputs Ltd"}], "tbPosted": true, "tbPostedOn": "2026-04-01", "bankAccounts": [{"id": "ba1", "name": "PNB CA-223344"}], "inventory": [{"id": "968f3512115f", "itemName": "Raw Mango", "unit": "Kg", "category": "RM", "currentStock": 2000, "avgCost": 30, "importedStock": 0, "importedAvgCost": 0}, {"id": "b1bf8e6f2cb4", "itemName": "Spices Mix", "unit": "Kg", "category": "Consumable", "currentStock": 100, "avgCost": 250, "importedStock": 0, "importedAvgCost": 0}, {"id": "bc9488aeead7", "itemName": "Salt", "unit": "Kg", "category": "Consumable", "currentStock": 0, "avgCost": 0, "importedStock": 0, "importedAvgCost": 0}, {"id": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "unit": "Jar", "category": "FG", "currentStock": 0, "avgCost": 0, "importedStock": 0, "importedAvgCost": 0}, {"id": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "unit": "Jar", "category": "FG", "currentStock": 0, "avgCost": 0, "importedStock": 0, "importedAvgCost": 0}], "purchases": [{"id": "48d54f43c30a", "date": "2026-04-03", "supplier": "Agro Inputs Ltd", "itemId": "968f3512115f", "itemName": "Raw Mango", "qty": 3000, "rate": 28, "amount": 84000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": "Summer season stock"}, {"id": "defc72a96803", "date": "2026-04-04", "supplier": "Spice World", "itemId": "b1bf8e6f2cb4", "itemName": "Spices Mix", "qty": 150, "rate": 245, "amount": 36750, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": ""}, {"id": "28dafd4a8cb5", "date": "2026-04-05", "supplier": "Salt Depot", "itemId": "bc9488aeead7", "itemName": "Salt", "qty": 200, "rate": 18, "amount": 3600, "paymentMode": "cash", "bankAccountId": "ba1", "isImported": false, "notes": ""}, {"id": "4866d635ea7b", "date": "2026-05-06", "supplier": "Agro Inputs Ltd", "itemId": "968f3512115f", "itemName": "Raw Mango", "qty": 1000, "rate": 35, "amount": 35000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": "May top-up"}], "productions": [{"id": "179baa46d1a8", "date": "2026-04-11", "fgItemId": "bc824fd7a78c", "fgItemName": "Mango Pickle (500g jar)", "qtyProduced": 800, "consumedItems": [{"itemId": "968f3512115f", "itemName": "Raw Mango", "unit": "Kg", "qty": 600, "cost": 16800, "fromIndig": 600, "fromImp": 0, "indigCostEach": 28, "impCostEach": 0}, {"itemId": "b1bf8e6f2cb4", "itemName": "Spices Mix", "unit": "Kg", "qty": 60, "cost": 14700, "fromIndig": 60, "fromImp": 0, "indigCostEach": 245, "impCostEach": 0}, {"itemId": "bc9488aeead7", "itemName": "Salt", "unit": "Kg", "qty": 30, "cost": 540, "fromIndig": 30, "fromImp": 0, "indigCostEach": 18, "impCostEach": 0}], "totalCost": 32040, "notes": "April production batch 1"}, {"id": "9c3db6b8fd0f", "date": "2026-04-16", "fgItemId": "d223c94cade9", "fgItemName": "Mango Pickle (1kg jar)", "qtyProduced": 400, "consumedItems": [{"itemId": "968f3512115f", "itemName": "Raw Mango", "unit": "Kg", "qty": 560, "cost": 15680, "fromIndig": 560, "fromImp": 0, "indigCostEach": 28, "impCostEach": 0}, {"itemId": "b1bf8e6f2cb4", "itemName": "Spices Mix", "unit": "Kg", "qty": 48, "cost": 11760, "fromIndig": 48, "fromImp": 0, "indigCostEach": 245, "impCostEach": 0}, {"itemId": "bc9488aeead7", "itemName": "Salt", "unit": "Kg", "qty": 24, "cost": 432, "fromIndig": 24, "fromImp": 0, "indigCostEach": 18, "impCostEach": 0}], "totalCost": 27872, "notes": "April production batch 2"}], "consumptions": [{"id": "cae0bc703569", "date": "2026-04-13", "itemId": "968f3512115f", "itemName": "Raw Mango", "category": "RM", "qty": 50, "amount": 1400, "notes": "Damaged - write off", "fromIndig": 50, "fromImp": 0, "indigCostEach": 28, "impCostEach": 0}], "sales": [{"id": "c498c329342d", "date": "2026-04-19", "customer": "Reliance Fresh", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 300, "price": 65, "totalAmount": 19500, "cogs": 12015, "grossProfit": 7485, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "d9c2a84bca85", "date": "2026-04-21", "customer": "Local Market", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 200, "price": 60, "totalAmount": 12000, "cogs": 8010, "grossProfit": 3990, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "52d2a7b1ada1", "date": "2026-04-26", "customer": "Reliance Fresh", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 150, "price": 120, "totalAmount": 18000, "cogs": 10452, "grossProfit": 7548, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "a052aeb3458b", "date": "2026-05-11", "customer": "Export Foods Dubai", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 200, "price": 90, "totalAmount": 18000, "cogs": 8010, "grossProfit": 9990, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": true}, {"id": "7e2b38b62271", "date": "2026-05-16", "customer": "Local Market", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 100, "price": 115, "totalAmount": 11500, "cogs": 6968, "grossProfit": 4532, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "b436f0a9f24d", "date": "2026-05-19", "customer": "Big Bazaar", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 250, "price": 68, "totalAmount": 17000, "cogs": 10013, "grossProfit": 6988, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "b18a8d2ac7e1", "date": "2026-05-23", "customer": "Local Market", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 120, "price": 118, "totalAmount": 14160, "cogs": 8362, "grossProfit": 5799, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "7251d521c5db", "date": "2026-05-26", "customer": "Reliance Fresh", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 300, "price": 65, "totalAmount": 19500, "cogs": 12015, "grossProfit": 7485, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "375a6942ab47", "date": "2026-05-29", "customer": "Export Foods Dubai", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 100, "price": 140, "totalAmount": 14000, "cogs": 6968, "grossProfit": 7032, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": true}], "expenses": [{"id": "0aa2de4196bc", "date": "2026-04-02", "category": "Rent", "amount": 15000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Factory Rent April"}, {"id": "d58e6bc31392", "date": "2026-05-02", "category": "Rent", "amount": 15000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Factory Rent May"}, {"id": "a93ed035b2ef", "date": "2026-05-01", "category": "Salary", "amount": 35000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Workers Wages April"}, {"id": "31f82514bef3", "date": "2026-05-31", "category": "Salary", "amount": 35000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Workers Wages May"}, {"id": "8e8faf5312f6", "date": "2026-04-16", "category": "Electricity", "amount": 8500, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Power Bill"}, {"id": "5f7a1738d4d8", "date": "2026-04-11", "category": "Fuel", "amount": 4200, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Generator diesel"}, {"id": "1f6e6e6daef2", "date": "2026-04-21", "category": "Transportation", "amount": 6500, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Delivery charges"}, {"id": "9a2ea125d6d9", "date": "2026-05-01", "category": "Interest Payment", "amount": 1313, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "SBI TL Interest April"}], "loans": [{"id": "ed05c1a98a54", "loanType": "Term Loan", "lender": "State Bank of India", "sanctionDate": "2025-01-01", "sanctionedAmount": 350000, "outstandingBalance": 175000, "rate": 9, "tenure": 60, "emi": 7266, "lastInterestDate": "2025-01-01", "accountNumber": "SBI-TL-UP0023", "undrawn": false, "payments": []}], "fixedAssets": [{"id": "915c19098389", "name": "Pickle Making Machine", "purchaseDate": "2025-01-01", "cost": 350000, "life": 10, "accumDep": 29167, "disposed": false}], "debtors": [{"id": "1b047d16e3a0", "name": "Reliance Fresh", "amount": 19500, "date": "2026-04-19", "ref": "Pickle 300 jars"}, {"id": "c267c02ee2b6", "name": "Reliance Fresh", "amount": 18000, "date": "2026-04-26", "ref": "1kg Pickle 150 jars"}, {"id": "b1a5b773db04", "name": "Big Bazaar", "amount": 17000, "date": "2026-05-19", "ref": "500g Pickle 250 jars"}, {"id": "c93d3bf7a7c4", "name": "Reliance Fresh", "amount": 19500, "date": "2026-05-26", "ref": "500g Pickle 300 jars"}], "creditors": [{"id": "ce7af47187c4", "name": "Agro Inputs Ltd", "amount": 35000, "date": "2026-03-01", "ref": "Prior RM purchase", "type": "supplier", "fromTB": true}], "cashBook": [{"id": "1381604b928e", "date": "2026-04-21", "type": "receipt", "mode": "cash", "amount": 12000, "party": "Local Market", "desc": "Pickle sale", "bankAccountId": "ba1"}, {"id": "8c0b9f6726b9", "date": "2026-04-26", "type": "payment", "mode": "bank", "amount": 35000, "party": "Workers", "desc": "April wages", "bankAccountId": "ba1"}], "drawings": [{"id": "f49d23640c0e", "date": "2026-05-01", "amount": 20000, "partner": "", "desc": "Owner withdrawal April"}], "advances": [], "bills": [], "nextBillNo": 1, "otherAssets": 0, "otherLiab": 0, "otherAssetsNotes": [], "otherLiabNotes": [], "otherAssetItems": [], "otherLiabItems": [], "intangibleAssets": [], "expenseCategories": ["Rent", "Electricity", "Salary", "Transportation", "Telephone", "Fuel", "Repair", "Marketing", "Interest Payment", "Miscellaneous"], "settings": {"creditDays": 45, "defaultMargin": 25}, "partyCodes": {"Reliance Fresh": "RF001", "Export Foods Dubai": "EFD001"}, "customHSN": {}, "security": {"pinEnabled": false, "pinHash": ""}, "priorPeriod": {"enabled": false, "fromDate": "", "toDate": "", "sales": 0, "cogs": 0, "expenseByCat": {}}, "incomeTax": {"ay": "2026-27", "taxpayerType": "individual", "gender": "male", "section": "new", "useManual": false}, "gst": {"enabled": true, "gstin": "09ABCPS5678G1Z3", "type": "regular", "defaultRate": 12, "supplyType": "intra", "stateCode": "09"}, "loanAssessment": {"ccLimit": 300000, "tlAmount": 350000, "ccRate": 11, "tlRate": 9, "tlTenure": 60, "salesGrowth": 20, "stockDays": 45, "debtorDays": 30, "creditorDays": 30, "expGrowth": 10, "marginPctTurnover": 25, "marginPctTandon": 25, "useManual": false}}));}catch(err){}})();
+(function(){try{var ex=localStorage.getItem("mefm_mfg_v10");if(ex){var e=JSON.parse(ex);if(e&&e.profile&&e.profile.businessName)return;}localStorage.setItem("mefm_mfg_v10",JSON.stringify({"profile": {"businessName": "Sharma Pickle Works", "ownerName": "Ramesh Sharma", "mobile": "9876543210", "address": "45, Industrial Area, Agra - 282001", "businessType": "Manufacturing", "businessStage": "existing", "udyam": "UDYAM-UP-09-0045678", "gst": "09ABCPS5678G1Z3", "pan": "ABCPS5678G", "constitution": "Individual", "partners": []}, "capital": {"initialCapital": 800000, "additionalCapital": 100000, "partnerCapital": {}}, "opening": {"cash": 30000, "bank": 180000, "stock": 0, "debtors": 0, "creditors": 0, "capital": 800000, "takenOn": "2026-04-01"}, "trialBalance": [{"id": "ae7be26cdaa7", "head": "cash", "label": "Cash", "amount": 30000, "side": "dr", "notes": ""}, {"id": "aaf2f8999237", "head": "bank", "label": "Bank - PNB", "amount": 180000, "side": "dr", "notes": "PNB CA 223344"}, {"id": "9678f7a7939f", "head": "stockitem", "label": "Raw Mango", "amount": 60000, "side": "dr", "notes": "2000 kg @ ₹30", "itemName": "Raw Mango", "unit": "Kg", "qty": 2000, "rate": 30, "category": "RM"}, {"id": "fd6b6fc9220b", "head": "stockitem", "label": "Spices Mix", "amount": 25000, "side": "dr", "notes": "100 kg @ ₹250", "itemName": "Spices Mix", "unit": "Kg", "qty": 100, "rate": 250, "category": "Consumable"}, {"id": "7b1f6dff14d8", "head": "capital", "label": "Ramesh Sharma Capital", "amount": 800000, "side": "cr", "notes": ""}, {"id": "36604411a85d", "head": "fixedassetitem", "label": "Pickle Making Machine", "amount": 350000, "side": "dr", "notes": "", "itemName": "Pickle Making Machine", "purchaseDate": "2025-01-01", "life": 10, "accumDep": 29167}, {"id": "0449904fbf32", "head": "loan", "label": "SBI Term Loan", "amount": 175000, "side": "cr", "notes": "Machine loan @9%", "lender": "State Bank of India", "rate": 9, "tenure": 60, "sanctionDate": "2025-01-01"}, {"id": "980b79c2a71b", "head": "creditors", "label": "Agro Inputs Ltd", "amount": 35000, "side": "cr", "notes": "RM purchase o/s", "party": "Agro Inputs Ltd"}, {"id": "bdcfedd1c96e", "head": "otherassets", "label": "Prior Year Retained Earnings (Asset side)", "amount": 365000, "side": "dr", "notes": "Balancing figure", "customName": "Prior Retained Earnings"}], "tbPosted": true, "tbPostedOn": "2026-04-01", "bankAccounts": [{"id": "ba1", "name": "PNB CA-223344"}], "inventory": [{"id": "968f3512115f", "itemName": "Raw Mango", "unit": "Kg", "category": "RM", "currentStock": 2000, "avgCost": 30, "importedStock": 0, "importedAvgCost": 0}, {"id": "b1bf8e6f2cb4", "itemName": "Spices Mix", "unit": "Kg", "category": "Consumable", "currentStock": 100, "avgCost": 250, "importedStock": 0, "importedAvgCost": 0}, {"id": "bc9488aeead7", "itemName": "Salt", "unit": "Kg", "category": "Consumable", "currentStock": 0, "avgCost": 0, "importedStock": 0, "importedAvgCost": 0}, {"id": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "unit": "Jar", "category": "FG", "currentStock": 0, "avgCost": 0, "importedStock": 0, "importedAvgCost": 0}, {"id": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "unit": "Jar", "category": "FG", "currentStock": 0, "avgCost": 0, "importedStock": 0, "importedAvgCost": 0}], "purchases": [{"id": "48d54f43c30a", "date": "2026-04-03", "supplier": "Agro Inputs Ltd", "itemId": "968f3512115f", "itemName": "Raw Mango", "qty": 3000, "rate": 28, "amount": 84000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": "Summer season stock"}, {"id": "defc72a96803", "date": "2026-04-04", "supplier": "Spice World", "itemId": "b1bf8e6f2cb4", "itemName": "Spices Mix", "qty": 150, "rate": 245, "amount": 36750, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": ""}, {"id": "28dafd4a8cb5", "date": "2026-04-05", "supplier": "Salt Depot", "itemId": "bc9488aeead7", "itemName": "Salt", "qty": 200, "rate": 18, "amount": 3600, "paymentMode": "cash", "bankAccountId": "ba1", "isImported": false, "notes": ""}, {"id": "4866d635ea7b", "date": "2026-05-06", "supplier": "Agro Inputs Ltd", "itemId": "968f3512115f", "itemName": "Raw Mango", "qty": 1000, "rate": 35, "amount": 35000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false, "notes": "May top-up"}], "productions": [{"id": "179baa46d1a8", "date": "2026-04-11", "fgItemId": "bc824fd7a78c", "fgItemName": "Mango Pickle (500g jar)", "qtyProduced": 800, "consumedItems": [{"itemId": "968f3512115f", "itemName": "Raw Mango", "unit": "Kg", "qty": 600, "cost": 16800, "fromIndig": 600, "fromImp": 0, "indigCostEach": 28, "impCostEach": 0}, {"itemId": "b1bf8e6f2cb4", "itemName": "Spices Mix", "unit": "Kg", "qty": 60, "cost": 14700, "fromIndig": 60, "fromImp": 0, "indigCostEach": 245, "impCostEach": 0}, {"itemId": "bc9488aeead7", "itemName": "Salt", "unit": "Kg", "qty": 30, "cost": 540, "fromIndig": 30, "fromImp": 0, "indigCostEach": 18, "impCostEach": 0}], "totalCost": 32040, "notes": "April production batch 1"}, {"id": "9c3db6b8fd0f", "date": "2026-04-16", "fgItemId": "d223c94cade9", "fgItemName": "Mango Pickle (1kg jar)", "qtyProduced": 400, "consumedItems": [{"itemId": "968f3512115f", "itemName": "Raw Mango", "unit": "Kg", "qty": 560, "cost": 15680, "fromIndig": 560, "fromImp": 0, "indigCostEach": 28, "impCostEach": 0}, {"itemId": "b1bf8e6f2cb4", "itemName": "Spices Mix", "unit": "Kg", "qty": 48, "cost": 11760, "fromIndig": 48, "fromImp": 0, "indigCostEach": 245, "impCostEach": 0}, {"itemId": "bc9488aeead7", "itemName": "Salt", "unit": "Kg", "qty": 24, "cost": 432, "fromIndig": 24, "fromImp": 0, "indigCostEach": 18, "impCostEach": 0}], "totalCost": 27872, "notes": "April production batch 2"}], "consumptions": [{"id": "cae0bc703569", "date": "2026-04-13", "itemId": "968f3512115f", "itemName": "Raw Mango", "category": "RM", "qty": 50, "amount": 1400, "notes": "Damaged - write off", "fromIndig": 50, "fromImp": 0, "indigCostEach": 28, "impCostEach": 0}], "sales": [{"id": "c498c329342d", "date": "2026-04-19", "customer": "Reliance Fresh", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 300, "price": 65, "totalAmount": 19500, "cogs": 12015, "grossProfit": 7485, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "d9c2a84bca85", "date": "2026-04-21", "customer": "Local Market", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 200, "price": 60, "totalAmount": 12000, "cogs": 8010, "grossProfit": 3990, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "52d2a7b1ada1", "date": "2026-04-26", "customer": "Reliance Fresh", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 150, "price": 120, "totalAmount": 18000, "cogs": 10452, "grossProfit": 7548, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "a052aeb3458b", "date": "2026-05-11", "customer": "Export Foods Dubai", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 200, "price": 90, "totalAmount": 18000, "cogs": 8010, "grossProfit": 9990, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": true}, {"id": "7e2b38b62271", "date": "2026-05-16", "customer": "Local Market", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 100, "price": 115, "totalAmount": 11500, "cogs": 6968, "grossProfit": 4532, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "b436f0a9f24d", "date": "2026-05-19", "customer": "Big Bazaar", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 250, "price": 68, "totalAmount": 17000, "cogs": 10013, "grossProfit": 6988, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "b18a8d2ac7e1", "date": "2026-05-23", "customer": "Local Market", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 120, "price": 118, "totalAmount": 14160, "cogs": 8362, "grossProfit": 5799, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "7251d521c5db", "date": "2026-05-26", "customer": "Reliance Fresh", "itemId": "bc824fd7a78c", "itemName": "Mango Pickle (500g jar)", "qty": 300, "price": 65, "totalAmount": 19500, "cogs": 12015, "grossProfit": 7485, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "375a6942ab47", "date": "2026-05-29", "customer": "Export Foods Dubai", "itemId": "d223c94cade9", "itemName": "Mango Pickle (1kg jar)", "qty": 100, "price": 140, "totalAmount": 14000, "cogs": 6968, "grossProfit": 7032, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": true}], "expenses": [{"id": "0aa2de4196bc", "date": "2026-04-02", "category": "Rent", "amount": 15000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Factory Rent April"}, {"id": "d58e6bc31392", "date": "2026-05-02", "category": "Rent", "amount": 15000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Factory Rent May"}, {"id": "a93ed035b2ef", "date": "2026-05-01", "category": "Salary", "amount": 35000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Workers Wages April"}, {"id": "31f82514bef3", "date": "2026-05-31", "category": "Salary", "amount": 35000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Workers Wages May"}, {"id": "8e8faf5312f6", "date": "2026-04-16", "category": "Electricity", "amount": 8500, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Power Bill"}, {"id": "5f7a1738d4d8", "date": "2026-04-11", "category": "Fuel", "amount": 4200, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Generator diesel"}, {"id": "1f6e6e6daef2", "date": "2026-04-21", "category": "Transportation", "amount": 6500, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Delivery charges"}, {"id": "9a2ea125d6d9", "date": "2026-05-01", "category": "Interest Payment", "amount": 1313, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "SBI TL Interest April"}], "loans": [{"id": "ed05c1a98a54", "loanType": "Term Loan", "lender": "State Bank of India", "sanctionDate": "2025-01-01", "sanctionedAmount": 350000, "outstandingBalance": 175000, "rate": 9, "tenure": 60, "emi": 7266, "lastInterestDate": "2025-01-01", "accountNumber": "SBI-TL-UP0023", "undrawn": false, "payments": []}], "fixedAssets": [{"id": "915c19098389", "name": "Pickle Making Machine", "purchaseDate": "2025-01-01", "cost": 350000, "life": 10, "accumDep": 29167, "disposed": false}], "debtors": [{"id": "1b047d16e3a0", "name": "Reliance Fresh", "amount": 19500, "date": "2026-04-19", "ref": "Pickle 300 jars"}, {"id": "c267c02ee2b6", "name": "Reliance Fresh", "amount": 18000, "date": "2026-04-26", "ref": "1kg Pickle 150 jars"}, {"id": "b1a5b773db04", "name": "Big Bazaar", "amount": 17000, "date": "2026-05-19", "ref": "500g Pickle 250 jars"}, {"id": "c93d3bf7a7c4", "name": "Reliance Fresh", "amount": 19500, "date": "2026-05-26", "ref": "500g Pickle 300 jars"}], "creditors": [{"id": "ce7af47187c4", "name": "Agro Inputs Ltd", "amount": 35000, "date": "2026-03-01", "ref": "Prior RM purchase", "type": "supplier", "fromTB": true}], "cashBook": [{"id": "1381604b928e", "date": "2026-04-21", "type": "receipt", "mode": "cash", "amount": 12000, "party": "Local Market", "desc": "Pickle sale", "bankAccountId": "ba1"}, {"id": "8c0b9f6726b9", "date": "2026-04-26", "type": "payment", "mode": "bank", "amount": 35000, "party": "Workers", "desc": "April wages", "bankAccountId": "ba1"}], "drawings": [{"id": "f49d23640c0e", "date": "2026-05-01", "amount": 20000, "partner": "", "desc": "Owner withdrawal April"}], "advances": [], "bills": [], "nextBillNo": 1, "otherAssets": 0, "otherLiab": 0, "otherAssetsNotes": [], "otherLiabNotes": [], "otherAssetItems": [], "otherLiabItems": [], "intangibleAssets": [], "expenseCategories": ["Rent", "Electricity", "Salary", "Transportation", "Telephone", "Fuel", "Repair", "Marketing", "Interest Payment", "Miscellaneous"], "settings": {"creditDays": 45, "defaultMargin": 25}, "partyCodes": {"Reliance Fresh": "RF001", "Export Foods Dubai": "EFD001"}, "customHSN": {}, "security": {"pinEnabled": false, "pinHash": ""}, "priorPeriod": {"enabled": false, "fromDate": "", "toDate": "", "sales": 0, "cogs": 0, "expenseByCat": {}}, "incomeTax": {"ay": "2026-27", "taxpayerType": "individual", "gender": "male", "section": "new", "useManual": false}, "gst": {"enabled": true, "gstin": "09ABCPS5678G1Z3", "type": "regular", "defaultRate": 12, "supplyType": "intra", "stateCode": "09"}, "loanAssessment": {"ccLimit": 300000, "tlAmount": 350000, "ccRate": 11, "tlRate": 9, "tlTenure": 60, "salesGrowth": 20, "stockDays": 45, "debtorDays": 30, "creditorDays": 30, "expGrowth": 10, "marginPctTurnover": 25, "marginPctTandon": 25, "useManual": false}}));}catch(err){}})();
 </script>
 </body>
 </html>
