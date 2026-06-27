@@ -11,7 +11,7 @@ if(_s&&_s!=="202406270630"){sessionStorage.setItem("mfm_build","202406270630");l
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -68,39 +68,39 @@ td{padding:6px 8px;border-bottom:1px solid #BBDEFB;white-space:nowrap}
 .tag span.x{cursor:pointer;color:#C62828;font-weight:700}
 .chip{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700}
 :root{--theme:#1565C0;}
-/* ── DESKTOP / LAPTOP RESPONSIVE ── */
-@media (min-width: 768px) {
-  #app { max-width: 900px !important; }
-  #bn  { max-width: 900px !important; }
-  #tb  { font-size: 16px; padding: 10px 18px; }
-  #tb b{ font-size: 17px; }
-  .card{ padding: 18px; border-radius: 14px; margin-bottom: 16px; }
-  .ch  { font-size: 15px; }
-  .fg label { font-size: 13px; }
-  .fg input, .fg select, .fg textarea { font-size: 14px; padding: 11px; }
-  .btn { font-size: 14px; padding: 12px; }
-  .g2  { grid-template-columns: 1fr 1fr; gap: 14px; }
-  .g3  { grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-  .sg  { grid-template-columns: 1fr 1fr; gap: 14px; }
-  #nav { gap: 4px; padding: 4px 8px; }
-  #nav button { font-size: 11px; padding: 6px 10px; }
-  table { font-size: 13px; }
-  table th, table td { padding: 9px 10px; }
-  .al  { font-size: 13px; }
-  .alt { font-size: 14px; font-weight: 700; }
-  #biz-switcher-wrap button { font-size: 13px; padding: 8px 14px; }
-}
-@media (min-width: 1024px) {
-  #app { max-width: 1100px !important; }
-  #bn  { max-width: 1100px !important; }
-  #tb  { padding: 12px 24px; }
-  #pg  { padding: 0 8px; }
-  .card{ padding: 22px; border-radius: 16px; }
-  .fg input, .fg select { font-size: 15px; padding: 12px; }
-  table { font-size: 14px; }
-  table th, table td { padding: 10px 12px; }
-}
 
+/* ── DESKTOP FIX — Full Width Centered ── */
+html, body { width:100%; margin:0; padding:0; overflow-x:hidden; }
+#app { 
+  width:100% !important;
+  max-width:100% !important;
+  margin:0 auto !important;
+  box-sizing:border-box !important;
+}
+#tb, #nav, #bn {
+  width:100% !important;
+  max-width:100% !important;
+  box-sizing:border-box !important;
+}
+#pg {
+  width:100% !important;
+  box-sizing:border-box !important;
+  padding:0 12px !important;
+}
+@media (min-width:768px){
+  #app { max-width:960px !important; margin:0 auto !important; }
+  #tb  { max-width:960px !important; margin:0 auto !important; }
+  #nav { max-width:960px !important; margin:0 auto !important; }
+  #bn  { max-width:960px !important; margin:0 auto !important; }
+  #pg  { max-width:960px !important; margin:0 auto !important; padding:0 16px !important; }
+}
+@media (min-width:1200px){
+  #app, #tb, #nav, #bn, #pg { max-width:1100px !important; }
+}
+/* Fix pointer events — ensure all elements clickable */
+* { pointer-events:auto; }
+button, input, select, textarea, a { cursor:pointer !important; }
+input[type=text], input[type=number], input[type=date], textarea { cursor:text !important; }
 </style>
 </head>
 <body>
@@ -373,12 +373,15 @@ function postCB(mode,type,amount,party,desc,date){
 // ── TB GUARD HELPERS ──────────────────────────────────────────────────────
 // Rule 1: Block entry if Trial Balance not yet posted
 function requireTBPosted(){
+  // New business does NOT need Trial Balance — bypass completely
+  if(D.profile && D.profile.businessStage==='new') return true;
   if(D.tbPosted) return true;
   confirmDialog(
     '⚠️ Opening Trial Balance Not Posted\n\n'+
     'You must enter and post your Opening Trial Balance before adding individual items here.\n\n'+
     'Go to: Data → Opening Trial Balance → enter your opening balances → Post to Books.\n\n'+
-    'This ensures your Balance Sheet stays in balance.',
+    'This ensures your Balance Sheet stays in balance.\n\n'+
+    'Tip: If this is a NEW business with no prior balances, go to Profile and change Business Stage to "New Business".',
     function(){ go('data'); window._dtab='trial'; renderPage(); }
   );
   return false;
@@ -990,7 +993,7 @@ function pgCap(){
     ],allRepayments()));
   }
   else if(tab==='interest'){
-    var rows=D.loans.map(function(l){return{bankName:l.bankName,loanType:l.loanType,outstandingBalance:l.outstandingBalance,rate:l.rate,accrued:loanAccruedInterest(l),from:l.lastInterestDate||l.sanctionDate};});
+    var rows=D.loans.map(function(l){return{bankName:l.bankName,loanType:l.loanType,outstandingBalance:l.outstandingBalance,rate:l.rate,accrued:loanAccruedInterest(l),from:l.lastInterestDate||l.sanctionDate,nextEMIDue:(function(){var pays=l.payments||[];var lastStr=pays.length>0?pays.reduce(function(a,b){return a.date>b.date?a:b;}).date:(l.lastInterestDate||l.sanctionDate||'');if(!lastStr)return '';var d=new Date(lastStr);d.setMonth(d.getMonth()+1);return d.toISOString().slice(0,10);}())};});
     var tot=rows.reduce(function(a,r){return a+r.accrued;},0);
     h+=card('Provisional Interest Outstanding (as on '+td()+')',
       tbl([
@@ -8135,18 +8138,42 @@ function pgReminders(){
   var today = td();
   var dList = debtorBalances();
   var overdue = [], upcoming = [];
-  var dateMap = {};
+  // Per-party: find earliest unpaid sale date (most overdue entry)
+  // Due date = sale/purchase date + creditDays
+  // Overdue if: today > (transaction date + creditDays)
+  var earliestDateMap = {}, latestDateMap = {};
   D.debtors.forEach(function(d){
-    if(d.amount>0&&d.date){ if(!dateMap[d.name]||d.date<dateMap[d.name]) dateMap[d.name]=d.date; }
+    if(d.amount>0&&d.date){
+      if(!earliestDateMap[d.name]||d.date<earliestDateMap[d.name]) earliestDateMap[d.name]=d.date;
+      if(!latestDateMap[d.name]||d.date>latestDateMap[d.name]) latestDateMap[d.name]=d.date;
+    }
+  });
+  // Also check credit sales for their transaction date
+  (D.sales||[]).forEach(function(s){
+    if(s.paymentMode==='credit'&&s.date){
+      var nm=s.customerName||s.customer||'';
+      if(!nm) return;
+      if(!earliestDateMap[nm]||s.date<earliestDateMap[nm]) earliestDateMap[nm]=s.date;
+      if(!latestDateMap[nm]||s.date>latestDateMap[nm]) latestDateMap[nm]=s.date;
+    }
   });
 
   dList.forEach(function(d){
     if(d.balance<=0) return;
-    var date = dateMap[d.name]||today;
-    var age  = daysBetween(date, today);
-    var daysOverdue = age - creditDays;
-    if(daysOverdue>0) overdue.push({name:d.name,balance:d.balance,date:date,age:age,daysOverdue:daysOverdue});
-    else upcoming.push({name:d.name,balance:d.balance,date:date,age:age,daysLeft:(-daysOverdue)});
+    // Use EARLIEST transaction date - that is the oldest unpaid amount (most overdue)
+    var txDate = earliestDateMap[d.name]||today;
+    var latDate = latestDateMap[d.name]||txDate;
+    var age  = daysBetween(txDate, today);
+    var dueDate = new Date(txDate);
+    dueDate.setDate(dueDate.getDate()+creditDays);
+    var dueDateStr = dueDate.toISOString().slice(0,10);
+    var daysOverdue = daysBetween(dueDateStr, today); // days past due date
+    var isOverdue = today > dueDateStr;
+    if(isOverdue) overdue.push({name:d.name,balance:d.balance,date:txDate,latDate:latDate,age:age,daysOverdue:daysOverdue,dueDateStr:dueDateStr});
+    else{
+      var daysLeft=daysBetween(today,dueDateStr);
+      upcoming.push({name:d.name,balance:d.balance,date:txDate,latDate:latDate,age:age,daysLeft:daysLeft,dueDateStr:dueDateStr});
+    }
   });
 
   // Sort by most overdue first
@@ -11984,32 +12011,135 @@ function checkStartupAlerts(){
 
   // Debtors
   var dMap={};
-  (D.debtors||[]).forEach(function(d){if(d.amount>0&&d.date){if(!dMap[d.name]||d.date<dMap[d.name])dMap[d.name]=d.date;}});
+  (D.debtors||[]).forEach(function(d){
+    if(d.amount>0&&d.date){
+      // Use EARLIEST date — most overdue entry
+      if(!dMap[d.name]||d.date<dMap[d.name]) dMap[d.name]=d.date;
+    }
+  });
+  (D.sales||[]).forEach(function(s){
+    if(s.paymentMode==='credit'&&s.date){
+      var nm=s.customerName||s.customer||'';
+      if(nm&&(!dMap[nm]||s.date<dMap[nm])) dMap[nm]=s.date;
+    }
+  });
   debtorBalances().forEach(function(d){
     if(d.balance<=0) return;
-    var date=dMap[d.name]||today,age=daysBetween(date,today),left=creditDays-age;
-    if(age>creditDays) alerts.push({urg:0,icon:'🔴',title:'Debtor Overdue: '+d.name,msg:fc(d.balance)+' overdue by '+(age-creditDays)+' days',action:"go('reminders')",btn:'Send Reminder'});
-    else if(left<=3&&left>=0) alerts.push({urg:1,icon:'🟡',title:'Payment Due Soon: '+d.name,msg:fc(d.balance)+' due in '+left+' day'+(left===1?'':'s'),action:"go('reminders')",btn:'View'});
+    var txDate=dMap[d.name]||today;
+    var dueDate=new Date(txDate);dueDate.setDate(dueDate.getDate()+creditDays);
+    var dueDateStr=dueDate.toISOString().slice(0,10);
+    var isOverdue=today>dueDateStr;
+    var daysOvd=isOverdue?daysBetween(dueDateStr,today):0;
+    var daysLeft=isOverdue?0:daysBetween(today,dueDateStr);
+    if(isOverdue) alerts.push({urg:0,icon:'🔴',title:'Debtor Overdue: '+d.name,msg:fc(d.balance)+' overdue by '+daysOvd+' days | Due was: '+dueDateStr,action:"go('reminders')",btn:'Send Reminder'});
+    else if(daysLeft<=3) alerts.push({urg:1,icon:'🟡',title:'Payment Due Soon: '+d.name,msg:fc(d.balance)+' due on '+dueDateStr+' ('+daysLeft+' days left)',action:"go('reminders')",btn:'View'});
   });
 
   // Creditors
   var cMap={};
-  (D.creditors||[]).forEach(function(c){if(c.amount>0&&c.date){if(!cMap[c.name]||c.date<cMap[c.name])cMap[c.name]=c.date;}});
+  (D.creditors||[]).forEach(function(c){
+    if(c.amount>0&&c.date){
+      // Use EARLIEST purchase date — most overdue entry
+      if(!cMap[c.name]||c.date<cMap[c.name]) cMap[c.name]=c.date;
+    }
+  });
+  (D.purchases||[]).forEach(function(p){
+    if(p.paymentMode==='credit'&&p.date){
+      var nm=p.supplierName||p.supplier||'';
+      if(nm&&(!cMap[nm]||p.date<cMap[nm])) cMap[nm]=p.date;
+    }
+  });
   creditorBalances().forEach(function(c){
     if(c.balance<=0) return;
-    var date=cMap[c.name];if(!date)return;
-    var age=daysBetween(date,today),left=creditDays-age;
-    if(age>creditDays) alerts.push({urg:0,icon:'🔴',title:'Pay Creditor: '+c.name,msg:fc(c.balance)+' pending '+age+' days',action:"go('reminders')",btn:'View'});
-    else if(left<=3&&left>=0) alerts.push({urg:1,icon:'🟡',title:'Creditor Due Soon: '+c.name,msg:fc(c.balance)+' due in '+left+' day'+(left===1?'':'s'),action:"go('reminders')",btn:'View'});
+    var txDate=cMap[c.name];if(!txDate)return;
+    var dueDate=new Date(txDate);dueDate.setDate(dueDate.getDate()+creditDays);
+    var dueDateStr=dueDate.toISOString().slice(0,10);
+    var isOverdue=today>dueDateStr;
+    var daysOvd=isOverdue?daysBetween(dueDateStr,today):0;
+    var daysLeft=isOverdue?0:daysBetween(today,dueDateStr);
+    if(isOverdue) alerts.push({urg:0,icon:'🔴',title:'Pay Creditor: '+c.name,msg:fc(c.balance)+' overdue by '+daysOvd+' days | Due was: '+dueDateStr,action:"go('reminders')",btn:'View'});
+    else if(daysLeft<=3) alerts.push({urg:1,icon:'🟡',title:'Creditor Due Soon: '+c.name,msg:fc(c.balance)+' due on '+dueDateStr+' ('+daysLeft+' days left)',action:"go('reminders')",btn:'View'});
   });
 
-  // Loans EMI
+  // Loans EMI & Interest — per Anil Sharma guidelines:
+  // EMI instalment: must be paid within 30 days of scheduled EMI date
+  // Interest: must be paid within 30 days from the date it accrues (monthly)
   (D.loans||[]).forEach(function(l){
-    if(!l.outstandingBalance||l.outstandingBalance<=0||!l.emi) return;
-    var last=l.lastInterestDate||l.sanctionDate||'';if(!last)return;
-    var days=daysBetween(last,today),left=30-days;
-    if(left<0) alerts.push({urg:0,icon:'🏦',title:'EMI Overdue: '+l.lender,msg:'EMI '+fc(l.emi)+' overdue by '+(-left)+' days | O/S: '+fc(l.outstandingBalance),action:"go('capital')",btn:'View Loan'});
-    else if(left<=3) alerts.push({urg:1,icon:'🏦',title:'EMI Due Soon: '+l.lender,msg:'EMI '+fc(l.emi)+' due in '+left+' day'+(left===1?'':'s'),action:"go('capital')",btn:'View Loan'});
+    if(!l.outstandingBalance||l.outstandingBalance<=0) return;
+    var loanType=l.loanType||'';
+    var lender=l.lender||l.bankName||'Bank';
+    var isCC=loanType.indexOf('CC')>=0||loanType.indexOf('Cash Credit')>=0||loanType.indexOf('Overdraft')>=0;
+
+    if(!isCC){
+      // ── TERM LOAN / MFI EMI ALERT ──
+      // EMI schedule date = sanction date + n months (fixed day of month)
+      // Find most recent EMI payment
+      var pays=(l.payments||[]).filter(function(p){return p.principal>0||p.total>0;});
+      var sanctDt=new Date(l.sanctionDate||l.lastInterestDate||today);
+      var emiDay=sanctDt.getDate(); // EMI due on this day every month
+      var emiAmt=l.emi||0;
+
+      // Find next scheduled EMI date after last payment
+      var lastPayDt=pays.length>0
+        ? new Date(pays.reduce(function(a,b){return a.date>b.date?a:b;}).date)
+        : new Date(l.sanctionDate||today);
+
+      // Next scheduled EMI = last payment date + 1 month, on same day
+      var schedDt=new Date(lastPayDt);
+      schedDt.setMonth(schedDt.getMonth()+1);
+      schedDt.setDate(emiDay);
+      var schedStr=schedDt.toISOString().slice(0,10);
+
+      // Grace period = 30 days from scheduled date
+      var graceDt=new Date(schedDt);
+      graceDt.setDate(graceDt.getDate()+30);
+      var graceStr=graceDt.toISOString().slice(0,10);
+
+      var daysSinceSched=daysBetween(schedStr,today);
+      var daysToSched=schedStr>today?daysBetween(today,schedStr):0;
+      var daysToGrace=graceStr>today?daysBetween(today,graceStr):0;
+      var isOverSched=today>=schedStr; // EMI date has passed
+      var isOverGrace=today>graceStr;  // 30-day grace also passed = OVERDUE
+
+      if(emiAmt>0){
+        if(isOverGrace){
+          alerts.push({urg:0,icon:'🏦',title:'EMI OVERDUE: '+lender,
+            msg:'EMI ₹'+fc(emiAmt)+' was due '+schedStr+'. Grace period (30 days) expired '+daysToGrace+' days ago. Pay immediately! O/S: '+fc(l.outstandingBalance),
+            action:"go('capital')",btn:'Pay Now'});
+        } else if(isOverSched){
+          alerts.push({urg:1,icon:'🏦',title:'EMI Due — Pay within Grace: '+lender,
+            msg:'EMI ₹'+fc(emiAmt)+' due '+schedStr+'. '+daysToGrace+' days grace period remaining. Pay before '+graceStr,
+            action:"go('capital')",btn:'Pay Now'});
+        } else if(daysToSched<=7){
+          alerts.push({urg:1,icon:'🏦',title:'EMI Due Soon: '+lender,
+            msg:'EMI ₹'+fc(emiAmt)+' due on '+schedStr+' ('+daysToSched+' days). Pay on time to avoid penalty.',
+            action:"go('capital')",btn:'View Loan'});
+        }
+      }
+
+      // ── INTEREST ALERT (for interest-only or CC accounts) ──
+      // Interest accrues monthly — must be paid within 30 days
+      if(l.rate>0&&!emiAmt){
+        var lastIntDt=new Date(l.lastInterestDate||l.sanctionDate||today);
+        var nextIntDt=new Date(lastIntDt);
+        nextIntDt.setMonth(nextIntDt.getMonth()+1);
+        var intGraceDt=new Date(nextIntDt);
+        intGraceDt.setDate(intGraceDt.getDate()+30);
+        var intGraceStr=intGraceDt.toISOString().slice(0,10);
+        var nextIntStr=nextIntDt.toISOString().slice(0,10);
+        var monthlyInt=Math.round(l.outstandingBalance*l.rate/100/12);
+        var daysToIntGrace=intGraceStr>today?daysBetween(today,intGraceStr):0;
+        if(today>intGraceStr){
+          alerts.push({urg:0,icon:'🏦',title:'Interest Overdue: '+lender,
+            msg:'Monthly interest ~₹'+fc(monthlyInt)+' not recorded since '+nextIntStr+'. 30-day grace expired. O/S: '+fc(l.outstandingBalance),
+            action:"go('capital')",btn:'Pay Now'});
+        } else if(today>=nextIntStr){
+          alerts.push({urg:1,icon:'🏦',title:'Interest Due — '+lender,
+            msg:'Monthly interest ~₹'+fc(monthlyInt)+' due from '+nextIntStr+'. '+daysToIntGrace+' days grace left (by '+intGraceStr+')',
+            action:"go('capital')",btn:'Record Payment'});
+        }
+      }
+    }
   });
 
   // CC Limit
