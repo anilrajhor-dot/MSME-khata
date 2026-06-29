@@ -1150,8 +1150,24 @@ function pgCap(){
       inp('Sanctioned Limit (₹) — only for Cash Credit / Overdraft','l_lim','number',0)+
       '<div id="ccodPreview"></div>'+
       '<div style="font-size:11px;color:#546E7A;margin-bottom:6px">For Term Loans: enter the Loan Amount and current Outstanding Balance (usually the same if freshly disbursed). For Cash Credit (CC) / Overdraft (OD): leave Tenure as 0; enter the bank-Sanctioned Limit; enter the amount CURRENTLY UTILIZED/DRAWN (not the limit) as both Loan Amount and Outstanding Balance. If nothing has been drawn yet, enter 0 for both.</div>'+
-      inp('Amount Received Now into Cash/Bank (₹) — enter 0 if no money has actually come in yet, even if Outstanding Balance is non-zero','l_recv','number',0)+
-      sl('Amount Received Credited To','l_disb',[{v:'cash',l:'Cash in Hand'},{v:'bank',l:'Bank Account'},{v:'none',l:"Don't add to Cash/Bank (nothing received yet - for Term Loans this keeps it off the Balance Sheet until drawn)"}],'bank')+
+      inp('Loan Amount Actually Received (₹)','l_recv','number',0)+
+      '<div style="font-size:10px;color:#546E7A;margin:-6px 0 6px 0">'+
+        '• Enter amount <b>actually credited</b> to your bank/cash<br>'+
+        '• Enter <b>0</b> if loan is sanctioned but money NOT YET received<br>'+
+        '• यह वह राशि है जो वास्तव में आपके account में आई — नहीं आई तो 0 डालें'+
+      '</div>'+
+      ''+
+      sl('Loan Credited To / ऋण कहाँ जमा हुआ?','l_disb',[
+        {v:'bank',l:'🏦 Bank Account — Amount credited to bank (बैंक में जमा हुई)'},
+        {v:'cash',l:'💵 Cash in Hand — Amount received in cash (नकद में मिली)'},
+        {v:'none',l:'⏳ Not Yet Received — Sanctioned but not disbursed yet (स्वीकृत है, अभी तक नहीं मिली)'}
+      ],'bank')+
+      '<div style="font-size:10px;color:#E65100;margin:-4px 0 6px 0">'+
+        '⚠️ Select "Not Yet Received" if bank has sanctioned the loan but money has NOT come in yet.<br>'+
+        'The loan will appear on Balance Sheet only when you record the actual drawdown.<br>'+
+        '⚠️ अगर loan स्वीकृत हो गई है लेकिन पैसा अभी नहीं आया — तो "अभी तक नहीं मिली" चुनें।'+
+      '</div>'+
+      ''+
       '<div style="font-size:11px;color:#90A4AE;margin-bottom:6px">If "Amount Received Now" is less than Outstanding Balance, the Balance Sheet will show a difference until you record the remaining amount when it actually arrives (e.g. via Cash/Bank \u2192 Add Manual Entry, or a future entry here once the funds are received).</div>'+
       '<div id="lemip"></div>'+
       btn('Calculate EMI','calcLEMI()','#546E7A')+' '+btn('+ Add Loan','addLoan()')
