@@ -1906,7 +1906,13 @@ function pgSal(){
   }
   var costInfo='';
   if(selItem){
-    var _cp=selItem.avgCost,_sp=window._salPrice||0,_pr=_sp-_cp;
+    // Blended cost = weighted average of domestic + imported stock
+    var _domVal=(selItem.currentStock||0)*(selItem.avgCost||0);
+    var _impVal=(selItem.importedStock||0)*(selItem.importedAvgCost||0);
+    var _totStk=(selItem.currentStock||0)+(selItem.importedStock||0);
+    var _cp=_totStk>0?(_domVal+_impVal)/_totStk:(selItem.avgCost||0);
+    _cp=Math.round(_cp*100)/100;
+    var _sp=window._salPrice||0,_pr=_sp-_cp;
     var _pc=_cp>0?Math.round(_pr/_cp*100):0,_prc=_pr>=0?'#2E7D32':'#C62828';
     costInfo='<div class="al ali" style="margin-bottom:8px">'+
       '<div style="display:flex;justify-content:space-between;margin-bottom:6px">'+
@@ -6550,6 +6556,52 @@ function pgHelp(){
       '<p><b>नया व्यवसाय (New Business):</b> नए व्यवसाय के लिए Trial Balance की जरूरत नहीं। Profile → Business Stage = New Business करें → सीधे Sales, Purchases, Expenses enter करें। Capital Capital/Loans menu में डालें।</p>'
     )
   );
+
+  // ── Section 14: First-Time Setup Wizard ──
+  h += hs(
+    bi('14. First-Time Setup Wizard / पहली बार सेटअप', '14. First-Time Setup Wizard / पहली बार सेटअप'),
+    bi(
+      '<p>When you open the app for the <b>first time</b>, a guided setup wizard appears automatically with a yellow banner showing <b>"FIRST-TIME SETUP GUIDE"</b>. This is a guide — not the actual data entry screen. You can fill it quickly and also edit everything later in Profile and Capital/Loans menus.</p>' +
+      '<p><b>4 Steps in the Wizard:</b></p>' +
+      '<ol style="margin:6px 0 10px 16px;line-height:2.2">' +
+      '<li><b>New or Existing Business</b> — Select New Business 🌱 (no prior accounts) or Existing Business 📒 (has opening balances)</li>' +
+      '<li><b>Business Profile</b> — Business Name, Owner Name, Mobile Number, Constitution (Proprietorship/Partnership/Pvt Ltd etc.)</li>' +
+      '<li><b>Opening Capital</b> — Total capital invested, and where it is (Cash / Bank / Both)</li>' +
+      '<li><b>Bank Account</b> — Select bank from dropdown, enter account number, select CA/SB/CC type</li>' +
+      '</ol>' +
+      '<p><b>After wizard:</b> For New Business → go to Inventory → add items → then start Purchase and Sales. For Existing Business → go to Data → Opening Trial Balance → enter all balances → Post to Books.</p>' +
+      '<p><b>Why Inventory for New Business?</b> When you make a purchase, you must select the item from inventory. So first add item names in Inventory (just name and unit — cost price comes automatically from purchase entry). No opening stock needed for new business.</p>' +
+      '<p><b>Note:</b> Business Type (Trading/Mfg/Service) is fixed per app — you cannot change it in the wizard.</p>',
+      '<p>App <b>पहली बार</b> खोलने पर एक guided setup wizard आता है जिसमें ऊपर yellow banner में <b>"FIRST-TIME SETUP GUIDE"</b> लिखा होता है। यह एक guide है — actual data entry screen नहीं। जल्दी भर सकते हैं, बाद में Profile और Capital/Loans menu में edit भी कर सकते हैं।</p>' +
+      '<p><b>Wizard के 4 Steps:</b></p>' +
+      '<ol style="margin:6px 0 10px 16px;line-height:2.2">' +
+      '<li><b>नया या पुराना व्यवसाय</b> — New Business 🌱 (कोई पुराना हिसाब नहीं) या Existing Business 📒 (Opening Balance है)</li>' +
+      '<li><b>Business Profile</b> — व्यवसाय का नाम, मालिक का नाम, Mobile, Constitution</li>' +
+      '<li><b>Opening Capital</b> — कुल पूंजी और कहाँ है (Cash / Bank / दोनों)</li>' +
+      '<li><b>Bank Account</b> — Bank select करें, Account Number डालें, CA/SB/CC चुनें</li>' +
+      '</ol>' +
+      '<p><b>Wizard के बाद:</b> New Business → Inventory → items add करें → Purchase और Sales शुरू करें। Existing Business → Data → Opening Trial Balance → सभी balances डालें → Post to Books।</p>' +
+      '<p><b>नए व्यवसाय में Inventory क्यों?</b> Purchase करते वक्त item select करना होता है। इसलिए पहले Inventory में item का नाम और unit डालें (cost price purchase से automatically आएगी)। Opening stock डालने की जरूरत नहीं।</p>' +
+      '<p><b>ध्यान दें:</b> Business Type (Trading/Mfg/Service) हर app में fixed है — wizard में change नहीं होता।</p>'
+    )
+  );
+
+  // ── Section 15: Imported Stock & UPI Account ──
+  h += hs(
+    bi('15. Imported Stock & UPI Payment Account', '15. Imported Stock और UPI Payment Account'),
+    bi(
+      '<p><b>Imported Stock in Purchase:</b> When recording a purchase, tick the "Imported" checkbox if goods are imported. The app stores domestic and imported stock separately. In the Sales dropdown, the item shows as <b>"Item Name (Dom: 400 + Imp: 200 Pcs)"</b> so you can see both stocks clearly.</p>' +
+      '<p><b>Blended Cost for Sales:</b> When you sell an item with mixed domestic and imported stock, the app automatically calculates a weighted average cost: <i>(Dom Qty × Dom Cost + Imp Qty × Imp Cost) ÷ Total Qty</i>. This gives accurate Gross Profit.</p>' +
+      '<p><b>Stock Deduction (FIFO):</b> On sale, domestic stock is deducted first, then imported stock.</p>' +
+      '<p><b>UPI Payment Account:</b> If your business has multiple bank accounts, you can designate one specific account as the UPI account. Go to <b>Capital/Loans → Bank Accounts → enter UPI ID → tap "Set as UPI Account"</b>. After this, all UPI payments in Sales, Purchases and Expenses go to that designated account automatically. The payment mode dropdown shows: <b>"UPI → SBI CA-001234"</b> so user knows which account receives UPI.</p>' +
+      '<p><b>UPI ID format:</b> e.g. 9812345678@okicici or shopname@sbi</p>',
+      '<p><b>Imported Stock in Purchase:</b> Purchase entry करते समय "Imported" checkbox tick करें अगर माल import किया है। App domestic और imported stock अलग-अलग store करता है। Sales dropdown में item ऐसा दिखता है: <b>"Item Name (Dom: 400 + Imp: 200 Pcs)"</b></p>' +
+      '<p><b>Sale में Blended Cost:</b> जब domestic + imported दोनों stock हों, तो app automatically weighted average cost calculate करता है: <i>(Dom Qty × Dom Cost + Imp Qty × Imp Cost) ÷ Total Qty</i>। इससे सही Gross Profit आता है।</p>' +
+      '<p><b>Stock Deduction (FIFO):</b> Sale पर पहले domestic stock घटती है, फिर imported।</p>' +
+      '<p><b>UPI Payment Account:</b> अगर एक से ज़्यादा bank accounts हैं, तो एक को UPI account designate करें। <b>Capital/Loans → Bank Accounts → UPI ID enter करें → "Set as UPI Account" tap करें</b>। इसके बाद सभी UPI payments उसी account में जाएंगी। Payment dropdown में दिखता है: <b>"UPI → SBI CA-001234"</b></p>' +
+      '<p><b>UPI ID format:</b> जैसे 9812345678@okicici या shopname@sbi</p>'
+    )
+  );
   // Developer credit at bottom
   h += '<div style="margin-top:16px;padding:12px;background:#F0F4FF;border-radius:8px;text-align:center">';
   h += '<div style="font-size:11px;color:#1565C0;font-weight:700">ME Khata Suite</div>';
@@ -10753,7 +10805,7 @@ function showWizStep(step){
   var overlay = document.createElement('div');
   overlay.id = 'wiz-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:99999;overflow-y:auto;-webkit-overflow-scrolling:touch';
-  overlay.innerHTML = wizStepHtml(step);
+  overlay.innerHTML = '<div style="background:#FFF8E1;border-bottom:3px solid #FFA000;padding:8px 16px;display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:1"><span style="font-size:20px">📋</span><div><div style="font-size:12px;font-weight:800;color:#E65100">FIRST-TIME SETUP GUIDE / पहली बार सेटअप</div><div style="font-size:10px;color:#5D4037">Filling this helps the app work better. You can also fill/edit later in Profile & Capital menus.</div><div style="font-size:10px;color:#5D4037">यह भरने से app बेहतर काम करता है। बाद में Profile & Capital menu में भी कर सकते हैं।</div></div></div>' + wizStepHtml(step);
   document.body.appendChild(overlay);
   _wiz.step = step;
 }
@@ -10842,19 +10894,17 @@ function wizStepHtml(step){
       '</div>' +
     '</div>' +
 
-    '<div style="margin-bottom:14px">' +
-      '<label style="display:block;font-size:12px;font-weight:700;color:#1565C0;margin-bottom:6px">📦 व्यवसाय का प्रकार / Business Type *</label>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-      [['Trading','🛒 Trading<br><span style="font-size:10px;color:#546E7A">खरीद-बिक्री</span>'],
-       ['Manufacturing','🏭 Manufacturing<br><span style="font-size:10px;color:#546E7A">उत्पादन</span>'],
-       ['Service','🔧 Service<br><span style="font-size:10px;color:#546E7A">सेवा कार्य</span>'],
-       ['Trading + Manufacturing','📊 Trading+Mfg<br><span style="font-size:10px;color:#546E7A">मिश्रित</span>'],
-      ].map(function(b){
-        var sel = _wiz.data.btype===b[0];
-        return '<div onclick="wizSetBtype(\'' + b[0] + '\')" style="border:2px solid ' + (sel?'#1565C0':'#E0E0E0') + ';border-radius:10px;padding:10px;cursor:pointer;background:' + (sel?'#E3F2FD':'#fff') + ';text-align:center;font-size:12px;font-weight:' + (sel?'700':'400') + ';color:' + (sel?'#1565C0':'#37474F') + '">' + b[1] + '</div>';
-      }).join('') +
-      '</div>' +
-    '</div>' +
+    '<div style="background:#E8F5E9;border-radius:10px;padding:10px 14px;margin-bottom:14px">'+
+      '<div style="font-size:11px;font-weight:700;color:#546E7A;margin-bottom:4px">📦 Business Type (व्यवसाय प्रकार)</div>'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<span style="font-size:28px">'+(BIZ_TYPE==='Trading'?'🛒':BIZ_TYPE==='Manufacturing'?'🏭':BIZ_TYPE==='Service'?'🔧':'📊')+'</span>'+
+        '<div>'+
+          '<div style="font-size:15px;font-weight:800;color:#2E7D32">'+BIZ_TYPE+' Business</div>'+
+          '<div style="font-size:10px;color:#546E7A">This app is for '+BIZ_TYPE+' businesses — fixed automatically</div>'+
+          '<div style="font-size:10px;color:#546E7A">यह app '+BIZ_TYPE+' व्यवसाय के लिए है — automatically set है</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
 
     '<div style="display:flex;gap:10px">' +
       '<button onclick="showWizStep(0)" style="flex:0.4;padding:13px;background:#f5f5f5;color:#546E7A;border:1px solid #E0E0E0;border-radius:10px;font-size:14px;cursor:pointer">◀ वापस</button>' +
@@ -10967,7 +11017,8 @@ function wizStepHtml(step){
       '<div style="font-weight:700;font-size:14px;color:#1565C0;margin-bottom:10px">📋 अगले Steps / What to do next:</div>' +
       (isNew ?
         '<div style="font-size:13px;color:#37474F;line-height:2">' +
-          '<b style="color:#1565C0">Step 1:</b> Inventory → अपने items/माल डालें<br>' +
+          '<b style="color:#1565C0">Step 1:</b> Inventory → अपने items/माल डालें <span style="font-size:10px;color:#E65100">(Rice, Oil जैसे items — नाम, unit, category)</span><br>' +
+      '<div style="font-size:10px;color:#546E7A;margin-bottom:4px;margin-left:16px">💡 <b>New Business में Inventory क्यों?</b> जब आप purchase करेंगे, तो item select करना होगा। उसके लिए पहले item name डालें। Cost price purchase से automatically आती है।</div>' +
           '<b style="color:#1565C0">Step 2:</b> Purchase → खरीद की entry करें<br>' +
           '<b style="color:#1565C0">Step 3:</b> Sales → बिक्री की entry करें<br>' +
           '<b style="color:#1565C0">Step 4:</b> Expenses → खर्च की entry करें<br>' +
@@ -10975,7 +11026,8 @@ function wizStepHtml(step){
         '</div>'
         :
         '<div style="font-size:13px;color:#37474F;line-height:2">' +
-          '<b style="color:#7B1FA2">Step 1:</b> Data → Opening Trial Balance → सभी balances डालें<br>' +
+          '<div style="background:#F3E5F5;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:11px;color:#6A1B9A"><b>📌 Trial Balance क्या है?</b> आपके व्यवसाय की current date की financial position — Cash, Bank, Stock, Debtors, Creditors, Loans, Capital। यह एक बार डालना होता है।</div>' +
+      '<b style="color:#7B1FA2">Step 1:</b> Data → Opening Trial Balance → सभी balances डालें<br>' +
           '<b style="color:#7B1FA2">Step 2:</b> Trial Balance DR = CR होने पर "Post to Books" दबाएं<br>' +
           '<b style="color:#1565C0">Step 3:</b> Purchase, Sales, Expenses की entries शुरू करें<br>' +
           '<b style="color:#2E7D32">Step 4:</b> Financials → सब कुछ automatically tally होगा ✅' +
