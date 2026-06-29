@@ -352,7 +352,14 @@ function postCB(mode,type,amount,party,desc,date){
   if(mode.indexOf('bank:')===0){
     cbMode='bank'; bankAccountId=mode.slice(5);
   } else if(mode==='upi'){
-    cbMode='bank'; bankAccountId=(D.bankAccounts&&D.bankAccounts[0])?D.bankAccounts[0].id:'acc1';
+    cbMode='bank';
+    // Route UPI to the designated UPI bank account (set in Settings)
+    var _upiAccId=(D.settings&&D.settings.defaultUPIAccount)||'';
+    if(_upiAccId && D.bankAccounts && D.bankAccounts.find(function(a){return a.id===_upiAccId;})){
+      bankAccountId=_upiAccId;
+    } else {
+      bankAccountId=(D.bankAccounts&&D.bankAccounts[0])?D.bankAccounts[0].id:'acc1';
+    }
   } else if(mode==='bank'){
     // legacy: plain 'bank' with no account specified - default to first account
     cbMode='bank'; bankAccountId=(D.bankAccounts&&D.bankAccounts[0])?D.bankAccounts[0].id:'acc1';
@@ -791,7 +798,7 @@ function payModeSel(id,val){
       });
     }
   });
-  opts.push({v:'upi',l:'UPI'},{v:'credit',l:'Credit (On Account)'});
+  opts.push({v:'upi',l:'UPI'+(D.settings&&D.settings.defaultUPIAccount&&D.bankAccounts?(' → '+(D.bankAccounts.find(function(a){return a.id===D.settings.defaultUPIAccount;})||{}).name||''):'')},{v:'credit',l:'Credit (On Account)'});
   return sl('Payment Mode',id,opts,val||'cash');
 }
 function tbl(cols,rows){
@@ -972,7 +979,10 @@ function pgProf(){
               (acctBal3.length>1?'<button onclick="deleteBankAccount('+Q+a.id+Q+')" style="background:none;border:none;color:#C62828;font-weight:700;cursor:pointer;font-size:14px">✕ Remove</button>':'')+
               '</div>'+
               g2(inp('Account Name','ba_name_'+a.id,'text',a.name),inp('Account Number','ba_num_'+a.id,'text',a.accountNumber||''))+
-              btn('Save','saveBankAcctInline('+Q+a.id+Q+')','#2E7D32')+
+              inp('UPI ID (linked to this account)','ba_upi_'+a.id,'text',a.upiId||'')+
+              '<div style="font-size:10px;color:#546E7A;margin-bottom:6px">Enter UPI ID if this account is UPI-enabled (e.g. 9812345678@okicici)</div>'+
+              ((D.settings&&D.settings.defaultUPIAccount)===a.id?'<div style="font-size:11px;color:#2E7D32;font-weight:700;margin-bottom:6px">📱 ✅ This is your UPI Account</div>':btn('📱 Set as UPI Account','setUPIAccount('+Q+a.id+Q+')','#2E7D32'))+
+              btn('Save','saveBankAcctInline('+Q+a.id+Q+')','#1565C0')+
               '</div>';
           }).join('')+
           btn('+ Add Another Bank Account','addBankAccountBlank()','#546E7A')
@@ -1089,7 +1099,19 @@ function pgCap(){
       (isMultiOwner ?
         ('<div class="fg"><label>Amount to ADD now (₹)</label><input id="c_new" type="number" value="" placeholder="e.g. 50000" style="width:100%;padding:9px;border-radius:8px;border:2px solid #2E7D32;font-size:14px;box-sizing:border-box"></div>'+
          '<div style="font-size:11px;color:#2E7D32;margin-bottom:8px">✅ This is the NEW amount being introduced right now (not the running total). Current business total so far: <b>'+fc((D.capital.initialCapital||0)+(D.capital.additionalCapital||0))+'</b></div>')
-        : g2(inp('Initial Capital (₹)','c_i','number',D.capital.initialCapital),inp('Additional Capital (₹)','c_a','number',D.capital.additionalCapital))
+        : ('<div class="fg">'+
+          '<label style="font-weight:700;color:#1565C0;font-size:13px">💰 Initial Capital (₹) — शुरुआती पूंजी</label>'+
+          '<input id="c_i" type="number" value="'+(D.capital.initialCapital||0)+'" placeholder="e.g. 100000" style="width:100%;padding:10px;border-radius:8px;border:2px solid #1565C0;font-size:16px;font-weight:700;box-sizing:border-box">'+
+          '<div style="font-size:11px;color:#546E7A;margin-top:3px;margin-bottom:10px">Money invested when business was STARTED. Enter once — do not change later.<br>'+
+          '<span style="color:#E65100">व्यवसाय शुरू करते समय जो पैसा लगाया — एक बार डालें, बाद में नहीं बदलें।</span></div>'+
+          '</div>'+
+          '<div class="fg">'+
+          '<label style="font-weight:700;color:#2E7D32;font-size:13px">➕ Additional Capital (₹) — बाद में लगाई पूंजी</label>'+
+          '<input id="c_a" type="number" value="'+(D.capital.additionalCapital||0)+'" placeholder="e.g. 50000" style="width:100%;padding:10px;border-radius:8px;border:2px solid #2E7D32;font-size:16px;font-weight:700;box-sizing:border-box">'+
+          '<div style="font-size:11px;color:#546E7A;margin-top:3px;margin-bottom:4px">Extra money added to business AFTER it started. Add new amount here (app adds to running total).<br>'+
+          '<span style="color:#E65100">व्यवसाय शुरू होने के बाद जो नई पूंजी डाली — यहाँ नई राशि डालें (app जोड़ता जाएगा)।</span></div>'+
+          '</div>'
+        )
       )+
       sl('Where is/was this Capital amount (the increase) kept?','c_mode',capModeOpts,'cash')+
       '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">When you increase Initial or Additional Capital, the increase amount will be added to Cash or the selected Bank account (so the Balance Sheet stays tallied). Choose "Don\'t add" only if you have already entered this amount in Opening Balances.<br><br><b>Tip:</b> If this capital is in a bank account, set up that account\'s name and number first in Cash/Bank → Bank / Current Accounts, so it appears here and your records match your bank statement.</div>'+
@@ -1375,7 +1397,7 @@ function drawingModeSel(id,val){
       });
     }
   });
-  opts.push({v:'upi',l:'UPI'});
+  opts.push({v:'upi',l:'UPI'+(D.settings&&D.settings.defaultUPIAccount&&D.bankAccounts?(' → '+(D.bankAccounts.find(function(a){return a.id===D.settings.defaultUPIAccount;})||{}).name||''):'')});
   return sl('Withdraw From',id,opts,val||'cash');
 }
 function pgDrawings(f){
@@ -2231,7 +2253,12 @@ function pgSal(){
           fc(_sp)+' | '+fc(_pr)+' ('+_pc+'%)'+
         '</span>'+
       '</div>'+
-      '<div style="font-size:10px;color:#90A4AE">Stock:'+fmt(selItem.currentStock)+' '+esc(selItem.unit)+' | Default:'+_defM+'% (Settings)</div>'+
+      '<div style="font-size:10px;color:#90A4AE;margin-top:2px">'+
+        'Stock: '+fmt(selItem.currentStock)+' '+esc(selItem.unit)+
+        (selItem.itemMargin!=null&&selItem.itemMargin>=0 ?
+          ' | <span style="color:#2E7D32;font-weight:700">📊 Item margin: '+selItem.itemMargin+'%</span> (change below for this sale)' :
+          ' | Global margin: '+_defM+'% — change below for this sale') +
+      '</div>'+
     '</div>';
   }
 
@@ -2339,10 +2366,21 @@ function onSalMarginChange(){
     }
   }
 }
-function onSalItemChange(){window._salItem=gv('sl_i');window._salCustomer=gv('sl_c');window._salDate=gv('sl_d');window._salQty=gv('sl_q');window._salMode=gv('sl_m');
-  var _nm=gvn('sl_margin');if(_nm!==null&&!isNaN(_nm)) window._salMargin=_nm;
+function onSalItemChange(){
+  var prevItem=window._salItem;
+  window._salItem=gv('sl_i');window._salCustomer=gv('sl_c');window._salDate=gv('sl_d');window._salQty=gv('sl_q');window._salMode=gv('sl_m');
+  // If item changed, reset margin so new item's margin loads fresh
+  if(prevItem!==window._salItem) window._salMargin=null;
+  // If margin field was manually edited by user, keep their value
+  var _nm=gvn('sl_margin');
+  if(_nm!==null&&!isNaN(_nm)&&window._salMargin!==null) window._salMargin=_nm;
   var _sid=window._salItem||'';var _sit=null;for(var _ii=0;_ii<D.inventory.length;_ii++)if(D.inventory[_ii].id===_sid){_sit=D.inventory[_ii];break;}
-  var _mg=(window._salMargin!=null)?window._salMargin:(+(D.settings&&D.settings.defaultMargin)||20);
+  // Priority: 1. User edited margin (window._salMargin set) 2. Item-specific margin 3. Global default
+  var _itemSpecificMg=(_sit&&_sit.itemMargin!=null&&_sit.itemMargin>=0)?_sit.itemMargin:null;
+  var _mg;
+  if(window._salMargin!=null) _mg=window._salMargin;
+  else if(_itemSpecificMg!=null){_mg=_itemSpecificMg;window._salMargin=_itemSpecificMg;}
+  else{_mg=(+(D.settings&&D.settings.defaultMargin)||20);}
   if(_sit&&_sit.avgCost>0) window._salPrice=Math.round(_sit.avgCost*(1+_mg/100));
   else window._salPrice=gvn('sl_p')||0;window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
 function addSal(){
@@ -6205,6 +6243,11 @@ function pgHelp(){
   );
 
   // ── SECTION 1: GETTING STARTED ──
+  h += card('📄 Step-by-Step User Guide (PDF)',
+    '<div style="font-size:13px;color:#37474F;margin-bottom:10px">Download the complete visual guide — covers all menus, first-time setup, margin settings, payment alerts, accuracy checks — in English & Hindi (अंग्रेज़ी और हिंदी में).</div>'+
+    '<a href="ME_Khata_User_Guide.pdf" download="ME_Khata_User_Guide.pdf" style="display:block;width:100%;padding:13px;background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;box-sizing:border-box">📥 Download PDF Guide — ME Khata User Manual</a>'+
+    '<div style="font-size:11px;color:#90A4AE;margin-top:6px;text-align:center">8 sections | Step-by-step screenshots | English + Hindi</div>'
+  );
   h += hs(
     bi('1. Getting Started — Profile & Setup', '1. शुरुआत करें — प्रोफाइल और सेटअप'),
     bi(
@@ -10727,245 +10770,358 @@ function toggleITManual(){
 
 
 
-// ── WELCOME / INSTALL SCREEN ──
+
+// ═══════════════════════════════════════════════════════════════
+// FIRST-TIME USER SETUP WIZARD — Full Step-by-Step Guide
+// ═══════════════════════════════════════════════════════════════
+
+var _wiz = {step:0, data:{stage:'new', constitution:'Individual', btype:'Trading', name:'', owner:'', mobile:'', cash:0, bank:0, bankName:'SBI Bank Account', capital:0, capitalMode:'bank'}};
+
 function showWelcomeIfNeeded(){
-  // Show only if not installed as PWA and first time visitor
   var dismissed = false;
-  try{ dismissed = localStorage.getItem('mfm_welcome_done') === '1'; }catch(e){}
-  
-  // Check if running as installed PWA
-  var isPWA = window.navigator.standalone === true || 
-              window.matchMedia('(display-mode: standalone)').matches;
-  
-  if(isPWA || dismissed) return; // Already installed — skip
-  
+  try{ dismissed = localStorage.getItem('mfm_welcome_done')==='1'; }catch(e){}
+  var isPWA = window.navigator.standalone===true || window.matchMedia('(display-mode: standalone)').matches;
+  if(dismissed) return;
+  _wiz = {step:0, data:{stage:'new', constitution:'Individual', btype:BIZ_TYPE||'Trading', name:'', owner:'', mobile:'', cash:0, bank:0, bankName:'SBI Bank Account', capital:0, capitalMode:'bank'}};
+  showWizStep(0);
+}
+
+function showWizStep(step){
+  var existing = document.getElementById('wiz-overlay');
+  if(existing) existing.remove();
   var overlay = document.createElement('div');
-  overlay.id = 'welcome-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:99999;overflow-y:auto;padding:0';
-  
-  overlay.innerHTML = `
-    <div style="background:#6A1428;padding:20px 16px 16px;text-align:center">
-      <div style="font-size:40px">🏭</div>
-      <div style="font-size:22px;font-weight:700;color:#fff;margin-top:8px">ME Mfg Khata</div>
-      <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">MSME Free Accounting App</div>
-    </div>
-    
-    <div style="padding:16px">
-      
-      <div style="background:#FCE4EC;border-radius:10px;padding:14px;margin-bottom:16px">
-        <div style="font-weight:700;font-size:15px;color:#6A1428;margin-bottom:8px">✨ Kya milega is App mein:</div>
-        <div style="display:flex;align-items:center;margin-bottom:6px"><span style="color:#6A1428;margin-right:8px;font-size:14px">✅</span><span style="font-size:13px">कच्चा माल (Raw Material) का हिसाब</span></div><div style="display:flex;align-items:center;margin-bottom:6px"><span style="color:#6A1428;margin-right:8px;font-size:14px">✅</span><span style="font-size:13px">उत्पादन (Production) का रिकॉर्ड</span></div><div style="display:flex;align-items:center;margin-bottom:6px"><span style="color:#6A1428;margin-right:8px;font-size:14px">✅</span><span style="font-size:13px">तैयार माल की बिक्री और लागत</span></div><div style="display:flex;align-items:center;margin-bottom:6px"><span style="color:#6A1428;margin-right:8px;font-size:14px">✅</span><span style="font-size:13px">मुनाफा-नुकसान और Balance Sheet</span></div><div style="display:flex;align-items:center;margin-bottom:6px"><span style="color:#6A1428;margin-right:8px;font-size:14px">✅</span><span style="font-size:13px">GST Module और Bank Loan Assessment</span></div>
-      </div>
-      
-      <div style="background:#FFF8E1;border:2px solid #F57F17;border-radius:10px;padding:14px;margin-bottom:16px">
-        <div style="font-weight:700;font-size:15px;color:#E65100;margin-bottom:10px">📱 Phone mein Save Karen (3 Steps)</div>
-        
-        <div style="display:flex;align-items:flex-start;margin-bottom:10px">
-          <div style="background:#E65100;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;margin-right:10px">1</div>
-          <div style="font-size:13px">Neeche <b>Share button</b> (□↑) dabayein — ya browser ke ⋯ menu mein jayein</div>
-        </div>
-        
-        <div style="display:flex;align-items:flex-start;margin-bottom:10px">
-          <div style="background:#E65100;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;margin-right:10px">2</div>
-          <div style="font-size:13px"><b>"Add to Home Screen"</b> par tap karen</div>
-        </div>
-        
-        <div style="display:flex;align-items:flex-start;margin-bottom:10px">
-          <div style="background:#E65100;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;margin-right:10px">3</div>
-          <div style="font-size:13px">Naam likhen: <b>Mfg</b> → <b>Add</b> dabayein → Home Screen icon se kholen</div>
-        </div>
-        
-        <div style="background:#fff;border-radius:8px;padding:10px;margin-top:8px;text-align:center">
-          <div style="font-size:12px;color:#546E7A">⚠️ Hamesha Home Screen icon se hi kholen</div>
-          <div style="font-size:12px;color:#546E7A">Isse aapka data safe rahega aur app offline bhi chalega</div>
-        </div>
-      </div>
-      
-      <div style="background:#E8F5E9;border-radius:10px;padding:12px;margin-bottom:16px">
-        <div style="font-weight:700;font-size:13px;color:#2E7D32;margin-bottom:6px">💡 Bilkul Muft | Free | No Download</div>
-        <div style="font-size:12px;color:#37474F">Koi app download nahi karna. Yeh ek web app hai jo phone mein save ho jaata hai. Internet band hone par bhi kaam karta hai.</div>
-      </div>
-      
-      <button onclick="startApp()" style="width:100%;padding:16px;background:#6A1428;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:12px">
-        ▶ App Shuru Karen — Use karna Seekhen
-      </button>
-      
-      <div style="text-align:center;font-size:11px;color:#90A4AE;padding-bottom:20px">
-        Developed by <b>Anil Sharma</b> | Former General Manager, Central Bank of India
-      </div>
-    </div>
-  `;
-  
+  overlay.id = 'wiz-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:99999;overflow-y:auto;-webkit-overflow-scrolling:touch';
+  overlay.innerHTML = wizStepHtml(step);
   document.body.appendChild(overlay);
+  _wiz.step = step;
 }
 
-function showBusinessChoice(){
-  var overlay = document.getElementById('welcome-overlay');
-  if(!overlay) return;
-  overlay.innerHTML = `
-    <div style="background:#1565C0;padding:20px 16px 16px;text-align:center">
-      <div style="font-size:36px">🛒</div>
-      <div style="font-size:20px;font-weight:700;color:#fff;margin-top:6px">आपका व्यवसाय कैसा है?</div>
-      <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">What type of business are you setting up?</div>
-    </div>
-    <div style="padding:16px">
+function wizStepHtml(step){
+  var steps = ['Business Type','Profile','Capital','Bank','Ready!'];
+  var progress = '<div style="background:#E3F2FD;padding:12px 16px 0">' +
+    '<div style="display:flex;justify-content:space-between;margin-bottom:8px">' +
+    steps.map(function(s,i){
+      var active = i===step, done = i<step;
+      return '<div style="display:flex;flex-direction:column;align-items:center;flex:1">' +
+        '<div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;' +
+        (done?'background:#2E7D32;color:#fff':active?'background:#1565C0;color:#fff':'background:#E0E0E0;color:#9E9E9E') + '">' +
+        (done?'✓':(i+1)) + '</div>' +
+        '<div style="font-size:9px;margin-top:3px;color:' + (active?'#1565C0':done?'#2E7D32':'#9E9E9E') + ';font-weight:' + (active?'700':'400') + '">' + s + '</div>' +
+      '</div>';
+    }).join('<div style="flex:0.3;height:2px;margin-top:14px;background:' + (['#2E7D32','#E0E0E0','#E0E0E0','#E0E0E0'].slice(0,4).map(function(_,i){return i<step-1?'#2E7D32':i===step-1?'#1565C0':'#E0E0E0';}).join(',')) + '"></div>') +
+    '</div></div>';
 
-      <div onclick="chooseNewBusiness()" style="background:#E8F5E9;border:2px solid #2E7D32;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
-        <div style="font-size:22px;margin-bottom:6px">🌱</div>
-        <div style="font-weight:700;font-size:16px;color:#2E7D32;margin-bottom:4px">नया व्यवसाय — New Business</div>
-        <div style="font-size:13px;color:#37474F">अभी शुरू किया है। पहले कोई बही-खाता नहीं था।<br><span style="color:#546E7A">Just starting out. No prior accounts to enter.</span></div>
-        <div style="margin-top:10px;background:#C8E6C9;border-radius:8px;padding:8px;font-size:12px;color:#1B5E20">
-          ✅ सीधे Sales, Purchase, Expenses शुरू करें<br>
-          ✅ Capital screen पर शुरुआती पूंजी डालें<br>
-          ✅ कोई Trial Balance नहीं चाहिए
-        </div>
-      </div>
+  // ── STEP 0: New or Existing Business ──
+  if(step===0) return progress + '<div style="padding:16px">' +
+    '<div style="font-size:20px;font-weight:800;color:#1565C0;margin-bottom:4px">🙏 ME Khata में आपका स्वागत है!</div>' +
+    '<div style="font-size:13px;color:#546E7A;margin-bottom:16px">पहले बताएं — आपका व्यवसाय कैसा है?</div>' +
 
-      <div onclick="showExistingChoice()" style="background:#E3F2FD;border:2px solid #1565C0;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
-        <div style="font-size:22px;margin-bottom:6px">📒</div>
-        <div style="font-weight:700;font-size:16px;color:#1565C0;margin-bottom:4px">पुराना व्यवसाय — Existing Business</div>
-        <div style="font-size:13px;color:#37474F">पहले से चल रहा है। Cash, Bank, Stock, Debtors आदि का Opening Balance है।<br><span style="color:#546E7A">Running business with existing balances to bring in.</span></div>
-        <div style="margin-top:10px;background:#BBDEFB;border-radius:8px;padding:8px;font-size:12px;color:#0D47A1">
-          📋 Opening Trial Balance डालना होगा<br>
-          📂 Excel/CSV upload OR हाथ से एक-एक entry<br>
-          ✅ Balance Sheet automatically tally होगी
-        </div>
-      </div>
+    '<div onclick="wizSetStage(\'new\')" id="wiz-new" style="border:3px solid ' + (_wiz.data.stage==='new'?'#2E7D32':'#E0E0E0') + ';border-radius:12px;padding:14px;margin-bottom:12px;cursor:pointer;background:' + (_wiz.data.stage==='new'?'#E8F5E9':'#fff') + '">' +
+      '<div style="font-size:24px">🌱</div>' +
+      '<div style="font-weight:700;font-size:15px;color:#2E7D32;margin:4px 0 2px">नया व्यवसाय — New Business</div>' +
+      '<div style="font-size:12px;color:#546E7A">अभी शुरू किया है। कोई पुराना हिसाब नहीं।</div>' +
+      '<div style="font-size:12px;color:#546E7A;font-style:italic">Just starting out. No prior accounts.</div>' +
+      '<div style="background:#C8E6C9;border-radius:6px;padding:6px 8px;margin-top:8px;font-size:11px;color:#1B5E20">' +
+        '✅ सीधे Sales, Purchase शुरू करें<br>' +
+        '✅ कोई Trial Balance की जरूरत नहीं<br>' +
+        '✅ Capital डालें और शुरू करें' +
+      '</div>' +
+    '</div>' +
 
-      <div style="text-align:center;font-size:11px;color:#90A4AE;padding-bottom:8px">
-        आप यह बाद में Profile screen से भी बदल सकते हैं।<br>You can change this anytime from Profile.
-      </div>
-    </div>
-  `;
+    '<div onclick="wizSetStage(\'existing\')" id="wiz-exist" style="border:3px solid ' + (_wiz.data.stage==='existing'?'#1565C0':'#E0E0E0') + ';border-radius:12px;padding:14px;margin-bottom:16px;cursor:pointer;background:' + (_wiz.data.stage==='existing'?'#E3F2FD':'#fff') + '">' +
+      '<div style="font-size:24px">📒</div>' +
+      '<div style="font-weight:700;font-size:15px;color:#1565C0;margin:4px 0 2px">पुराना व्यवसाय — Existing Business</div>' +
+      '<div style="font-size:12px;color:#546E7A">पहले से चल रहा है। Opening Balance डालना होगा।</div>' +
+      '<div style="font-size:12px;color:#546E7A;font-style:italic">Running business. Has existing balances.</div>' +
+      '<div style="background:#BBDEFB;border-radius:6px;padding:6px 8px;margin-top:8px;font-size:11px;color:#0D47A1">' +
+        '📋 Opening Trial Balance डालना होगा<br>' +
+        '📦 Stock, Debtors, Loans opening डालें<br>' +
+        '✅ Balance Sheet automatically tally होगी' +
+      '</div>' +
+    '</div>' +
+
+    '<button onclick="showWizStep(1)" style="width:100%;padding:15px;background:#1565C0;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer">आगे बढ़ें ▶</button>' +
+    '<div style="text-align:center;font-size:11px;color:#90A4AE;margin-top:10px;padding-bottom:16px">Developed by <b>Anil Sharma</b> | Former GM, Central Bank of India</div>' +
+  '</div>';
+
+  // ── STEP 1: Business Profile ──
+  if(step===1) return progress + '<div style="padding:16px">' +
+    '<div style="font-size:18px;font-weight:800;color:#1565C0;margin-bottom:4px">📝 व्यवसाय की जानकारी</div>' +
+    '<div style="font-size:12px;color:#546E7A;margin-bottom:14px">Step 1 of 4 — Business Profile</div>' +
+
+    '<div style="margin-bottom:12px">' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#1565C0;margin-bottom:4px">🏢 व्यवसाय का नाम / Business Name *</label>' +
+      '<input id="wiz_bname" type="text" value="' + (_wiz.data.name||'') + '" placeholder="जैसे: Sharma Kirana Store" style="width:100%;padding:12px;border:2px solid #1565C0;border-radius:10px;font-size:15px;box-sizing:border-box" oninput="_wiz.data.name=this.value">' +
+    '</div>' +
+
+    '<div style="margin-bottom:12px">' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#1565C0;margin-bottom:4px">👤 मालिक का नाम / Owner Name *</label>' +
+      '<input id="wiz_owner" type="text" value="' + (_wiz.data.owner||'') + '" placeholder="जैसे: Ramesh Kumar" style="width:100%;padding:12px;border:2px solid #1565C0;border-radius:10px;font-size:15px;box-sizing:border-box" oninput="_wiz.data.owner=this.value">' +
+    '</div>' +
+
+    '<div style="margin-bottom:12px">' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#1565C0;margin-bottom:4px">📱 Mobile Number *</label>' +
+      '<input id="wiz_mobile" type="tel" value="' + (_wiz.data.mobile||'') + '" placeholder="10 digit mobile number" maxlength="10" style="width:100%;padding:12px;border:2px solid #1565C0;border-radius:10px;font-size:15px;box-sizing:border-box" oninput="_wiz.data.mobile=this.value">' +
+    '</div>' +
+
+    '<div style="margin-bottom:12px">' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#1565C0;margin-bottom:6px">🏛️ संस्था का प्रकार / Constitution *</label>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+      [['Individual','👤 Sole Proprietorship<br><span style="font-size:10px;color:#546E7A">एकल मालिक</span>'],
+       ['Partnership','🤝 Partnership<br><span style="font-size:10px;color:#546E7A">साझेदारी</span>'],
+       ['Private Limited','🏢 Pvt Ltd Company<br><span style="font-size:10px;color:#546E7A">प्राइवेट लिमिटेड</span>'],
+       ['LLP','⚖️ LLP<br><span style="font-size:10px;color:#546E7A">Limited Liability</span>'],
+       ['HUF','👨‍👩‍👧 HUF<br><span style="font-size:10px;color:#546E7A">हिंदू अविभाजित</span>'],
+       ['Trust / NGO','🕌 Trust/NGO<br><span style="font-size:10px;color:#546E7A">ट्रस्ट / NGO</span>'],
+      ].map(function(c){
+        var sel = _wiz.data.constitution===c[0];
+        return '<div onclick="wizSetConstitution(\'' + c[0] + '\')" style="border:2px solid ' + (sel?'#1565C0':'#E0E0E0') + ';border-radius:10px;padding:10px;cursor:pointer;background:' + (sel?'#E3F2FD':'#fff') + ';text-align:center;font-size:12px;font-weight:' + (sel?'700':'400') + ';color:' + (sel?'#1565C0':'#37474F') + '">' + c[1] + '</div>';
+      }).join('') +
+      '</div>' +
+    '</div>' +
+
+    '<div style="margin-bottom:14px">' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#1565C0;margin-bottom:6px">📦 व्यवसाय का प्रकार / Business Type *</label>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+      [['Trading','🛒 Trading<br><span style="font-size:10px;color:#546E7A">खरीद-बिक्री</span>'],
+       ['Manufacturing','🏭 Manufacturing<br><span style="font-size:10px;color:#546E7A">उत्पादन</span>'],
+       ['Service','🔧 Service<br><span style="font-size:10px;color:#546E7A">सेवा कार्य</span>'],
+       ['Trading + Manufacturing','📊 Trading+Mfg<br><span style="font-size:10px;color:#546E7A">मिश्रित</span>'],
+      ].map(function(b){
+        var sel = _wiz.data.btype===b[0];
+        return '<div onclick="wizSetBtype(\'' + b[0] + '\')" style="border:2px solid ' + (sel?'#1565C0':'#E0E0E0') + ';border-radius:10px;padding:10px;cursor:pointer;background:' + (sel?'#E3F2FD':'#fff') + ';text-align:center;font-size:12px;font-weight:' + (sel?'700':'400') + ';color:' + (sel?'#1565C0':'#37474F') + '">' + b[1] + '</div>';
+      }).join('') +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:10px">' +
+      '<button onclick="showWizStep(0)" style="flex:0.4;padding:13px;background:#f5f5f5;color:#546E7A;border:1px solid #E0E0E0;border-radius:10px;font-size:14px;cursor:pointer">◀ वापस</button>' +
+      '<button onclick="wizSaveProfile()" style="flex:1;padding:13px;background:#1565C0;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">Save & आगे ▶</button>' +
+    '</div>' +
+  '</div>';
+
+  // ── STEP 2: Capital ──
+  if(step===2) return progress + '<div style="padding:16px">' +
+    '<div style="font-size:18px;font-weight:800;color:#1565C0;margin-bottom:4px">💰 शुरुआती पूंजी</div>' +
+    '<div style="font-size:12px;color:#546E7A;margin-bottom:4px">Step 2 of 4 — Opening Capital</div>' +
+    '<div style="background:#E8F5E9;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;color:#2E7D32">✅ <b>ध्यान दें:</b> यह वह राशि है जो आपने व्यवसाय शुरू करने के लिए लगाई है (Cash + Bank + Stock मिलाकर)।</div>' +
+
+    '<div style="margin-bottom:12px">' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#1565C0;margin-bottom:4px">💵 शुरुआती पूंजी (₹) / Initial Capital *</label>' +
+      '<input id="wiz_capital" type="number" value="' + (_wiz.data.capital||'') + '" placeholder="जैसे: 100000" style="width:100%;padding:12px;border:2px solid #1565C0;border-radius:10px;font-size:18px;font-weight:700;box-sizing:border-box" oninput="_wiz.data.capital=+this.value">' +
+    '</div>' +
+
+    '<div style="margin-bottom:12px">' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#1565C0;margin-bottom:6px">💰 यह पूंजी कहाँ है? / Where is this capital?</label>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">' +
+      [['cash','💵 Cash में','पूरी नकद में'],
+       ['bank','🏦 Bank में','पूरी बैंक में'],
+       ['both','💵+🏦 दोनों में','Cash + Bank दोनों'],
+      ].map(function(m){
+        var sel = _wiz.data.capitalMode===m[0];
+        return '<div onclick="wizSetCapitalMode(\'' + m[0] + '\')" style="border:2px solid ' + (sel?'#1565C0':'#E0E0E0') + ';border-radius:10px;padding:10px;cursor:pointer;background:' + (sel?'#E3F2FD':'#fff') + ';text-align:center">' +
+          '<div style="font-size:16px">' + m[1] + '</div>' +
+          '<div style="font-size:10px;color:#546E7A;margin-top:2px">' + m[2] + '</div>' +
+        '</div>';
+      }).join('') +
+      '</div>' +
+    '</div>' +
+
+    (_wiz.data.capitalMode==='both' ? 
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">' +
+        '<div><label style="display:block;font-size:11px;font-weight:700;color:#546E7A;margin-bottom:4px">💵 Cash में (₹)</label>' +
+        '<input id="wiz_cash" type="number" value="' + (_wiz.data.cash||'') + '" placeholder="0" style="width:100%;padding:10px;border:1px solid #BDBDBD;border-radius:8px;font-size:15px;box-sizing:border-box" oninput="_wiz.data.cash=+this.value"></div>' +
+        '<div><label style="display:block;font-size:11px;font-weight:700;color:#546E7A;margin-bottom:4px">🏦 Bank में (₹)</label>' +
+        '<input id="wiz_bank" type="number" value="' + (_wiz.data.bank||'') + '" placeholder="0" style="width:100%;padding:10px;border:1px solid #BDBDBD;border-radius:8px;font-size:15px;box-sizing:border-box" oninput="_wiz.data.bank=+this.value"></div>' +
+      '</div>' : '') +
+
+    '<div style="display:flex;gap:10px">' +
+      '<button onclick="showWizStep(1)" style="flex:0.4;padding:13px;background:#f5f5f5;color:#546E7A;border:1px solid #E0E0E0;border-radius:10px;font-size:14px;cursor:pointer">◀ वापस</button>' +
+      '<button onclick="wizSaveCapital()" style="flex:1;padding:13px;background:#1565C0;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">Save & आगे ▶</button>' +
+    '</div>' +
+  '</div>';
+
+  // ── STEP 3: Bank Account ──
+  if(step===3) return progress + '<div style="padding:16px">' +
+    '<div style="font-size:18px;font-weight:800;color:#1565C0;margin-bottom:4px">🏦 Bank Account</div>' +
+    '<div style="font-size:12px;color:#546E7A;margin-bottom:4px">Step 3 of 4 — Add Bank Account</div>' +
+    '<div style="background:#E3F2FD;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;color:#1565C0">ℹ️ आपके Bank का नाम और Account Number डालें। यह Payment Reminders और Cash Book में use होगा।</div>' +
+
+    '<div style="margin-bottom:12px">' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#1565C0;margin-bottom:4px">🏦 Bank का नाम / Bank Name *</label>' +
+      '<select id="wiz_bankname" style="width:100%;padding:12px;border:2px solid #1565C0;border-radius:10px;font-size:14px;box-sizing:border-box" onchange="_wiz.data.bankName=this.value">' +
+      ['State Bank of India','Punjab National Bank','Bank of Baroda','Canara Bank','Bank of India','Union Bank of India','Central Bank of India','HDFC Bank','ICICI Bank','Axis Bank','Kotak Mahindra Bank','IndusInd Bank','UCO Bank','Indian Bank','Bank of Maharashtra','Other Bank'].map(function(b){
+        return '<option value="' + b + '" ' + (_wiz.data.bankName===b?'selected':'') + '>' + b + '</option>';
+      }).join('') +
+      '</select>' +
+    '</div>' +
+
+    '<div style="margin-bottom:12px">' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#1565C0;margin-bottom:4px">🔢 Account Number (Optional)</label>' +
+      '<input id="wiz_accno" type="text" value="' + (_wiz.data.accNo||'') + '" placeholder="जैसे: CA-123456789 या SB-987654321" style="width:100%;padding:12px;border:2px solid #E0E0E0;border-radius:10px;font-size:14px;box-sizing:border-box" oninput="_wiz.data.accNo=this.value">' +
+    '</div>' +
+
+    '<div style="margin-bottom:14px">' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#1565C0;margin-bottom:6px">📋 Account Type</label>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">' +
+      [['CA','Current Account'],['SB','Savings Account'],['CC','Cash Credit']].map(function(a){
+        var sel = (_wiz.data.accType||'SB')===a[0];
+        return '<div onclick="_wiz.data.accType=\'' + a[0] + '\';showWizStep(3)" style="border:2px solid ' + (sel?'#1565C0':'#E0E0E0') + ';border-radius:10px;padding:10px;cursor:pointer;background:' + (sel?'#E3F2FD':'#fff') + ';text-align:center">' +
+          '<div style="font-size:14px;font-weight:700;color:' + (sel?'#1565C0':'#546E7A') + '">' + a[0] + '</div>' +
+          '<div style="font-size:10px;color:#90A4AE">' + a[1] + '</div>' +
+        '</div>';
+      }).join('') +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:10px">' +
+      '<button onclick="showWizStep(2)" style="flex:0.4;padding:13px;background:#f5f5f5;color:#546E7A;border:1px solid #E0E0E0;border-radius:10px;font-size:14px;cursor:pointer">◀ वापस</button>' +
+      '<button onclick="wizSaveBank()" style="flex:1;padding:13px;background:#1565C0;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">Save & आगे ▶</button>' +
+    '</div>' +
+  '</div>';
+
+  // ── STEP 4: Ready! ──
+  if(step===4){
+    var isNew = _wiz.data.stage==='new';
+    return progress + '<div style="padding:16px">' +
+    '<div style="text-align:center;padding:20px 0">' +
+      '<div style="font-size:60px">🎉</div>' +
+      '<div style="font-size:22px;font-weight:800;color:#2E7D32;margin-top:8px">आप तैयार हैं!</div>' +
+      '<div style="font-size:14px;color:#546E7A;margin-top:4px">You\'re all set to start!</div>' +
+    '</div>' +
+
+    '<div style="background:#E8F5E9;border-radius:12px;padding:14px;margin-bottom:16px">' +
+      '<div style="font-weight:700;font-size:14px;color:#2E7D32;margin-bottom:10px">✅ Setup Complete:</div>' +
+      '<div style="font-size:13px;color:#37474F;line-height:2">' +
+        '🏢 ' + (_wiz.data.name||'Your Business') + '<br>' +
+        '👤 ' + (_wiz.data.owner||'') + ' | ' + _wiz.data.constitution + '<br>' +
+        '📦 ' + _wiz.data.btype + ' | ' + (isNew?'New Business':'Existing Business') + '<br>' +
+        '💰 Capital: ₹' + (+_wiz.data.capital).toLocaleString('en-IN') + '<br>' +
+        '🏦 ' + _wiz.data.bankName + ((_wiz.data.accNo)?(' — ' + _wiz.data.accNo):'') +
+      '</div>' +
+    '</div>' +
+
+    '<div style="background:#E3F2FD;border-radius:12px;padding:14px;margin-bottom:16px">' +
+      '<div style="font-weight:700;font-size:14px;color:#1565C0;margin-bottom:10px">📋 अगले Steps / What to do next:</div>' +
+      (isNew ?
+        '<div style="font-size:13px;color:#37474F;line-height:2">' +
+          '<b style="color:#1565C0">Step 1:</b> Inventory → अपने items/माल डालें<br>' +
+          '<b style="color:#1565C0">Step 2:</b> Purchase → खरीद की entry करें<br>' +
+          '<b style="color:#1565C0">Step 3:</b> Sales → बिक्री की entry करें<br>' +
+          '<b style="color:#1565C0">Step 4:</b> Expenses → खर्च की entry करें<br>' +
+          '<b style="color:#2E7D32">Step 5:</b> Financials → P&L और Balance Sheet देखें ✅' +
+        '</div>'
+        :
+        '<div style="font-size:13px;color:#37474F;line-height:2">' +
+          '<b style="color:#7B1FA2">Step 1:</b> Data → Opening Trial Balance → सभी balances डालें<br>' +
+          '<b style="color:#7B1FA2">Step 2:</b> Trial Balance DR = CR होने पर "Post to Books" दबाएं<br>' +
+          '<b style="color:#1565C0">Step 3:</b> Purchase, Sales, Expenses की entries शुरू करें<br>' +
+          '<b style="color:#2E7D32">Step 4:</b> Financials → सब कुछ automatically tally होगा ✅' +
+        '</div>'
+      ) +
+    '</div>' +
+
+    '<button onclick="wizFinish(\'' + (isNew?'inventory':'data') + '\')" style="width:100%;padding:15px;background:#2E7D32;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px">' +
+      (isNew ? '🛒 Inventory डालें — शुरू करें!' : '📋 Opening Trial Balance डालें!') +
+    '</button>' +
+    '<button onclick="wizFinish(\'dashboard\')" style="width:100%;padding:12px;background:transparent;color:#546E7A;border:1px solid #E0E0E0;border-radius:10px;font-size:13px;cursor:pointer">' +
+      '🏠 Dashboard पर जाएं' +
+    '</button>' +
+  '</div>';
+  }
+  return '<div>Step not found</div>';
 }
 
-function chooseNewBusiness(){
-  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
-  // If TB data exists, warn user and clear it
-  var hasTB = D.tbPosted || (D.trialBalance && D.trialBalance.length>0);
-  var doSet = function(){
-    D.profile.businessStage = 'new';
-    // Clear all opening balance data — not needed for new business
-    D.trialBalance = [];
-    D.tbPosted = false;
-    D.tbPostedOn = null;
-    D.opening = {cash:0,bank:0,stock:0,debtors:0,creditors:0,capital:0,takenOn:null};
-    // Clear TB-sourced items from fixedAssets, loans, debtors, creditors, inventory
-    D.fixedAssets = (D.fixedAssets||[]).filter(function(f){return !f.fromTB;});
-    D.loans = (D.loans||[]).filter(function(l){return !l.fromTB;});
-    D.debtors = (D.debtors||[]).filter(function(d){return !d.fromTB;});
-    D.creditors = (D.creditors||[]).filter(function(c){return !c.fromTB;});
-    D.inventory = (D.inventory||[]).filter(function(i){return !i.fromTB;});
-    // Recalculate otherAssets from remaining fixedAssets
-    D.otherAssets = (D.fixedAssets||[]).reduce(function(s,f){return s+(+f.cost||0);},0);
-    D.otherAssetsNotes = (D.fixedAssets||[]).map(function(f){return {label:f.name+' ('+f.category+')',amount:f.cost};});
-    sv();
-    var overlay = document.getElementById('welcome-overlay');
-    if(overlay) overlay.remove();
-    go('profile');
-    toast('नया व्यवसाय सेट — Profile भरें और शुरू करें! 🌱');
-  };
-  if(hasTB){
-    confirmDialog(
-      '⚠️ Opening Trial Balance Data Found\n\nSwitching to New Business will CLEAR all opening balances (Trial Balance, opening debtors, creditors, fixed assets from TB).\n\nYour current transactions (sales, purchases, expenses) will be kept.\n\nAre you sure?',
-      doSet
-    );
+function wizSetStage(s){ _wiz.data.stage=s; showWizStep(0); }
+function wizSetConstitution(c){ _wiz.data.constitution=c; showWizStep(1); }
+function wizSetBtype(b){ _wiz.data.btype=b; showWizStep(1); }
+function wizSetCapitalMode(m){ _wiz.data.capitalMode=m; showWizStep(2); }
+
+function wizSaveProfile(){
+  var name = document.getElementById('wiz_bname') ? document.getElementById('wiz_bname').value : _wiz.data.name;
+  var owner = document.getElementById('wiz_owner') ? document.getElementById('wiz_owner').value : _wiz.data.owner;
+  var mobile = document.getElementById('wiz_mobile') ? document.getElementById('wiz_mobile').value : _wiz.data.mobile;
+  if(!name||!name.trim()){toast('Business name डालें','e');return;}
+  if(!owner||!owner.trim()){toast('Owner name डालें','e');return;}
+  if(!mobile||mobile.length<10){toast('Valid 10-digit mobile डालें','e');return;}
+  _wiz.data.name=name.trim();
+  _wiz.data.owner=owner.trim();
+  _wiz.data.mobile=mobile.trim();
+  // Save to D.profile immediately
+  D.profile.businessName=_wiz.data.name;
+  D.profile.ownerName=_wiz.data.owner;
+  D.profile.mobile=_wiz.data.mobile;
+  D.profile.constitution=_wiz.data.constitution;
+  D.profile.businessType=_wiz.data.btype;
+  D.profile.businessStage=_wiz.data.stage;
+  sv();
+  showWizStep(2);
+}
+
+function wizSaveCapital(){
+  var cap = document.getElementById('wiz_capital') ? +document.getElementById('wiz_capital').value : _wiz.data.capital;
+  if(!cap||cap<=0){toast('Capital amount डालें','e');return;}
+  _wiz.data.capital=cap;
+  var cash=0, bank=0;
+  if(_wiz.data.capitalMode==='cash'){ cash=cap; bank=0; }
+  else if(_wiz.data.capitalMode==='bank'){ cash=0; bank=cap; }
+  else {
+    cash = document.getElementById('wiz_cash') ? +document.getElementById('wiz_cash').value : _wiz.data.cash;
+    bank = document.getElementById('wiz_bank') ? +document.getElementById('wiz_bank').value : _wiz.data.bank;
+    if((cash+bank)!==cap){ toast('Cash + Bank = ₹'+cap.toLocaleString('en-IN')+' होना चाहिए','e'); return; }
+  }
+  _wiz.data.cash=cash; _wiz.data.bank=bank;
+  D.capital.initialCapital=cap;
+  D.capital.additionalCapital=0;
+  D.opening.cash=cash; D.opening.bank=bank; D.opening.capital=cap;
+  sv();
+  showWizStep(3);
+}
+
+function wizSaveBank(){
+  var bname = document.getElementById('wiz_bankname') ? document.getElementById('wiz_bankname').value : _wiz.data.bankName;
+  var accno = document.getElementById('wiz_accno') ? document.getElementById('wiz_accno').value : (_wiz.data.accNo||'');
+  var acctype = _wiz.data.accType||'SB';
+  _wiz.data.bankName=bname; _wiz.data.accNo=accno;
+  var displayName = bname + (accno ? ' ' + acctype + '-' + accno : '');
+  // Save bank account
+  if(!D.bankAccounts) D.bankAccounts=[];
+  if(D.bankAccounts.length===0 || D.bankAccounts[0].name==='Bank Account 1' || D.bankAccounts[0].name==='SBI CA/SB'){
+    D.bankAccounts = [{id:'ba1', name:displayName}];
   } else {
-    doSet();
+    D.bankAccounts[0].name = displayName;
+  }
+  sv();
+  showWizStep(4);
+}
+
+function wizFinish(pg){
+  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
+  // If existing business, set up properly
+  if(_wiz.data.stage==='existing'){
+    D.profile.businessStage='existing';
+    sv();
+  }
+  var overlay = document.getElementById('wiz-overlay');
+  if(overlay) overlay.remove();
+  go(pg);
+  if(_wiz.data.stage==='new'){
+    toast('🎉 ' + _wiz.data.name + ' — शुरुआत मुबारक! अब inventory में items डालें।');
+  } else {
+    toast('📋 Opening Trial Balance डालें — Data → Opening Trial Balance');
   }
 }
 
-function showExistingChoice(){
-  var overlay = document.getElementById('welcome-overlay');
-  if(!overlay) return;
-  overlay.innerHTML = `
-    <div style="background:#1565C0;padding:20px 16px 16px;text-align:center">
-      <div style="font-size:36px">📒</div>
-      <div style="font-size:20px;font-weight:700;color:#fff;margin-top:6px">Opening Balance कैसे डालें?</div>
-      <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">How would you like to enter your opening balances?</div>
-    </div>
-    <div style="padding:16px">
+// ── Original functions kept for backward compatibility ──
+function showBusinessChoice(){ showWizStep(0); }
+function chooseNewBusiness(){ wizSetStage('new'); showWizStep(1); }
+function showExistingChoice(){ wizSetStage('existing'); showWizStep(1); }
+function chooseExcelUpload(){ wizSetStage('existing'); wizFinish('data'); }
+function chooseManualEntry(){ wizSetStage('existing'); wizFinish('data'); }
+function showManualEntryGuide(){ showWizStep(4); }
+function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){} var o=document.getElementById('wiz-overlay');if(o)o.remove(); }
 
-      <div onclick="chooseExcelUpload()" style="background:#FFF8E1;border:2px solid #F57F17;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
-        <div style="font-size:22px;margin-bottom:6px">📂</div>
-        <div style="font-weight:700;font-size:16px;color:#E65100;margin-bottom:4px">Excel / CSV File Upload</div>
-        <div style="font-size:13px;color:#37474F">सारी जानकारी Excel में भरकर एक बार में upload करें।<br><span style="color:#546E7A">Fill the template on a computer/phone and upload at once.</span></div>
-        <div style="margin-top:10px;background:#FFE0B2;border-radius:8px;padding:8px;font-size:12px;color:#BF360C">
-          📥 Data → Full Data Template (.xlsx) download करें<br>
-          ✏️ Trial Balance, Stock, FA, Loans भरें<br>
-          📤 Data tab से upload करें — सब auto-post हो जाएगा
-        </div>
-      </div>
-
-      <div onclick="chooseManualEntry()" style="background:#F3E5F5;border:2px solid #7B1FA2;border-radius:12px;padding:16px;margin-bottom:14px;cursor:pointer">
-        <div style="font-size:22px;margin-bottom:6px">✏️</div>
-        <div style="font-weight:700;font-size:16px;color:#6A1B9A;margin-bottom:4px">हाथ से डालें — Manual Entry (Step by Step)</div>
-        <div style="font-size:13px;color:#37474F">App में ही एक-एक जानकारी डालें — Excel की जरूरत नहीं।<br><span style="color:#546E7A">Enter everything directly in the app, step by step.</span></div>
-        <div style="margin-top:10px;background:#E1BEE7;border-radius:8px;padding:8px;font-size:12px;color:#4A148C">
-          <b>Step 1:</b> Profile — व्यवसाय की जानकारी भरें<br>
-          <b>Step 2:</b> Data → Opening Trial Balance → सभी heads डालें<br>
-          <b>Step 3:</b> Trial Balance tally होने पर Post to Books दबाएं<br>
-          <b>Step 4:</b> Inventory, FA, Loans अपने आप balance होंगे
-        </div>
-      </div>
-
-      <button onclick="showBusinessChoice()" style="width:100%;padding:10px;background:transparent;color:#546E7A;border:1px solid #BBDEFB;border-radius:8px;font-size:13px;cursor:pointer;margin-bottom:8px">
-        ← वापस जाएं / Go Back
-      </button>
-    </div>
-  `;
-}
-
-function chooseExcelUpload(){
-  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
-  D.profile.businessStage = 'existing';
-  sv();
-  var overlay = document.getElementById('welcome-overlay');
-  if(overlay) overlay.remove();
-  go('data');
-  toast('Data tab पर जाएं → Full Data Template download करें 📂');
-}
-
-function chooseManualEntry(){
-  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
-  D.profile.businessStage = 'existing';
-  sv();
-  var overlay = document.getElementById('welcome-overlay');
-  if(overlay) overlay.remove();
-  showManualEntryGuide();
-}
-
-function showManualEntryGuide(){
-  var div = document.createElement('div');
-  div.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
-  div.innerHTML = `
-    <div style="background:#fff;border-radius:14px;padding:20px;max-width:400px;width:100%;max-height:90vh;overflow-y:auto">
-      <div style="font-size:18px;font-weight:700;color:#6A1B9A;margin-bottom:14px;text-align:center">✏️ Manual Entry Guide</div>
-      <div style="background:#F3E5F5;border-radius:8px;padding:12px;margin-bottom:10px">
-        <div style="font-weight:700;color:#6A1B9A;margin-bottom:6px">Step 1 — Profile</div>
-        <div style="font-size:13px;color:#37474F">Profile screen पर जाएं। Business name, type, constitution भरें। Save करें।</div>
-      </div>
-      <div style="background:#E3F2FD;border-radius:8px;padding:12px;margin-bottom:10px">
-        <div style="font-weight:700;color:#1565C0;margin-bottom:6px">Step 2 — Opening Trial Balance</div>
-        <div style="font-size:13px;color:#37474F">Data → Opening Trial Balance पर जाएं। हर head एक-एक करके डालें:<br>• Cash, Bank का balance<br>• Stock items (item का नाम, qty, rate)<br>• Debtors (ग्राहक जिन पर पैसा आना है)<br>• Fixed Assets (machinery, vehicle etc.)<br>• Creditors (supplier जिन्हें देना है)<br>• Loans outstanding<br>• Capital (आपकी पूंजी)<br><br>जब DR = CR हो जाए — <b>Post to Books</b> दबाएं।</div>
-      </div>
-      <div style="background:#E8F5E9;border-radius:8px;padding:12px;margin-bottom:14px">
-        <div style="font-weight:700;color:#2E7D32;margin-bottom:6px">Step 3 — रोज़ की entries शुरू करें</div>
-        <div style="font-size:13px;color:#37474F">Trial Balance post होने के बाद:<br>• Sales, Purchase, Expenses normally enter करें<br>• Balance Sheet automatically tally होगी ✅</div>
-      </div>
-      <button onclick="this.closest('div[style*=fixed]').remove();go('profile');" style="width:100%;padding:14px;background:#6A1B9A;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">
-        ✅ समझ गया — Profile से शुरू करें
-      </button>
-    </div>
-  `;
-  document.body.appendChild(div);
-}
-
-function startApp(){
-  try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
-  var overlay = document.getElementById('welcome-overlay');
-  if(overlay) overlay.remove();
-}
 
 // ===== NAVIGATION & RENDER =====
 var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट'};
