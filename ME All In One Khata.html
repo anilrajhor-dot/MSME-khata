@@ -986,7 +986,45 @@ function pgProf(){
         '</select></div>')+'<div style="margin-bottom:10px"><label style="font-size:11px;color:#546E7A;display:flex;align-items:center;gap:6px"><input type="checkbox" id="p_mobext" '+(p.mobileExtended?'checked':'')+' style="width:auto"> Allow longer number (up to 15 digits, e.g. with country code)</label></div>'+(function(){
       var constOpts = CONSTITUTIONS.map(function(c){return '<option value="'+c+'"'+(( p.constitution||'Individual')===c?' selected':'')+'>'+c+'</option>';}).join('');
       return '<div class="fg"><label>Constitution / Legal Form</label><select id="p_const" onchange="updatePartnerSection()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;box-sizing:border-box">'+constOpts+'</select></div>';
-    })()+sl('Business Stage','p_stage',[{v:'existing',l:'Existing business (already running - I have opening balances to enter)'},{v:'new',l:'New business (starting fresh - no prior balances)'}],p.businessStage||'existing')+'<div style="font-size:11px;color:#546E7A;margin-bottom:8px">"New business" hides Trial Balance / Prior Period P&amp;L screens (Data tab) since there\'s no prior history to enter. You can change this anytime.</div>'+inp('Address','p_addr','ta',p.address)+g2(inp('Start Date','p_cd','date',p.commencementDate),inp('UDYAM No.','p_ud','text',p.udyam))+g2(inp('GST No.','p_gst','text',p.gst),inp('PAN','p_pan','text',p.pan))+inp('TAN','p_tan','text',p.tan)+
+    })()+sl('Business Stage','p_stage',[{v:'existing',l:'Existing business (already running - I have opening balances to enter)'},{v:'new',l:'New business (starting fresh - no prior balances)'}],p.businessStage||'existing')+'<div style="font-size:11px;color:#546E7A;margin-bottom:8px">"New business" hides Trial Balance / Prior Period P&amp;L screens (Data tab) since there\'s no prior history to enter. You can change this anytime.</div>'+inp('Address','p_addr','ta',p.address)+g2(inp('Start Date','p_cd','date',p.commencementDate),inp('UDYAM No.','p_ud','text',p.udyam))+g2(inp('GST No.','p_gst','text',p.gst),inp('PAN','p_pan','text',p.pan))+g2(inp('TAN','p_tan','text',p.tan),inp('Shop License No.','p_shoplic','text',p.shopLicenseNo||''))+g2(inp('FSSAI Registration No.','p_fssai','text',p.fssaiNo||''),inp('Email ID','p_email','email',p.email||''))+
+    (function(){
+      var natureOpts=[{v:'retail',l:'Retail'},{v:'wholesale',l:'Wholesale'},{v:'both',l:'Both Retail & Wholesale'}];
+      var fyStart=(function(){var d=new Date();var y=d.getMonth()>=3?d.getFullYear():d.getFullYear()-1;return y+'-04-01 to '+(y+1)+'-03-31';})();
+      return g2(
+        sl('Nature of Business','p_nature',natureOpts,p.natureOfBusiness||'retail'),
+        '<div class="fg"><label>Financial Year (Auto)</label><input value="'+fyStart+'" readonly style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#F0F4FF;color:#546E7A;box-sizing:border-box"></div>'
+      );
+    })()+
+    (function(){
+      var lockOn=p.openingDateLocked;
+      return '<div style="background:'+(lockOn?'#FFF3E0':'#F0F4FF')+';border-radius:8px;padding:10px;margin-bottom:10px">'+
+        '<div style="font-size:12px;font-weight:700;color:'+(lockOn?'#E65100':'#1565C0')+'">🔒 Opening Date Lock</div>'+
+        '<div style="font-size:11px;color:#546E7A;margin:4px 0 8px">Once locked, the Start Date / Opening Balance date cannot be changed accidentally. Useful after Trial Balance is posted.</div>'+
+        (lockOn?
+          '<div style="font-size:12px;color:#E65100;font-weight:700">🔒 LOCKED — Opening date is '+esc(p.commencementDate||D.opening.takenOn||'')+'</div>'+btn('🔓 Unlock','toggleOpeningLock(false)','#546E7A')
+          :
+          '<label style="font-size:11px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="p_lockdate" style="width:auto"> Lock opening date now (cannot be undone easily)</label>'+
+          btn('🔒 Lock Opening Date','toggleOpeningLock(true)','#E65100')
+        )+
+      '</div>';
+    })()+
+    (function(){
+      var accts4=D.bankAccounts&&D.bankAccounts.length?D.bankAccounts:[{id:'acc1',name:'Bank Account 1'}];
+      var defBankOpts=accts4.map(function(a){return{v:a.id,l:a.name};});
+      var defPayOpts=[{v:'cash',l:'Cash'},{v:'bank',l:'Bank Transfer'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}];
+      return g2(
+        sl('Default Bank Account','p_defbank',defBankOpts,p.defaultBankAccount||accts4[0].id),
+        sl('Default Payment Mode','p_defpay',defPayOpts,p.defaultPaymentMode||'cash')
+      )+'<div style="font-size:10px;color:#546E7A;margin-bottom:10px">These pre-select in Sales/Purchase/Expense forms — saves time on repetitive entries. Can override per entry.</div>';
+    })()+
+    (function(){
+      var logo=p.businessLogo;
+      return '<div class="fg"><label>🖼️ Business Logo (optional)</label>'+
+        (logo?'<div style="margin-bottom:6px"><img src="'+logo+'" style="max-width:120px;max-height:80px;border-radius:8px;border:1px solid #E0E0E0"></div>'+btn('Remove Logo','removeLogo()','#C62828'):'')+
+        '<input type="file" id="p_logo" accept="image/*" onchange="handleLogoUpload(this)" style="width:100%;padding:8px;border-radius:8px;border:1px solid #BBDEFB;font-size:12px;box-sizing:border-box">'+
+        '<div style="font-size:10px;color:#90A4AE;margin-top:3px">Used on printed Bills/Invoices. Max 200KB recommended.</div>'+
+      '</div>';
+    })()+
     // Partners / Directors / Members section — dynamic div
     '<div id="partner_section">'+renderPartnerSection(p.constitution||'Individual')+'</div>'+
     btn('💾 Save Profile','saveProf()'))
@@ -1021,6 +1059,33 @@ function pgProf(){
         );
       })();
 }
+
+function toggleOpeningLock(lock){
+  D.profile.openingDateLocked = lock;
+  sv();
+  toast(lock ? '🔒 Opening date locked' : '🔓 Opening date unlocked');
+  renderPage();
+}
+function handleLogoUpload(input){
+  var file = input.files[0];
+  if(!file) return;
+  if(file.size > 500000){ toast('Logo too large — please use an image under 500KB','e'); return; }
+  var reader = new FileReader();
+  reader.onload = function(e){
+    D.profile.businessLogo = e.target.result;
+    sv();
+    toast('✅ Logo uploaded');
+    renderPage();
+  };
+  reader.readAsDataURL(file);
+}
+function removeLogo(){
+  D.profile.businessLogo = '';
+  sv();
+  toast('Logo removed');
+  renderPage();
+}
+
 function saveProf(){
   var mobExtEl=document.getElementById('p_mobext');
   var ext = mobExtEl ? mobExtEl.checked : false;
@@ -1030,7 +1095,7 @@ function saveProf(){
   var oldStage=D.profile.businessStage||'existing';
   var hasTB=D.tbPosted||(D.trialBalance&&D.trialBalance.length>0);
   var doSaveProfile=function(){
-    D.profile={businessName:gv('p_bn'),ownerName:gv('p_on'),mobile:mobile,mobileExtended:ext,address:gv('p_addr'),businessType:gv('p_bt')||BIZ_TYPE,businessStage:newStage,constitution:gv('p_const'),commencementDate:gv('p_cd'),udyam:gv('p_ud'),gst:gv('p_gst'),pan:gv('p_pan'),tan:gv('p_tan')};
+    var oldLogo2=D.profile.businessLogo||'';var oldLock2=D.profile.openingDateLocked||false;D.profile={businessName:gv('p_bn'),ownerName:gv('p_on'),mobile:mobile,mobileExtended:ext,address:gv('p_addr'),businessType:gv('p_bt')||BIZ_TYPE,businessStage:newStage,constitution:gv('p_const'),commencementDate:gv('p_cd'),udyam:gv('p_ud'),gst:gv('p_gst'),pan:gv('p_pan'),tan:gv('p_tan'),shopLicenseNo:gv('p_shoplic')||'',fssaiNo:gv('p_fssai')||'',email:gv('p_email')||'',natureOfBusiness:gv('p_nature')||'retail',defaultBankAccount:gv('p_defbank')||'',defaultPaymentMode:gv('p_defpay')||'cash',businessLogo:oldLogo2,openingDateLocked:oldLock2};
     if(newStage==='new' && oldStage!=='new' && hasTB){
       D.trialBalance=[];D.tbPosted=false;D.tbPostedOn=null;
       D.opening={cash:0,bank:0,stock:0,debtors:0,creditors:0,capital:0,takenOn:null};
@@ -6529,6 +6594,38 @@ function pgPriorPeriod(){
     catRows
   );
 
+
+  h += hs(
+    bi('17. New Profile Fields — License, FSSAI, Logo & Defaults', '17. नए Profile Fields — License, FSSAI, Logo और Defaults'),
+    bi(
+      '<p>Go to: <b>Profile menu</b> — new fields added:</p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:2">' +
+      '<li><b>Shop License No.</b> — your trade/shop establishment license number</li>' +
+      '<li><b>FSSAI Registration No.</b> — required for food businesses</li>' +
+      '<li><b>Email ID</b> — for record keeping</li>' +
+      '<li><b>Nature of Business</b> — Retail / Wholesale / Both</li>' +
+      '<li><b>Financial Year</b> — auto-calculated (e.g. 2026-04-01 to 2027-03-31), no need to enter</li>' +
+      '<li><b>Opening Date Lock</b> — once you post Trial Balance, lock the opening date so it cannot be changed accidentally. Tap "Lock Opening Date". Unlock anytime if needed.</li>' +
+      '<li><b>Default Bank Account</b> — pre-selected automatically in Sales/Purchase/Expense forms</li>' +
+      '<li><b>Default Payment Mode</b> — pre-selected (Cash/Bank/UPI/Credit) — saves time on repeat entries, can change per entry</li>' +
+      '<li><b>Business Logo</b> — upload your shop logo (under 500KB). Appears on printed Bills/Invoices.</li>' +
+      '</ul>' +
+      '<p>All these fields are optional except where marked *. Fill what is relevant to your business.</p>',
+      '<p>जाएं: <b>Profile menu</b> — नए fields जोड़े गए:</p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:2">' +
+      '<li><b>Shop License No.</b> — आपके दुकान के license का नंबर</li>' +
+      '<li><b>FSSAI Registration No.</b> — खाद्य व्यवसाय के लिए जरूरी</li>' +
+      '<li><b>Email ID</b> — रिकॉर्ड के लिए</li>' +
+      '<li><b>Nature of Business</b> — Retail / Wholesale / दोनों</li>' +
+      '<li><b>Financial Year</b> — automatically calculate होता है, डालने की जरूरत नहीं</li>' +
+      '<li><b>Opening Date Lock</b> — Trial Balance post करने के बाद, opening date lock करें ताकि गलती से न बदले। "Lock Opening Date" दबाएं। जरूरत पड़े तो unlock कर सकते हैं।</li>' +
+      '<li><b>Default Bank Account</b> — Sales/Purchase/Expense forms में automatically select होता है</li>' +
+      '<li><b>Default Payment Mode</b> — automatically select होता है (Cash/Bank/UPI/Credit) — हर बार बदलने की जरूरत नहीं, फिर भी बदल सकते हैं</li>' +
+      '<li><b>Business Logo</b> — दुकान का logo upload करें (500KB से कम)। Bills/Invoice print पर दिखता है।</li>' +
+      '</ul>' +
+      '<p>* के अलावा सभी fields optional हैं। जो आपके व्यवसाय के लिए सही है वो भरें।</p>'
+    )
+  );
   h += btn('💾 Save Prior Period Figures','savePriorPeriod()','#2E7D32');
 
   if(pp.enabled){
