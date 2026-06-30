@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
 <script>
-var _BUILD="202406270630";
-var _s=sessionStorage.getItem("mfm_build");
-if(_s&&_s!=="202406270630"){sessionStorage.setItem("mfm_build","202406270630");location.reload(true);}else{sessionStorage.setItem("mfm_build","202406270630");}
+var _BUILD="202406300001";
+try{ sessionStorage.setItem("mfm_build",_BUILD); }catch(e){}
+// Note: removed forced location.reload() — this caused blank screens in
+// standalone "Add to Home Screen" mode on iOS Safari (reload loop/race condition)
 </script>
 
 <meta charset="UTF-8">
