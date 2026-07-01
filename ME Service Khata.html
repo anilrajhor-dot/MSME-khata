@@ -1626,9 +1626,19 @@ function renderDemo(){
      desc:'JEE/NEET coaching — Batch fees, study material. 2 partners. Large scale.',file:'j12_Service_Exist_Partner'},
   ];
   return card('🔄 Sample Businesses — One-Click Demo Data',
-    '<div style="background:#FFF3E0;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#E65100">'+
-      '⚠️ Loading demo data will REPLACE your current data. Your current data will be lost unless you have taken a backup first (Data → Export Data).'+
-    '</div>'+
+    (function(){
+      var ec=getDemoEntryCount();
+      if(ec&&(ec.sales+ec.purchases+ec.expenses>0)){
+        return '<div style="background:#E8F5E9;border-left:4px solid #2E7D32;border-radius:8px;padding:10px;margin-bottom:10px">'+
+          '<div style="font-size:12px;font-weight:700;color:#2E7D32;margin-bottom:4px">📊 Practice Session Active</div>'+
+          '<div style="font-size:11px;color:#37474F">Demo: '+esc(ec.filename)+' | Your entries: '+ec.sales+' sales, '+ec.purchases+' purchases, '+ec.expenses+' expenses</div>'+
+          '<button onclick="reloadDemoKeepEntries(\''+ec.filename+'\')" style="margin-top:6px;width:100%;padding:8px;background:#1565C0;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">🔄 Reload Demo (Keep My Entries)</button>'+
+        '</div>';
+      }
+      return '<div style="background:#FFF3E0;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#E65100">'+
+        '⚠️ <b>Full Replace</b> will overwrite all data. <b>Practice Load</b> is recommended — you can add entries and reload anytime.'+
+      '</div>';
+    })()+
     demos.map(function(d){
       return '<div style="border:1px solid #E0E0E0;border-radius:8px;padding:10px;margin-bottom:8px">'+
         '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
@@ -1637,12 +1647,96 @@ function renderDemo(){
             '<div style="font-size:10px;color:#1565C0;margin:2px 0">'+d.type+'</div>'+
             '<div style="font-size:11px;color:#546E7A">'+d.desc+'</div>'+
           '</div>'+
-          '<button onclick="loadDemoData(\''+d.file+'\')" style="padding:8px 12px;background:#E65100;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;margin-left:8px">Load Demo</button>'+
+          '<div style="display:flex;flex-direction:column;gap:4px;margin-left:8px">'+
+          '<button onclick="loadDemoForPractice(\''+d.file+'\')" style="padding:6px 10px;background:#2E7D32;color:#fff;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">▶ Practice Load</button>'+
+          '<button onclick="loadDemoData(\''+d.file+'\')" style="padding:6px 10px;background:#E65100;color:#fff;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 Full Replace</button>'+
+        '</div>'+
         '</div>'+
       '</div>';
     }).join('')+
     '<button onclick="clearAllData()" style="width:100%;padding:10px;background:#C62828;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px">🗑️ Clear All Data (Start Fresh)</button>'
   );
+}
+
+
+// ── PRACTICE MODE: Load demo + set as today's starting point ──────
+function loadDemoForPractice(filename){
+  if(!confirm('Load demo data for today\'s practice?\n\nThis will:\n1. Load the demo business data\n2. You can then add today\'s purchases/sales/expenses\n3. Balance Sheet will tally correctly\n\nक्या आप practice के लिए demo data load करना चाहते हैं?')) return;
+  var url='https://anilrajhor-dot.github.io/MSME-khata/'+filename+'.json';
+  toast('Loading demo data for practice... ⏳');
+  fetch(url).then(function(r){return r.json();}).then(function(data){
+    // Load the base data
+    Object.assign(D,data);
+    // Store the demo baseline so we can track user's new entries
+    D._demoBaseline = {
+      salesCount: data.sales.length,
+      purchasesCount: data.purchases.length,
+      expensesCount: data.expenses.length,
+      loadedAt: new Date().toISOString(),
+      filename: filename
+    };
+    sv();
+    window._trainSection='';
+    renderPage();
+    go('dashboard');
+    toast('✅ Demo loaded! Now add today\'s purchases/sales/expenses. BS will tally.');
+  }).catch(function(){
+    toast('Could not load. Check internet connection.','e');
+  });
+}
+
+// ── RELOAD DEMO: Fresh reload keeping only user's new entries ──────
+function reloadDemoKeepEntries(filename){
+  if(!D._demoBaseline||D._demoBaseline.filename!==filename){
+    toast('Please use "Load Demo" first to establish baseline','e');
+    return;
+  }
+  if(!confirm('Reload fresh demo data?\n\nThis will:\n1. Reload the original demo data\n2. Keep only YOUR new entries (added today)\n3. Demo entries will be reset to original\n\nYour new purchase/sale/expense entries will be preserved.\n\nक्या आप demo data reload करना चाहते हैं?')) return;
+  
+  var baseline=D._demoBaseline;
+  // Save user's new entries (added after demo was loaded)
+  var userSales=D.sales.slice(baseline.salesCount);
+  var userPurchases=D.purchases.slice(baseline.purchasesCount);
+  var userExpenses=D.expenses.slice(baseline.expensesCount);
+  
+  var url='https://anilrajhor-dot.github.io/MSME-khata/'+filename+'.json';
+  toast('Reloading demo data... ⏳');
+  fetch(url).then(function(r){return r.json();}).then(function(data){
+    Object.assign(D,data);
+    // Re-apply user's entries on top
+    D.sales=D.sales.concat(userSales);
+    D.purchases=D.purchases.concat(userPurchases);
+    D.expenses=D.expenses.concat(userExpenses);
+    D._demoBaseline={
+      salesCount:data.sales.length,
+      purchasesCount:data.purchases.length,
+      expensesCount:data.expenses.length,
+      loadedAt:new Date().toISOString(),
+      filename:filename,
+      userEntries:{sales:userSales.length,purchases:userPurchases.length,expenses:userExpenses.length}
+    };
+    // Recalculate inventory stock from all entries
+    sv();
+    renderPage();
+    go('dashboard');
+    var msg='✅ Reloaded! Your '+userSales.length+' sales, '+userPurchases.length+' purchases, '+userExpenses.length+' expenses preserved.';
+    toast(msg);
+  }).catch(function(){
+    toast('Could not reload. Check internet connection.','e');
+  });
+}
+
+// ── Show how many entries user has added on top of demo ───────────
+function getDemoEntryCount(){
+  if(!D._demoBaseline) return null;
+  var b=D._demoBaseline;
+  return {
+    sales: D.sales.length - b.salesCount,
+    purchases: D.purchases.length - b.purchasesCount,
+    expenses: D.expenses.length - b.expensesCount,
+    filename: b.filename,
+    loadedAt: b.loadedAt
+  };
 }
 
 function loadDemoData(filename){
