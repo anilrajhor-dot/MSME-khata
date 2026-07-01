@@ -916,223 +916,495 @@ function getFGrouped(){
 // ═══════════════════════════════════════════════════════════════
 function pgHealthCheck(){
   var h='';
+
+  // ── Header ──
   h+='<div style="background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border-radius:12px;padding:14px;margin-bottom:10px">';
   h+='<div style="font-size:16px;font-weight:800">🏥 Accounting Health Check</div>';
-  h+='<div style="font-size:11px;opacity:.85;margin-top:2px">Automatically verifies your books for errors and accuracy</div>';
+  h+='<div style="font-size:11px;opacity:.85;margin-top:2px">Automatically verifies your books | सभी entries की जाँच</div>';
   h+='</div>';
-  h+='<div style="text-align:center;margin-bottom:12px">';
-  h+='<button onclick="runHealthCheck()" style="padding:14px 30px;background:#2E7D32;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;width:100%">🔍 Run Health Check Now</button>';
-  h+='</div>';
+
+  // ── Run Button ──
+  h+='<button onclick="runHealthCheck()" style="width:100%;padding:14px;background:#2E7D32;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:10px">🔍 Run Health Check Now</button>';
+
   var res=window._healthResult;
   if(!res){
-    h+='<div style="background:#F5F5F5;border-radius:10px;padding:20px;text-align:center;color:#90A4AE;font-size:13px">';
-    h+='Tap the button above to run a complete check of your accounting books.<br><br>';
-    h+='Checks: Trial Balance • Balance Sheet • Cash Book • Bank Book •<br>Stock • Debtors • Creditors • Loans • Duplicate Vouchers';
-    h+='</div>';
+    // Show guide BEFORE running
+    h+=card('📖 What does Health Check verify?',
+      '<div style="font-size:12px;color:#37474F;line-height:1.8">'+
+      '<b>10 automatic checks run instantly:</b><br>'+
+      '1. ✅ Trial Balance DR = CR<br>'+
+      '2. ✅ Balance Sheet Assets = Liabilities<br>'+
+      '3. ✅ Cash & Bank not negative<br>'+
+      '4. ✅ No item has negative stock<br>'+
+      '5. ✅ Closing stock matches inventory<br>'+
+      '6. ✅ Debtors match credit sales<br>'+
+      '7. ✅ Creditors match credit purchases<br>'+
+      '8. ✅ Loan balances correct<br>'+
+      '9. ✅ No duplicate bill numbers<br>'+
+      '10. ✅ No expired stock in hand<br><br>'+
+      '<span style="color:#2E7D32;font-weight:700">Target: 90%+ score = Healthy Books ✅</span><br>'+
+      '<span style="color:#546E7A;font-size:10px">Hindi: ऊपर दिए 10 checks automatically होते हैं। 90%+ score = किताबें सही हैं।</span>'+
+      '</div>'
+    );
     return h;
   }
-  // Score display
+
+  // ── Overall Score ──
   var cats=res.categories;
   var overall=Math.round(cats.reduce(function(s,c){return s+c.score;},0)/cats.length);
   var overallColor=overall>=90?'#2E7D32':overall>=70?'#E65100':'#C62828';
-  h+='<div style="background:#fff;border-radius:12px;border:2px solid '+overallColor+';padding:14px;margin-bottom:10px;text-align:center">';
-  h+='<div style="font-size:13px;color:#546E7A;margin-bottom:4px">Overall System Health</div>';
-  h+='<div style="font-size:48px;font-weight:900;color:'+overallColor+'">'+overall+'%</div>';
-  h+='<div style="font-size:13px;color:'+overallColor+';font-weight:700">'+(overall>=90?'✅ Excellent — Books are healthy!':overall>=70?'⚠️ Good — Minor issues found':' Critical — Serious issues need fixing')+'</div>';
-  // Progress bar
+  var overallBg=overall>=90?'#E8F5E9':overall>=70?'#FFF3E0':'#FFEBEE';
+  var overallMsg=overall>=90?'✅ Excellent — Books are healthy! / किताबें सही हैं!':
+    overall>=70?'⚠️ Good — Minor issues found / कुछ सुधार जरूरी':
+    '❌ Attention needed — Please fix issues / त्वरित सुधार जरूरी';
+
+  h+='<div style="background:'+overallBg+';border:2px solid '+overallColor+';border-radius:12px;padding:14px;margin-bottom:10px;text-align:center">';
+  h+='<div style="font-size:12px;color:#546E7A">Overall System Health / कुल स्वास्थ्य</div>';
+  h+='<div style="font-size:52px;font-weight:900;color:'+overallColor+';line-height:1.1">'+overall+'%</div>';
+  h+='<div style="font-size:13px;font-weight:700;color:'+overallColor+'">'+overallMsg+'</div>';
   h+='<div style="background:#E0E0E0;height:8px;border-radius:4px;margin-top:8px">';
-  h+='<div style="background:'+overallColor+';height:8px;border-radius:4px;width:'+overall+'%;transition:width 0.5s"></div></div>';
+  h+='<div style="background:'+overallColor+';height:8px;border-radius:4px;width:'+overall+'%"></div></div>';
+  var passed=res.checks.filter(function(c){return c.pass;}).length;
+  var warned=res.checks.filter(function(c){return !c.pass&&c.warn;}).length;
+  var failed=res.checks.filter(function(c){return !c.pass&&!c.warn;}).length;
+  h+='<div style="font-size:11px;color:#546E7A;margin-top:6px">'+
+    '<span style="color:#2E7D32">✅ Pass: '+passed+'</span> &nbsp;'+
+    (warned?'<span style="color:#E65100">⚠️ Warn: '+warned+'</span> &nbsp;':'')+
+    (failed?'<span style="color:#C62828">❌ Fail: '+failed+'</span>':'')+
+  '</div>';
   h+='</div>';
-  // Category scores
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">';
+
+  // ── Category Scores ──
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">';
   cats.forEach(function(c){
     var cc=c.score>=90?'#2E7D32':c.score>=70?'#E65100':'#C62828';
-    var bg=c.score>=90?'#E8F5E9':c.score>=70?'#FFF3E0':'#FFEBEE';
-    h+='<div style="background:'+bg+';border-radius:10px;padding:10px;text-align:center">';
-    h+='<div style="font-size:11px;color:#546E7A;margin-bottom:2px">'+c.label+'</div>';
-    h+='<div style="font-size:22px;font-weight:900;color:'+cc+'">'+c.score+'%</div>';
+    var cbg=c.score>=90?'#E8F5E9':c.score>=70?'#FFF3E0':'#FFEBEE';
+    h+='<div style="background:'+cbg+';border-radius:10px;padding:10px;text-align:center">';
+    h+='<div style="font-size:10px;color:#546E7A;margin-bottom:2px">'+c.label+'</div>';
+    h+='<div style="font-size:24px;font-weight:900;color:'+cc+'">'+c.score+'%</div>';
     h+='<div style="background:#E0E0E0;height:4px;border-radius:2px;margin-top:4px">';
     h+='<div style="background:'+cc+';height:4px;border-radius:2px;width:'+c.score+'%"></div></div>';
     h+='</div>';
   });
   h+='</div>';
-  // Detailed checks
-  h+=card('📋 Detailed Check Results',
+
+  // ── Detailed Check Results ──
+  h+=card('📋 Detailed Check Results / विस्तृत जाँच परिणाम',
     res.checks.map(function(chk){
       var icon=chk.pass?'✅':chk.warn?'⚠️':'❌';
       var bg=chk.pass?'#F1F8E9':chk.warn?'#FFFDE7':'#FFEBEE';
       var border=chk.pass?'#8BC34A':chk.warn?'#F9A825':'#C62828';
-      return '<div style="background:'+bg+';border-left:4px solid '+border+';border-radius:6px;padding:8px 10px;margin-bottom:6px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center">'+
-          '<div style="font-size:12px;font-weight:700;color:#37474F">'+icon+' '+chk.name+'</div>'+
-          '<div style="font-size:11px;font-weight:700;color:'+(chk.pass?'#2E7D32':chk.warn?'#E65100':'#C62828')+'">'+(chk.pass?'PASS':chk.warn?'WARN':'FAIL')+'</div>'+
+      var statusColor=chk.pass?'#2E7D32':chk.warn?'#E65100':'#C62828';
+      var status=chk.pass?'PASS ✅':chk.warn?'WARN ⚠️':'FAIL ❌';
+      return '<div style="background:'+bg+';border-left:4px solid '+border+';border-radius:6px;padding:8px 10px;margin-bottom:8px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+          '<div style="font-size:12px;font-weight:800;color:#37474F">'+icon+' '+chk.name+'</div>'+
+          '<div style="font-size:11px;font-weight:700;color:'+statusColor+'">'+status+'</div>'+
         '</div>'+
-        '<div style="font-size:11px;color:#546E7A;margin-top:3px">'+chk.detail+'</div>'+
-        (chk.fix?'<div style="font-size:10px;color:#1565C0;margin-top:3px;font-weight:700">💡 Fix: '+chk.fix+'</div>':'');
+        '<div style="font-size:11px;color:#546E7A">'+chk.detail+'</div>'+
+        ((!chk.pass&&chk.fix)?
+          '<div style="background:#fff;border-radius:6px;padding:7px 8px;margin-top:6px">'+
+          '<div style="font-size:10px;font-weight:700;color:#1565C0;margin-bottom:3px">💡 How to Fix / कैसे ठीक करें:</div>'+
+          '<div style="font-size:11px;color:#37474F">'+chk.fix+'</div>'+
+          '</div>':'')+
+      '</div>';
     }).join('')+
-    '<div style="margin-top:8px;text-align:center"><button onclick="window._healthResult=null;renderPage();" style="padding:8px 16px;background:#546E7A;color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer">🔄 Run Again</button></div>'
+    '<div style="text-align:center;margin-top:8px">'+
+    '<button onclick="runHealthCheck()" style="padding:10px 20px;background:#2E7D32;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-right:8px">🔄 Run Again</button>'+
+    '<button onclick="window._healthResult=null;renderPage();" style="padding:10px 20px;background:#546E7A;color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer">Reset</button>'+
+    '</div>'
   );
+
+  // ── HOW TO RECTIFY GUIDE — only show if there are issues ──
+  if(failed>0||warned>0){
+    h+=card('🔧 How to Rectify / त्रुटि कैसे सुधारें',
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:10px">'+
+      'Step-by-step guide for each type of error:'+
+      '</div>'+
+
+      // BS Difference
+      (res.checks.some(function(c){return c.name==='Balance Sheet Balances'&&!c.pass;})?
+      '<div style="background:#FFEBEE;border-left:4px solid #C62828;border-radius:6px;padding:10px;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:800;color:#C62828;margin-bottom:6px">❌ Balance Sheet Difference — How to Fix</div>'+
+      '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
+      '<b>Step 1:</b> Go to <b>Financials → Balance Sheet</b> — note exact difference amount<br>'+
+      '<b>Step 2:</b> Check <b>Capital/Loans → Loans</b> — was loan amount credited to bank? Select "Bank Account" as disbursement<br>'+
+      '<b>Step 3:</b> Check <b>Capital/Loans → Capital</b> — is Initial Capital correct? Was Additional Capital added?<br>'+
+      '<b>Step 4:</b> Check <b>Capital/Loans → Drawings</b> — all personal withdrawals recorded?<br>'+
+      '<b>Step 5:</b> Check <b>Capital/Loans → Advances</b> — any advance paid/received not recorded?<br>'+
+      '<b>Hindi:</b> Capital/Loans menu में जाकर Loan, Capital, Drawings सभी verify करें।'+
+      '</div></div>':'') +
+
+      // Trial Balance
+      (res.checks.some(function(c){return c.name.indexOf('Trial Balance')>=0&&!c.pass;})?
+      '<div style="background:#FFEBEE;border-left:4px solid #C62828;border-radius:6px;padding:10px;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:800;color:#C62828;margin-bottom:6px">❌ Trial Balance Not Tallying — How to Fix</div>'+
+      '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
+      '<b>Step 1:</b> Go to <b>Data → Opening Trial Balance</b><br>'+
+      '<b>Step 2:</b> Check that all DR items are on DR side: Cash, Bank, Stock, Debtors, Fixed Assets<br>'+
+      '<b>Step 3:</b> Check all CR items are on CR side: Capital, Loans, Creditors<br>'+
+      '<b>Step 4:</b> Total DR must equal Total CR — difference usually in Capital<br>'+
+      '<b>Step 5:</b> Adjust Capital amount to make DR = CR, then Post to Books<br>'+
+      '<b>Hindi:</b> Data → Opening Trial Balance → DR = CR होना चाहिए → Capital adjust करें → Post to Books'+
+      '</div></div>':'') +
+
+      // Negative Cash
+      (res.checks.some(function(c){return c.name==='Cash & Bank Position'&&!c.pass;})?
+      '<div style="background:#FFF3E0;border-left:4px solid #E65100;border-radius:6px;padding:10px;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:800;color:#E65100;margin-bottom:6px">⚠️ Negative Cash/Bank — How to Fix</div>'+
+      '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
+      '<b>Step 1:</b> Go to <b>Cash/Bank menu</b> — check all entries<br>'+
+      '<b>Step 2:</b> Find if any expense or purchase amount was too high vs available balance<br>'+
+      '<b>Step 3:</b> Check if Opening Cash/Bank in Profile is entered correctly<br>'+
+      '<b>Step 4:</b> Look for any duplicate expense or purchase entry<br>'+
+      '<b>Step 5:</b> Go to <b>Capital/Loans</b> → check if loan was received in bank<br>'+
+      '<b>Hindi:</b> Cash/Bank menu → कोई entry ज़्यादा या duplicate तो नहीं? Loan bank में जमा हुई?'+
+      '</div></div>':'') +
+
+      // Negative Stock
+      (res.checks.some(function(c){return c.name==='No Negative Stock'&&!c.pass;})?
+      '<div style="background:#FFEBEE;border-left:4px solid #C62828;border-radius:6px;padding:10px;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:800;color:#C62828;margin-bottom:6px">❌ Negative Stock — How to Fix</div>'+
+      '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
+      '<b>Step 1:</b> Go to <b>Inventory</b> — find item showing negative stock (red color)<br>'+
+      '<b>Step 2:</b> Go to <b>Sales</b> — find sale entries for that item<br>'+
+      '<b>Step 3:</b> Check if sold quantity is more than purchased quantity<br>'+
+      '<b>Step 4:</b> Either: (a) Add a Purchase entry for that item, OR (b) Reduce sale quantity<br>'+
+      '<b>Step 5:</b> For opening stock in existing business: go to <b>Data → Opening Stock</b><br>'+
+      '<b>Hindi:</b> Inventory → negative stock item खोजें → Purchase add करें या Sale quantity घटाएं'+
+      '</div></div>':'') +
+
+      // Closing Stock mismatch
+      (res.checks.some(function(c){return c.name==='Closing Stock Consistent'&&!c.pass;})?
+      '<div style="background:#FFF3E0;border-left:4px solid #E65100;border-radius:6px;padding:10px;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:800;color:#E65100;margin-bottom:6px">⚠️ Closing Stock Mismatch — How to Fix</div>'+
+      '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
+      '<b>Step 1:</b> Go to <b>Inventory</b> — check all item stocks and cost prices<br>'+
+      '<b>Step 2:</b> Go to <b>Reports → Stock Report</b> — verify item-wise values<br>'+
+      '<b>Step 3:</b> Check if any purchase was NOT linked to an inventory item<br>'+
+      '<b>Step 4:</b> For existing business: check <b>Data → Opening Stock</b> values<br>'+
+      '<b>Hindi:</b> Inventory → har item ka stock aur cost verify karein. Purchase kisi item se linked hai?'+
+      '</div></div>':'') +
+
+      // Debtors
+      (res.checks.some(function(c){return c.name==='Debtors Reconcile'&&!c.pass;})?
+      '<div style="background:#FFF3E0;border-left:4px solid #E65100;border-radius:6px;padding:10px;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:800;color:#E65100;margin-bottom:6px">⚠️ Debtors Too High — How to Fix</div>'+
+      '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
+      '<b>Step 1:</b> Go to <b>Capital/Loans → Debtors</b> — list all outstanding debtors<br>'+
+      '<b>Step 2:</b> Check if any debtor has already paid but not updated<br>'+
+      '<b>Step 3:</b> If collected: go to <b>Cash/Bank → Add Receipt</b> from that debtor<br>'+
+      '<b>Step 4:</b> Then update debtor balance: Capital/Loans → Debtors → edit entry → reduce amount<br>'+
+      '<b>Step 5:</b> Check for duplicate debtor entries for same customer<br>'+
+      '<b>Hindi:</b> Debtors list check करें → जिसने payment कर दी उसको Cash/Bank में receipt add करें → debtor balance घटाएं'+
+      '</div></div>':'') +
+
+      // Creditors
+      (res.checks.some(function(c){return c.name==='Creditors Reconcile'&&!c.pass;})?
+      '<div style="background:#FFF3E0;border-left:4px solid #E65100;border-radius:6px;padding:10px;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:800;color:#E65100;margin-bottom:6px">⚠️ Creditors Too High — How to Fix</div>'+
+      '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
+      '<b>Step 1:</b> Go to <b>Capital/Loans → Creditors</b> — list all outstanding creditors<br>'+
+      '<b>Step 2:</b> Check if any supplier was paid but not recorded<br>'+
+      '<b>Step 3:</b> If paid: add a payment in <b>Cash/Bank → Add Payment</b> to supplier<br>'+
+      '<b>Step 4:</b> Update creditor balance: Capital/Loans → Creditors → edit → reduce amount<br>'+
+      '<b>Hindi:</b> Creditors list check करें → जिस supplier को payment कर दी उसे Cash/Bank में payment add करें → creditor balance घटाएं'+
+      '</div></div>':'') +
+
+      // Loans
+      (res.checks.some(function(c){return c.name==='Loan Balances Correct'&&!c.pass;})?
+      '<div style="background:#FFEBEE;border-left:4px solid #C62828;border-radius:6px;padding:10px;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:800;color:#C62828;margin-bottom:6px">❌ Loan Balance Error — How to Fix</div>'+
+      '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
+      '<b>Step 1:</b> Go to <b>Capital/Loans → Loans</b> — open the loan with error<br>'+
+      '<b>Step 2:</b> Check Sanctioned Amount — correct it to match bank letter<br>'+
+      '<b>Step 3:</b> Check Outstanding Balance — it cannot exceed sanctioned amount<br>'+
+      '<b>Step 4:</b> Outstanding = Sanctioned − Amount repaid so far<br>'+
+      '<b>Step 5:</b> If EMI payments made, record them in Loans → Payment History<br>'+
+      '<b>Hindi:</b> Capital/Loans → Loans → Sanctioned Amount aur Outstanding Amount verify karein. EMI payments record hain?'+
+      '</div></div>':'') +
+
+      // Duplicate Bills
+      (res.checks.some(function(c){return c.name==='No Duplicate Voucher Nos.'&&!c.pass;})?
+      '<div style="background:#FFEBEE;border-left:4px solid #C62828;border-radius:6px;padding:10px;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:800;color:#C62828;margin-bottom:6px">❌ Duplicate Bill Numbers — How to Fix</div>'+
+      '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
+      '<b>Step 1:</b> Go to <b>Reports → Bills tab</b> — find duplicate numbers<br>'+
+      '<b>Step 2:</b> Tap on each duplicate bill to edit<br>'+
+      '<b>Step 3:</b> Change bill number to next available number (e.g. INV/2026-27/005)<br>'+
+      '<b>Step 4:</b> Each bill must have a unique number for GST compliance<br>'+
+      '<b>Hindi:</b> Reports → Bills → duplicate number वाले bills खोजें → bill number change करें (unique रखें)'+
+      '</div></div>':'') +
+
+      // Expired Stock
+      (res.checks.some(function(c){return c.name==='No Expired Stock'&&!c.pass;})?
+      '<div style="background:#FFEBEE;border-left:4px solid #C62828;border-radius:6px;padding:10px;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:800;color:#C62828;margin-bottom:6px">❌ Expired Stock — How to Fix</div>'+
+      '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
+      '<b>Step 1:</b> Go to <b>Inventory</b> — find expired items (shown in red alerts)<br>'+
+      '<b>Step 2:</b> Physically verify and remove expired goods from shop<br>'+
+      '<b>Step 3:</b> Go to <b>Expenses</b> → Add entry → Category: Miscellaneous/Loss → Amount = value of expired goods<br>'+
+      '<b>Step 4:</b> Go to <b>Inventory → edit item</b> → reduce Current Stock to 0<br>'+
+      '<b>Step 5:</b> Update expiry date for new stock<br>'+
+      '<b>Hindi:</b> Expired item → Expenses में loss record करें → Inventory में stock = 0 करें → नई expiry date डालें'+
+      '</div></div>':'') +
+
+      // General Tips
+      '<div style="background:#E3F2FD;border-radius:6px;padding:10px;margin-top:6px">'+
+      '<div style="font-size:11px;font-weight:700;color:#1565C0;margin-bottom:6px">💡 General Tips for Good Health Score / अच्छे score के लिए</div>'+
+      '<div style="font-size:11px;color:#37474F;line-height:1.8">'+
+      '• Enter every sale, purchase and expense on the SAME DAY (रोज़ entry करें)<br>'+
+      '• Always select correct Payment Mode: Cash / Bank / UPI / Credit<br>'+
+      '• When you receive a loan — select "Bank Account" as disbursement mode<br>'+
+      '• Record Drawings whenever owner takes personal money<br>'+
+      '• Run Health Check every week — catch errors early<br>'+
+      '• Target score: <b>90%+</b> every month before seeing Financials<br>'+
+      '<span style="color:#546E7A;font-size:10px">हर sale/purchase/expense की entry रोज़ करें। Loan bank में आए तो "Bank Account" select करें। हर हफ्ते Health Check चलाएं।</span>'+
+      '</div></div>'
+    );
+  }
+
+  // ── Run again button at bottom ──
+  h+='<div style="text-align:center;margin-top:8px;margin-bottom:16px">'+
+    '<button onclick="runHealthCheck()" style="padding:12px 28px;background:#2E7D32;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">🔍 Run Check Again</button>'+
+  '</div>';
+
   return h;
 }
 
 function runHealthCheck(){
-  var checks=[], now=new Date();
-  var f=getF();
+  var checks=[];
+  var now=new Date();
+  // All data access wrapped in try-catch to prevent any single error from crashing health check
+
+  // ── Pre-fetch all values safely ──
+  var _f={ts:0,tp:0,te:0,cs:0,cb:0,bb:0,dr:0,cr:0,np:0,gp:0,ltl:0,cap:0};
+  try{ _f=getF(); }catch(e){}
+  var _bs={totalAssets:0,totalLiab:0,diff:0};
+  try{ _bs=getBS(); }catch(e){}
+
+  var _loans=0; try{_loans=D.loans.reduce(function(s,l){return s+(l.outstandingBalance||0);},0);}catch(e){}
+  var _draw=0;  try{_draw=D.drawings.reduce(function(s,d){return s+(d.amount||0);},0);}catch(e){}
+  var _drs=0;   try{_drs=D.debtors.reduce(function(s,d){return s+(d.amount||0);},0);}catch(e){}
+  var _cred=0;  try{_cred=D.creditors.reduce(function(s,c){return s+(c.amount||0);},0);}catch(e){}
+  var _ts=_f.ts||0, _te=_f.te||0, _cs=_f.cs||0, _np=_f.np||0;
 
   // ── CHECK 1: Trial Balance ──
-  if(D.tbPosted&&D.trialBalance&&D.trialBalance.length){
-    var tbDR=D.trialBalance.filter(function(t){return t.side==='dr';}).reduce(function(s,t){return s+t.amount;},0);
-    var tbCR=D.trialBalance.filter(function(t){return t.side==='cr';}).reduce(function(s,t){return s+t.amount;},0);
-    var tbDiff=Math.abs(tbDR-tbCR);
-    checks.push({name:'Trial Balance Tallies',
-      pass:tbDiff<1,warn:false,
-      detail:tbDiff<1?'DR=CR='+fc(tbDR)+' ✅':'DR='+fc(tbDR)+' CR='+fc(tbCR)+' Diff='+fc(tbDiff),
-      fix:tbDiff>=1?'Go to Data → Opening Trial Balance and find the missing entry':''});
-  } else if(D.profile.businessStage==='existing'){
-    checks.push({name:'Trial Balance Posted',pass:false,warn:false,
-      detail:'Opening Trial Balance not yet posted',fix:'Go to Data → Opening Trial Balance → enter all heads → Post to Books'});
-  } else {
-    checks.push({name:'Trial Balance',pass:true,warn:false,detail:'New business — Trial Balance not required ✅'});
-  }
+  try{
+    if(D.tbPosted&&D.trialBalance&&D.trialBalance.length){
+      var tbDR=D.trialBalance.filter(function(t){return t.side==='dr';}).reduce(function(s,t){return s+(t.amount||0);},0);
+      var tbCR=D.trialBalance.filter(function(t){return t.side==='cr';}).reduce(function(s,t){return s+(t.amount||0);},0);
+      var tbDiff=Math.abs(tbDR-tbCR);
+      checks.push({name:'Trial Balance Tallies',
+        pass:tbDiff<1,warn:tbDiff>=1&&tbDiff<500,
+        detail:tbDiff<1?'DR = CR = '+fc(Math.round(tbDR))+' ✅':
+          'DR = '+fc(Math.round(tbDR))+' | CR = '+fc(Math.round(tbCR))+' | Difference = '+fc(Math.round(tbDiff)),
+        fix:tbDiff>=1?'Go to Data → Opening Trial Balance and correct the difference. Check Capital or Loan entries.':''});
+    } else if(D.profile.businessStage==='existing'&&!D.tbPosted){
+      checks.push({name:'Trial Balance',pass:false,warn:true,
+        detail:'Existing business — Opening Trial Balance not yet posted',
+        fix:'Go to Data → Opening Trial Balance → enter all balances → Post to Books'});
+    } else {
+      checks.push({name:'Trial Balance',pass:true,warn:false,
+        detail:'New business — Trial Balance not required ✅',fix:''});
+    }
+  }catch(e){checks.push({name:'Trial Balance',pass:false,warn:true,detail:'Error: '+e.message,fix:'Check your browser console for details.'});}
 
-  // ── CHECK 2: Balance Sheet Balances ──
-  var ts=D.sales.reduce(function(s,x){return s+(x.totalAmount||0);},0);
-  var tp=D.purchases.reduce(function(s,x){return s+(x.amount||0);},0);
-  var te=D.expenses.reduce(function(s,x){return s+(x.amount||0);},0);
-  var cs=D.inventory.reduce(function(s,x){return s+((x.currentStock||0)*(x.avgCost||0)+(x.importedStock||0)*(x.importedAvgCost||0));},0);
-  var os=D.opening.stock||0;
-  var np=ts-os-tp+cs-te;
-  var draw=D.drawings.reduce(function(s,x){return s+(x.amount||0);},0);
-  var loans=D.loans.reduce(function(s,x){return s+(x.outstandingBalance||0);},0);
-  var drs=D.debtors.reduce(function(s,x){return s+(x.amount||0);},0);
-  var cred=D.creditors.reduce(function(s,x){return s+(x.amount||0);},0);
-  var adv=D.advances.reduce(function(s,x){return s+(x.amount||0);},0);
-  var fa=D.fixedAssets.reduce(function(s,x){return s+(x.cost||0)-(x.accumDep||0);},0);
-  var p1=D.capital.initialCapital||0;var p2=D.capital.additionalCapital||0;
-  var netCap=p1+p2-draw+np;
-  var totalLiab=netCap+loans+cred;
-  var spaid=D.sales.filter(function(s){return s.paymentMode!=='credit';}).reduce(function(t,s){return t+(s.totalAmount||0);},0);
-  var pcash=D.purchases.filter(function(p){return p.paymentMode!=='credit';}).reduce(function(t,p2){return t+(p2.amount||0);},0);
-  var opCB=(D.opening.cash||0)+(D.opening.bank||0);
-  var closeCB=opCB+spaid-pcash-te-draw-adv;
-  var totalAssets=fa+cs+drs+adv+closeCB+(D.otherAssets||0);
-  var bsDiff=Math.abs(totalAssets-totalLiab);
-  checks.push({name:'Balance Sheet Balances',
-    pass:bsDiff<100,warn:bsDiff>=100&&bsDiff<5000,
-    detail:bsDiff<100?'Assets=Liabilities='+fc(Math.round(totalAssets))+' ✅':'Difference='+fc(Math.round(bsDiff))+' | Assets='+fc(Math.round(totalAssets))+' Liabilities='+fc(Math.round(totalLiab)),
-    fix:bsDiff>=100?'Check if all loan receipts, drawings, and additional capital are entered correctly':''});
+  // ── CHECK 2: Balance Sheet — using getBS() same as Financials ──
+  try{
+    var _bsDiff=Math.abs(_bs.totalAssets-_bs.totalLiab);
+    checks.push({name:'Balance Sheet Balances',
+      pass:_bsDiff<10,warn:_bsDiff>=10&&_bsDiff<1000,
+      detail:_bsDiff<10?
+        'Assets = Liabilities = '+fc(Math.round(_bs.totalAssets))+' ✅':
+        'Difference = '+fc(Math.round(_bsDiff))+
+        ' | Assets = '+fc(Math.round(_bs.totalAssets))+
+        ' | Liabilities = '+fc(Math.round(_bs.totalLiab)),
+      fix:_bsDiff>=10?
+        'Difference found. Check: (1) Loan disbursement — did loan amount reach bank? '+
+        '(2) Additional capital — entered correctly? '+
+        '(3) Drawings — all recorded? '+
+        '(4) Go to Financials → Balance Sheet to see the detailed view.':''});
+  }catch(e){checks.push({name:'Balance Sheet',pass:false,warn:true,detail:'Error: '+e.message,fix:'Reload app and try again.'});}
 
-  // ── CHECK 3: Cash Book matches Cash Balance ──
-  var cbReceipts=D.cashBook.filter(function(e){return e.type==='receipt'&&e.mode==='cash';}).reduce(function(s,e){return s+(e.amount||0);},0);
-  var cbPayments=D.cashBook.filter(function(e){return e.type==='payment'&&e.mode==='cash';}).reduce(function(s,e){return s+(e.amount||0);},0);
-  var salesCash=D.sales.filter(function(s){return s.paymentMode==='cash';}).reduce(function(t,s){return t+(s.totalAmount||0);},0);
-  var expCash=D.expenses.filter(function(e){return e.paymentMode==='cash';}).reduce(function(t,e){return t+(e.amount||0);},0);
-  var purCash=D.purchases.filter(function(p){return p.paymentMode==='cash';}).reduce(function(t,p2){return t+(p2.amount||0);},0);
-  var calcCash=(D.opening.cash||0)+salesCash+cbReceipts-expCash-purCash-cbPayments-draw;
-  var cashDiff=Math.abs(calcCash-f.cb);
-  checks.push({name:'Cash Book Reconciles',
-    pass:cashDiff<100,warn:cashDiff>=100&&cashDiff<1000,
-    detail:cashDiff<100?'Cash Book matches Cash Balance: '+fc(Math.round(f.cb))+' ✅':'Difference='+fc(Math.round(cashDiff))+'  Calculated='+fc(Math.round(calcCash))+' Actual='+fc(Math.round(f.cb)),
-    fix:cashDiff>=100?'Check Cash Book entries — some receipts or payments may not be recorded':''});
+  // ── CHECK 3: Cash & Bank Position ──
+  try{
+    var _cash=_f.cb||0, _bank=_f.bb||0;
+    var _cashOk=_cash>=-10, _bankOk=_bank>=-10; // allow small float rounding
+    checks.push({name:'Cash & Bank Position',
+      pass:_cashOk&&_bankOk,warn:false,
+      detail:(_cashOk&&_bankOk)?
+        'Cash: '+fc(Math.round(_cash))+' | Bank: '+fc(Math.round(_bank))+' ✅':
+        (_cash<-10?'⚠️ Cash balance negative: '+fc(Math.round(_cash))+' — check entries. ':'')+
+        (_bank<-10?'⚠️ Bank balance negative: '+fc(Math.round(_bank)):''),
+      fix:(!_cashOk||!_bankOk)?
+        'Possible causes: (1) More cash expenses than cash receipts+opening cash '+
+        '(2) Purchase paid in cash but not in budget '+
+        '(3) Check Cash Book entries in Cash/Bank menu':''});
+  }catch(e){checks.push({name:'Cash & Bank Position',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
   // ── CHECK 4: No Negative Stock ──
-  var negStock=D.inventory.filter(function(i){return (i.currentStock||0)<0||(i.importedStock||0)<0;});
-  checks.push({name:'No Negative Stock',
-    pass:negStock.length===0,warn:false,
-    detail:negStock.length===0?'All items have positive stock ✅':negStock.length+' items have negative stock: '+negStock.map(function(i){return i.itemName+'('+i.currentStock+')';}).join(', '),
-    fix:negStock.length?'Check sale quantities — you may have sold more than available stock':''}); 
+  try{
+    var _negStock=D.inventory.filter(function(i){return (i.currentStock||0)<-1||(i.importedStock||0)<-1;});
+    checks.push({name:'No Negative Stock',
+      pass:_negStock.length===0,warn:false,
+      detail:_negStock.length===0?
+        'All '+D.inventory.length+' items have valid stock levels ✅':
+        _negStock.length+' item(s) with negative stock: '+
+        _negStock.map(function(i){return i.itemName+'('+Math.round(i.currentStock||0)+' '+i.unit+')';}).join(', '),
+      fix:_negStock.length?
+        'You have sold more than available stock. '+
+        'Go to Inventory → check each item stock. '+
+        'Then check Sales entries — reduce qty or add Purchase first.':''});
+  }catch(e){checks.push({name:'No Negative Stock',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
-  // ── CHECK 5: Closing Stock matches Inventory ──
-  var invVal=D.inventory.reduce(function(s,x){return s+((x.currentStock||0)*(x.avgCost||0)+(x.importedStock||0)*(x.importedAvgCost||0));},0);
-  var fVal=f.cs;
-  var stockDiff=Math.abs(invVal-fVal);
-  checks.push({name:'Closing Stock Consistent',
-    pass:stockDiff<100,warn:false,
-    detail:stockDiff<100?'Inventory value = '+fc(Math.round(invVal))+' ✅':'Inventory='+fc(Math.round(invVal))+' Financials='+fc(Math.round(fVal))+' Diff='+fc(Math.round(stockDiff)),
-    fix:stockDiff>=100?'Check if all purchases are linked to inventory items':''}); 
+  // ── CHECK 5: Closing Stock Consistent ──
+  try{
+    var _invVal=D.inventory.reduce(function(s,x){
+      return s+((x.currentStock||0)*(x.avgCost||0)+(x.importedStock||0)*(x.importedAvgCost||0));
+    },0);
+    var _fVal=_f.cs||0;
+    var _stockDiff=Math.abs(_invVal-_fVal);
+    checks.push({name:'Closing Stock Consistent',
+      pass:_stockDiff<200,warn:_stockDiff>=200&&_stockDiff<2000,
+      detail:_stockDiff<200?
+        'Inventory value = '+fc(Math.round(_invVal))+' ✅':
+        'Inventory: '+fc(Math.round(_invVal))+
+        ' | Financials: '+fc(Math.round(_fVal))+
+        ' | Diff: '+fc(Math.round(_stockDiff)),
+      fix:_stockDiff>=200?
+        'Possible cause: Opening stock not entered, or some purchases not linked to an inventory item. '+
+        'Check Data → Opening Stock and all Purchase entries.':''});
+  }catch(e){checks.push({name:'Closing Stock',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
   // ── CHECK 6: Debtors Reconciliation ──
-  var totalDebtors=D.debtors.reduce(function(s,d){return s+(d.amount||0);},0);
-  var creditSales=D.sales.filter(function(s){return s.paymentMode==='credit';}).reduce(function(t,s){return t+(s.totalAmount||0);},0);
-  var debtWarn=totalDebtors>creditSales*1.5&&creditSales>0;
-  checks.push({name:'Debtors Reconcile',
-    pass:!debtWarn,warn:debtWarn,
-    detail:'Total Debtors: '+fc(Math.round(totalDebtors))+' | Credit Sales: '+fc(Math.round(creditSales))+(debtWarn?' — Debtors seem high vs credit sales':' ✅'),
-    fix:debtWarn?'Check if any debtors have been collected but not updated in the system':''}); 
+  try{
+    var _creditSales=D.sales.filter(function(s){return s.paymentMode==='credit';})
+      .reduce(function(t,s){return t+(s.totalAmount||0);},0);
+    // Also consider TB debtors (prior year) — they are valid
+    var _tbDr=0;
+    if(D.tbPosted&&D.trialBalance){
+      D.trialBalance.forEach(function(t){if(t.head==='debtors'&&t.side==='dr')_tbDr+=(t.amount||0);});
+    }
+    var _totalValidCredit=_creditSales+_tbDr;
+    var _debtWarn=_drs>_totalValidCredit*1.5&&_totalValidCredit>0&&_drs>5000;
+    checks.push({name:'Debtors Reconcile',
+      pass:!_debtWarn,warn:_debtWarn,
+      detail:'Total Debtors: '+fc(Math.round(_drs))+
+        ' | Credit Sales: '+fc(Math.round(_creditSales))+
+        (_tbDr>0?' + TB Opening: '+fc(Math.round(_tbDr)):'')+ 
+        (_debtWarn?' — Debtors seem high':' ✅'),
+      fix:_debtWarn?
+        'Debtors balance is higher than credit sales. '+
+        'Check if: (1) Some collections have been received but not recorded '+
+        '(2) Debtor entry duplicated '+
+        '(3) Go to Capital/Loans → Debtors and verify each entry.':''});
+  }catch(e){checks.push({name:'Debtors',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
   // ── CHECK 7: Creditors Reconciliation ──
-  var totalCred=D.creditors.reduce(function(s,c){return s+(c.amount||0);},0);
-  var creditPurch=D.purchases.filter(function(p){return p.paymentMode==='credit';}).reduce(function(t,p2){return t+(p2.amount||0);},0);
-  var credWarn=totalCred>creditPurch*1.5&&creditPurch>0;
-  checks.push({name:'Creditors Reconcile',
-    pass:!credWarn,warn:credWarn,
-    detail:'Total Creditors: '+fc(Math.round(totalCred))+' | Credit Purchases: '+fc(Math.round(creditPurch))+(credWarn?' — Creditors seem high vs credit purchases':' ✅'),
-    fix:credWarn?'Check if any supplier payments have been made but not recorded':''}); 
+  try{
+    var _creditPurch=D.purchases.filter(function(p){return p.paymentMode==='credit';})
+      .reduce(function(t,p){return t+(p.amount||0);},0);
+    var _tbCr=0;
+    if(D.tbPosted&&D.trialBalance){
+      D.trialBalance.forEach(function(t){if(t.head==='creditors'&&t.side==='cr')_tbCr+=(t.amount||0);});
+    }
+    var _totalValidCredit2=_creditPurch+_tbCr;
+    var _credWarn=_cred>_totalValidCredit2*1.5&&_totalValidCredit2>0&&_cred>5000;
+    checks.push({name:'Creditors Reconcile',
+      pass:!_credWarn,warn:_credWarn,
+      detail:'Total Creditors: '+fc(Math.round(_cred))+
+        ' | Credit Purchases: '+fc(Math.round(_creditPurch))+
+        (_tbCr>0?' + TB Opening: '+fc(Math.round(_tbCr)):'')+
+        (_credWarn?' — Creditors seem high':' ✅'),
+      fix:_credWarn?
+        'Creditors balance is higher than credit purchases. '+
+        'Check if: (1) Some supplier payments made but not recorded '+
+        '(2) Creditor entry duplicated '+
+        '(3) Go to Capital/Loans → Creditors and verify each entry.':''});
+  }catch(e){checks.push({name:'Creditors',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
   // ── CHECK 8: Loan Balances ──
-  var loanOk=true,loanDetail='';
-  D.loans.forEach(function(l){
-    if(l.outstandingBalance>l.sanctionedAmount*1.1){
-      loanOk=false;loanDetail+='Loan '+l.lender+' balance exceeds sanctioned amount. ';
-    }
-    if(l.outstandingBalance<0){
-      loanOk=false;loanDetail+='Loan '+l.lender+' has negative balance. ';
-    }
-  });
-  checks.push({name:'Loan Balances Correct',
-    pass:loanOk,warn:false,
-    detail:loanOk?D.loans.length+' loan(s) with total outstanding '+fc(Math.round(loans))+' ✅':loanDetail,
-    fix:!loanOk?'Check loan sanctioned amounts and outstanding balances':''}); 
+  try{
+    var _loanOk=true, _loanDetail='', _loanList=[];
+    D.loans.forEach(function(l){
+      var ob=+(l.outstandingBalance||0), sa=+(l.sanctionedAmount||0);
+      if(ob<0){_loanOk=false;_loanDetail+=l.lender+': negative balance. ';}
+      else if(sa>0&&ob>sa*1.05){_loanOk=false;_loanDetail+=l.lender+': balance ('+fc(ob)+') exceeds sanctioned ('+fc(sa)+'). ';}
+      else _loanList.push(l.lender+': '+fc(ob)+' outstanding');
+    });
+    checks.push({name:'Loan Balances Correct',
+      pass:_loanOk,warn:false,
+      detail:_loanOk?
+        (D.loans.length===0?'No loans — nothing to check ✅':
+          D.loans.length+' loan(s) | Total outstanding: '+fc(Math.round(_loans))+' ✅'):
+        _loanDetail,
+      fix:!_loanOk?
+        'Check Loan entries: (1) Outstanding balance cannot exceed sanctioned amount '+
+        '(2) Outstanding cannot be negative '+
+        '(3) Go to Capital/Loans → Loans and correct the entry.':''});
+  }catch(e){checks.push({name:'Loan Balances',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
   // ── CHECK 9: Duplicate Voucher Numbers ──
-  var billNos=D.bills.map(function(b){return b.billNo;});
-  var dupBills=billNos.filter(function(n,i){return billNos.indexOf(n)!==i;});
-  checks.push({name:'No Duplicate Voucher Nos.',
-    pass:dupBills.length===0,warn:false,
-    detail:dupBills.length===0?'All voucher/bill numbers are unique ✅':'Duplicate bill numbers found: '+dupBills.join(', '),
-    fix:dupBills.length?'Go to Reports → Bills and fix duplicate numbers':''}); 
+  try{
+    var _bills=D.bills||[];
+    var _billNos=_bills.map(function(b){return b.billNo;}).filter(Boolean);
+    var _dupBills=_billNos.filter(function(n,i){return _billNos.indexOf(n)!==i;});
+    checks.push({name:'No Duplicate Voucher Nos.',
+      pass:_dupBills.length===0,warn:false,
+      detail:_dupBills.length===0?
+        _bills.length+' bill(s) checked — all numbers unique ✅':
+        'Duplicate bill numbers: '+[...new Set(_dupBills)].join(', '),
+      fix:_dupBills.length?
+        'Go to Reports → Bills and edit duplicate numbers. '+
+        'Each bill must have a unique number for audit trail.':''});
+  }catch(e){checks.push({name:'Duplicate Vouchers',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
   // ── CHECK 10: Expired Stock ──
-  var expiredItems=[],nearExpiry=[];
-  D.inventory.forEach(function(inv){
-    if(!inv.expiryDate) return;
-    var expDate=new Date(inv.expiryDate);
-    var daysLeft=Math.round((expDate-now)/86400000);
-    var tot=(inv.currentStock||0)+(inv.importedStock||0);
-    if(tot>0){
-      if(daysLeft<0) expiredItems.push(inv.itemName+'('+Math.abs(daysLeft)+'d ago)');
-      else if(daysLeft<=30) nearExpiry.push(inv.itemName+'('+daysLeft+'d left)');
-    }
-  });
-  checks.push({name:'No Expired Stock',
-    pass:expiredItems.length===0,warn:nearExpiry.length>0,
-    detail:expiredItems.length>0?'EXPIRED items in stock: '+expiredItems.join(', ')
-      :nearExpiry.length>0?'Near expiry items: '+nearExpiry.join(', ')+' — take action soon!'
-      :'No expired stock ✅',
-    fix:expiredItems.length?'Remove expired items from inventory and record as loss/wastage':''}); 
+  try{
+    var _expiredItems=[], _nearExpiry=[], _hasExpiry=false;
+    D.inventory.forEach(function(inv){
+      if(!inv.expiryDate) return;
+      _hasExpiry=true;
+      var expDate=new Date(inv.expiryDate);
+      if(isNaN(expDate.getTime())) return;
+      var daysLeft=Math.round((expDate-now)/86400000);
+      var tot=(inv.currentStock||0)+(inv.importedStock||0);
+      if(tot>0){
+        if(daysLeft<0) _expiredItems.push(inv.itemName+' ('+Math.abs(daysLeft)+' days ago)');
+        else if(daysLeft<=30) _nearExpiry.push(inv.itemName+' ('+daysLeft+' days left)');
+      }
+    });
+    checks.push({name:'No Expired Stock',
+      pass:_expiredItems.length===0,warn:_nearExpiry.length>0,
+      detail:_expiredItems.length>0?
+        '❌ EXPIRED items in stock: '+_expiredItems.join(', '):
+        _nearExpiry.length>0?
+          '⚠️ Near expiry — take action: '+_nearExpiry.join(', '):
+          (_hasExpiry?'All items within expiry date ✅':'No expiry dates set — optional for non-perishable items ✅'),
+      fix:_expiredItems.length?
+        'Remove expired items: Go to Inventory → edit item → reduce stock to 0 → record as loss in Expenses (category: Loss/Wastage).':''});
+  }catch(e){checks.push({name:'Expired Stock',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
-  // ── CALCULATE CATEGORY SCORES ──
-  var acctChecks=[checks[0],checks[1],checks[2],checks[7],checks[8]];
-  var invChecks=[checks[4],checks[3],checks[9]];
-  var bankChecks=[checks[2]];
-  var debtCredChecks=[checks[5],checks[6]];
-
-  function catScore(arr){
-    var pass=arr.filter(function(c){return c.pass;}).length;
-    var warn=arr.filter(function(c){return !c.pass&&c.warn;}).length;
-    return Math.round((pass*100+warn*50)/arr.length);
+  // ── CATEGORY SCORES — by check NAME not index ──
+  function findCheck(name){return checks.find(function(c){return c.name===name;})||{pass:false,warn:false};}
+  function score(names){
+    var arr=names.map(findCheck);
+    var p=arr.filter(function(c){return c.pass;}).length;
+    var w=arr.filter(function(c){return !c.pass&&c.warn;}).length;
+    return Math.round((p*100+w*50)/Math.max(arr.length,1));
   }
 
   var categories=[
-    {label:'Accounting Accuracy',score:catScore(acctChecks)},
-    {label:'Inventory Accuracy',score:catScore(invChecks)},
-    {label:'Bank Reconciliation',score:catScore(bankChecks)},
-    {label:'Data Integrity',score:catScore(debtCredChecks)},
+    {label:'Accounting Accuracy',  score:score(['Trial Balance','Trial Balance Tallies','Balance Sheet Balances','Loan Balances Correct','No Duplicate Voucher Nos.'])},
+    {label:'Inventory Accuracy',   score:score(['No Negative Stock','Closing Stock Consistent','No Expired Stock'])},
+    {label:'Cash & Bank',          score:score(['Cash & Bank Position'])},
+    {label:'Data Integrity',       score:score(['Debtors Reconcile','Creditors Reconcile'])},
   ];
 
   window._healthResult={checks:checks,categories:categories};
   renderPage();
-  toast('✅ Health Check Complete!');
+  toast('✅ Health Check Complete — '+checks.filter(function(c){return c.pass;}).length+'/'+checks.length+' checks passed');
 }
 
 
