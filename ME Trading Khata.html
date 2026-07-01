@@ -908,34 +908,1562 @@ function getFGrouped(){
     totalLiab:totalLiab, totalAssets:totalAssets, nwc:nwc, diff:totalLiab-totalAssets
   };
 }
-// ===== DASHBOARD =====
-function pgDash(){
-  var f=getF(),i,ts2=0,tp2=0,te2=0,td2=td(),mo=[],j,d,k,lb,ms,me;
-  for(i=0;i<D.sales.length;i++) if(D.sales[i].date===td2) ts2+=D.sales[i].totalAmount;
-  for(i=0;i<D.purchases.length;i++) if(D.purchases[i].date===td2) tp2+=D.purchases[i].amount;
-  for(i=0;i<D.expenses.length;i++) if(D.expenses[i].date===td2) te2+=D.expenses[i].amount;
-  for(i=5;i>=0;i--){d=new Date();d.setMonth(d.getMonth()-i);k=d.getFullYear()+'-'+(d.getMonth()<9?'0':'')+(d.getMonth()+1);lb=d.toLocaleString('default',{month:'short'});ms=0;me=0;for(j=0;j<D.sales.length;j++)if(D.sales[j].date&&D.sales[j].date.indexOf(k)===0)ms+=D.sales[j].totalAmount;for(j=0;j<D.expenses.length;j++)if(D.expenses[j].date&&D.expenses[j].date.indexOf(k)===0)me+=D.expenses[j].amount;mo.push({l:lb,s:ms,e:me});}
-  var tl=f.ltl,de=f.cap>0?(tl/f.cap).toFixed(2):'--';
+
+
+// ═══════════════════════════════════════════════════════════════
+// ACCOUNTING HEALTH CHECK
+// ═══════════════════════════════════════════════════════════════
+function pgHealthCheck(){
   var h='';
-  if(D.profile.businessName) h+='<div class="bb"><b style="font-size:15px">'+esc(D.profile.businessName)+'</b><div style="font-size:11px;color:#546E7A">'+esc(D.profile.ownerName)+' • '+esc(D.profile.businessType)+'</div></div>';
-  h+='<div class="sg">';
-  h+=sc('Today Sales',fc(ts2),'#2E7D32','');
-  h+=sc('Today Purchase',fc(tp2),'#E65100','');
-  h+=sc('Today Expenses',fc(te2),'#C62828','');
-  h+=sc('Cash Balance',fc(f.cb),'#1565C0','');
-  h+=sc('Bank Balance',fc(f.bb),'#5B5BD6','');
-  h+=sc('Stock Value',fc(f.cs),'#FF8F00','');
-  h+=sc('Net Profit',fc(f.np),f.np>=0?'#2E7D32':'#C62828',f.ts>0?((f.np/f.ts)*100).toFixed(1)+'%':'');
-  h+=sc('Loan Outstanding',fc(tl),'#7B1FA2','D/E:'+de);
-  h+=sc('Debtors (Receivable)',fc(f.dr),'#00897B','');
-  h+=sc('Creditors (Payable)',fc(f.cr),'#D84315','');
+  h+='<div style="background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border-radius:12px;padding:14px;margin-bottom:10px">';
+  h+='<div style="font-size:16px;font-weight:800">🏥 Accounting Health Check</div>';
+  h+='<div style="font-size:11px;opacity:.85;margin-top:2px">Automatically verifies your books for errors and accuracy</div>';
   h+='</div>';
-  var low=[];
-  for(i=0;i<D.inventory.length;i++)if(D.inventory[i].reorderLevel&&D.inventory[i].currentStock<=D.inventory[i].reorderLevel)low.push(D.inventory[i]);
-  if(low.length){h+='<div class="al alw"><div class="alt">Low Stock Alert</div>';for(i=0;i<low.length;i++)h+='<div>• '+esc(low[i].itemName)+': '+fmt(low[i].currentStock)+' '+esc(low[i].unit)+'</div>';h+='</div>';}
-  h+=card('Monthly Sales &amp; Expenses','<div style="font-size:11px;color:#546E7A;margin-bottom:4px">🟢 Sales</div>'+bar(mo.map(function(m){return{l:m.l,v:m.s}}),'#2E7D32',50)+'<div style="font-size:11px;color:#546E7A;margin:6px 0 4px">🔴 Expenses</div>'+bar(mo.map(function(m){return{l:m.l,v:m.e}}),'#C62828',35));
+  h+='<div style="text-align:center;margin-bottom:12px">';
+  h+='<button onclick="runHealthCheck()" style="padding:14px 30px;background:#2E7D32;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;width:100%">🔍 Run Health Check Now</button>';
+  h+='</div>';
+  var res=window._healthResult;
+  if(!res){
+    h+='<div style="background:#F5F5F5;border-radius:10px;padding:20px;text-align:center;color:#90A4AE;font-size:13px">';
+    h+='Tap the button above to run a complete check of your accounting books.<br><br>';
+    h+='Checks: Trial Balance • Balance Sheet • Cash Book • Bank Book •<br>Stock • Debtors • Creditors • Loans • Duplicate Vouchers';
+    h+='</div>';
+    return h;
+  }
+  // Score display
+  var cats=res.categories;
+  var overall=Math.round(cats.reduce(function(s,c){return s+c.score;},0)/cats.length);
+  var overallColor=overall>=90?'#2E7D32':overall>=70?'#E65100':'#C62828';
+  h+='<div style="background:#fff;border-radius:12px;border:2px solid '+overallColor+';padding:14px;margin-bottom:10px;text-align:center">';
+  h+='<div style="font-size:13px;color:#546E7A;margin-bottom:4px">Overall System Health</div>';
+  h+='<div style="font-size:48px;font-weight:900;color:'+overallColor+'">'+overall+'%</div>';
+  h+='<div style="font-size:13px;color:'+overallColor+';font-weight:700">'+(overall>=90?'✅ Excellent — Books are healthy!':overall>=70?'⚠️ Good — Minor issues found':' Critical — Serious issues need fixing')+'</div>';
+  // Progress bar
+  h+='<div style="background:#E0E0E0;height:8px;border-radius:4px;margin-top:8px">';
+  h+='<div style="background:'+overallColor+';height:8px;border-radius:4px;width:'+overall+'%;transition:width 0.5s"></div></div>';
+  h+='</div>';
+  // Category scores
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">';
+  cats.forEach(function(c){
+    var cc=c.score>=90?'#2E7D32':c.score>=70?'#E65100':'#C62828';
+    var bg=c.score>=90?'#E8F5E9':c.score>=70?'#FFF3E0':'#FFEBEE';
+    h+='<div style="background:'+bg+';border-radius:10px;padding:10px;text-align:center">';
+    h+='<div style="font-size:11px;color:#546E7A;margin-bottom:2px">'+c.label+'</div>';
+    h+='<div style="font-size:22px;font-weight:900;color:'+cc+'">'+c.score+'%</div>';
+    h+='<div style="background:#E0E0E0;height:4px;border-radius:2px;margin-top:4px">';
+    h+='<div style="background:'+cc+';height:4px;border-radius:2px;width:'+c.score+'%"></div></div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  // Detailed checks
+  h+=card('📋 Detailed Check Results',
+    res.checks.map(function(chk){
+      var icon=chk.pass?'✅':chk.warn?'⚠️':'❌';
+      var bg=chk.pass?'#F1F8E9':chk.warn?'#FFFDE7':'#FFEBEE';
+      var border=chk.pass?'#8BC34A':chk.warn?'#F9A825':'#C62828';
+      return '<div style="background:'+bg+';border-left:4px solid '+border+';border-radius:6px;padding:8px 10px;margin-bottom:6px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<div style="font-size:12px;font-weight:700;color:#37474F">'+icon+' '+chk.name+'</div>'+
+          '<div style="font-size:11px;font-weight:700;color:'+(chk.pass?'#2E7D32':chk.warn?'#E65100':'#C62828')+'">'+(chk.pass?'PASS':chk.warn?'WARN':'FAIL')+'</div>'+
+        '</div>'+
+        '<div style="font-size:11px;color:#546E7A;margin-top:3px">'+chk.detail+'</div>'+
+        (chk.fix?'<div style="font-size:10px;color:#1565C0;margin-top:3px;font-weight:700">💡 Fix: '+chk.fix+'</div>':'');
+    }).join('')+
+    '<div style="margin-top:8px;text-align:center"><button onclick="window._healthResult=null;renderPage();" style="padding:8px 16px;background:#546E7A;color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer">🔄 Run Again</button></div>'
+  );
   return h;
 }
+
+function runHealthCheck(){
+  var checks=[], now=new Date();
+  var f=getF();
+
+  // ── CHECK 1: Trial Balance ──
+  if(D.tbPosted&&D.trialBalance&&D.trialBalance.length){
+    var tbDR=D.trialBalance.filter(function(t){return t.side==='dr';}).reduce(function(s,t){return s+t.amount;},0);
+    var tbCR=D.trialBalance.filter(function(t){return t.side==='cr';}).reduce(function(s,t){return s+t.amount;},0);
+    var tbDiff=Math.abs(tbDR-tbCR);
+    checks.push({name:'Trial Balance Tallies',
+      pass:tbDiff<1,warn:false,
+      detail:tbDiff<1?'DR=CR='+fc(tbDR)+' ✅':'DR='+fc(tbDR)+' CR='+fc(tbCR)+' Diff='+fc(tbDiff),
+      fix:tbDiff>=1?'Go to Data → Opening Trial Balance and find the missing entry':''});
+  } else if(D.profile.businessStage==='existing'){
+    checks.push({name:'Trial Balance Posted',pass:false,warn:false,
+      detail:'Opening Trial Balance not yet posted',fix:'Go to Data → Opening Trial Balance → enter all heads → Post to Books'});
+  } else {
+    checks.push({name:'Trial Balance',pass:true,warn:false,detail:'New business — Trial Balance not required ✅'});
+  }
+
+  // ── CHECK 2: Balance Sheet Balances ──
+  var ts=D.sales.reduce(function(s,x){return s+(x.totalAmount||0);},0);
+  var tp=D.purchases.reduce(function(s,x){return s+(x.amount||0);},0);
+  var te=D.expenses.reduce(function(s,x){return s+(x.amount||0);},0);
+  var cs=D.inventory.reduce(function(s,x){return s+((x.currentStock||0)*(x.avgCost||0)+(x.importedStock||0)*(x.importedAvgCost||0));},0);
+  var os=D.opening.stock||0;
+  var np=ts-os-tp+cs-te;
+  var draw=D.drawings.reduce(function(s,x){return s+(x.amount||0);},0);
+  var loans=D.loans.reduce(function(s,x){return s+(x.outstandingBalance||0);},0);
+  var drs=D.debtors.reduce(function(s,x){return s+(x.amount||0);},0);
+  var cred=D.creditors.reduce(function(s,x){return s+(x.amount||0);},0);
+  var adv=D.advances.reduce(function(s,x){return s+(x.amount||0);},0);
+  var fa=D.fixedAssets.reduce(function(s,x){return s+(x.cost||0)-(x.accumDep||0);},0);
+  var p1=D.capital.initialCapital||0;var p2=D.capital.additionalCapital||0;
+  var netCap=p1+p2-draw+np;
+  var totalLiab=netCap+loans+cred;
+  var spaid=D.sales.filter(function(s){return s.paymentMode!=='credit';}).reduce(function(t,s){return t+(s.totalAmount||0);},0);
+  var pcash=D.purchases.filter(function(p){return p.paymentMode!=='credit';}).reduce(function(t,p2){return t+(p2.amount||0);},0);
+  var opCB=(D.opening.cash||0)+(D.opening.bank||0);
+  var closeCB=opCB+spaid-pcash-te-draw-adv;
+  var totalAssets=fa+cs+drs+adv+closeCB+(D.otherAssets||0);
+  var bsDiff=Math.abs(totalAssets-totalLiab);
+  checks.push({name:'Balance Sheet Balances',
+    pass:bsDiff<100,warn:bsDiff>=100&&bsDiff<5000,
+    detail:bsDiff<100?'Assets=Liabilities='+fc(Math.round(totalAssets))+' ✅':'Difference='+fc(Math.round(bsDiff))+' | Assets='+fc(Math.round(totalAssets))+' Liabilities='+fc(Math.round(totalLiab)),
+    fix:bsDiff>=100?'Check if all loan receipts, drawings, and additional capital are entered correctly':''});
+
+  // ── CHECK 3: Cash Book matches Cash Balance ──
+  var cbReceipts=D.cashBook.filter(function(e){return e.type==='receipt'&&e.mode==='cash';}).reduce(function(s,e){return s+(e.amount||0);},0);
+  var cbPayments=D.cashBook.filter(function(e){return e.type==='payment'&&e.mode==='cash';}).reduce(function(s,e){return s+(e.amount||0);},0);
+  var salesCash=D.sales.filter(function(s){return s.paymentMode==='cash';}).reduce(function(t,s){return t+(s.totalAmount||0);},0);
+  var expCash=D.expenses.filter(function(e){return e.paymentMode==='cash';}).reduce(function(t,e){return t+(e.amount||0);},0);
+  var purCash=D.purchases.filter(function(p){return p.paymentMode==='cash';}).reduce(function(t,p2){return t+(p2.amount||0);},0);
+  var calcCash=(D.opening.cash||0)+salesCash+cbReceipts-expCash-purCash-cbPayments-draw;
+  var cashDiff=Math.abs(calcCash-f.cb);
+  checks.push({name:'Cash Book Reconciles',
+    pass:cashDiff<100,warn:cashDiff>=100&&cashDiff<1000,
+    detail:cashDiff<100?'Cash Book matches Cash Balance: '+fc(Math.round(f.cb))+' ✅':'Difference='+fc(Math.round(cashDiff))+'  Calculated='+fc(Math.round(calcCash))+' Actual='+fc(Math.round(f.cb)),
+    fix:cashDiff>=100?'Check Cash Book entries — some receipts or payments may not be recorded':''});
+
+  // ── CHECK 4: No Negative Stock ──
+  var negStock=D.inventory.filter(function(i){return (i.currentStock||0)<0||(i.importedStock||0)<0;});
+  checks.push({name:'No Negative Stock',
+    pass:negStock.length===0,warn:false,
+    detail:negStock.length===0?'All items have positive stock ✅':negStock.length+' items have negative stock: '+negStock.map(function(i){return i.itemName+'('+i.currentStock+')';}).join(', '),
+    fix:negStock.length?'Check sale quantities — you may have sold more than available stock':''}); 
+
+  // ── CHECK 5: Closing Stock matches Inventory ──
+  var invVal=D.inventory.reduce(function(s,x){return s+((x.currentStock||0)*(x.avgCost||0)+(x.importedStock||0)*(x.importedAvgCost||0));},0);
+  var fVal=f.cs;
+  var stockDiff=Math.abs(invVal-fVal);
+  checks.push({name:'Closing Stock Consistent',
+    pass:stockDiff<100,warn:false,
+    detail:stockDiff<100?'Inventory value = '+fc(Math.round(invVal))+' ✅':'Inventory='+fc(Math.round(invVal))+' Financials='+fc(Math.round(fVal))+' Diff='+fc(Math.round(stockDiff)),
+    fix:stockDiff>=100?'Check if all purchases are linked to inventory items':''}); 
+
+  // ── CHECK 6: Debtors Reconciliation ──
+  var totalDebtors=D.debtors.reduce(function(s,d){return s+(d.amount||0);},0);
+  var creditSales=D.sales.filter(function(s){return s.paymentMode==='credit';}).reduce(function(t,s){return t+(s.totalAmount||0);},0);
+  var debtWarn=totalDebtors>creditSales*1.5&&creditSales>0;
+  checks.push({name:'Debtors Reconcile',
+    pass:!debtWarn,warn:debtWarn,
+    detail:'Total Debtors: '+fc(Math.round(totalDebtors))+' | Credit Sales: '+fc(Math.round(creditSales))+(debtWarn?' — Debtors seem high vs credit sales':' ✅'),
+    fix:debtWarn?'Check if any debtors have been collected but not updated in the system':''}); 
+
+  // ── CHECK 7: Creditors Reconciliation ──
+  var totalCred=D.creditors.reduce(function(s,c){return s+(c.amount||0);},0);
+  var creditPurch=D.purchases.filter(function(p){return p.paymentMode==='credit';}).reduce(function(t,p2){return t+(p2.amount||0);},0);
+  var credWarn=totalCred>creditPurch*1.5&&creditPurch>0;
+  checks.push({name:'Creditors Reconcile',
+    pass:!credWarn,warn:credWarn,
+    detail:'Total Creditors: '+fc(Math.round(totalCred))+' | Credit Purchases: '+fc(Math.round(creditPurch))+(credWarn?' — Creditors seem high vs credit purchases':' ✅'),
+    fix:credWarn?'Check if any supplier payments have been made but not recorded':''}); 
+
+  // ── CHECK 8: Loan Balances ──
+  var loanOk=true,loanDetail='';
+  D.loans.forEach(function(l){
+    if(l.outstandingBalance>l.sanctionedAmount*1.1){
+      loanOk=false;loanDetail+='Loan '+l.lender+' balance exceeds sanctioned amount. ';
+    }
+    if(l.outstandingBalance<0){
+      loanOk=false;loanDetail+='Loan '+l.lender+' has negative balance. ';
+    }
+  });
+  checks.push({name:'Loan Balances Correct',
+    pass:loanOk,warn:false,
+    detail:loanOk?D.loans.length+' loan(s) with total outstanding '+fc(Math.round(loans))+' ✅':loanDetail,
+    fix:!loanOk?'Check loan sanctioned amounts and outstanding balances':''}); 
+
+  // ── CHECK 9: Duplicate Voucher Numbers ──
+  var billNos=D.bills.map(function(b){return b.billNo;});
+  var dupBills=billNos.filter(function(n,i){return billNos.indexOf(n)!==i;});
+  checks.push({name:'No Duplicate Voucher Nos.',
+    pass:dupBills.length===0,warn:false,
+    detail:dupBills.length===0?'All voucher/bill numbers are unique ✅':'Duplicate bill numbers found: '+dupBills.join(', '),
+    fix:dupBills.length?'Go to Reports → Bills and fix duplicate numbers':''}); 
+
+  // ── CHECK 10: Expired Stock ──
+  var expiredItems=[],nearExpiry=[];
+  D.inventory.forEach(function(inv){
+    if(!inv.expiryDate) return;
+    var expDate=new Date(inv.expiryDate);
+    var daysLeft=Math.round((expDate-now)/86400000);
+    var tot=(inv.currentStock||0)+(inv.importedStock||0);
+    if(tot>0){
+      if(daysLeft<0) expiredItems.push(inv.itemName+'('+Math.abs(daysLeft)+'d ago)');
+      else if(daysLeft<=30) nearExpiry.push(inv.itemName+'('+daysLeft+'d left)');
+    }
+  });
+  checks.push({name:'No Expired Stock',
+    pass:expiredItems.length===0,warn:nearExpiry.length>0,
+    detail:expiredItems.length>0?'EXPIRED items in stock: '+expiredItems.join(', ')
+      :nearExpiry.length>0?'Near expiry items: '+nearExpiry.join(', ')+' — take action soon!'
+      :'No expired stock ✅',
+    fix:expiredItems.length?'Remove expired items from inventory and record as loss/wastage':''}); 
+
+  // ── CALCULATE CATEGORY SCORES ──
+  var acctChecks=[checks[0],checks[1],checks[2],checks[7],checks[8]];
+  var invChecks=[checks[4],checks[3],checks[9]];
+  var bankChecks=[checks[2]];
+  var debtCredChecks=[checks[5],checks[6]];
+
+  function catScore(arr){
+    var pass=arr.filter(function(c){return c.pass;}).length;
+    var warn=arr.filter(function(c){return !c.pass&&c.warn;}).length;
+    return Math.round((pass*100+warn*50)/arr.length);
+  }
+
+  var categories=[
+    {label:'Accounting Accuracy',score:catScore(acctChecks)},
+    {label:'Inventory Accuracy',score:catScore(invChecks)},
+    {label:'Bank Reconciliation',score:catScore(bankChecks)},
+    {label:'Data Integrity',score:catScore(debtCredChecks)},
+  ];
+
+  window._healthResult={checks:checks,categories:categories};
+  renderPage();
+  toast('✅ Health Check Complete!');
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// TRAINING MODE — for NIRD & Vitta Sakhi training
+// ═══════════════════════════════════════════════════════════════
+var _trainStep=0,_quizScore=0,_quizTotal=0,_quizAnswered=false;
+
+function pgTraining(){
+  var h='';
+  h+='<div style="background:linear-gradient(135deg,#E65100,#BF360C);color:#fff;border-radius:12px;padding:14px;margin-bottom:10px">';
+  h+='<div style="font-size:16px;font-weight:800">🎓 Training Mode</div>';
+  h+='<div style="font-size:11px;opacity:.85;margin-top:2px">For NIRD & Vitta Sakhi Training | DAY-NRLM</div>';
+  h+='</div>';
+
+  var sections=[
+    {id:'guide',icon:'📖',title:'Guided Tutorial',sub:'Step-by-step accounting guide'},
+    {id:'practice',icon:'✏️',title:'Practice Exercise',sub:'Try with sample data'},
+    {id:'quiz',icon:'❓',title:'Quiz Mode',sub:'Test your knowledge'},
+    {id:'mistakes',icon:'⚠️',title:'Common Mistakes',sub:'Learn from typical errors'},
+    {id:'demo',icon:'🔄',title:'Sample Businesses',sub:'One-click demo data load'},
+  ];
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">';
+  sections.forEach(function(s){
+    h+='<div onclick="showTrainingSection(\''+s.id+'\')" style="background:#fff;border:2px solid #E0E0E0;border-radius:10px;padding:12px;cursor:pointer;text-align:center">'+
+      '<div style="font-size:24px">'+s.icon+'</div>'+
+      '<div style="font-size:12px;font-weight:700;color:#E65100;margin-top:4px">'+s.title+'</div>'+
+      '<div style="font-size:10px;color:#546E7A">'+s.sub+'</div>'+
+    '</div>';
+  });
+  h+='</div>';
+  var sec=window._trainSection||'';
+  if(sec==='guide') h+=renderGuide();
+  else if(sec==='quiz') h+=renderQuiz();
+  else if(sec==='mistakes') h+=renderMistakes();
+  else if(sec==='demo') h+=renderDemo();
+  else if(sec==='practice') h+=renderPractice();
+  return h;
+}
+
+function showTrainingSection(id){window._trainSection=id;renderPage();}
+
+function renderGuide(){
+  var steps=[
+    {title:'Step 1: Profile Setup / प्रोफाइल',icon:'👤',
+     en:'Go to Profile menu. Enter: Business Name, Owner Name, Mobile, Constitution (Individual/Partnership), Business Type (Trading/Mfg/Service). Tap Save Profile.',
+     hi:'Profile menu में जाएं। भरें: Business Name, Owner Name, Mobile, Constitution, Business Type। Save Profile दबाएं।'},
+    {title:'Step 2: Capital Entry / पूंजी',icon:'💰',
+     en:'Go to Capital/Loans. Enter Initial Capital (money invested to start business). Select where it is — Cash or Bank or Both. If you took a loan, add it in Loans section.',
+     hi:'Capital/Loans menu में जाएं। Initial Capital भरें (शुरू में लगाया पैसा)। चुनें — Cash में है या Bank में या दोनों। Loan लिया है तो Loans section में add करें।'},
+    {title:'Step 3: Add Inventory / माल की सूची',icon:'📦',
+     en:'Go to Inventory. Add each item you sell. Enter: Item Name, Unit (Kg/Pcs/Ltr), Category (Resale/RM/FG). For existing business, enter current stock and cost price.',
+     hi:'Inventory menu में जाएं। हर item add करें। भरें: Item Name, Unit (Kg/Pcs/Ltr), Category। Existing business में current stock और cost price भी भरें।'},
+    {title:'Step 4: Purchase Entry / खरीद',icon:'🛒',
+     en:'Go to Purchase. Select item from dropdown (must be added in Inventory first). Enter Supplier name, Quantity, Rate per unit. Amount calculates automatically. Select payment mode.',
+     hi:'Purchase menu में जाएं। Dropdown से item चुनें (Inventory में पहले add होना चाहिए)। Supplier name, Quantity, Rate भरें। Amount auto-calculate होती है। Payment mode चुनें।'},
+    {title:'Step 5: Sale Entry / बिक्री',icon:'💰',
+     en:'Go to Sales. Select item. Margin % auto-fills from settings (change if needed). Sale price calculates automatically. Enter quantity. Select payment mode (Cash/Bank/UPI/Credit).',
+     hi:'Sales menu में जाएं। Item select करें। Margin % automatically आता है (बदल सकते हैं)। Sale price auto-calculate। Quantity भरें। Payment mode चुनें।'},
+    {title:'Step 6: Expense Entry / खर्च',icon:'💸',
+     en:'Go to Expenses. Select category (Rent/Salary/Electricity etc.). Enter amount, date, and payment mode. All expenses appear in P&L Statement automatically.',
+     hi:'Expenses menu में जाएं। Category चुनें (Rent/Salary/Electricity आदि)। Amount, date, payment mode भरें। सभी expenses P&L में automatically आते हैं।'},
+    {title:'Step 7: View Reports / रिपोर्ट देखें',icon:'📊',
+     en:'Go to Financials to see: P&L Statement (profit/loss), Balance Sheet, Cash Flow. Go to Reports for detailed item-wise reports, monthly P&L, stock report.',
+     hi:'Financials में जाएं: P&L Statement (लाभ/हानि), Balance Sheet, Cash Flow देखें। Reports में: item-wise reports, monthly P&L, stock report।'},
+    {title:'Step 8: Health Check / जाँच',icon:'🏥',
+     en:'Go to Health Check and tap "Run Health Check". It verifies: Trial Balance, Balance Sheet, Cash, Stock, Debtors, Creditors. Aim for 90%+ score.',
+     hi:'Health Check menu में जाएं। "Run Health Check" दबाएं। यह check करता है: Trial Balance, Balance Sheet, Cash, Stock, Debtors, Creditors। 90%+ score target करें।'},
+  ];
+  var cur=_trainStep||0;
+  var step=steps[cur];
+  return card('📖 Step-by-Step Guide ('+( cur+1)+'/'+steps.length+')',
+    '<div style="background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;border-radius:8px;padding:10px;margin-bottom:10px">'+
+      '<div style="font-size:20px">'+step.icon+'</div>'+
+      '<div style="font-size:13px;font-weight:700;margin-top:4px">'+step.title+'</div>'+
+    '</div>'+
+    '<div style="font-size:13px;color:#37474F;line-height:1.6;margin-bottom:8px"><b>English:</b><br>'+step.en+'</div>'+
+    '<div style="background:#FFF8E1;border-radius:8px;padding:8px;font-size:12px;color:#37474F;line-height:1.6;margin-bottom:10px"><b>हिंदी:</b><br>'+step.hi+'</div>'+
+    '<div style="display:grid;grid-template-columns:repeat('+steps.length+',1fr);gap:3px;margin-bottom:10px">'+
+      steps.map(function(_,i){return '<div style="height:4px;border-radius:2px;background:'+(i<=cur?'#1565C0':'#E0E0E0')+'"></div>';}).join('')+
+    '</div>'+
+    '<div style="display:flex;gap:8px">'+
+      (cur>0?'<button onclick="_trainStep='+(cur-1)+';renderPage()" style="flex:1;padding:10px;background:#f5f5f5;border:1px solid #E0E0E0;border-radius:8px;font-size:13px;cursor:pointer">◀ Previous</button>':'')+
+      (cur<steps.length-1?'<button onclick="_trainStep='+(cur+1)+';renderPage()" style="flex:1;padding:10px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Next ▶</button>':
+        '<button onclick="_trainStep=0;renderPage()" style="flex:1;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✅ Complete! Start Again</button>')+
+    '</div>'
+  );
+}
+
+function renderQuiz(){
+  var qs=[
+    {q:'What is the accounting equation?',hi:'Accounting equation क्या है?',
+     opts:['Assets = Liabilities + Capital','Sales = Purchase + Profit','Cash = Bank + Stock','Debit = Credit + Balance'],
+     ans:0,exp:'Assets = Liabilities + Capital is the fundamental accounting equation. Balance Sheet must always balance.'},
+    {q:'What is Gross Profit?',hi:'Gross Profit क्या है?',
+     opts:['Sales - All Expenses','Sales - Cost of Goods Sold','Net Profit + Expenses','Cash + Bank Balance'],
+     ans:1,exp:'Gross Profit = Sales - COGS (Cost of Goods Sold). It shows profit before operating expenses.'},
+    {q:'When should you debit Cash Account?',hi:'Cash Account में Debit कब होता है?',
+     opts:['When cash goes out','When cash comes in','When purchase is made','When expenses are paid'],
+     ans:1,exp:'Cash Account is debited when cash comes IN (receipts). It is credited when cash goes OUT.'},
+    {q:'What is a Debtor?',hi:'Debtor (देनदार) कौन होता है?',
+     opts:['Person you owe money to','Person who owes money to you','Your bank','Your supplier'],
+     ans:1,exp:'Debtor is a person/party who owes money TO YOU — i.e., they have purchased from you on credit.'},
+    {q:'Trial Balance DR = CR means?',hi:'Trial Balance में DR = CR का मतलब?',
+     opts:['Business is profitable','All entries are correct','Arithmetic entries are correct','No loans taken'],
+     ans:2,exp:'DR=CR in Trial Balance means arithmetic accuracy — but it does not guarantee all entries are correct. It is a preliminary check.'},
+    {q:'ABC Analysis: Category A means?',hi:'ABC Analysis में Category A का मतलब?',
+     opts:['Items with zero sales','Items contributing top 70% of sales','Items to be discarded','Imported items'],
+     ans:1,exp:'Category A = items contributing top 70% of total sales value. These need closest attention and highest stock priority.'},
+    {q:'What is FIFO in inventory?',hi:'Inventory में FIFO क्या है?',
+     opts:['First In First Out','First Item Final Order','Fixed Inventory First Order','Free Items First Out'],
+     ans:0,exp:'FIFO = First In First Out. The goods purchased first are sold first. This ensures older stock is not left unsold.'},
+    {q:'Net Working Capital = ?',hi:'Net Working Capital = ?',
+     opts:['Fixed Assets - Loans','Current Assets - Current Liabilities','Cash + Bank','Sales - Expenses'],
+     ans:1,exp:'NWC = Current Assets - Current Liabilities. Positive NWC means business can meet short-term obligations comfortably.'},
+  ];
+  var cur=window._quizQ||0;
+  if(cur>=qs.length){
+    var pct=Math.round(_quizScore/_quizTotal*100);
+    return card('❓ Quiz Complete!',
+      '<div style="text-align:center;padding:10px">'+
+        '<div style="font-size:48px;font-weight:900;color:'+(pct>=70?'#2E7D32':'#C62828')+'">'+pct+'%</div>'+
+        '<div style="font-size:14px;color:#37474F;margin:8px 0">Score: '+_quizScore+'/'+_quizTotal+'</div>'+
+        '<div style="font-size:13px;color:'+(pct>=70?'#2E7D32':'#C62828')+';font-weight:700">'+(pct>=90?'🏆 Excellent! Expert level!':pct>=70?'✅ Good! Keep learning!':' Keep practicing!')+' </div>'+
+        '<button onclick="window._quizQ=0;_quizScore=0;_quizTotal=0;_quizAnswered=false;renderPage()" style="margin-top:12px;padding:12px 24px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🔄 Restart Quiz</button>'+
+      '</div>'
+    );
+  }
+  var q=qs[cur];
+  return card('❓ Quiz (Q'+(cur+1)+'/'+qs.length+') — Score: '+_quizScore,
+    '<div style="font-size:13px;font-weight:700;color:#37474F;margin-bottom:4px">'+q.q+'</div>'+
+    '<div style="font-size:11px;color:#546E7A;margin-bottom:10px;font-style:italic">'+q.hi+'</div>'+
+    q.opts.map(function(opt,i){
+      var bg='#fff',border='#E0E0E0',color='#37474F';
+      if(window._quizAnswered){
+        if(i===q.ans){bg='#E8F5E9';border='#2E7D32';color='#2E7D32';}
+        else if(i===window._quizSelected&&i!==q.ans){bg='#FFEBEE';border='#C62828';color='#C62828';}
+      }
+      return '<button onclick="answerQuiz('+i+','+q.ans+','+cur+')" style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:6px;background:'+bg+';border:2px solid '+border+';border-radius:8px;font-size:12px;color:'+color+';cursor:pointer;font-weight:'+(window._quizAnswered&&i===q.ans?700:400)+'">'+
+        String.fromCharCode(65+i)+'. '+opt+'</button>';
+    }).join('')+
+    (window._quizAnswered?'<div style="background:#E3F2FD;border-radius:8px;padding:8px;margin-top:6px;font-size:11px;color:#1565C0"><b>💡 Explanation:</b> '+q.exp+'</div>'+
+      '<button onclick="window._quizQ='+(cur+1)+';window._quizAnswered=false;renderPage()" style="width:100%;margin-top:8px;padding:10px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Next Question ▶</button>':'')
+  );
+}
+
+function answerQuiz(selected,correct,qNum){
+  if(window._quizAnswered) return;
+  window._quizAnswered=true;
+  window._quizSelected=selected;
+  _quizTotal++;
+  if(selected===correct) _quizScore++;
+  renderPage();
+}
+
+function renderMistakes(){
+  var mistakes=[
+    {title:'Buying without updating Inventory first',type:'Common Error',
+     wrong:'Recording purchase without the item in Inventory',
+     right:'Always add item in Inventory FIRST, then record Purchase',
+     impact:'Item will not appear in sales dropdown. Stock tracking fails.',hi:'Inventory में item add किए बिना Purchase की entry मत करें।'},
+    {title:'Crediting Loan without Bank entry',type:'Balance Sheet Error',
+     wrong:'Adding loan but selecting "Not Yet Received" — then spending the money',
+     right:'Select "Bank Account" when loan money comes to bank. This increases bank balance.',
+     impact:'Bank balance will be wrong. Balance Sheet will not tally.',hi:'Loan bank में आए तो "Bank Account" select करें — Bank balance बढ़ेगा।'},
+    {title:'Forgetting to record Drawings',type:'Capital Error',
+     wrong:'Owner takes money for personal use but not recorded',
+     right:'Every personal withdrawal must be recorded in Capital/Loans → Drawings',
+     impact:'Capital will be overstated. Profit will appear higher than reality.',hi:'Personal use के लिए निकाला पैसा हमेशा Drawings में record करें।'},
+    {title:'Recording sale without updating Debtor',type:'Debtor Error',
+     wrong:'Recording credit sale but not adding to Debtors register',
+     right:'When payment mode = Credit, add customer to Debtors list immediately',
+     impact:'Debtors balance will be wrong. Collection reminders will not work.',hi:'Credit sale होने पर Debtors में तुरंत add करें।'},
+    {title:'Wrong Trial Balance side (DR/CR)',type:'TB Error',
+     wrong:'Putting Cash on CR side or Capital on DR side',
+     right:'Assets (Cash/Bank/Stock/Debtors/FA) = DR side. Liabilities (Capital/Loans/Creditors) = CR side.',
+     impact:'Trial Balance will not tally. Balance Sheet will be wrong.',hi:'Cash/Bank/Stock = DR side। Capital/Loans = CR side।'},
+    {title:'Not recording expenses in correct category',type:'Report Error',
+     wrong:'Putting all expenses in Miscellaneous',
+     right:'Use specific categories: Rent, Salary, Electricity, Transportation etc.',
+     impact:'Category-wise expense analysis will be meaningless. Budget vs Actual will not work.',hi:'Expenses सही category में डालें — सब Miscellaneous में मत डालें।'},
+  ];
+  return card('⚠️ Common Accounting Mistakes',
+    mistakes.map(function(m,i){
+      return '<div style="border:1px solid #E0E0E0;border-radius:8px;margin-bottom:8px;overflow:hidden">'+
+        '<div style="background:#C62828;color:#fff;padding:8px 10px;font-size:12px;font-weight:700">'+(i+1)+'. '+m.title+
+          '<span style="float:right;background:rgba(255,255,255,0.3);padding:1px 6px;border-radius:4px;font-size:10px">'+m.type+'</span>'+
+        '</div>'+
+        '<div style="padding:8px 10px">'+
+          '<div style="font-size:11px;margin-bottom:4px"><span style="color:#C62828;font-weight:700">❌ Wrong: </span>'+m.wrong+'</div>'+
+          '<div style="font-size:11px;margin-bottom:4px"><span style="color:#2E7D32;font-weight:700">✅ Right: </span>'+m.right+'</div>'+
+          '<div style="font-size:11px;margin-bottom:4px"><span style="color:#E65100;font-weight:700">⚠️ Impact: </span>'+m.impact+'</div>'+
+          '<div style="font-size:11px;background:#FFF8E1;border-radius:4px;padding:4px 6px;color:#37474F;font-style:italic">हिंदी: '+m.hi+'</div>'+
+        '</div>'+
+      '</div>';
+    }).join('')
+  );
+}
+
+function renderDemo(){
+  var demos=[
+    {name:'Sunita Kirana Store',type:'Trading • New • Proprietorship',icon:'🛒',
+     desc:'Grocery shop — Rice, Oil, Sugar, Atta. Mudra loan. 3 months data.',file:'j1_Trading_New_Prop'},
+    {name:'Sharma & Brothers Textiles',type:'Trading • New • Partnership',icon:'👗',
+     desc:'Textile shop — Cotton, Silk, Sarees. 2 partners. Export sales.',file:'j2_Trading_New_Partner'},
+    {name:'Geeta General Stores',type:'Trading • Existing • Proprietorship',icon:'🏪',
+     desc:'Existing grocery store — with opening Trial Balance. Debtors & creditors.',file:'j3_Trading_Exist_Prop'},
+    {name:'Devi Agarbatti Works',type:'Manufacturing • New • Proprietorship',icon:'🏭',
+     desc:'Agarbatti manufacturing — Bamboo, Charcoal, Fragrance Oil → Rose & Sandalwood boxes.',file:'j5_Mfg_New_Prop'},
+    {name:'Priya Beauty Studio',type:'Service • New • Proprietorship',icon:'💄',
+     desc:'Beauty parlour — Hair, Facial, Bridal services. UPI payments.',file:'j9_Service_New_Prop'},
+    {name:'Aakash Coaching Centre',type:'Service • Existing • Partnership',icon:'📚',
+     desc:'JEE/NEET coaching — Batch fees, study material. 2 partners. Large scale.',file:'j12_Service_Exist_Partner'},
+  ];
+  return card('🔄 Sample Businesses — One-Click Demo Data',
+    '<div style="background:#FFF3E0;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#E65100">'+
+      '⚠️ Loading demo data will REPLACE your current data. Your current data will be lost unless you have taken a backup first (Data → Export Data).'+
+    '</div>'+
+    demos.map(function(d){
+      return '<div style="border:1px solid #E0E0E0;border-radius:8px;padding:10px;margin-bottom:8px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
+          '<div>'+
+            '<div style="font-size:13px;font-weight:700;color:#37474F">'+d.icon+' '+d.name+'</div>'+
+            '<div style="font-size:10px;color:#1565C0;margin:2px 0">'+d.type+'</div>'+
+            '<div style="font-size:11px;color:#546E7A">'+d.desc+'</div>'+
+          '</div>'+
+          '<button onclick="loadDemoData(\''+d.file+'\')" style="padding:8px 12px;background:#E65100;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;margin-left:8px">Load Demo</button>'+
+        '</div>'+
+      '</div>';
+    }).join('')+
+    '<button onclick="clearAllData()" style="width:100%;padding:10px;background:#C62828;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px">🗑️ Clear All Data (Start Fresh)</button>'
+  );
+}
+
+function loadDemoData(filename){
+  if(!confirm('This will replace all current data with demo data. Are you sure?\n\nयह सभी current data को demo data से replace करेगा। क्या आप confirm करते हैं?')) return;
+  var url='https://anilrajhor-dot.github.io/MSME-khata/'+filename+'.json';
+  toast('Loading demo data... ⏳');
+  fetch(url).then(function(r){return r.json();}).then(function(data){
+    Object.assign(D,data);
+    sv();
+    window._trainSection='';
+    renderPage();
+    go('dashboard');
+    toast('✅ Demo data loaded: '+data.profile.businessName);
+  }).catch(function(){
+    toast('Could not load demo data. Check internet connection.','e');
+  });
+}
+
+function clearAllData(){
+  if(!confirm('This will delete ALL data and start fresh. Are you absolutely sure?\n\nसभी data delete हो जाएगा। क्या आप confirm करते हैं?')) return;
+  var bt=BIZ_TYPE;
+  D=initD();
+  D.profile.businessType=bt;
+  sv();
+  go('dashboard');
+  toast('✅ All data cleared. Starting fresh.');
+}
+
+function renderPractice(){
+  return card('✏️ Practice Exercise',
+    '<div style="font-size:13px;font-weight:700;color:#1565C0;margin-bottom:8px">Exercise: Set up a Grocery Shop</div>'+
+    '<div style="font-size:11px;color:#546E7A;margin-bottom:10px">Follow these tasks in the app. Check each one when done:</div>'+
+    ['<b>Task 1:</b> Go to Profile → Enter business name "My Test Shop" → Save',
+     '<b>Task 2:</b> Go to Capital/Loans → Enter Capital ₹50,000 in Bank → Save',
+     '<b>Task 3:</b> Go to Inventory → Add item "Rice" (Unit: Kg, Category: Resale) → Save',
+     '<b>Task 4:</b> Go to Purchase → Select Rice → Qty 100 Kg → Rate ₹60 → Payment: Bank → Save',
+     '<b>Task 5:</b> Go to Sales → Select Rice → Qty 10 Kg → Price ₹75 → Payment: Cash → Save',
+     '<b>Task 6:</b> Go to Expenses → Category: Rent → Amount ₹3000 → Payment: Cash → Save',
+     '<b>Task 7:</b> Go to Financials → Check P&L — Gross Profit should be ₹150 (10×75 - 10×60)',
+     '<b>Task 8:</b> Go to Health Check → Run Health Check → Score should be 90%+',
+    ].map(function(task,i){
+      return '<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;cursor:pointer">'+
+        '<input type="checkbox" style="margin-top:2px;width:auto">'+
+        '<span style="font-size:12px;color:#37474F">'+task+'</span>'+
+      '</label>';
+    }).join('')+
+    '<div style="background:#E8F5E9;border-radius:8px;padding:10px;margin-top:8px">'+
+      '<div style="font-size:11px;color:#2E7D32;font-weight:700">✅ Expected Results after all 8 tasks:</div>'+
+      '<div style="font-size:11px;color:#37474F;margin-top:4px">• Gross Profit: ₹150 (10 Kg × ₹15 margin)<br>• Cash Balance: -₹3000 (₹0 opening + ₹750 sales cash - ₹3000 rent)<br>• Bank Balance: ₹47,200 (₹50,000 - ₹6,000 purchase + ₹0 bank sales)<br>• Net Loss: ₹-2,850 (GP ₹150 - Rent ₹3,000) — normal for first month!</div>'+
+    '</div>'
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 4: AI ADVISOR — Claude-powered business advisor
+// ═══════════════════════════════════════════════════════════════
+var _aiHistory=[];
+
+
+// ═══════════════════════════════════════════════════════════════
+// SMART OFFLINE AI ENGINE — 8 Questions, reads actual D data
+// Works without internet. Answers in English + Hindi (Hinglish)
+// ═══════════════════════════════════════════════════════════════
+
+function smartAIAnswer(question){
+  var q=question.toLowerCase();
+
+  // Route to correct analyser
+  if(q.indexOf('profit')>=0&&(q.indexOf('reduc')>=0||q.indexOf('low')>=0||q.indexOf('why')>=0||q.indexOf('fall')>=0||q.indexOf('less')>=0))
+    return analyseWhyProfitReduced();
+  if(q.indexOf('reorder')>=0||q.indexOf('stock')>=0&&q.indexOf('order')>=0||q.indexOf('buy')>=0||q.indexOf('purchase')>=0&&q.indexOf('should')>=0)
+    return analyseReorderNeeded();
+  if(q.indexOf('late')>=0||q.indexOf('overdue')>=0||q.indexOf('pay')>=0&&q.indexOf('customer')>=0||q.indexOf('collect')>=0||q.indexOf('debtor')>=0)
+    return analyseLatePayers();
+  if(q.indexOf('increase')>=0&&q.indexOf('profit')>=0||q.indexOf('improve')>=0||q.indexOf('grow')>=0||q.indexOf('better')>=0)
+    return analyseHowToIncreaseProfit();
+  if(q.indexOf('predict')>=0||q.indexOf('next month')>=0||q.indexOf('forecast')>=0||q.indexOf('agle mahine')>=0)
+    return analyseNextMonthSales();
+  if(q.indexOf('cash')>=0||q.indexOf('paisa')>=0&&q.indexOf('kitna')>=0||q.indexOf('balance')>=0)
+    return analyseCashPosition();
+  if(q.indexOf('best')>=0&&(q.indexOf('item')>=0||q.indexOf('product')>=0)||q.indexOf('top')>=0&&q.indexOf('sell')>=0||q.indexOf('most profit')>=0)
+    return analyseBestItems();
+  if(q.indexOf('health')>=0||q.indexOf('business')>=0&&(q.indexOf('kaise')>=0||q.indexOf('how')>=0)||q.indexOf('summary')>=0||q.indexOf('overall')>=0)
+    return analyseBusinessHealth();
+  if(q.indexOf('expense')>=0||q.indexOf('kharch')>=0||q.indexOf('cost')>=0)
+    return analyseExpenses();
+
+  // Default — general business summary
+  return analyseBusinessHealth();
+}
+
+// ── Q1: Why has profit reduced? ──────────────────────────────
+function analyseWhyProfitReduced(){
+  var now=new Date();
+  var months=[];
+  for(var i=2;i>=0;i--){
+    var dt=new Date(); dt.setMonth(dt.getMonth()-i);
+    var k=dt.getFullYear()+'-'+(dt.getMonth()<9?'0':'')+(dt.getMonth()+1);
+    var lb=dt.toLocaleString('default',{month:'long',year:'numeric'});
+    var ms=0,mc=0,me=0;
+    D.sales.forEach(function(s){if(s.date&&s.date.indexOf(k)===0){ms+=s.totalAmount||0;mc+=s.cogs||0;}});
+    D.expenses.forEach(function(e){if(e.date&&e.date.indexOf(k)===0)me+=e.amount||0;});
+    months.push({label:lb,key:k,sales:ms,cogs:mc,gp:ms-mc,exp:me,np:ms-mc-me});
+  }
+
+  var reply='<b>📊 Profit Analysis (Last 3 Months)</b><br><br>';
+
+  // Month-wise table
+  reply+='<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px">';
+  reply+='<tr style="background:#1565C0;color:#fff"><td style="padding:4px 6px">Month</td><td style="padding:4px 6px;text-align:right">Sales</td><td style="padding:4px 6px;text-align:right">GP</td><td style="padding:4px 6px;text-align:right">Exp</td><td style="padding:4px 6px;text-align:right">NP</td></tr>';
+  months.forEach(function(m,i){
+    var bg=i%2?'#F5F5F5':'#fff';
+    var npColor=m.np>=0?'#2E7D32':'#C62828';
+    reply+='<tr style="background:'+bg+'"><td style="padding:4px 6px">'+m.label+'</td>'+
+      '<td style="padding:4px 6px;text-align:right">'+fc(m.sales)+'</td>'+
+      '<td style="padding:4px 6px;text-align:right;color:'+(m.gp>=0?'#2E7D32':'#C62828')+'">'+fc(m.gp)+'</td>'+
+      '<td style="padding:4px 6px;text-align:right;color:#E65100">'+fc(m.exp)+'</td>'+
+      '<td style="padding:4px 6px;text-align:right;font-weight:700;color:'+npColor+'">'+fc(m.np)+'</td>'+
+    '</tr>';
+  });
+  reply+='</table>';
+
+  // Find trend
+  var reasons=[];
+  if(months.length>=2){
+    var curr=months[months.length-1], prev=months[months.length-2];
+    if(curr.sales<prev.sales) reasons.push('📉 Sales reduced by '+fc(prev.sales-curr.sales)+' vs last month');
+    if(curr.exp>prev.exp) reasons.push('📈 Expenses increased by '+fc(curr.exp-prev.exp)+' vs last month');
+    if(curr.cogs>0&&curr.sales>0&&prev.cogs>0&&prev.sales>0){
+      var currGPpct=curr.gp/curr.sales*100, prevGPpct=prev.gp/prev.sales*100;
+      if(currGPpct<prevGPpct-3) reasons.push('📦 Gross Profit % fell from '+prevGPpct.toFixed(1)+'% to '+currGPpct.toFixed(1)+'% — check purchase rates or sale prices');
+    }
+  }
+
+  // Expense breakdown — biggest expense
+  var expCat={};
+  D.expenses.forEach(function(e){expCat[e.category||'Other']=(expCat[e.category||'Other']||0)+e.amount;});
+  var topExp=Object.entries(expCat).sort(function(a,b){return b[1]-a[1];}).slice(0,3);
+
+  if(reasons.length){
+    reply+='<b>🔍 Reasons Found:</b><br>';
+    reasons.forEach(function(r){reply+='• '+r+'<br>';});
+    reply+='<br>';
+  }
+
+  reply+='<b>💸 Top Expenses:</b><br>';
+  topExp.forEach(function(e){reply+='• '+e[0]+': '+fc(e[1])+'<br>';});
+  reply+='<br>';
+
+  // Suggestions
+  reply+='<b>💡 Suggestions / सुझाव:</b><br>';
+  if(months[months.length-1]&&months[months.length-1].sales<10000) reply+='• Sales bahut kam hai — daily 5+ customers target karein<br>';
+  reply+='• High expense items review karein — kya reduce ho sakta hai?<br>';
+  reply+='• Credit sales se collections karein — cash flow improve hoga<br>';
+  reply+='• Top selling items ka margin check karein — agar kam hai to badhayein';
+
+  return reply;
+}
+
+// ── Q2: Which products to reorder? ──────────────────────────
+function analyseReorderNeeded(){
+  var now=new Date();
+  var t30=new Date(); t30.setDate(t30.getDate()-30);
+  var t30str=t30.toISOString().slice(0,10);
+  var salesVel={};
+  D.sales.forEach(function(s){if(s.date>=t30str)salesVel[s.itemName]=(salesVel[s.itemName]||0)+(s.qty||0);});
+
+  var outStock=[], below=[], ok=[], fastLow=[];
+  D.inventory.forEach(function(inv){
+    var tot=(inv.currentStock||0)+(inv.importedStock||0);
+    var vel=salesVel[inv.itemName]||0;
+    var daysLeft=vel>0?Math.round(tot/vel*30):999;
+    if(tot===0&&inv.avgCost>0) outStock.push({name:inv.itemName,vel:vel,unit:inv.unit,cost:inv.avgCost});
+    else if(inv.reorderLevel&&tot<=inv.reorderLevel) below.push({name:inv.itemName,stock:tot,reorder:inv.reorderLevel,vel:vel,days:daysLeft,unit:inv.unit,cost:inv.avgCost});
+    else if(vel>5&&daysLeft<=15) fastLow.push({name:inv.itemName,stock:tot,vel:vel,days:daysLeft,unit:inv.unit,cost:inv.avgCost});
+    else if(tot>0) ok.push({name:inv.itemName,stock:tot,unit:inv.unit});
+  });
+
+  var reply='<b>🛒 Reorder Recommendations</b><br><br>';
+
+  if(outStock.length){
+    reply+='<div style="background:#FFEBEE;border-radius:6px;padding:8px;margin-bottom:8px">';
+    reply+='<b style="color:#C62828">🚫 OUT OF STOCK — Order Immediately!</b><br>';
+    outStock.forEach(function(i){
+      var sugQty=(i.vel||10)*2;
+      reply+='• <b>'+esc(i.name)+'</b> — Suggest order: '+sugQty+' '+esc(i.unit)+' | Est. cost: '+fc(sugQty*i.cost)+'<br>';
+    });
+    reply+='</div>';
+  }
+
+  if(below.length){
+    reply+='<div style="background:#FFF3E0;border-radius:6px;padding:8px;margin-bottom:8px">';
+    reply+='<b style="color:#E65100">⚠️ Below Reorder Level — Order Soon</b><br>';
+    below.forEach(function(i){
+      var sugQty=Math.max(i.reorder*2-i.stock,i.reorder);
+      reply+='• <b>'+esc(i.name)+'</b> — Stock: '+i.stock+' | Reorder at: '+i.reorder+' | Stock lasts: '+(i.days<999?i.days+' days':'unknown')+'<br>';
+      reply+='  Suggest: Order '+sugQty+' '+esc(i.unit)+' | Cost: '+fc(sugQty*i.cost)+'<br>';
+    });
+    reply+='</div>';
+  }
+
+  if(fastLow.length){
+    reply+='<div style="background:#E3F2FD;border-radius:6px;padding:8px;margin-bottom:8px">';
+    reply+='<b style="color:#1565C0">📦 Fast Moving — Will Finish in 15 Days</b><br>';
+    fastLow.forEach(function(i){
+      reply+='• <b>'+esc(i.name)+'</b> — Stock: '+i.stock+' '+esc(i.unit)+' | Selling '+i.vel+'/month | '+(i.days)+' days left<br>';
+    });
+    reply+='</div>';
+  }
+
+  if(!outStock.length&&!below.length&&!fastLow.length){
+    reply+='<div style="background:#E8F5E9;border-radius:6px;padding:8px">';
+    reply+='✅ <b>All items have adequate stock!</b><br>';
+    reply+='Koi immediate reorder required nahi hai.<br>';
+    ok.slice(0,5).forEach(function(i){reply+='• '+esc(i.name)+': '+i.stock+' '+esc(i.unit)+'<br>';});
+    reply+='</div>';
+  }
+
+  reply+='<br><b>💡 Tip:</b> Inventory menu mein Reorder Level set karein — automatic alerts aayenge.';
+  return reply;
+}
+
+// ── Q3: Which customers are paying late? ────────────────────
+function analyseLatePayers(){
+  var creditDays=+(D.settings&&D.settings.creditDays)||30;
+  var now=new Date();
+  var overdue=[],dueSoon=[],onTime=[];
+
+  D.debtors.forEach(function(dr){
+    if(!dr.amount||dr.amount<=0) return;
+    var dueDate=new Date(dr.date); dueDate.setDate(dueDate.getDate()+creditDays);
+    var daysOverdue=Math.round((now-dueDate)/86400000);
+    if(daysOverdue>0) overdue.push({name:dr.name,amount:dr.amount,days:daysOverdue,ref:dr.ref||''});
+    else if(daysOverdue>-4) dueSoon.push({name:dr.name,amount:dr.amount,days:-daysOverdue,ref:dr.ref||''});
+    else onTime.push({name:dr.name,amount:dr.amount,days:-daysOverdue});
+  });
+
+  overdue.sort(function(a,b){return b.amount-a.amount;});
+  var totalOverdue=overdue.reduce(function(s,d){return s+d.amount;},0);
+  var totalDr=D.debtors.reduce(function(s,d){return s+(d.amount||0);},0);
+
+  var reply='<b>👤 Customer Payment Analysis</b><br>';
+  reply+='Total Debtors: '+fc(totalDr)+' | Credit Period: '+creditDays+' days<br><br>';
+
+  if(overdue.length){
+    reply+='<div style="background:#FFEBEE;border-radius:6px;padding:8px;margin-bottom:8px">';
+    reply+='<b style="color:#C62828">🔴 OVERDUE — Total: '+fc(totalOverdue)+'</b><br>';
+    overdue.forEach(function(d){
+      reply+='• <b>'+esc(d.name)+'</b>: '+fc(d.amount)+' — <span style="color:#C62828;font-weight:700">'+d.days+' days overdue!</span>';
+      if(d.ref) reply+=' ('+esc(d.ref)+')';
+      reply+='<br>';
+    });
+    reply+='</div>';
+    reply+='<b>📞 Action — Inhe abhi call karein:</b><br>';
+    overdue.slice(0,3).forEach(function(d){reply+='• '+esc(d.name)+' ke liye '+fc(d.amount)+' collect karein<br>';});
+    reply+='<br>';
+  }
+
+  if(dueSoon.length){
+    reply+='<div style="background:#FFF3E0;border-radius:6px;padding:8px;margin-bottom:8px">';
+    reply+='<b style="color:#E65100">🟡 DUE IN 3 DAYS</b><br>';
+    dueSoon.forEach(function(d){reply+='• '+esc(d.name)+': '+fc(d.amount)+' — due in '+d.days+' days<br>';});
+    reply+='</div>';
+  }
+
+  if(onTime.length&&!overdue.length&&!dueSoon.length){
+    reply+='<div style="background:#E8F5E9;border-radius:6px;padding:8px">';
+    reply+='✅ <b>Sab customers time pe pay kar rahe hain!</b><br>';
+    onTime.forEach(function(d){reply+='• '+esc(d.name)+': '+fc(d.amount)+' — '+d.days+' days remaining<br>';});
+    reply+='</div>';
+  }
+
+  if(!D.debtors.length||totalDr===0){
+    reply='✅ <b>Koi outstanding debtor nahi hai!</b><br>Sab customers ne payment kar di hai. Bahut achha!';
+  }
+
+  reply+='<br><b>💡 Tip:</b> Credit period kam karein (currently '+creditDays+' days) — cash flow improve hoga.';
+  return reply;
+}
+
+// ── Q4: How to increase profit? ─────────────────────────────
+function analyseHowToIncreaseProfit(){
+  var f=getF();
+  var ts=f.ts,tp_v=0,te=f.te||0,gp=f.gp,np=f.np;
+  D.purchases.forEach(function(p){tp_v+=p.amount||0;});
+  var gpPct=ts>0?gp/ts*100:0;
+
+  // Find best margin items
+  var iMap={};
+  D.sales.forEach(function(s){
+    if(!s.itemName) return;
+    if(!iMap[s.itemName]) iMap[s.itemName]={sales:0,gp:0,qty:0};
+    iMap[s.itemName].sales+=s.totalAmount||0;
+    iMap[s.itemName].gp+=s.grossProfit||0;
+    iMap[s.itemName].qty+=s.qty||0;
+  });
+  var items=Object.entries(iMap).map(function(e){return{name:e[0],sales:e[1].sales,gp:e[1].gp,gpPct:e[1].sales>0?e[1].gp/e[1].sales*100:0};});
+  var topMargin=items.sort(function(a,b){return b.gpPct-a.gpPct;}).slice(0,3);
+  var lowMargin=items.filter(function(i){return i.gpPct<15&&i.sales>0;}).slice(0,3);
+  var expCat={};
+  D.expenses.forEach(function(e){expCat[e.category||'Other']=(expCat[e.category||'Other']||0)+e.amount;});
+  var topExp=Object.entries(expCat).sort(function(a,b){return b[1]-a[1];}).slice(0,3);
+  var creditSales=D.sales.filter(function(s){return s.paymentMode==='credit';}).reduce(function(t,s){return t+(s.totalAmount||0);},0);
+  var creditPct=ts>0?creditSales/ts*100:0;
+
+  var reply='<b>📈 How to Increase Profit</b><br>';
+  reply+='Current: Sales='+fc(ts)+' | GP='+gpPct.toFixed(1)+'% | NP='+fc(np)+'<br><br>';
+
+  reply+='<b>✅ What you can do — Aap kya kar sakte hain:</b><br><br>';
+
+  var n=1;
+
+  // 1. Focus on high margin items
+  if(topMargin.length){
+    reply+=n+++'. <b>High Margin Items zyada bechein</b><br>';
+    reply+='Yeh items mein sabse zyada profit hai:<br>';
+    topMargin.forEach(function(i){reply+='   • '+esc(i.name)+': '+i.gpPct.toFixed(1)+'% margin — isko promote karein<br>';});
+    reply+='<br>';
+  }
+
+  // 2. Fix low margin items
+  if(lowMargin.length){
+    reply+=n+++'. <b>Low Margin Items ka price badhayein</b><br>';
+    lowMargin.forEach(function(i){reply+='   • '+esc(i.name)+': sirf '+i.gpPct.toFixed(1)+'% margin — price ya margin badhayein<br>';});
+    reply+='<br>';
+  }
+
+  // 3. Reduce expenses
+  if(topExp.length){
+    reply+=n+++'. <b>Biggest expenses control karein</b><br>';
+    topExp.forEach(function(e){reply+='   • '+e[0]+': '+fc(e[1])+' — kya isko reduce kar sakte hain?<br>';});
+    reply+='<br>';
+  }
+
+  // 4. Reduce credit sales
+  if(creditPct>30){
+    reply+=n+++'. <b>Credit sales kam karein</b> (currently '+creditPct.toFixed(0)+'% credit)<br>';
+    reply+='   Cash/UPI sales se cash flow better hota hai. Discount offer karein cash payment pe.<br><br>';
+  }
+
+  // 5. Reorder slow items
+  reply+=n+++'. <b>Dead stock se chutkara payein</b><br>';
+  reply+='   Jo items 90 din se nahi biki — sale price pe bechein, paise release karein.<br><br>';
+
+  reply+=n+++'. <b>Upselling karein</b><br>';
+  reply+='   Jab customer kuch kharide — related item bhi suggest karein (e.g. Rice ke saath Dal ya Oil).<br><br>';
+
+  reply+=n+++'. <b>Regular customers ko reward karein</b><br>';
+  reply+='   Loyal customers ko special price ya credit — wo zyada kharidenge.<br><br>';
+
+  reply+='<b>🎯 Target:</b> GP% ko '+Math.ceil(gpPct+5)+'% tak le jaayein — NP mein '+fc(ts*(gpPct+5-gpPct)/100)+' ki improvement hogi.';
+  return reply;
+}
+
+// ── Q5: Predict next month's sales ──────────────────────────
+function analyseNextMonthSales(){
+  var now=new Date();
+  var months=[];
+  for(var i=2;i>=0;i--){
+    var dt=new Date(); dt.setMonth(dt.getMonth()-i);
+    var k=dt.getFullYear()+'-'+(dt.getMonth()<9?'0':'')+(dt.getMonth()+1);
+    var ms=0;
+    D.sales.forEach(function(s){if(s.date&&s.date.indexOf(k)===0)ms+=s.totalAmount||0;});
+    months.push({key:k,sales:ms,month:dt.toLocaleString('default',{month:'long'})});
+  }
+
+  var nextDt=new Date(); nextDt.setMonth(nextDt.getMonth()+1);
+  var nextMonth=nextDt.toLocaleString('default',{month:'long',year:'numeric'});
+
+  // Calculate trend
+  var validMonths=months.filter(function(m){return m.sales>0;});
+  var predicted=0,growth=0,method='';
+
+  if(validMonths.length>=2){
+    var last=validMonths[validMonths.length-1].sales;
+    var prev=validMonths[validMonths.length-2].sales;
+    growth=prev>0?(last-prev)/prev*100:0;
+    var avgGrowth=growth;
+    if(validMonths.length===3&&validMonths[0].sales>0){
+      var g1=(validMonths[1].sales-validMonths[0].sales)/validMonths[0].sales*100;
+      avgGrowth=(g1+growth)/2;
+    }
+    predicted=Math.round(last*(1+avgGrowth/100));
+    method='Based on '+validMonths.length+'-month trend (avg growth: '+(avgGrowth>=0?'+':'')+avgGrowth.toFixed(1)+'%/month)';
+  } else if(validMonths.length===1){
+    predicted=Math.round(validMonths[0].sales*1.1);
+    method='Based on current month + 10% growth assumption';
+  } else {
+    return '📊 <b>Prediction ke liye insufficient data</b><br>Kuch sales entries karein — 2-3 months baad accurate prediction milegi.';
+  }
+
+  var pessimistic=Math.round(predicted*0.85);
+  var optimistic=Math.round(predicted*1.15);
+
+  var reply='<b>🔮 Sales Prediction — '+nextMonth+'</b><br><br>';
+  reply+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">';
+  reply+='<div style="background:#FFEBEE;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Pessimistic</div><div style="font-size:14px;font-weight:700;color:#C62828">'+fc(pessimistic)+'</div></div>';
+  reply+='<div style="background:#E8F5E9;border-radius:8px;padding:10px;text-align:center;border:2px solid #2E7D32"><div style="font-size:9px;color:#546E7A">Expected</div><div style="font-size:16px;font-weight:900;color:#2E7D32">'+fc(predicted)+'</div></div>';
+  reply+='<div style="background:#E3F2FD;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Optimistic</div><div style="font-size:14px;font-weight:700;color:#1565C0">'+fc(optimistic)+'</div></div>';
+  reply+='</div>';
+
+  reply+='<b>📈 Historical Data:</b><br>';
+  months.forEach(function(m){
+    reply+='• '+m.month+': '+fc(m.sales)+'<br>';
+  });
+  reply+='• '+nextMonth+' (predicted): <b>'+fc(predicted)+'</b><br><br>';
+
+  reply+='<i style="font-size:10px;color:#90A4AE">'+method+'</i><br><br>';
+
+  reply+='<b>💡 Sales '+nextMonth+' mein badhane ke liye:</b><br>';
+  reply+='• Week 1: Low stock items reorder karein<br>';
+  reply+='• Week 2: Top customers ko special offers dein<br>';
+  reply+='• Week 3: Dead stock clear sale karein<br>';
+  reply+='• Week 4: Next month ke liye stock plan karein';
+
+  return reply;
+}
+
+// ── Q6: Cash Position ────────────────────────────────────────
+function analyseCashPosition(){
+  var f=getF();
+  var totalCash=f.cb+f.bb;
+  var monthlyExp=0,monthlySales=0;
+  var now=new Date();
+  var currMo=now.getFullYear()+'-'+(now.getMonth()<9?'0':'')+(now.getMonth()+1);
+  D.expenses.forEach(function(e){if(e.date&&e.date.indexOf(currMo)===0)monthlyExp+=e.amount||0;});
+  D.sales.forEach(function(s){if(s.date&&s.date.indexOf(currMo)===0)monthlySales+=s.totalAmount||0;});
+  var overdueDr=0;
+  var creditDays2=+(D.settings&&D.settings.creditDays)||30;
+  D.debtors.forEach(function(d){
+    if(d.amount>0&&d.date){
+      var due=new Date(d.date);due.setDate(due.getDate()+creditDays2);
+      if(due<now) overdueDr+=d.amount;
+    }
+  });
+  var emiTotal=D.loans.reduce(function(s,l){return s+(l.emi&&l.emi>0?l.emi:0);},0);
+  var monthsRunway=monthlyExp>0?totalCash/monthlyExp:999;
+
+  var reply='<b>💰 Cash Position Analysis</b><br><br>';
+  reply+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">';
+  reply+='<div style="background:#E3F2FD;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#546E7A">Cash in Hand</div><div style="font-size:16px;font-weight:700;color:#1565C0">'+fc(f.cb)+'</div></div>';
+  reply+='<div style="background:#E8F5E9;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#546E7A">Bank Balance</div><div style="font-size:16px;font-weight:700;color:#2E7D32">'+fc(f.bb)+'</div></div>';
+  reply+='</div>';
+  reply+='<div style="background:'+(totalCash>monthlyExp?'#E8F5E9':'#FFEBEE')+';border-radius:8px;padding:10px;text-align:center;margin-bottom:10px">';
+  reply+='<div style="font-size:11px;color:#546E7A">Total Cash + Bank</div>';
+  reply+='<div style="font-size:22px;font-weight:900;color:'+(totalCash>monthlyExp?'#2E7D32':'#C62828')+'">'+fc(totalCash)+'</div>';
+  reply+='<div style="font-size:10px;color:#546E7A">'+Math.round(monthsRunway*10)/10+' months of expenses can be covered</div>';
+  reply+='</div>';
+
+  reply+='<b>📋 This Month Summary:</b><br>';
+  reply+='• Sales collected: '+fc(monthlySales)+'<br>';
+  reply+='• Expenses paid: '+fc(monthlyExp)+'<br>';
+  if(emiTotal>0) reply+='• Monthly EMI: '+fc(emiTotal)+'<br>';
+  if(overdueDr>0) reply+='• Overdue to collect: <span style="color:#C62828;font-weight:700">'+fc(overdueDr)+'</span><br>';
+  reply+='<br>';
+
+  reply+='<b>💡 Cash Flow Improve Karne Ke Upay:</b><br>';
+  if(overdueDr>0) reply+='• Turant '+fc(overdueDr)+' overdue collections karein<br>';
+  if(f.cb>50000) reply+='• Cash mein zyada rakh rahe hain — bank mein deposit karein (safer + interest)<br>';
+  if(monthlyExp>monthlySales*0.8) reply+='• Expenses bahut zyada hain vs sales — control zaruri hai<br>';
+  reply+='• Credit sales kam karein — cash/UPI payments encourage karein<br>';
+  reply+='• Monthly expenses ka budget set karein (Reports → Budget vs Actual)';
+
+  return reply;
+}
+
+// ── Q7: Best selling / profitable items ─────────────────────
+function analyseBestItems(){
+  var iMap={};
+  D.sales.forEach(function(s){
+    if(!s.itemName||s.itemId==='__service__') return;
+    if(!iMap[s.itemName]) iMap[s.itemName]={name:s.itemName,sales:0,gp:0,qty:0,txns:0};
+    iMap[s.itemName].sales+=s.totalAmount||0;
+    iMap[s.itemName].gp+=s.grossProfit||0;
+    iMap[s.itemName].qty+=s.qty||0;
+    iMap[s.itemName].txns++;
+  });
+  // Service entries
+  var svcMap={};
+  D.sales.forEach(function(s){
+    if(s.itemId!=='__service__') return;
+    var svc=s.itemName||'Service';
+    if(!svcMap[svc]) svcMap[svc]={name:svc,sales:0,gp:0,cnt:0};
+    svcMap[svc].sales+=s.totalAmount||0;
+    svcMap[svc].gp+=s.grossProfit||0;
+    svcMap[svc].cnt++;
+  });
+
+  var items=Object.values(iMap).sort(function(a,b){return b.sales-a.sales;});
+  var byProfit=Object.values(iMap).sort(function(a,b){return b.gp-a.gp;});
+  var byMargin=Object.values(iMap).filter(function(i){return i.sales>0;}).sort(function(a,b){return b.gp/b.sales-a.gp/a.sales;});
+  var svcItems=Object.values(svcMap).sort(function(a,b){return b.sales-a.sales;});
+
+  var reply='<b>🏆 Best Items Analysis</b><br><br>';
+
+  if(items.length){
+    reply+='<b>📦 Top 5 by Sales Value:</b><br>';
+    items.slice(0,5).forEach(function(i,idx){
+      reply+=(idx+1)+'. <b>'+esc(i.name)+'</b> — '+fc(i.sales)+' ('+i.qty+' units, '+i.txns+' sales)<br>';
+    });
+    reply+='<br>';
+    reply+='<b>💰 Most Profitable Items (by Gross Profit):</b><br>';
+    byProfit.slice(0,5).forEach(function(i,idx){
+      var gpPct=i.sales>0?Math.round(i.gp/i.sales*100):0;
+      reply+=(idx+1)+'. <b>'+esc(i.name)+'</b> — Profit: '+fc(i.gp)+' ('+gpPct+'% margin)<br>';
+    });
+    reply+='<br>';
+    if(byMargin.length){
+      reply+='<b>📊 Highest Margin % Items:</b><br>';
+      byMargin.slice(0,3).forEach(function(i,idx){
+        var gpPct=Math.round(i.gp/i.sales*100);
+        reply+=(idx+1)+'. '+esc(i.name)+': <b>'+gpPct+'%</b> margin<br>';
+      });
+      reply+='<br>';
+    }
+  }
+
+  if(svcItems.length){
+    reply+='<b>🔧 Top Services:</b><br>';
+    svcItems.slice(0,5).forEach(function(s,idx){
+      reply+=(idx+1)+'. '+esc(s.name)+' — '+fc(s.sales)+' ('+s.cnt+' times)<br>';
+    });
+    reply+='<br>';
+  }
+
+  if(!items.length&&!svcItems.length){
+    reply='📊 Abhi tak koi sales entry nahi hai. Sales record karne ke baad analysis milegi.';
+    return reply;
+  }
+
+  reply+='<b>💡 Strategy:</b><br>';
+  if(byMargin.length) reply+='• '+esc(byMargin[0].name)+' mein sabse zyada margin hai — isko push karein<br>';
+  if(items.length) reply+='• '+esc(items[0].name)+' sabse zyada bikta hai — stock kabhi khatam mat hone dein<br>';
+  reply+='• Low margin items pe suppliers se better rates negotiate karein';
+
+  return reply;
+}
+
+// ── Q8: Overall Business Health ─────────────────────────────
+function analyseBusinessHealth(){
+  var f=getF();
+  var ts=f.ts,gp=f.gp,np=f.np;
+  var gpPct=ts>0?gp/ts*100:0;
+  var npPct=ts>0?np/ts*100:0;
+  var totalCash=f.cb+f.bb;
+  var totalDr=f.dr;
+  var loans=f.ltl;
+  var cs=f.cs;
+
+  // Score calculation
+  var scores=[];
+  scores.push({name:'Sales Activity',score:ts>0?Math.min(100,ts/5000):0,weight:20});
+  scores.push({name:'Gross Profit %',score:gpPct>=30?100:gpPct>=20?80:gpPct>=10?60:gpPct>0?40:20,weight:25});
+  scores.push({name:'Net Profit %',score:npPct>=10?100:npPct>=5?80:npPct>=0?60:npPct>=-5?40:20,weight:25});
+  scores.push({name:'Cash Position',score:totalCash>f.te*2?100:totalCash>f.te?80:totalCash>0?60:30,weight:15});
+  scores.push({name:'Stock Health',score:cs>0?80:60,weight:15});
+
+  var overall=Math.round(scores.reduce(function(s,sc){return s+sc.score*sc.weight/100;},0));
+  var overallColor=overall>=75?'#2E7D32':overall>=50?'#E65100':'#C62828';
+  var overallLabel=overall>=75?'🟢 Healthy':overall>=50?'🟡 Needs Attention':'🔴 Needs Urgent Action';
+
+  var reply='<b>🏥 Business Health Summary</b><br><br>';
+  reply+='<div style="text-align:center;background:'+(overall>=75?'#E8F5E9':overall>=50?'#FFF3E0':'#FFEBEE')+';border-radius:10px;padding:12px;margin-bottom:10px">';
+  reply+='<div style="font-size:36px;font-weight:900;color:'+overallColor+'">'+overall+'%</div>';
+  reply+='<div style="font-size:13px;font-weight:700;color:'+overallColor+'">'+(overall>=75?'🟢 Healthy Business':overall>=50?'🟡 Needs Attention':'🔴 Needs Urgent Action')+'</div>';
+  reply+='</div>';
+
+  reply+='<b>📊 Key Metrics:</b><br>';
+  reply+='• Total Sales: '+fc(ts)+'<br>';
+  reply+='• Gross Profit: '+fc(gp)+' ('+gpPct.toFixed(1)+'%)<br>';
+  reply+='• Net Profit: <span style="color:'+(np>=0?'#2E7D32':'#C62828')+';font-weight:700">'+fc(np)+' ('+npPct.toFixed(1)+'%)</span><br>';
+  reply+='• Cash+Bank: '+fc(totalCash)+'<br>';
+  reply+='• Debtors Outstanding: '+fc(totalDr)+'<br>';
+  reply+='• Stock Value: '+fc(cs)+'<br>';
+  reply+='• Loan Outstanding: '+fc(loans)+'<br><br>';
+
+  // Strengths
+  var strengths=[];
+  if(gpPct>=25) strengths.push('Good gross margins ('+gpPct.toFixed(1)+'%)');
+  if(totalCash>50000) strengths.push('Healthy cash position');
+  if(np>0) strengths.push('Business is profitable');
+  if(totalDr<ts*0.2) strengths.push('Low credit risk');
+
+  // Issues
+  var issues=[];
+  if(gpPct<15) issues.push('Gross margin bahut kam hai ('+gpPct.toFixed(1)+'%) — purchase cost ya sale price check karein');
+  if(np<0) issues.push('Business mein loss ho raha hai — expenses control karein');
+  if(totalCash<10000) issues.push('Cash position weak hai — collections karein');
+  if(totalDr>ts*0.3) issues.push('Zyada credit diya hua hai ('+fc(totalDr)+') — collection tez karein');
+  if(loans>ts) issues.push('Loan zyada hai vs sales — repayment plan review karein');
+
+  if(strengths.length){
+    reply+='<b>✅ Strengths:</b><br>';
+    strengths.forEach(function(s){reply+='• '+s+'<br>';});
+    reply+='<br>';
+  }
+  if(issues.length){
+    reply+='<b>⚠️ Issues to Fix:</b><br>';
+    issues.forEach(function(s){reply+='• '+s+'<br>';});
+    reply+='<br>';
+  }
+
+  reply+='<b>💡 Top 3 Actions:</b><br>';
+  if(issues.length>=1) reply+='1. '+issues[0]+'<br>';
+  else reply+='1. Sales aur badhayein — target '+fc(ts*1.2)+'/month<br>';
+  reply+='2. Monthly Health Check run karein — 90%+ score target karein<br>';
+  reply+='3. Budget set karein (Reports → Budget vs Actual) aur track karein';
+
+  return reply;
+}
+
+// ── Q9 (bonus): Expense Analysis ────────────────────────────
+function analyseExpenses(){
+  var expCat={};
+  D.expenses.forEach(function(e){
+    var cat=e.category||'Other';
+    if(!expCat[cat]) expCat[cat]={total:0,count:0,months:{}};
+    expCat[cat].total+=e.amount||0;
+    expCat[cat].count++;
+    var mo=e.date?e.date.slice(0,7):'';
+    if(mo) expCat[cat].months[mo]=(expCat[cat].months[mo]||0)+(e.amount||0);
+  });
+  var totalExp=Object.values(expCat).reduce(function(s,e){return s+e.total;},0);
+  var cats=Object.entries(expCat).sort(function(a,b){return b[1].total-a[1].total;});
+  var f=getF();
+  var ts=f.ts;
+
+  var reply='<b>💸 Expense Analysis</b><br>';
+  reply+='Total Expenses: '+fc(totalExp)+' | '+( ts>0?'Expenses are '+(totalExp/ts*100).toFixed(1)+'% of sales':'')+' <br><br>';
+
+  reply+='<table style="width:100%;border-collapse:collapse;font-size:11px">';
+  reply+='<tr style="background:#E65100;color:#fff"><td style="padding:4px 6px">Category</td><td style="padding:4px 6px;text-align:right">Amount</td><td style="padding:4px 6px;text-align:right">% of Total</td></tr>';
+  cats.forEach(function(c,i){
+    var pct=totalExp>0?Math.round(c[1].total/totalExp*100):0;
+    reply+='<tr style="background:'+(i%2?'#F5F5F5':'#fff')+'"><td style="padding:4px 6px">'+esc(c[0])+'</td><td style="padding:4px 6px;text-align:right">'+fc(c[1].total)+'</td><td style="padding:4px 6px;text-align:right">'+pct+'%</td></tr>';
+  });
+  reply+='</table><br>';
+
+  reply+='<b>💡 Cost Control Tips:</b><br>';
+  if(expCat['Salary']&&expCat['Salary'].total>totalExp*0.4) reply+='• Salary sabse bada expense hai — productivity track karein<br>';
+  if(expCat['Rent']&&expCat['Rent'].total>totalExp*0.3) reply+='• Rent zyada hai — long-term lease pe discount negotiate karein<br>';
+  reply+='• Fixed expenses (Rent,Salary) vs Variable (Transport,Marketing) alag track karein<br>';
+  reply+='• Budget set karein aur monthly compare karein (Reports → Budget vs Actual)';
+
+  return reply;
+}
+
+function pgAIAdvisor(){
+  var h='';
+  h+='<div style="background:linear-gradient(135deg,#6A1B9A,#4A148C);color:#fff;border-radius:12px;padding:14px;margin-bottom:10px">';
+  h+='<div style="font-size:16px;font-weight:800">🤖 AI Business Advisor</div>';
+  h+='<div style="font-size:11px;opacity:.85;margin-top:2px">Powered by Claude AI — asks your actual data</div>';
+  h+='</div>';
+
+  // Quick question buttons
+  // Show proxy status
+  var proxyUrl2=(D.settings&&D.settings.aiProxyUrl)||'';
+  h+='<div style="background:'+(proxyUrl2?'#E8F5E9':'#FFF3E0')+';border-radius:8px;padding:8px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">';
+  h+='<div><div style="font-size:11px;font-weight:700;color:'+(proxyUrl2?'#2E7D32':'#E65100')+'">'+
+    (proxyUrl2?'✅ AI Connected — '+proxyUrl2.replace('https://','').slice(0,30)+'...':'⚙️ AI Proxy Not Configured')+
+  '</div><div style="font-size:10px;color:#546E7A">'+(proxyUrl2?'AI Advisor is ready to use':'Set up proxy to enable AI')+'</div></div>';
+  h+='<button onclick="go(\'data\')" style="padding:5px 10px;background:'+(proxyUrl2?'#2E7D32':'#E65100')+';color:#fff;border:none;border-radius:6px;font-size:10px;cursor:pointer">'+(proxyUrl2?'⚙️ Settings':'Setup ▶')+'</button>';
+  h+='</div>';
+  h+=card('⚡ Quick Questions',
+    '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Tap a question or type your own below:</div>'+
+    ['Why has my profit reduced this month?',
+     'Which products should I reorder now?',
+     'Which customers are paying late?',
+     'How can I increase my profit?',
+     'Predict next month\'s sales',
+     'Which items are most profitable?',
+     'What is my cash position and how to improve?',
+     'Analyse my business health',
+    ].map(function(q){
+      return '<button onclick="askAI(\''+q.replace(/'/g,"\\'")+'\')" style="display:block;width:100%;text-align:left;padding:8px 10px;margin-bottom:6px;background:#F3E5F5;border:1px solid #CE93D8;border-radius:8px;font-size:12px;color:#4A148C;cursor:pointer">'+q+'</button>';
+    }).join('')
+  );
+
+  // Chat interface
+  h+=card('💬 Chat with AI Advisor',
+    '<div id="ai-chat" style="min-height:120px;max-height:350px;overflow-y:auto;border:1px solid #E0E0E0;border-radius:8px;padding:10px;margin-bottom:8px;background:#FAFAFA">'+
+    (_aiHistory.length===0?'<div style="color:#90A4AE;text-align:center;padding:20px;font-size:12px">Ask any question about your business...<br>AI reads your actual data to answer!</div>':
+      _aiHistory.map(function(msg){
+        var isUser=msg.role==='user';
+        return '<div style="margin-bottom:8px;display:flex;justify-content:'+(isUser?'flex-end':'flex-start')+'">'+
+          '<div style="max-width:85%;padding:8px 10px;border-radius:'+(isUser?'10px 10px 0 10px':'10px 10px 10px 0')+';background:'+(isUser?'#6A1B9A':'#fff')+';color:'+(isUser?'#fff':'#37474F')+';font-size:12px;line-height:1.5;border:'+(isUser?'none':'1px solid #E0E0E0')+'">'+
+          msg.content+'</div></div>';
+      }).join('')
+    )+'</div>'+
+    '<div style="display:flex;gap:8px">'+
+      '<textarea id="ai-input" placeholder="Type your question in English or Hindi..." style="flex:1;padding:10px;border:1px solid #CE93D8;border-radius:8px;font-size:13px;resize:none;height:50px;box-sizing:border-box" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();askAI();}"></textarea>'+
+      '<button onclick="askAI()" style="padding:10px 14px;background:#6A1B9A;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Ask ▶</button>'+
+    '</div>'+
+    '<div style="font-size:10px;color:#90A4AE;margin-top:4px">Press Enter to send. Shift+Enter for new line.</div>'+
+    '<button onclick="_aiHistory=[];renderPage();" style="margin-top:6px;padding:4px 10px;background:transparent;border:1px solid #E0E0E0;border-radius:6px;font-size:10px;color:#90A4AE;cursor:pointer">🗑️ Clear chat</button>'
+  );
+  return h;
+}
+
+function askAI(quickQ){
+  var input=document.getElementById('ai-input');
+  var question=(quickQ||'')+(input?input.value.trim():'');
+  if(!question){toast('Please enter a question','e');return;}
+  if(input) input.value='';
+
+  // Build business context from actual data
+  var f=getF();
+  var ts=D.sales.reduce(function(s,x){return s+(x.totalAmount||0);},0);
+  var tp=D.purchases.reduce(function(s,x){return s+(x.amount||0);},0);
+  var te=D.expenses.reduce(function(s,x){return s+(x.amount||0);},0);
+  var cs=D.inventory.reduce(function(s,x){return s+((x.currentStock||0)+(x.importedStock||0))*(x.avgCost||0);},0);
+  var np=ts-tp+cs-te;
+
+  // Top items by sales
+  var iMap={};
+  D.sales.forEach(function(s){if(s.itemName){if(!iMap[s.itemName])iMap[s.itemName]={sales:0,profit:0,qty:0};iMap[s.itemName].sales+=s.totalAmount||0;iMap[s.itemName].profit+=s.grossProfit||0;iMap[s.itemName].qty+=s.qty||0;}});
+  var topItems=Object.entries(iMap).sort(function(a,b){return b[1].sales-a[1].sales;}).slice(0,5).map(function(e){return e[0]+': Sales='+Math.round(e[1].sales)+', GP='+Math.round(e[1].profit);}).join('; ');
+
+  // Overdue debtors
+  var creditDays2=+(D.settings&&D.settings.creditDays)||30;
+  var overdueCount=0,overdueAmt=0;
+  D.debtors.forEach(function(d){
+    if(d.amount>0&&d.date){var due=new Date(d.date);due.setDate(due.getDate()+creditDays2);if(due<new Date()){overdueCount++;overdueAmt+=d.amount;}}
+  });
+
+  // Low stock items
+  var lowStockItems=D.inventory.filter(function(inv){
+    var tot=(inv.currentStock||0)+(inv.importedStock||0);
+    return inv.reorderLevel&&tot<=inv.reorderLevel;
+  }).map(function(inv){return inv.itemName+' ('+((inv.currentStock||0)+(inv.importedStock||0))+' '+inv.unit+')';}).join(', ');
+
+  // Monthly trend (last 3 months)
+  var now3=new Date();
+  var moTrend=[];
+  for(var mi3=2;mi3>=0;mi3--){
+    var d3=new Date();d3.setMonth(d3.getMonth()-mi3);
+    var k3=d3.getFullYear()+'-'+(d3.getMonth()<9?'0':'')+(d3.getMonth()+1);
+    var ms3=0;D.sales.forEach(function(s){if(s.date&&s.date.indexOf(k3)===0)ms3+=s.totalAmount||0;});
+    moTrend.push(d3.toLocaleString('default',{month:'short'})+':'+Math.round(ms3));
+  }
+
+  var systemPrompt='You are a friendly, practical business advisor for Indian MSME businesses. '+
+    'You have access to the following REAL data from '+esc(D.profile.businessName||'this business')+':\n\n'+
+    'Business: '+esc(D.profile.businessName)+' | Type: '+esc(D.profile.businessType)+' | Constitution: '+esc(D.profile.constitution)+'\n'+
+    'Financial Summary:\n'+
+    '- Total Sales: Rs.'+Math.round(ts)+'\n'+
+    '- Total Purchases: Rs.'+Math.round(tp)+'\n'+
+    '- Total Expenses: Rs.'+Math.round(te)+'\n'+
+    '- Closing Stock Value: Rs.'+Math.round(cs)+'\n'+
+    '- Net Profit: Rs.'+Math.round(np)+' ('+(ts>0?Math.round(np/ts*100):0)+'%)\n'+
+    '- Cash in Hand: Rs.'+Math.round(f.cb)+'\n'+
+    '- Bank Balance: Rs.'+Math.round(f.bb)+'\n'+
+    '- Total Debtors: Rs.'+Math.round(f.dr)+'\n'+
+    '- Total Creditors: Rs.'+Math.round(f.cr)+'\n'+
+    '- Loan Outstanding: Rs.'+Math.round(f.ltl)+'\n'+
+    'Top 5 Items by Sales: '+topItems+'\n'+
+    'Overdue Collections: '+overdueCount+' customers, Rs.'+Math.round(overdueAmt)+'\n'+
+    'Low/Out of Stock: '+(lowStockItems||'None')+'\n'+
+    'Monthly Sales Trend: '+moTrend.join(' → ')+'\n\n'+
+    'Give practical, specific advice in simple English and Hindi mixed (Hinglish is fine). '+
+    'Be concise — max 150 words. Give numbered actionable steps where possible. '+
+    'Address the user as "aap" respectfully. Use Rs. for amounts.';
+
+  // Add user message to history
+  _aiHistory.push({role:'user',content:question});
+  renderPage();
+
+  // Scroll chat to bottom
+  setTimeout(function(){var chat=document.getElementById('ai-chat');if(chat)chat.scrollTop=chat.scrollHeight;},100);
+
+  // Show typing indicator
+  _aiHistory.push({role:'assistant',content:'<i style="color:#90A4AE">Thinking... ⏳</i>'});
+  renderPage();
+  setTimeout(function(){var chat=document.getElementById('ai-chat');if(chat)chat.scrollTop=chat.scrollHeight;},100);
+
+  // Build messages for API
+  var msgs=[{role:'user',content:question}];
+  if(_aiHistory.length>3){
+    // Include last few exchanges for context
+    var hist=_aiHistory.slice(-6,-2).filter(function(m){return m.content.indexOf('Thinking')<0;});
+    msgs=hist.concat([{role:'user',content:question}]);
+  }
+
+  // Get proxy URL from settings
+  var proxyUrl=(D.settings&&D.settings.aiProxyUrl)||'';
+  if(!proxyUrl){
+    // Use Smart Offline AI — works without internet!
+    _aiHistory=_aiHistory.filter(function(m){return m.content.indexOf('Thinking')<0;});
+    _aiHistory.push({role:'assistant',content:smartAIAnswer(question)});
+    renderPage();
+    setTimeout(function(){var chat=document.getElementById('ai-chat');if(chat)chat.scrollTop=chat.scrollHeight;},100);
+    return;
+  }
+  var endpoint=proxyUrl.replace(/\/+$/,'')+'/api/chat';
+  fetch(endpoint,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-6',
+      max_tokens:400,
+      system:systemPrompt,
+      messages:msgs
+    })
+  }).then(function(res){return res.json();})
+  .then(function(data){
+    var reply='Sorry, could not get response. Please try again.';
+    if(data&&data.content&&data.content[0]&&data.content[0].text){
+      reply=data.content[0].text;
+    } else if(data&&data.error){
+      reply='❌ Error: '+data.error.message+'<br><small>Check your proxy URL in Data → AI Advisor Settings</small>';
+    }
+    _aiHistory=_aiHistory.filter(function(m){return m.content.indexOf('Thinking')<0;});
+    _aiHistory.push({role:'assistant',content:reply.replace(/\n/g,'<br>')});
+    renderPage();
+    setTimeout(function(){var chat=document.getElementById('ai-chat');if(chat)chat.scrollTop=chat.scrollHeight;},100);
+  })
+  .catch(function(err){
+    _aiHistory=_aiHistory.filter(function(m){return m.content.indexOf('Thinking')<0;});
+    _aiHistory.push({role:'assistant',content:'❌ Connection failed.<br>Check: 1) Internet connection 2) Proxy URL in Data → AI Advisor Settings<br><small>'+err.message+'</small>'});
+    renderPage();
+  });
+}
+// ═══════════════════════════════════════════════════════════════
+
+
+function pgDash(){
+  var f=getF(),i,j,td2=td();
+  var now=new Date();
+  var todayStr=td2;
+  // Week start (Monday)
+  var wkStart=new Date(now); wkStart.setDate(now.getDate()-((now.getDay()+6)%7)); wkStart.setHours(0,0,0,0);
+  var wkStartStr=wkStart.toISOString().slice(0,10);
+  // Month
+  var moStr=now.getFullYear()+'-'+(now.getMonth()<9?'0':'')+(now.getMonth()+1);
+  // Year (financial year Apr-Mar)
+  var fyYear=now.getMonth()>=3?now.getFullYear():now.getFullYear()-1;
+  var fyStart=fyYear+'-04-01';
+
+  // ── Sales aggregation ──
+  var todaySales=0,weekSales=0,monthSales=0,yearSales=0;
+  var todayPurch=0,todayExp=0;
+  var itemSalesMap={};  // for top-10
+  var itemProfitMap={}; // for top-10 profitable
+  for(i=0;i<D.sales.length;i++){
+    var s=D.sales[i];
+    var amt=s.totalAmount||0, gp=s.grossProfit||0;
+    if(s.date===todayStr){todaySales+=amt;}
+    if(s.date>=wkStartStr&&s.date<=todayStr) weekSales+=amt;
+    if(s.date&&s.date.indexOf(moStr)===0) monthSales+=amt;
+    if(s.date>=fyStart) yearSales+=amt;
+    // Item aggregation
+    var iname=s.itemName||'Other';
+    if(!itemSalesMap[iname]) itemSalesMap[iname]={name:iname,sales:0,profit:0,qty:0};
+    itemSalesMap[iname].sales+=amt;
+    itemSalesMap[iname].profit+=gp;
+    itemSalesMap[iname].qty+=(s.qty||0);
+  }
+  for(i=0;i<D.purchases.length;i++) if(D.purchases[i].date===todayStr) todayPurch+=D.purchases[i].amount;
+  for(i=0;i<D.expenses.length;i++) if(D.expenses[i].date===todayStr) todayExp+=D.expenses[i].amount;
+
+  // ── Cash position ──
+  var cashPos=f.cb; // today's cash from getF()
+  var bankPos=f.bb;
+
+  // ── Low stock alerts ──
+  var lowStock=[],outStock=[],nearStock=[];
+  for(i=0;i<D.inventory.length;i++){
+    var inv=D.inventory[i];
+    var totStk=(inv.currentStock||0)+(inv.importedStock||0);
+    if(totStk===0&&inv.avgCost>0) outStock.push(inv);
+    else if(inv.reorderLevel&&totStk<=inv.reorderLevel) lowStock.push({item:inv,pct:totStk/inv.reorderLevel});
+    else if(inv.reorderLevel&&totStk<=inv.reorderLevel*1.5) nearStock.push(inv);
+  }
+
+  // ── Today's pending work ──
+  var creditDays=+(D.settings&&D.settings.creditDays)||30;
+  var overdueDebtors=[],dueSoonDebtors=[];
+  var dMap={};
+  (D.debtors||[]).forEach(function(d){if(d.amount>0&&d.date){if(!dMap[d.name]||d.date<dMap[d.name].date)dMap[d.name]=d;}});
+  Object.values(dMap).forEach(function(d){
+    if(d.amount<=0)return;
+    var due=new Date(d.date);due.setDate(due.getDate()+creditDays);
+    var dueStr=due.toISOString().slice(0,10);
+    var daysLeft=Math.round((due-new Date())/(86400000));
+    if(daysLeft<0) overdueDebtors.push({name:d.name,amount:d.amount,days:-daysLeft});
+    else if(daysLeft<=3) dueSoonDebtors.push({name:d.name,amount:d.amount,days:daysLeft});
+  });
+  var emiDue=[];
+  (D.loans||[]).forEach(function(l){
+    if(!l.outstandingBalance||l.outstandingBalance<=0||!l.emi) return;
+    var ltype=l.loanType||'';
+    if(ltype.indexOf('CC')>=0||ltype.indexOf('Cash Credit')>=0) return;
+    var pays=l.payments||[];
+    var lastStr=pays.length>0?pays.reduce(function(a,b){return a.date>b.date?a:b;}).date:(l.lastInterestDate||l.sanctionDate||'');
+    if(!lastStr) return;
+    var nextDue=new Date(lastStr);nextDue.setMonth(nextDue.getMonth()+1);
+    var daysLeft=Math.round((nextDue-new Date())/(86400000));
+    if(daysLeft<=5) emiDue.push({lender:l.lender,emi:l.emi,daysLeft:daysLeft});
+  });
+
+  // ── Monthly trend (last 6 months) ──
+  var mo=[],k2,ms2,me2,d2,lb2;
+  for(i=5;i>=0;i--){
+    d2=new Date();d2.setMonth(d2.getMonth()-i);
+    k2=d2.getFullYear()+'-'+(d2.getMonth()<9?'0':'')+(d2.getMonth()+1);
+    lb2=d2.toLocaleString('default',{month:'short'});
+    ms2=0;me2=0;
+    for(j=0;j<D.sales.length;j++) if(D.sales[j].date&&D.sales[j].date.indexOf(k2)===0) ms2+=D.sales[j].totalAmount;
+    for(j=0;j<D.expenses.length;j++) if(D.expenses[j].date&&D.expenses[j].date.indexOf(k2)===0) me2+=D.expenses[j].amount;
+    mo.push({l:lb2,s:ms2,e:me2});
+  }
+
+  // ── Top 10 selling items ──
+  var topSales=Object.values(itemSalesMap).sort(function(a,b){return b.sales-a.sales;}).slice(0,10);
+  var topProfit=Object.values(itemSalesMap).sort(function(a,b){return b.profit-a.profit;}).slice(0,10);
+  var maxSale=topSales.length?topSales[0].sales:1;
+  var maxProfit=topProfit.length?Math.max(topProfit[0].profit,1):1;
+
+  var h='';
+
+  // ── Business header ──
+  if(D.profile.businessName){
+    h+='<div style="background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:10px">'+
+      '<div style="font-size:16px;font-weight:800">'+esc(D.profile.businessName)+'</div>'+
+      '<div style="font-size:11px;opacity:.85">'+esc(D.profile.ownerName)+' • '+esc(D.profile.businessType)+(D.profile.natureOfBusiness?' • '+D.profile.natureOfBusiness:'')+
+        ' • FY'+now.getFullYear()+'</div>'+
+    '</div>';
+  }
+
+  // ── TODAY'S WORK PENDING ──
+  var pendingItems=overdueDebtors.length+dueSoonDebtors.length+emiDue.length+outStock.length+lowStock.length;
+  if(pendingItems>0){
+    h+='<div style="background:#FFF3E0;border-left:4px solid #E65100;border-radius:8px;padding:10px 12px;margin-bottom:10px">';
+    h+='<div style="font-size:13px;font-weight:800;color:#E65100;margin-bottom:6px">📋 Today\'s Pending Work ('+pendingItems+')</div>';
+    if(overdueDebtors.length){
+      h+='<div style="font-size:11px;font-weight:700;color:#C62828;margin-bottom:3px">🔴 Overdue Collections:</div>';
+      overdueDebtors.slice(0,3).forEach(function(d){h+='<div style="font-size:11px;color:#37474F;margin-left:8px">• '+esc(d.name)+': '+fc(d.amount)+' ('+d.days+' days overdue) <button onclick="go(\'reminders\')" style="font-size:9px;padding:1px 6px;background:#C62828;color:#fff;border:none;border-radius:4px;cursor:pointer">Remind</button></div>';});
+      if(overdueDebtors.length>3) h+='<div style="font-size:10px;color:#C62828;margin-left:8px">+ '+(overdueDebtors.length-3)+' more overdue</div>';
+    }
+    if(dueSoonDebtors.length){
+      h+='<div style="font-size:11px;font-weight:700;color:#E65100;margin-top:4px;margin-bottom:3px">🟡 Due in 3 days:</div>';
+      dueSoonDebtors.forEach(function(d){h+='<div style="font-size:11px;color:#37474F;margin-left:8px">• '+esc(d.name)+': '+fc(d.amount)+' ('+d.days+' days left)</div>';});
+    }
+    if(emiDue.length){
+      h+='<div style="font-size:11px;font-weight:700;color:#1565C0;margin-top:4px;margin-bottom:3px">🏦 EMI Due:</div>';
+      emiDue.forEach(function(l){h+='<div style="font-size:11px;color:#37474F;margin-left:8px">• '+esc(l.lender)+': '+fc(l.emi)+(l.daysLeft<0?' OVERDUE':' in '+l.daysLeft+' days')+'</div>';});
+    }
+    if(outStock.length){
+      h+='<div style="font-size:11px;font-weight:700;color:#C62828;margin-top:4px;margin-bottom:3px">🚫 Out of Stock:</div>';
+      outStock.slice(0,3).forEach(function(inv){h+='<div style="font-size:11px;color:#37474F;margin-left:8px">• '+esc(inv.itemName)+'</div>';});
+    }
+    if(lowStock.length){
+      h+='<div style="font-size:11px;font-weight:700;color:#E65100;margin-top:4px;margin-bottom:3px">⚠️ Low Stock - Reorder:</div>';
+      lowStock.slice(0,3).forEach(function(l){h+='<div style="font-size:11px;color:#37474F;margin-left:8px">• '+esc(l.item.itemName)+': '+fmt((l.item.currentStock||0)+(l.item.importedStock||0))+' '+esc(l.item.unit)+' (reorder at '+l.item.reorderLevel+')</div>';});
+    }
+    h+='</div>';
+  }
+
+  // ── SALES SUMMARY CARDS ──
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">';
+  h+=salesCard('Today','📅',todaySales,'#1565C0');
+  h+=salesCard('This Week','📆',weekSales,'#2E7D32');
+  h+=salesCard('This Month','🗓️',monthSales,'#E65100');
+  h+=salesCard('This Year','📊',yearSales,'#6A1B9A');
+  h+='</div>';
+
+  // ── DAILY CASH POSITION ──
+  h+='<div style="background:#E3F2FD;border-radius:10px;padding:10px 14px;margin-bottom:10px">';
+  h+='<div style="font-size:12px;font-weight:700;color:#1565C0;margin-bottom:6px">💰 Daily Cash Position</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">';
+  h+='<div style="text-align:center"><div style="font-size:9px;color:#546E7A">Cash in Hand</div><div style="font-size:14px;font-weight:700;color:#1565C0">'+fc(cashPos)+'</div></div>';
+  h+='<div style="text-align:center"><div style="font-size:9px;color:#546E7A">Bank Balance</div><div style="font-size:14px;font-weight:700;color:#2E7D32">'+fc(bankPos)+'</div></div>';
+  h+='<div style="text-align:center"><div style="font-size:9px;color:#546E7A">Total Cash+Bank</div><div style="font-size:15px;font-weight:800;color:#1565C0">'+fc(cashPos+bankPos)+'</div></div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;border-top:1px solid #BBDEFB;padding-top:6px">';
+  h+='<div style="text-align:center"><div style="font-size:9px;color:#546E7A">Today Sales</div><div style="font-size:12px;font-weight:700;color:#2E7D32">+'+fc(todaySales)+'</div></div>';
+  h+='<div style="text-align:center"><div style="font-size:9px;color:#546E7A">Today Purchase</div><div style="font-size:12px;font-weight:700;color:#E65100">-'+fc(todayPurch)+'</div></div>';
+  h+='<div style="text-align:center"><div style="font-size:9px;color:#546E7A">Today Expenses</div><div style="font-size:12px;font-weight:700;color:#C62828">-'+fc(todayExp)+'</div></div>';
+  h+='</div></div>';
+
+  // ── KEY METRICS ──
+  h+='<div class="sg" style="margin-bottom:10px">';
+  h+=sc('Net Profit',fc(f.np),f.np>=0?'#2E7D32':'#C62828',f.ts>0?((f.np/f.ts)*100).toFixed(1)+'% NP':'');
+  h+=sc('Stock Value',fc(f.cs),'#FF8F00','');
+  h+=sc('Debtors',fc(f.dr),'#00897B','Receivable');
+  h+=sc('Creditors',fc(f.cr),'#D84315','Payable');
+  h+=sc('Loan Outstanding',fc(f.ltl),'#7B1FA2','');
+  h+=sc('Gross Profit',fc(f.gp),f.gp>=0?'#2E7D32':'#C62828',f.ts>0?((f.gp/f.ts)*100).toFixed(1)+'% GP':'');
+  h+='</div>';
+
+  // ── LOW STOCK ALERTS ──
+  if(outStock.length||lowStock.length||nearStock.length){
+    h+='<div style="margin-bottom:10px">';
+    h+='<div style="font-size:12px;font-weight:700;color:#37474F;margin-bottom:6px">📦 Stock Alerts</div>';
+    outStock.forEach(function(inv){
+      h+='<div style="background:#FFEBEE;border-left:4px solid #C62828;border-radius:6px;padding:7px 10px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">'+
+        '<div><div style="font-size:12px;font-weight:700;color:#C62828">🚫 '+esc(inv.itemName)+'</div><div style="font-size:10px;color:#546E7A">OUT OF STOCK — Reorder immediately!</div></div>'+
+        '<button onclick="go(\'purchase\')" style="padding:4px 8px;background:#C62828;color:#fff;border:none;border-radius:6px;font-size:10px;cursor:pointer">Buy Now</button>'+
+      '</div>';
+    });
+    lowStock.forEach(function(l){
+      var totStk=(l.item.currentStock||0)+(l.item.importedStock||0);
+      var pct=Math.round(totStk/l.item.reorderLevel*100);
+      h+='<div style="background:#FFF3E0;border-left:4px solid #E65100;border-radius:6px;padding:7px 10px;margin-bottom:4px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<div><div style="font-size:12px;font-weight:700;color:#E65100">⚠️ '+esc(l.item.itemName)+'</div>'+
+          '<div style="font-size:10px;color:#546E7A">Stock: '+fmt(totStk)+' '+esc(l.item.unit)+' | Reorder at: '+l.item.reorderLevel+'</div></div>'+
+          '<button onclick="go(\'purchase\')" style="padding:4px 8px;background:#E65100;color:#fff;border:none;border-radius:6px;font-size:10px;cursor:pointer">Reorder</button>'+
+        '</div>'+
+        '<div style="background:#E0E0E0;height:4px;border-radius:2px;margin-top:4px">'+
+          '<div style="background:#E65100;height:4px;border-radius:2px;width:'+Math.min(pct,100)+'%"></div>'+
+        '</div>'+
+        '<div style="font-size:9px;color:#E65100;margin-top:2px">'+pct+'% of reorder level</div>'+
+      '</div>';
+    });
+    nearStock.forEach(function(inv){
+      var totStk=(inv.currentStock||0)+(inv.importedStock||0);
+      h+='<div style="background:#FFFDE7;border-left:4px solid #F9A825;border-radius:6px;padding:6px 10px;margin-bottom:4px">'+
+        '<div style="font-size:11px;font-weight:700;color:#F9A825">🟡 '+esc(inv.itemName)+': '+fmt(totStk)+' '+esc(inv.unit)+' (near reorder)</div>'+
+      '</div>';
+    });
+    h+='</div>';
+  }
+
+  // ── TOP 10 SELLING ITEMS ──
+  if(topSales.length){
+    h+='<div style="margin-bottom:10px">';
+    h+='<div style="font-size:12px;font-weight:700;color:#37474F;margin-bottom:6px">🏆 Top Selling Items</div>';
+    topSales.forEach(function(it,idx){
+      var pct=Math.round(it.sales/maxSale*100);
+      h+='<div style="margin-bottom:5px">'+
+        '<div style="display:flex;justify-content:space-between;font-size:11px">'+
+          '<span><b style="color:#1565C0">'+(idx+1)+'.</b> '+esc(it.name)+'</span>'+
+          '<span style="font-weight:700">'+fc(it.sales)+'</span>'+
+        '</div>'+
+        '<div style="background:#E3F2FD;height:6px;border-radius:3px;margin-top:2px">'+
+          '<div style="background:linear-gradient(90deg,#1565C0,#42A5F5);height:6px;border-radius:3px;width:'+pct+'%"></div>'+
+        '</div>'+
+      '</div>';
+    });
+    h+='</div>';
+  }
+
+  // ── TOP 10 PROFITABLE ITEMS ──
+  if(topProfit.length&&topProfit[0].profit>0){
+    h+='<div style="margin-bottom:10px">';
+    h+='<div style="font-size:12px;font-weight:700;color:#37474F;margin-bottom:6px">💰 Most Profitable Items</div>';
+    topProfit.filter(function(it){return it.profit>0;}).forEach(function(it,idx){
+      var pct=Math.round(it.profit/maxProfit*100);
+      var gpPct=it.sales>0?Math.round(it.profit/it.sales*100):0;
+      h+='<div style="margin-bottom:5px">'+
+        '<div style="display:flex;justify-content:space-between;font-size:11px">'+
+          '<span><b style="color:#2E7D32">'+(idx+1)+'.</b> '+esc(it.name)+'</span>'+
+          '<span style="font-weight:700;color:#2E7D32">'+fc(it.profit)+' <span style="font-size:9px;font-weight:400">('+gpPct+'%)</span></span>'+
+        '</div>'+
+        '<div style="background:#E8F5E9;height:6px;border-radius:3px;margin-top:2px">'+
+          '<div style="background:linear-gradient(90deg,#2E7D32,#66BB6A);height:6px;border-radius:3px;width:'+pct+'%"></div>'+
+        '</div>'+
+      '</div>';
+    });
+    h+='</div>';
+  }
+
+  // ── MONTHLY TREND CHART ──
+  var maxMoSales=Math.max.apply(null,mo.map(function(m){return m.s;}));
+  var maxMoExp=Math.max.apply(null,mo.map(function(m){return m.e;}));
+  var maxMo=Math.max(maxMoSales,maxMoExp,1);
+  h+='<div style="background:#fff;border-radius:10px;border:1px solid #E0E0E0;padding:10px;margin-bottom:10px">';
+  h+='<div style="font-size:12px;font-weight:700;color:#37474F;margin-bottom:8px">📈 Monthly Trend (Last 6 Months)</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;align-items:end;height:80px">';
+  mo.forEach(function(m){
+    var sh=m.s>0?Math.max(Math.round(m.s/maxMo*70),4):2;
+    var eh=m.e>0?Math.max(Math.round(m.e/maxMo*70),4):2;
+    h+='<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:80px">'+
+      '<div style="display:flex;gap:2px;align-items:flex-end">'+
+        '<div style="width:8px;background:#1565C0;border-radius:2px 2px 0 0;height:'+sh+'px" title="Sales: '+fc(m.s)+'"></div>'+
+        '<div style="width:8px;background:#C62828;border-radius:2px 2px 0 0;height:'+eh+'px" title="Exp: '+fc(m.e)+'"></div>'+
+      '</div>'+
+      '<div style="font-size:9px;color:#546E7A;margin-top:3px">'+m.l+'</div>'+
+    '</div>';
+  });
+  h+='</div>';
+  h+='<div style="display:flex;gap:12px;margin-top:6px;justify-content:center">'+
+    '<div style="font-size:10px;color:#1565C0">■ Sales</div>'+
+    '<div style="font-size:10px;color:#C62828">■ Expenses</div>'+
+  '</div></div>';
+
+  return h;
+}
+
+function salesCard(label,icon,amount,color){
+  return '<div style="background:#fff;border-radius:10px;border:1px solid #E0E0E0;padding:10px;text-align:center">'+
+    '<div style="font-size:16px">'+icon+'</div>'+
+    '<div style="font-size:10px;color:#546E7A;margin:2px 0">'+label+'</div>'+
+    '<div style="font-size:14px;font-weight:800;color:'+color+'">'+fc(amount)+'</div>'+
+  '</div>';
+}
+
+
 // ===== PROFILE =====
 function pgProf(){
   var p=D.profile;
@@ -1790,8 +3318,15 @@ function pgInv(){
   var h='<div class="sg">'+sc('Items',D.inventory.length,'#1565C0','')+sc('Stock Value',fc(tv),'#2E7D32','')+'</div>';
   h+=card('Add Item',
       g2(inp('Item Name','iv_n','text',''),sl('Unit','iv_u',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
-      g2(inp('Current Stock (on hand)','iv_os','number',0),inp('Cost per Unit (₹)','iv_pr','number',0))+
-      inp('Reorder Level (for low-stock alert)','iv_rl','number',0)+
+      g2(inp('Current Stock (on hand)','iv_os','number',0),inp('Cost per Unit / Avg Cost (₹)','iv_pr','number',0))+
+      g2(inp('MRP (₹) — Maximum Retail Price','iv_mrp','number',0),inp('Reorder Level','iv_rl','number',0))+
+      '<div style="background:#E8F5E9;border-radius:8px;padding:8px 10px;margin-bottom:8px">'+
+      '<div style="font-size:11px;font-weight:700;color:#2E7D32;margin-bottom:6px">💰 Selling Prices (Optional — set for auto-fill)</div>'+
+      g2(inp('Retail Price (₹)','iv_price_retail','number',0),inp('Wholesale Price (₹)','iv_price_wholesale','number',0))+
+      inp('Bulk Price (₹) — for large quantity orders','iv_price_bulk','number',0)+
+      '</div>'+
+      g2(inp('Batch No. (optional)','iv_batch','text',''),inp('Expiry Date','iv_expiry','date',''))+
+      '<div style="font-size:10px;color:#E65100;margin-bottom:8px">Batch No. & Expiry important for food/medicine items (FSSAI)</div>'+
       sl('Category','iv_cat',['Resale','Consumable'],window._invCat||['Resale','Consumable'][0])+
       (gstEnabled() ?
         g2(inp('HSN / SAC Code','iv_hsn','text','')+
@@ -1814,6 +3349,117 @@ function pgInv(){
   if(hasImported) invCols.push({l:'Imp. Stock',r:1,fn:function(r){return fmt(r.importedStock||0);}},{l:'Imp. Cost',r:1,fn:function(r){return fc(r.importedAvgCost||0);}});
   invCols.push({l:'Value',r:1,fn:function(r){return fc(r.currentStock*r.avgCost+(r.importedStock||0)*(r.importedAvgCost||0));}});
   h+=card('Inventory',tbl(invCols,D.inventory));
+
+  // ── ABC ANALYSIS ──
+  var abcTotSales = 0;
+  var invSales = D.inventory.map(function(inv){
+    var s=0;
+    D.sales.forEach(function(sl){if(sl.itemId===inv.id||sl.itemName===inv.itemName) s+=sl.totalAmount||0;});
+    return {inv:inv,sales:s};
+  }).sort(function(a,b){return b.sales-a.sales;});
+  abcTotSales = invSales.reduce(function(s,r){return s+r.sales;},0);
+  var abcRunning=0;
+  invSales.forEach(function(r){
+    abcRunning+=r.sales;
+    var pct=abcTotSales>0?abcRunning/abcTotSales*100:0;
+    r.abcClass=pct<=70?'A':pct<=90?'B':'C';
+    r.salesPct=abcTotSales>0?Math.round(r.sales/abcTotSales*100):0;
+  });
+
+  // ── FAST/SLOW/DEAD STOCK ──
+  var today2=new Date(), thirtyDays=30, ninetyDays=90;
+  var t30=new Date(today2); t30.setDate(t30.getDate()-thirtyDays);
+  var t90=new Date(today2); t90.setDate(t90.getDate()-ninetyDays);
+  var t30Str=t30.toISOString().slice(0,10);
+  var t90Str=t90.toISOString().slice(0,10);
+  var salesIn30={}, salesIn90={};
+  D.sales.forEach(function(s){
+    if(s.date>=t30Str){salesIn30[s.itemName]=(salesIn30[s.itemName]||0)+(s.qty||0);}
+    if(s.date>=t90Str){salesIn90[s.itemName]=(salesIn90[s.itemName]||0)+(s.qty||0);}
+  });
+
+  var fastMoving=[], slowMoving=[], deadStock=[], expiryAlert=[];
+  D.inventory.forEach(function(inv){
+    var totStk=(inv.currentStock||0)+(inv.importedStock||0);
+    var s30=salesIn30[inv.itemName]||0;
+    var s90=salesIn90[inv.itemName]||0;
+    if(totStk<=0) return;
+    if(s30>=10) fastMoving.push({name:inv.itemName,sold30:s30,stock:totStk,unit:inv.unit});
+    else if(s90===0&&totStk>0) deadStock.push({name:inv.itemName,stock:totStk,unit:inv.unit,val:totStk*inv.avgCost});
+    else if(s30<3&&totStk>0) slowMoving.push({name:inv.itemName,sold30:s30,stock:totStk,unit:inv.unit});
+    // Expiry alert
+    if(inv.expiryDate){
+      var expDate=new Date(inv.expiryDate);
+      var daysLeft=Math.round((expDate-today2)/86400000);
+      if(daysLeft<=30) expiryAlert.push({name:inv.itemName,days:daysLeft,expiry:inv.expiryDate,batch:inv.batchNo});
+    }
+  });
+
+  // Expiry Alert
+  if(expiryAlert.length){
+    h+='<div style="background:#FFEBEE;border-left:4px solid #C62828;border-radius:8px;padding:10px;margin-bottom:8px">';
+    h+='<div style="font-size:12px;font-weight:700;color:#C62828;margin-bottom:6px">⏰ Expiry Alert</div>';
+    expiryAlert.forEach(function(e){
+      h+='<div style="font-size:11px;color:#37474F;margin-bottom:3px">• <b>'+esc(e.name)+'</b>'+(e.batch?' [Batch:'+esc(e.batch)+']':'')+' — Expires: '+e.expiry+' ('+e.days+' days left)</div>';
+    });
+    h+='</div>';
+  }
+
+  // ABC Analysis card
+  if(invSales.length&&abcTotSales>0){
+    var aItems=invSales.filter(function(r){return r.abcClass==='A';});
+    var bItems=invSales.filter(function(r){return r.abcClass==='B';});
+    var cItems=invSales.filter(function(r){return r.abcClass==='C';});
+    h+=card('📊 ABC Inventory Analysis',
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">A = Top 70% of sales value | B = Next 20% | C = Bottom 10%</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">'+
+        '<div style="background:#E8F5E9;border-radius:8px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:900;color:#2E7D32">A</div><div style="font-size:10px;color:#546E7A">'+aItems.length+' items</div><div style="font-size:10px;color:#2E7D32;font-weight:700">High priority</div></div>'+
+        '<div style="background:#FFF3E0;border-radius:8px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:900;color:#E65100">B</div><div style="font-size:10px;color:#546E7A">'+bItems.length+' items</div><div style="font-size:10px;color:#E65100;font-weight:700">Medium priority</div></div>'+
+        '<div style="background:#FFEBEE;border-radius:8px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:900;color:#C62828">C</div><div style="font-size:10px;color:#546E7A">'+cItems.length+' items</div><div style="font-size:10px;color:#C62828;font-weight:700">Review/reduce</div></div>'+
+      '</div>'+
+      tbl([
+        {l:'Item',fn:function(r){return '<b>'+esc(r.inv.itemName)+'</b>';}},
+        {l:'Class',fn:function(r){var cols={A:'#2E7D32',B:'#E65100',C:'#C62828'};return '<span style="font-weight:900;color:'+cols[r.abcClass]+'">'+r.abcClass+'</span>';}},
+        {l:'Sales',r:1,fn:function(r){return fc(r.sales);}},
+        {l:'%',r:1,fn:function(r){return r.salesPct+'%';}},
+      ],invSales.filter(function(r){return r.sales>0;}))
+    );
+  }
+
+  // Fast/Slow/Dead stock
+  h+=card('🏃 Stock Movement Analysis',
+    (fastMoving.length?'<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:#2E7D32;margin-bottom:4px">🟢 Fast Moving (10+ sold in 30 days)</div>'+
+      fastMoving.map(function(r){return '<div style="font-size:11px;color:#37474F;padding:3px 0;border-bottom:1px solid #F0F0F0">'+esc(r.name)+' — Sold: '+r.sold30+' '+esc(r.unit)+' | Stock: '+r.stock+'</div>';}).join('')+'</div>':'<div style="font-size:11px;color:#90A4AE;margin-bottom:8px">No fast moving items data yet</div>')+
+    (slowMoving.length?'<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:#E65100;margin-bottom:4px">🟡 Slow Moving (less than 3 sold in 30 days)</div>'+
+      slowMoving.map(function(r){return '<div style="font-size:11px;color:#37474F;padding:3px 0;border-bottom:1px solid #F0F0F0">'+esc(r.name)+' — Sold: '+r.sold30+' | Stock: '+r.stock+' '+esc(r.unit)+'</div>';}).join('')+'</div>':'<div style="font-size:11px;color:#90A4AE;margin-bottom:8px">No slow moving items</div>')+
+    (deadStock.length?'<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:#C62828;margin-bottom:4px">🔴 Dead Stock (0 sales in 90 days)</div>'+
+      deadStock.map(function(r){return '<div style="font-size:11px;color:#C62828;padding:3px 0;border-bottom:1px solid #F0F0F0">'+esc(r.name)+' — Stock: '+r.stock+' '+esc(r.unit)+' | Value locked: '+fc(r.val)+'</div>';}).join('')+'</div>':'<div style="font-size:11px;color:#2E7D32;margin-bottom:8px">✅ No dead stock</div>')+
+    '<div style="font-size:9px;color:#90A4AE">Analysis based on last 30/90 days of sales data.</div>'
+  );
+
+  // Auto Reorder Suggestions
+  var reorderNeeded=D.inventory.filter(function(inv){
+    var totStk=(inv.currentStock||0)+(inv.importedStock||0);
+    return inv.reorderLevel&&totStk<=inv.reorderLevel&&totStk>0;
+  });
+  var outOfStockItems=D.inventory.filter(function(inv){
+    var totStk=(inv.currentStock||0)+(inv.importedStock||0);
+    return totStk===0&&inv.avgCost>0;
+  });
+  if(reorderNeeded.length||outOfStockItems.length){
+    h+=card('🛒 Auto Reorder Suggestions',
+      (outOfStockItems.length?'<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:#C62828;margin-bottom:4px">🚫 OUT OF STOCK — Order immediately:</div>'+
+        outOfStockItems.map(function(inv){return '<div style="font-size:11px;color:#37474F;padding:4px 0">• <b>'+esc(inv.itemName)+'</b> — Suggested qty: '+Math.max(inv.reorderLevel*2,10)+' '+esc(inv.unit)+' | Avg cost: '+fc(inv.avgCost)+'/'+esc(inv.unit)+'</div>';}).join('')+'</div>':'')+
+      (reorderNeeded.length?'<div><div style="font-size:11px;font-weight:700;color:#E65100;margin-bottom:4px">⚠️ Below Reorder Level — Order soon:</div>'+
+        reorderNeeded.map(function(inv){
+          var totStk=(inv.currentStock||0)+(inv.importedStock||0);
+          var suggestQty=Math.max(inv.reorderLevel*2-totStk,inv.reorderLevel);
+          return '<div style="font-size:11px;color:#37474F;padding:4px 0">• <b>'+esc(inv.itemName)+'</b> — Current: '+totStk+' | Reorder at: '+inv.reorderLevel+' | Suggested order: <b>'+suggestQty+' '+esc(inv.unit)+'</b> | Est. cost: '+fc(suggestQty*inv.avgCost)+'</div>';
+        }).join('')+'</div>':'')+
+      '<button onclick="go(\x27purchase\x27)" style="width:100%;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-top:8px">🛒 Go to Purchase</button>'
+    );
+  }
+
   return h;
 }
 function addInv(){
@@ -1831,7 +3477,17 @@ function addInv(){
     if(lookup){hsn=lookup[0]; gstRate=+lookup[1];}
   }
   var item={id:uid(),itemName:n,unit:gv('iv_u'),openingStock:os,currentStock:os,avgCost:pr,
-            importedStock:0,importedAvgCost:0,reorderLevel:gvn('iv_rl'),category:gv('iv_cat')||'Resale'};
+            importedStock:0,importedAvgCost:0,
+            reorderLevel:gvn('iv_rl'),
+            category:gv('iv_cat')||'Resale',
+            mrp:gvn('iv_mrp')||0,
+            priceRetail:gvn('iv_price_retail')||0,
+            priceWholesale:gvn('iv_price_wholesale')||0,
+            priceBulk:gvn('iv_price_bulk')||0,
+            batchNo:gv('iv_batch')||'',
+            expiryDate:gv('iv_expiry')||'',
+            addedDate:td()
+          };
   window._invCat=gv('iv_cat');
   if(hsn) item.hsnCode=hsn;
   if(gstRate!==undefined) item.gstRate=gstRate;
@@ -2401,6 +4057,32 @@ function setUPIAccount(id){
   sv();
   var a=D.bankAccounts&&D.bankAccounts.find(function(x){return x.id===id;});
   toast('UPI payments will go to: '+(a?a.name:'this account'));
+  renderPage();
+}
+
+
+
+function saveAIProxyUrl(){
+  var url=gv('ai_proxy_url').trim();
+  if(!D.settings) D.settings={};
+  D.settings.aiProxyUrl=url;
+  sv();
+  toast(url?'✅ AI Proxy URL saved! Go to AI Advisor to test.':'Proxy URL cleared');
+  renderPage();
+}
+
+function saveBudget(){
+  if(!D.budget) D.budget={};
+  D.budget.sales=gvn('bgt_sales')||0;
+  D.budget.purchase=gvn('bgt_purchase')||0;
+  D.budget.rent=gvn('bgt_rent')||0;
+  D.budget.salary=gvn('bgt_salary')||0;
+  D.budget.electricity=gvn('bgt_electricity')||0;
+  D.budget.transportation=gvn('bgt_transportation')||0;
+  D.budget.marketing=gvn('bgt_marketing')||0;
+  D.budget.miscellaneous=gvn('bgt_miscellaneous')||0;
+  sv();
+  toast('✅ Budget saved');
   renderPage();
 }
 
@@ -3028,7 +4710,7 @@ function pgAna(){
 // ===== REPORTS =====
 function pgRep(){
   var tab=window._rtab||'daybook';
-  var tabs=[{id:'daybook',l:'Day Book'},{id:'purchase',l:'Purchase'},{id:'sales',l:'Sales'},{id:'stock',l:'Stock'},{id:'expense',l:'Expense'},{id:'loan',l:'Loans'},{id:'statements',l:'Account Statements'},{id:'debtors',l:'Debtors'},{id:'creditors',l:'Creditors'},{id:'otheritems',l:'Other Items'},{id:'bills',l:'Bills'},{id:'itempl',l:'Item P&L'},{id:'fullyear',l:'Full Year P&L'}];
+  var tabs=[{id:'daybook',l:'Day Book'},{id:'purchase',l:'Purchase'},{id:'sales',l:'Sales'},{id:'stock',l:'Stock'},{id:'expense',l:'Expense'},{id:'loan',l:'Loans'},{id:'statements',l:'Account Statements'},{id:'debtors',l:'Debtors'},{id:'creditors',l:'Creditors'},{id:'otheritems',l:'Other Items'},{id:'bills',l:'Bills'},{id:'itempl',l:'Item P&L'},{id:'monthlypl',l:'Monthly P&L'},{id:'budget',l:'Budget vs Actual'},{id:'fullyear',l:'Full Year P&L'}];
   var h='<div class="tabs">'+tabs.map(function(t2){return '<button class="'+(tab===t2.id?'act':'')+'" onclick="window._rtab=\''+t2.id+'\';renderPage()">'+t2.l+'</button>';}).join('')+'</div>';
   var i,all=[],tot=0;
   if(tab==='daybook'){
@@ -3385,6 +5067,122 @@ function pgRep(){
       '</div>'+
       '<div style="font-size:10px;color:#90A4AE;margin-top:6px">Expenses apportioned proportionally by sales share. Service entries excluded.</div>'
     );
+  }
+
+  else if(tab==='monthlypl'){
+    // Comparative Monthly P&L — all months in current FY
+    var fyYear2=new Date().getMonth()>=3?new Date().getFullYear():new Date().getFullYear()-1;
+    var months=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+    var monthKeys=[];
+    for(var mi=0;mi<12;mi++){
+      var my=mi<9?fyYear2:fyYear2+1;
+      var mm=mi+4>12?mi+4-12:mi+4;
+      monthKeys.push(my+'-'+(mm<10?'0':'')+mm);
+    }
+    var mData=monthKeys.map(function(mk,mi){
+      var ms2=0,mc=0,me2=0,mp=0;
+      D.sales.forEach(function(s){if(s.date&&s.date.indexOf(mk)===0){ms2+=s.totalAmount||0;mc+=s.cogs||0;}});
+      D.expenses.forEach(function(e){if(e.date&&e.date.indexOf(mk)===0)me2+=e.amount||0;});
+      D.purchases.forEach(function(p){if(p.date&&p.date.indexOf(mk)===0)mp+=p.amount||0;});
+      var gp2=ms2-mc; var np2=gp2-me2;
+      return {month:months[mi],key:mk,sales:ms2,cogs:mc,gp:gp2,expenses:me2,np:np2,purchase:mp};
+    }).filter(function(m){return m.sales>0||m.expenses>0||m.purchase>0;});
+
+    if(!mData.length){h+=card('📅 Monthly P&L','<div style="color:#90A4AE;text-align:center;padding:20px">No data yet for this Financial Year</div>');
+    } else {
+      var totSales=mData.reduce(function(s,m){return s+m.sales;},0);
+      var totGP=mData.reduce(function(s,m){return s+m.gp;},0);
+      var totExp=mData.reduce(function(s,m){return s+m.expenses;},0);
+      var totNP=mData.reduce(function(s,m){return s+m.np;},0);
+      // Trend chart
+      var maxMSales=Math.max.apply(null,mData.map(function(m){return m.sales;}));
+      var chartHtml='<div style="overflow-x:auto"><div style="display:flex;gap:6px;align-items:flex-end;height:80px;min-width:'+(mData.length*50)+'px;padding-bottom:4px">';
+      mData.forEach(function(m){
+        var sh=maxMSales>0?Math.max(Math.round(m.sales/maxMSales*60),2):2;
+        var npColor=m.np>=0?'#2E7D32':'#C62828';
+        chartHtml+='<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:44px">'+
+          '<div style="font-size:9px;color:'+npColor+';font-weight:700;margin-bottom:2px">'+(m.np>=0?'+':'')+Math.round(m.np/1000)+'K</div>'+
+          '<div style="width:36px;background:#1565C0;border-radius:3px 3px 0 0;height:'+sh+'px"></div>'+
+          '<div style="font-size:9px;color:#546E7A;margin-top:3px">'+m.month+'</div>'+
+        '</div>';
+      });
+      chartHtml+='</div></div>';
+
+      h+=card('📅 Monthly P&L — FY '+fyYear2+'-'+(fyYear2+1),
+        chartHtml+
+        '<div style="font-size:10px;color:#546E7A;margin:6px 0 8px">Blue bar = Sales | Number above = Net Profit (K = thousands)</div>'+
+        tbl([
+          {l:'Month',fn:function(m){return '<b>'+m.month+'</b>';}},
+          {l:'Sales',r:1,fn:function(m){return fc(m.sales);}},
+          {l:'Gross Profit',r:1,fn:function(m){return '<span style="color:'+(m.gp>=0?'#2E7D32':'#C62828')+'">'+fc(m.gp)+'</span>';}},
+          {l:'Expenses',r:1,fn:function(m){return fc(m.expenses);}},
+          {l:'Net Profit',r:1,fn:function(m){return '<span style="font-weight:700;color:'+(m.np>=0?'#2E7D32':'#C62828')+'">'+fc(m.np)+'</span>';}},
+        ],mData)+
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:8px">'+
+          '<div style="background:#E3F2FD;padding:8px;border-radius:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Total Sales</div><div style="font-size:13px;font-weight:700;color:#1565C0">'+fc(totSales)+'</div></div>'+
+          '<div style="background:#E8F5E9;padding:8px;border-radius:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Total GP</div><div style="font-size:13px;font-weight:700;color:#2E7D32">'+fc(totGP)+'</div></div>'+
+          '<div style="background:#FFF3E0;padding:8px;border-radius:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Total Exp</div><div style="font-size:13px;font-weight:700;color:#E65100">'+fc(totExp)+'</div></div>'+
+          '<div style="background:'+(totNP>=0?'#E8F5E9':'#FFEBEE')+';padding:8px;border-radius:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Net Profit</div><div style="font-size:13px;font-weight:700;color:'+(totNP>=0?'#2E7D32':'#C62828')+'">'+fc(totNP)+'</div></div>'+
+        '</div>'
+      );
+    }
+  }
+
+  else if(tab==='budget'){
+    // Budget vs Actual
+    var bgt=D.budget||{sales:0,purchases:0,rent:0,salary:0,electricity:0,transportation:0,fuel:0,repair:0,marketing:0,miscellaneous:0};
+    var fyYear3=new Date().getMonth()>=3?new Date().getFullYear():new Date().getFullYear()-1;
+    var fyStartStr2=fyYear3+'-04-01';
+    var actSales=D.sales.filter(function(s){return s.date>=fyStartStr2;}).reduce(function(t,s){return t+(s.totalAmount||0);},0);
+    var actExp={};
+    D.expenses.filter(function(e){return e.date>=fyStartStr2;}).forEach(function(e){
+      var cat=(e.category||'Miscellaneous').toLowerCase();
+      actExp[cat]=(actExp[cat]||0)+(e.amount||0);
+    });
+    var totActExp=Object.values(actExp).reduce(function(t,v){return t+v;},0);
+    var totBgtExp=['rent','salary','electricity','transportation','fuel','repair','marketing','miscellaneous'].reduce(function(t,k){return t+(bgt[k]||0);},0);
+
+    h+=card('💰 Set Annual Budget (FY '+fyYear3+'-'+(fyYear3+1)+')',
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:10px">Enter your expected annual figures. Budget vs Actual will show variance.</div>'+
+      g2(inp('Target Sales (₹)','bgt_sales','number',bgt.sales||0),inp('Target Purchases (₹)','bgt_purchase','number',bgt.purchase||0))+
+      '<div style="font-size:11px;font-weight:700;color:#1565C0;margin-bottom:6px">Expected Annual Expenses:</div>'+
+      g2(inp('Rent (₹)','bgt_rent','number',bgt.rent||0),inp('Salary (₹)','bgt_salary','number',bgt.salary||0))+
+      g2(inp('Electricity (₹)','bgt_electricity','number',bgt.electricity||0),inp('Transportation (₹)','bgt_transportation','number',bgt.transportation||0))+
+      g2(inp('Marketing (₹)','bgt_marketing','number',bgt.marketing||0),inp('Miscellaneous (₹)','bgt_miscellaneous','number',bgt.miscellaneous||0))+
+      btn('💾 Save Budget','saveBudget()','#2E7D32')
+    );
+
+    if(bgt.sales>0||totBgtExp>0){
+      var rows=[
+        {head:'Sales',budget:bgt.sales||0,actual:actSales},
+        {head:'Rent',budget:bgt.rent||0,actual:actExp['rent']||0},
+        {head:'Salary',budget:bgt.salary||0,actual:actExp['salary']||0},
+        {head:'Electricity',budget:bgt.electricity||0,actual:actExp['electricity']||0},
+        {head:'Transportation',budget:bgt.transportation||0,actual:actExp['transportation']||0},
+        {head:'Marketing',budget:bgt.marketing||0,actual:actExp['marketing']||0},
+        {head:'Miscellaneous',budget:bgt.miscellaneous||0,actual:actExp['miscellaneous']||0},
+        {head:'TOTAL EXP',budget:totBgtExp,actual:totActExp},
+      ].filter(function(r){return r.budget>0||r.actual>0;});
+
+      h+=card('📊 Budget vs Actual',
+        tbl([
+          {l:'Head',fn:function(r){return '<b>'+r.head+'</b>';}},
+          {l:'Budget',r:1,fn:function(r){return fc(r.budget);}},
+          {l:'Actual',r:1,fn:function(r){return fc(r.actual);}},
+          {l:'Variance',r:1,fn:function(r){
+            var v=r.head==='Sales'?r.actual-r.budget:r.budget-r.actual;
+            return '<span style="font-weight:700;color:'+(v>=0?'#2E7D32':'#C62828')+'">'+(v>=0?'▲ +':'▼ ')+fc(Math.abs(v))+'</span>';
+          }},
+          {l:'%',r:1,fn:function(r){
+            if(!r.budget) return '—';
+            var v=r.head==='Sales'?r.actual-r.budget:r.budget-r.actual;
+            var pct=Math.round(v/r.budget*100);
+            return '<span style="color:'+(pct>=0?'#2E7D32':'#C62828')+'">'+(pct>=0?'+':'')+pct+'%</span>';
+          }},
+        ],rows)+
+        '<div style="font-size:10px;color:#546E7A;margin-top:6px">▲ Green = Favourable | ▼ Red = Unfavourable | For expenses, under-budget is favourable.</div>'
+      );
+    }
   }
   else if(tab==='fullyear'){
     var fy = getFullYearFigures();
@@ -10932,9 +12730,9 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 
 // ===== NAVIGATION & RENDER =====
-var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',reminders:'Payment Reminders',margin:'Margin Settings',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template'};
-var NAV_ALL = ['profile','dashboard','capital','inventory','purchase','sales','expenses','cashbank','recon','emi','financials','projections','analytics','loanassess','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','data','template','help'];
+var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',reminders:'Payment Reminders',margin:'Margin Settings',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
+var NAV_ALL = ['profile','dashboard','capital','inventory','purchase','sales','expenses','cashbank','recon','emi','financials','projections','analytics','loanassess','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
 var BN_PAGES = ['dashboard','sales','purchase','financials','data'];
 var BN_ICONS = ['🏠','🏷️','🛒','📄','⚙️'];
 
@@ -10968,7 +12766,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,expenses:pgExp,cashbank:pgCB,emi:pgEMI,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate};
+  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,expenses:pgExp,cashbank:pgCB,emi:pgEMI,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
 }
@@ -11201,12 +12999,19 @@ function checkStartupAlerts(){
 }
 function closeStartupPopup(){var d=document.getElementById('startup_popup');if(d)d.parentNode.removeChild(d);}
 
+var _DEMO_DATA={"profile": {"businessName": "Sunita Kirana Store", "ownerName": "Sunita Devi", "mobile": "9415123456", "address": "15, Hazratganj Market, Lucknow - 226001", "businessType": "Trading", "businessStage": "new", "constitution": "Individual", "udyam": "UDYAM-UP-32-0011111", "gst": "09ABCSD1234A1Z1", "pan": "ABCSD1234A", "commencementDate": "2026-04-01", "shopLicenseNo": "LKO-SHOP-2024-001", "fssaiNo": "12315007000001", "email": "sunita.kirana@gmail.com", "natureOfBusiness": "retail", "defaultPaymentMode": "cash", "defaultBankAccount": "ba1", "businessLogo": "", "openingDateLocked": false}, "capital": {"initialCapital": 200000, "additionalCapital": 0, "partnerCapital": {}}, "opening": {"cash": 30000, "bank": 198000, "stock": 0, "debtors": 0, "creditors": 0, "capital": 200000, "takenOn": "2026-04-01"}, "bankAccounts": [{"id": "ba1", "name": "UCO Bank CA-112233", "accountNumber": "CA-112233", "upiId": "sunita.kirana@ucobank"}, {"id": "ba2", "name": "SBI SB-445566", "accountNumber": "SB-445566", "upiId": ""}], "settings": {"creditDays": 15, "defaultMargin": 22, "defaultUPIAccount": "ba1"}, "gst": {"enabled": true, "gstin": "09ABCSD1234A1Z1", "type": "regular", "defaultRate": 5, "supplyType": "intra", "stateCode": "09"}, "incomeTax": {"ay": "2026-27", "taxpayerType": "individual", "gender": "female", "section": "new", "useManual": false}, "inventory": [{"id": "c7cac60d751e", "itemName": "Basmati Rice", "unit": "Kg", "category": "Resale", "currentStock": 200, "avgCost": 68, "importedStock": 0, "importedAvgCost": 0, "hsnCode": "1006", "gstRate": 0, "reorderLevel": 50, "mrp": 90, "priceRetail": 82, "priceWholesale": 78, "priceBulk": 75, "itemMargin": 20}, {"id": "1c3a26dcbd4f", "itemName": "Refined Oil", "unit": "Ltr", "category": "Resale", "currentStock": 95, "avgCost": 135, "importedStock": 0, "importedAvgCost": 0, "hsnCode": "1512", "gstRate": 5, "reorderLevel": 30, "mrp": 175, "priceRetail": 162, "priceWholesale": 155, "priceBulk": 150, "itemMargin": 18}, {"id": "29c0542a8d80", "itemName": "Sugar", "unit": "Kg", "category": "Resale", "currentStock": 130, "avgCost": 44, "importedStock": 0, "importedAvgCost": 0, "hsnCode": "1701", "gstRate": 5, "reorderLevel": 50, "mrp": 60, "priceRetail": 54, "priceWholesale": 52, "itemMargin": 22}, {"id": "4a6ee7000aff", "itemName": "Wheat Flour Atta", "unit": "Kg", "category": "Resale", "currentStock": 90, "avgCost": 40, "importedStock": 0, "importedAvgCost": 0, "hsnCode": "1101", "gstRate": 0, "reorderLevel": 50, "mrp": 55, "priceRetail": 48, "priceWholesale": 46, "itemMargin": 20}, {"id": "7267049dcbca", "itemName": "Tea Powder", "unit": "Kg", "category": "Resale", "currentStock": 38, "avgCost": 280, "importedStock": 0, "importedAvgCost": 0, "hsnCode": "0902", "gstRate": 5, "reorderLevel": 15, "mrp": 380, "priceRetail": 355, "priceWholesale": 340, "itemMargin": 25}, {"id": "8f186523941d", "itemName": "Detergent Powder", "unit": "Kg", "category": "Resale", "currentStock": 75, "avgCost": 48, "importedStock": 0, "importedAvgCost": 0, "hsnCode": "3402", "gstRate": 18, "reorderLevel": 30, "mrp": 75, "priceRetail": 65, "priceWholesale": 62, "itemMargin": 35}, {"id": "27988e50e6f1", "itemName": "Biscuits Parle G", "unit": "Pkt", "category": "Resale", "currentStock": 100, "avgCost": 10, "importedStock": 0, "importedAvgCost": 0, "hsnCode": "1905", "gstRate": 12, "reorderLevel": 50, "mrp": 15, "priceRetail": 13, "priceWholesale": 12, "itemMargin": 30}, {"id": "f3e4b6b456c9", "itemName": "Mustard Oil", "unit": "Ltr", "category": "Resale", "currentStock": 55, "avgCost": 175, "importedStock": 18, "importedAvgCost": 195, "hsnCode": "1514", "gstRate": 5, "reorderLevel": 20, "mrp": 230, "priceRetail": 210, "priceWholesale": 205, "itemMargin": 20}], "purchases": [{"id": "60f6faf09011", "date": "2026-04-03", "supplier": "Agra Wholesale", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 400, "rate": 68, "amount": 27200, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "35a448b5c901", "date": "2026-04-03", "supplier": "Oil Depot", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 180, "rate": 135, "amount": 24300, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "98d648825b69", "date": "2026-04-04", "supplier": "Agra Wholesale", "itemId": "29c0542a8d80", "itemName": "Sugar", "qty": 250, "rate": 44, "amount": 11000, "paymentMode": "cash", "bankAccountId": "ba1", "isImported": false}, {"id": "32efe2815eb7", "date": "2026-04-04", "supplier": "Agra Wholesale", "itemId": "4a6ee7000aff", "itemName": "Wheat Flour Atta", "qty": 250, "rate": 40, "amount": 10000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "6042914ceeeb", "date": "2026-04-06", "supplier": "Tea Traders", "itemId": "7267049dcbca", "itemName": "Tea Powder", "qty": 60, "rate": 280, "amount": 16800, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "e6405a7c082e", "date": "2026-04-06", "supplier": "FMCG Distrib", "itemId": "8f186523941d", "itemName": "Detergent Powder", "qty": 150, "rate": 48, "amount": 7200, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "9d85436709a5", "date": "2026-04-07", "supplier": "Biscuit Co", "itemId": "27988e50e6f1", "itemName": "Biscuits Parle G", "qty": 400, "rate": 10, "amount": 4000, "paymentMode": "cash", "bankAccountId": "ba1", "isImported": false}, {"id": "02af0cc904f5", "date": "2026-04-08", "supplier": "Oil Depot", "itemId": "f3e4b6b456c9", "itemName": "Mustard Oil", "qty": 60, "rate": 175, "amount": 10500, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "ccf12534dfbd", "date": "2026-04-09", "supplier": "Import Traders", "itemId": "f3e4b6b456c9", "itemName": "Mustard Oil", "qty": 18, "rate": 195, "amount": 3510, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": true}, {"id": "3ab8d383a1aa", "date": "2026-05-06", "supplier": "Agra Wholesale", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 250, "rate": 69, "amount": 17250, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "1912f5059d2e", "date": "2026-05-07", "supplier": "Oil Depot", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 120, "rate": 136, "amount": 16320, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "077fad231cc4", "date": "2026-05-08", "supplier": "Agra Wholesale", "itemId": "29c0542a8d80", "itemName": "Sugar", "qty": 180, "rate": 45, "amount": 8100, "paymentMode": "cash", "bankAccountId": "ba1", "isImported": false}, {"id": "9849ad653468", "date": "2026-05-09", "supplier": "FMCG Distrib", "itemId": "8f186523941d", "itemName": "Detergent Powder", "qty": 100, "rate": 49, "amount": 4900, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "2c6118a4cca2", "date": "2026-05-11", "supplier": "Biscuit Co", "itemId": "27988e50e6f1", "itemName": "Biscuits Parle G", "qty": 250, "rate": 10, "amount": 2500, "paymentMode": "cash", "bankAccountId": "ba1", "isImported": false}, {"id": "1334a948f63b", "date": "2026-06-05", "supplier": "Agra Wholesale", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 200, "rate": 70, "amount": 14000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "9f7e31d5e46e", "date": "2026-06-06", "supplier": "Agra Wholesale", "itemId": "4a6ee7000aff", "itemName": "Wheat Flour Atta", "qty": 200, "rate": 41, "amount": 8200, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "184baeaad8a9", "date": "2026-06-07", "supplier": "Tea Traders", "itemId": "7267049dcbca", "itemName": "Tea Powder", "qty": 40, "rate": 280, "amount": 11200, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "d16cc5137a02", "date": "2026-06-08", "supplier": "Oil Depot", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 100, "rate": 137, "amount": 13700, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}], "sales": [{"id": "bd99deaf5817", "date": "2026-04-06", "customer": "Walk-in", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 50, "price": 82, "totalAmount": 4100, "cogs": 3400, "grossProfit": 700, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "ea712e2a8ab4", "date": "2026-04-07", "customer": "Walk-in", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 25, "price": 162, "totalAmount": 4050, "cogs": 3375, "grossProfit": 675, "paymentMode": "upi", "bankAccountId": "ba1", "isExport": false}, {"id": "0d587b1203d6", "date": "2026-04-08", "customer": "Walk-in", "itemId": "29c0542a8d80", "itemName": "Sugar", "qty": 60, "price": 54, "totalAmount": 3240, "cogs": 2640, "grossProfit": 600, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "b9786c2c544d", "date": "2026-04-09", "customer": "Ration Shop LKO", "itemId": "29c0542a8d80", "itemName": "Sugar", "qty": 100, "price": 54, "totalAmount": 5400, "cogs": 4400, "grossProfit": 1000, "paymentMode": "credit", "bankAccountId": "ba1", "isExport": false}, {"id": "074bb1826731", "date": "2026-04-10", "customer": "Walk-in", "itemId": "4a6ee7000aff", "itemName": "Wheat Flour Atta", "qty": 80, "price": 48, "totalAmount": 3840, "cogs": 3200, "grossProfit": 640, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "e7de145a6717", "date": "2026-04-11", "customer": "Walk-in", "itemId": "7267049dcbca", "itemName": "Tea Powder", "qty": 12, "price": 355, "totalAmount": 4260, "cogs": 3360, "grossProfit": 900, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "cc978225dad4", "date": "2026-04-12", "customer": "Walk-in", "itemId": "8f186523941d", "itemName": "Detergent Powder", "qty": 40, "price": 65, "totalAmount": 2600, "cogs": 1920, "grossProfit": 680, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "53994e7b1630", "date": "2026-04-13", "customer": "Walk-in", "itemId": "27988e50e6f1", "itemName": "Biscuits Parle G", "qty": 80, "price": 13, "totalAmount": 1040, "cogs": 800, "grossProfit": 240, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "9ce664a5ca90", "date": "2026-04-15", "customer": "Walk-in", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 80, "price": 83, "totalAmount": 6640, "cogs": 5440, "grossProfit": 1200, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "7dd4bd00e456", "date": "2026-04-16", "customer": "Walk-in", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 30, "price": 163, "totalAmount": 4890, "cogs": 4050, "grossProfit": 840, "paymentMode": "upi", "bankAccountId": "ba1", "isExport": false}, {"id": "ae8e7dfa0a0d", "date": "2026-04-17", "customer": "Walk-in", "itemId": "f3e4b6b456c9", "itemName": "Mustard Oil", "qty": 20, "price": 210, "totalAmount": 4200, "cogs": 3500, "grossProfit": 700, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "12d0710a838e", "date": "2026-04-19", "customer": "Hotel Awadh", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 100, "price": 82, "totalAmount": 8200, "cogs": 6800, "grossProfit": 1400, "paymentMode": "credit", "bankAccountId": "ba1", "isExport": false}, {"id": "ed9d391d4983", "date": "2026-04-21", "customer": "Walk-in", "itemId": "29c0542a8d80", "itemName": "Sugar", "qty": 80, "price": 55, "totalAmount": 4400, "cogs": 3520, "grossProfit": 880, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "f63822803727", "date": "2026-04-23", "customer": "Ration Shop LKO", "itemId": "4a6ee7000aff", "itemName": "Wheat Flour Atta", "qty": 100, "price": 49, "totalAmount": 4900, "cogs": 4000, "grossProfit": 900, "paymentMode": "credit", "bankAccountId": "ba1", "isExport": false}, {"id": "230409dbabec", "date": "2026-04-25", "customer": "Walk-in", "itemId": "8f186523941d", "itemName": "Detergent Powder", "qty": 50, "price": 65, "totalAmount": 3250, "cogs": 2400, "grossProfit": 850, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "131ea26bfa22", "date": "2026-04-26", "customer": "Walk-in", "itemId": "27988e50e6f1", "itemName": "Biscuits Parle G", "qty": 100, "price": 13, "totalAmount": 1300, "cogs": 1000, "grossProfit": 300, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "a6c970777e06", "date": "2026-04-27", "customer": "Walk-in", "itemId": "7267049dcbca", "itemName": "Tea Powder", "qty": 10, "price": 356, "totalAmount": 3560, "cogs": 2800, "grossProfit": 760, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "d1f596b27f66", "date": "2026-04-29", "customer": "Walk-in", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 35, "price": 162, "totalAmount": 5670, "cogs": 4725, "grossProfit": 945, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "e5eb7ca301a4", "date": "2026-05-09", "customer": "Hotel Awadh", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 120, "price": 84, "totalAmount": 10080, "cogs": 8280, "grossProfit": 1800, "paymentMode": "credit", "bankAccountId": "ba1", "isExport": false}, {"id": "3019f35262e5", "date": "2026-05-11", "customer": "Walk-in", "itemId": "29c0542a8d80", "itemName": "Sugar", "qty": 90, "price": 55, "totalAmount": 4950, "cogs": 3960, "grossProfit": 990, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "c27004b60ad0", "date": "2026-05-13", "customer": "Walk-in", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 40, "price": 163, "totalAmount": 6520, "cogs": 5400, "grossProfit": 1120, "paymentMode": "upi", "bankAccountId": "ba1", "isExport": false}, {"id": "417bebb941b0", "date": "2026-05-15", "customer": "Ration Shop LKO", "itemId": "4a6ee7000aff", "itemName": "Wheat Flour Atta", "qty": 110, "price": 49, "totalAmount": 5390, "cogs": 4400, "grossProfit": 990, "paymentMode": "credit", "bankAccountId": "ba1", "isExport": false}, {"id": "02f8130e0464", "date": "2026-05-16", "customer": "Walk-in", "itemId": "8f186523941d", "itemName": "Detergent Powder", "qty": 60, "price": 66, "totalAmount": 3960, "cogs": 2880, "grossProfit": 1080, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "023cd7c0d47b", "date": "2026-05-17", "customer": "Walk-in", "itemId": "27988e50e6f1", "itemName": "Biscuits Parle G", "qty": 120, "price": 13, "totalAmount": 1560, "cogs": 1200, "grossProfit": 360, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "b5d90bebc8c0", "date": "2026-05-19", "customer": "Walk-in", "itemId": "7267049dcbca", "itemName": "Tea Powder", "qty": 14, "price": 358, "totalAmount": 5012, "cogs": 3920, "grossProfit": 1092, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "be338644efe7", "date": "2026-05-21", "customer": "Hotel Awadh", "itemId": "f3e4b6b456c9", "itemName": "Mustard Oil", "qty": 25, "price": 210, "totalAmount": 5250, "cogs": 4375, "grossProfit": 875, "paymentMode": "credit", "bankAccountId": "ba1", "isExport": false}, {"id": "e2cc82693dc1", "date": "2026-05-23", "customer": "Walk-in", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 100, "price": 85, "totalAmount": 8500, "cogs": 6900, "grossProfit": 1600, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "9f6f66c2c507", "date": "2026-05-25", "customer": "Walk-in", "itemId": "29c0542a8d80", "itemName": "Sugar", "qty": 100, "price": 56, "totalAmount": 5600, "cogs": 4400, "grossProfit": 1200, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "1844f17e5a2e", "date": "2026-05-26", "customer": "Walk-in", "itemId": "4a6ee7000aff", "itemName": "Wheat Flour Atta", "qty": 80, "price": 49, "totalAmount": 3920, "cogs": 3200, "grossProfit": 720, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "bb86f8addf28", "date": "2026-05-27", "customer": "Walk-in", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 30, "price": 163, "totalAmount": 4890, "cogs": 4050, "grossProfit": 840, "paymentMode": "upi", "bankAccountId": "ba1", "isExport": false}, {"id": "18a29cd76771", "date": "2026-06-05", "customer": "Hotel Awadh", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 120, "price": 85, "totalAmount": 10200, "cogs": 8400, "grossProfit": 1800, "paymentMode": "credit", "bankAccountId": "ba1", "isExport": false}, {"id": "2eea0c104ffd", "date": "2026-06-07", "customer": "Walk-in", "itemId": "1c3a26dcbd4f", "itemName": "Refined Oil", "qty": 45, "price": 165, "totalAmount": 7425, "cogs": 6075, "grossProfit": 1350, "paymentMode": "upi", "bankAccountId": "ba1", "isExport": false}, {"id": "4515a1bf4b2b", "date": "2026-06-08", "customer": "Walk-in", "itemId": "29c0542a8d80", "itemName": "Sugar", "qty": 110, "price": 56, "totalAmount": 6160, "cogs": 4840, "grossProfit": 1320, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "3d4a2e7fda36", "date": "2026-06-10", "customer": "Ration Shop LKO", "itemId": "4a6ee7000aff", "itemName": "Wheat Flour Atta", "qty": 120, "price": 50, "totalAmount": 6000, "cogs": 4920, "grossProfit": 1080, "paymentMode": "credit", "bankAccountId": "ba1", "isExport": false}, {"id": "49c0b6a956e8", "date": "2026-06-12", "customer": "Walk-in", "itemId": "7267049dcbca", "itemName": "Tea Powder", "qty": 18, "price": 360, "totalAmount": 6480, "cogs": 5040, "grossProfit": 1440, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "0c5b5ced38e1", "date": "2026-06-13", "customer": "Walk-in", "itemId": "8f186523941d", "itemName": "Detergent Powder", "qty": 70, "price": 66, "totalAmount": 4620, "cogs": 3360, "grossProfit": 1260, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "bc4afc4f62e9", "date": "2026-06-15", "customer": "Walk-in", "itemId": "27988e50e6f1", "itemName": "Biscuits Parle G", "qty": 150, "price": 13, "totalAmount": 1950, "cogs": 1500, "grossProfit": 450, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "9d10421440ec", "date": "2026-06-16", "customer": "Hotel Awadh", "itemId": "f3e4b6b456c9", "itemName": "Mustard Oil", "qty": 30, "price": 212, "totalAmount": 6360, "cogs": 5250, "grossProfit": 1110, "paymentMode": "credit", "bankAccountId": "ba1", "isExport": false}, {"id": "ae4b602d7e11", "date": "2026-06-18", "customer": "Walk-in", "itemId": "c7cac60d751e", "itemName": "Basmati Rice", "qty": 100, "price": 86, "totalAmount": 8600, "cogs": 6900, "grossProfit": 1700, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "01796c20a7fa", "date": "2026-06-20", "customer": "Walk-in", "itemId": "29c0542a8d80", "itemName": "Sugar", "qty": 80, "price": 57, "totalAmount": 4560, "cogs": 3520, "grossProfit": 1040, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}, {"id": "6239706684ce", "date": "2026-06-22", "customer": "Walk-in", "itemId": "8f186523941d", "itemName": "Detergent Powder", "qty": 50, "price": 66, "totalAmount": 3300, "cogs": 2400, "grossProfit": 900, "paymentMode": "cash", "bankAccountId": "ba1", "isExport": false}], "expenses": [{"id": "13ac942c30ec", "date": "2026-04-02", "category": "Rent", "amount": 9000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Rent April"}, {"id": "df22a548e973", "date": "2026-04-29", "category": "Salary", "amount": 8000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Salary April"}, {"id": "385f3d537278", "date": "2026-04-16", "category": "Electricity", "amount": 1400, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Electricity April"}, {"id": "41ea5a6f1058", "date": "2026-04-11", "category": "Transportation", "amount": 1200, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Transport April"}, {"id": "d6a4ef620718", "date": "2026-04-21", "category": "Marketing", "amount": 2000, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Marketing"}, {"id": "bac546f88382", "date": "2026-04-21", "category": "Interest Payment", "amount": 1500, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Interest Payment"}, {"id": "884560770971", "date": "2026-05-02", "category": "Rent", "amount": 9000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Rent May"}, {"id": "17293ab3546c", "date": "2026-05-29", "category": "Salary", "amount": 8000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Salary May"}, {"id": "eaf72533ed70", "date": "2026-05-16", "category": "Electricity", "amount": 1400, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Electricity May"}, {"id": "2978fba6a7e8", "date": "2026-05-11", "category": "Transportation", "amount": 1200, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Transport May"}, {"id": "3f483786a27a", "date": "2026-05-21", "category": "Marketing", "amount": 2000, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Marketing"}, {"id": "d4e054bb56dd", "date": "2026-05-21", "category": "Interest Payment", "amount": 1500, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Interest Payment"}, {"id": "ca5c34c190c2", "date": "2026-06-01", "category": "Rent", "amount": 9000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Rent June"}, {"id": "4cb9d0db4e27", "date": "2026-06-28", "category": "Salary", "amount": 8000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Salary June"}, {"id": "29aeee1cbafc", "date": "2026-06-15", "category": "Electricity", "amount": 1400, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Electricity June"}, {"id": "6e4189d8574a", "date": "2026-06-10", "category": "Transportation", "amount": 1200, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Transport June"}, {"id": "f568b580041a", "date": "2026-06-20", "category": "Marketing", "amount": 2000, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Marketing"}, {"id": "a586b1c0a87b", "date": "2026-06-20", "category": "Interest Payment", "amount": 1500, "paymentMode": "cash", "bankAccountId": "ba1", "desc": "Interest Payment"}], "debtors": [{"id": "1ff703fe48f9", "name": "Ration Shop LKO", "amount": 5400, "date": "2026-04-09", "ref": "Sugar"}, {"id": "ec10472b8fa6", "name": "Hotel Awadh", "amount": 8200, "date": "2026-04-19", "ref": "Basmati Rice"}, {"id": "074a3be06366", "name": "Ration Shop LKO", "amount": 4900, "date": "2026-04-23", "ref": "Wheat Flour Atta"}, {"id": "552bd817d83d", "name": "Hotel Awadh", "amount": 10080, "date": "2026-05-09", "ref": "Basmati Rice"}, {"id": "699d42b80eec", "name": "Ration Shop LKO", "amount": 5390, "date": "2026-05-15", "ref": "Wheat Flour Atta"}, {"id": "070843e362f6", "name": "Hotel Awadh", "amount": 5250, "date": "2026-05-21", "ref": "Mustard Oil"}, {"id": "cc2284e6f78f", "name": "Hotel Awadh", "amount": 10200, "date": "2026-06-05", "ref": "Basmati Rice"}, {"id": "96e96070788f", "name": "Ration Shop LKO", "amount": 6000, "date": "2026-06-10", "ref": "Wheat Flour Atta"}, {"id": "bfa32501cd9d", "name": "Hotel Awadh", "amount": 6360, "date": "2026-06-16", "ref": "Mustard Oil"}], "creditors": [], "loans": [{"id": "3e8789240d01", "loanType": "Mudra Shishu Loan", "lender": "UCO Bank", "sanctionDate": "2026-04-01", "sanctionedAmount": 50000, "outstandingBalance": 50000, "rate": 0, "tenure": 36, "emi": 1389, "lastInterestDate": "2026-04-01", "accountNumber": "UCO-MUDRA-112233", "undrawn": false, "payments": []}], "fixedAssets": [{"id": "11cc5a9e041f", "name": "Shop Counter & Display Racks", "purchaseDate": "2026-04-01", "cost": 22000, "life": 7, "accumDep": 0, "disposed": false}], "drawings": [{"id": "f213e08d4326", "date": "2026-05-01", "amount": 6000, "partner": "", "desc": "Personal Apr"}, {"id": "9eaef90d4175", "date": "2026-05-31", "amount": 6000, "partner": "", "desc": "Personal May"}, {"id": "2de9be474bf2", "date": "2026-06-28", "amount": 6000, "partner": "", "desc": "Personal Jun"}], "advances": [], "bills": [{"id": "0f0c79974308", "billNo": "INV/2026-27/001", "date": "2026-04-09", "customer": "Ration Shop LKO", "items": [{"itemName": "Sugar", "qty": 100, "price": 54, "amount": 5400}], "total": 5400, "paid": 0, "status": "unpaid", "notes": "15 day credit"}], "nextBillNo": 2, "cashBook": [{"id": "f39ebd26b091", "date": "2026-05-01", "type": "payment", "mode": "bank", "amount": 8000, "party": "Staff", "desc": "Apr salary", "bankAccountId": "ba1"}, {"id": "810b6770523c", "date": "2026-05-31", "type": "payment", "mode": "bank", "amount": 8000, "party": "Staff", "desc": "May salary", "bankAccountId": "ba1"}], "productions": [], "consumptions": [], "trialBalance": [], "tbPosted": false, "tbPostedOn": null, "otherAssets": 0, "otherLiab": 0, "otherAssetsNotes": [], "otherLiabNotes": [], "partyCodes": {"Ration Shop LKO": "RSL001", "Hotel Awadh": "HA001"}, "customHSN": {}, "security": {"pinEnabled": false, "pinHash": ""}, "priorPeriod": {"enabled": false, "fromDate": "", "toDate": "", "sales": 0, "cogs": 0, "expenseByCat": {}}, "budget": {"sales": 900000, "purchase": 650000, "rent": 108000, "salary": 96000, "electricity": 16800, "transportation": 14400, "marketing": 24000, "miscellaneous": 12000}, "loanAssessment": {"ccLimit": 0, "tlAmount": 50000, "ccRate": 10, "tlRate": 0, "tlTenure": 36, "salesGrowth": 20, "stockDays": 20, "debtorDays": 15, "creditorDays": 0, "expGrowth": 10, "marginPctTurnover": 22, "marginPctTandon": 22, "useManual": false}, "expenseCategories": ["Rent", "Electricity", "Salary", "Transportation", "Telephone", "Fuel", "Repair", "Marketing", "Interest Payment", "Miscellaneous"]};
 function loadFullApp() {
-  D = ld();
+  var saved=ld();
+  // Use demo data if no real business data saved yet (businessName is empty)
+  if(!saved.profile.businessName||saved.profile.businessName===''){
+    D=JSON.parse(JSON.stringify(_DEMO_DATA));
+    D.profile.businessType=BIZ_TYPE;
+  } else {
+    D=saved;
+  }
   buildNav();
   renderPage();
   setTimeout(checkStartupAlerts,800);
-  // Show welcome screen for new visitors
   showWelcomeIfNeeded();
 }
 
