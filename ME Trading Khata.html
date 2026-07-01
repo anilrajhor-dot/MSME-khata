@@ -1386,12 +1386,18 @@ function runHealthCheck(){
   }catch(e){checks.push({name:'Expired Stock',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
   // ── CATEGORY SCORES — by check NAME not index ──
-  function findCheck(name){return checks.find(function(c){return c.name===name;})||{pass:false,warn:false};}
+  function findCheck(name){
+    var exact=checks.find(function(c){return c.name===name;});
+    if(exact) return exact;
+    var partial=checks.find(function(c){return c.name.indexOf(name)>=0||name.indexOf(c.name)>=0;});
+    return partial||null;
+  }
   function score(names){
-    var arr=names.map(findCheck);
+    var arr=names.map(findCheck).filter(function(c){return c!==null;});
+    if(!arr.length) return 100;
     var p=arr.filter(function(c){return c.pass;}).length;
     var w=arr.filter(function(c){return !c.pass&&c.warn;}).length;
-    return Math.round((p*100+w*50)/Math.max(arr.length,1));
+    return Math.round((p*100+w*50)/arr.length);
   }
 
   var categories=[
@@ -1700,6 +1706,372 @@ var _aiHistory=[];
 // SMART OFFLINE AI ENGINE — 8 Questions, reads actual D data
 // Works without internet. Answers in English + Hindi (Hinglish)
 // ═══════════════════════════════════════════════════════════════
+
+
+// ── Q10: GST Liability ──────────────────────────────────────────────
+function analyseGSTLiability(){
+  var gstEnabled=D.gst&&D.gst.enabled;
+  if(!gstEnabled){
+    return '<b>📋 GST Analysis</b><br><br>'+
+      '<div style="background:#E3F2FD;border-radius:8px;padding:10px">'+
+      'GST is not enabled for this business.<br><br>'+
+      '<b>GST registration jaruri hai agar:</b><br>'+
+      '• Annual turnover > ₹40 lakh (goods) ya ₹20 lakh (services)<br>'+
+      '• Interstate sales karte hain<br>'+
+      '• E-commerce platform pe bechte hain<br><br>'+
+      '<b>GST enable karne ke liye:</b> Profile → GST Module → Enable → GSTIN enter karein'+
+      '</div>';
+  }
+  // Calculate output GST (collected from customers)
+  var outputGST=0, inputGST=0;
+  var gstBySlab={};
+  D.sales.forEach(function(s){
+    var inv=D.inventory.find(function(i){return i.id===s.itemId;});
+    var rate=inv&&inv.gstRate?inv.gstRate:(D.gst.defaultRate||5);
+    var gst=Math.round((s.totalAmount||0)*rate/(100+rate));
+    outputGST+=gst;
+    gstBySlab[rate]=(gstBySlab[rate]||{out:0,inp:0});
+    gstBySlab[rate].out+=gst;
+  });
+  D.purchases.forEach(function(p){
+    var inv=D.inventory.find(function(i){return i.id===p.itemId;});
+    var rate=inv&&inv.gstRate?inv.gstRate:(D.gst.defaultRate||5);
+    var gst=Math.round((p.amount||0)*rate/(100+rate));
+    inputGST+=gst;
+    gstBySlab[rate]=(gstBySlab[rate]||{out:0,inp:0});
+    gstBySlab[rate].inp=(gstBySlab[rate].inp||0)+gst;
+  });
+  var netGST=outputGST-inputGST;
+
+  var reply='<b>📋 GST Liability Analysis</b><br>';
+  reply+='GSTIN: '+esc(D.gst.gstin||'Not entered')+'<br><br>';
+  reply+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">';
+  reply+='<div style="background:#FFEBEE;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Output GST<br>(Collected)</div><div style="font-size:14px;font-weight:700;color:#C62828">'+fc(outputGST)+'</div></div>';
+  reply+='<div style="background:#E8F5E9;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Input GST<br>(Paid)</div><div style="font-size:14px;font-weight:700;color:#2E7D32">'+fc(inputGST)+'</div></div>';
+  reply+='<div style="background:'+(netGST>0?'#FFEBEE':'#E8F5E9')+'border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Net Payable/<br>Refund</div><div style="font-size:14px;font-weight:700;color:'+(netGST>0?'#C62828':'#2E7D32')+'">'+fc(Math.abs(netGST))+'</div></div>';
+  reply+='</div>';
+  reply+='<b>💡 GST Return Filing:</b><br>';
+  reply+='• GSTR-1: Sales details — file by 11th of next month<br>';
+  reply+='• GSTR-3B: Summary return — file by 20th of next month<br>';
+  reply+='• Net GST payable: '+fc(netGST)+(netGST>0?' — deposit before filing':' — claim refund or carry forward')+'<br><br>';
+  reply+='<b>GST Module:</b> Reports → GST Module mein detailed GSTR-1 aur GSTR-3B data milega.';
+  return reply;
+}
+
+// ── Q11: Working Capital Assessment ────────────────────────────────
+function analyseWorkingCapital(){
+  var _bs={}; try{_bs=getBS();}catch(e){}
+  var ca=_bs.currentAssets||0, cl=_bs.currentLiab||0;
+  var nwc=ca-cl;
+  var _f={}; try{_f=getF();}catch(e){}
+  var monthlyPurch=0, monthlySales=0;
+  var now=new Date();
+  var currMo=now.getFullYear()+'-'+(now.getMonth()<9?'0':'')+(now.getMonth()+1);
+  D.purchases.forEach(function(p){if(p.date&&p.date.indexOf(currMo)===0)monthlyPurch+=p.amount||0;});
+  D.sales.forEach(function(s){if(s.date&&s.date.indexOf(currMo)===0)monthlySales+=s.totalAmount||0;});
+  var stockDays=monthlySales>0?Math.round((_f.cs||0)/monthlySales*30):0;
+  var debtorDays=monthlySales>0?Math.round((_f.dr||0)/monthlySales*30):0;
+  var creditorDays=monthlyPurch>0?Math.round((_f.cr||0)/monthlyPurch*30):0;
+  var operatingCycle=stockDays+debtorDays-creditorDays;
+
+  var reply='<b>💼 Working Capital Assessment</b><br><br>';
+  reply+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">';
+  reply+='<div style="background:#E3F2FD;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Current Assets</div><div style="font-size:13px;font-weight:700;color:#1565C0">'+fc(ca)+'</div></div>';
+  reply+='<div style="background:#FFEBEE;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Current Liabilities</div><div style="font-size:13px;font-weight:700;color:#C62828">'+fc(cl)+'</div></div>';
+  reply+='<div style="background:'+(nwc>=0?'#E8F5E9':'#FFEBEE')+';border-radius:8px;padding:8px;text-align:center;grid-column:span 2"><div style="font-size:9px;color:#546E7A">Net Working Capital (NWC)</div><div style="font-size:16px;font-weight:900;color:'+(nwc>=0?'#2E7D32':'#C62828')+'">'+fc(nwc)+'</div><div style="font-size:9px;color:#546E7A">'+(nwc>=0?'✅ Positive — Good':'❌ Negative — Needs attention')+'</div></div>';
+  reply+='</div>';
+  reply+='<b>📅 Working Capital Cycle:</b><br>';
+  reply+='• Stock holding days: '+stockDays+' days<br>';
+  reply+='• Debtor collection days: '+debtorDays+' days<br>';
+  reply+='• Creditor payment days: '+creditorDays+' days<br>';
+  reply+='• Operating Cycle: '+operatingCycle+' days '+(operatingCycle<=30?'✅ Good':operatingCycle<=60?'⚠️ Moderate':'❌ Too long')+'<br><br>';
+  reply+='<b>💡 Improvement Tips / सुधार के तरीके:</b><br>';
+  if(stockDays>30) reply+='• Stock zyada time reh raha hai ('+stockDays+' days) — slow moving items identify karein<br>';
+  if(debtorDays>20) reply+='• Debtors jaldi collect karein — '+debtorDays+' days mein collection honi chahiye<br>';
+  if(creditorDays<15) reply+='• Suppliers se zyada credit lein — currently sirf '+creditorDays+' days credit mil raha hai<br>';
+  if(nwc<0) reply+='• NWC negative hai — urgent: term loan se working capital improve karein ya CC limit lein<br>';
+  reply+='• Bank Loan Assessment menu mein Working Capital Loan calculate kar sakte hain';
+  return reply;
+}
+
+// ── Q12: Loan Eligibility ───────────────────────────────────────────
+function analyseLoanEligibility(){
+  var _f={}; try{_f=getF();}catch(e){}
+  var ts=_f.ts||0, np=_f.np||0, cs=_f.cs||0, dr=_f.dr||0;
+  var existingLoanEMI=D.loans.reduce(function(s,l){return s+(l.emi&&l.outstandingBalance>0?l.emi:0);},0);
+  var monthlyNP=np/3; // 3 months data
+  var mpbf=Math.round((cs+dr)*0.75); // 75% of current assets
+  var dscr=existingLoanEMI>0?monthlyNP/existingLoanEMI:999;
+
+  var reply='<b>🏦 Loan Eligibility Assessment</b><br><br>';
+  reply+='<div style="background:#E3F2FD;border-radius:8px;padding:10px;margin-bottom:10px">';
+  reply+='<div style="font-size:12px;font-weight:700;color:#1565C0;margin-bottom:6px">Current Financial Position</div>';
+  reply+='• Turnover (3 months): '+fc(ts)+'<br>';
+  reply+='• Net Profit (3 months): '+fc(np)+'<br>';
+  reply+='• Monthly NP: '+fc(Math.round(monthlyNP))+'<br>';
+  reply+='• Existing EMI: '+fc(existingLoanEMI)+'/month<br>';
+  reply+='• DSCR: '+(dscr===999?'N/A (no existing loans)':dscr.toFixed(2))+(dscr>=1.5?' ✅ Good':dscr>=1?' ⚠️ Marginal':' ❌ Weak')+'<br>';
+  reply+='</div>';
+
+  reply+='<b>🏛️ Government Schemes Eligible:</b><br>';
+  // Mudra loan eligibility
+  reply+='<div style="background:#E8F5E9;border-radius:8px;padding:8px;margin-bottom:6px">';
+  reply+='<div style="font-size:11px;font-weight:700;color:#2E7D32">PM Mudra Yojana</div>';
+  reply+='• Shishu: upto ₹50,000 — new businesses<br>';
+  reply+='• Kishore: ₹50,001 to ₹5 lakh — growing businesses<br>';
+  reply+='• Tarun: ₹5 lakh to ₹10 lakh — established businesses<br>';
+  reply+='• UDYAM registration required | Apply at any bank<br>';
+  reply+='</div>';
+
+  if(ts>500000){
+    reply+='<div style="background:#E3F2FD;border-radius:8px;padding:8px;margin-bottom:6px">';
+    reply+='<div style="font-size:11px;font-weight:700;color:#1565C0">CGTMSE — Collateral Free Loan</div>';
+    reply+='• Upto ₹2 crore without collateral<br>';
+    reply+='• For manufacturing and service MSMEs<br>';
+    reply+='• Through scheduled commercial banks<br>';
+    reply+='</div>';
+  }
+
+  reply+='<div style="background:#FFF3E0;border-radius:8px;padding:8px;margin-bottom:6px">';
+  reply+='<div style="font-size:11px;font-weight:700;color:#E65100">Working Capital (CC/OD)</div>';
+  reply+='• MPBF (Max Permissible Bank Finance): '+fc(mpbf)+'<br>';
+  reply+='• Based on 75% of current assets (stock + debtors)<br>';
+  reply+='• Apply at your current account bank<br>';
+  reply+='</div>';
+
+  reply+='<b>💡 Loan Assessment:</b> App ka <b>Bank Loan Assessment menu</b> mein detailed CMA data generate karein — bank mein submit kar sakte hain.';
+  return reply;
+}
+
+// ── Q13: Seasonal Sales Pattern ────────────────────────────────────
+function analyseSeasonalPattern(){
+  var moData={};
+  D.sales.forEach(function(s){
+    if(!s.date) return;
+    var mo=s.date.slice(0,7);
+    moData[mo]=(moData[mo]||0)+(s.totalAmount||0);
+  });
+  var months=Object.keys(moData).sort();
+  if(months.length<2){
+    return '📊 <b>Seasonal Pattern</b><br><br>Kum se kum 2 months ka data chahiye pattern dekhne ke liye. Zyada entries karein!';
+  }
+  var values=months.map(function(m){return moData[m];});
+  var avg=values.reduce(function(s,v){return s+v;},0)/values.length;
+  var maxMo=months[values.indexOf(Math.max.apply(null,values))];
+  var minMo=months[values.indexOf(Math.min.apply(null,values))];
+
+  var reply='<b>📅 Seasonal Sales Pattern</b><br><br>';
+  // Bar chart using text
+  reply+='<div style="margin-bottom:10px">';
+  var maxVal=Math.max.apply(null,values)||1;
+  months.forEach(function(m,i){
+    var pct=Math.round(values[i]/maxVal*100);
+    var moName=new Date(m+'-01').toLocaleString('default',{month:'short',year:'2-digit'});
+    var color=values[i]>=avg*1.1?'#2E7D32':values[i]<avg*0.9?'#C62828':'#1565C0';
+    reply+='<div style="margin-bottom:4px">'+
+      '<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:1px">'+
+        '<span>'+moName+'</span><span style="font-weight:700;color:'+color+'">'+fc(values[i])+'</span>'+
+      '</div>'+
+      '<div style="background:#E0E0E0;height:8px;border-radius:4px">'+
+        '<div style="background:'+color+';height:8px;border-radius:4px;width:'+pct+'%"></div>'+
+      '</div>'+
+    '</div>';
+  });
+  reply+='</div>';
+  reply+='<b>📊 Insights:</b><br>';
+  reply+='• Best month: <b>'+new Date(maxMo+'-01').toLocaleString('default',{month:'long',year:'numeric'})+'</b> ('+fc(moData[maxMo])+')<br>';
+  reply+='• Weakest month: <b>'+new Date(minMo+'-01').toLocaleString('default',{month:'long',year:'numeric'})+'</b> ('+fc(moData[minMo])+')<br>';
+  reply+='• Monthly average: '+fc(Math.round(avg))+'<br><br>';
+  reply+='<b>💡 Strategy:</b><br>';
+  reply+='• Best month mein extra stock rakho — demand zyada hoti hai<br>';
+  reply+='• Weak month mein marketing/offers se sales badhao<br>';
+  reply+='• Festival months (Oct-Nov, Mar) mein advance purchase karo<br>';
+  reply+='• Bank loan ke liye: peak season se pehle working capital lao';
+  return reply;
+}
+
+// ── Q14: Top Customers Analysis ────────────────────────────────────
+function analyseTopCustomers(){
+  var custMap={};
+  D.sales.forEach(function(s){
+    var c=s.customer||'Walk-in';
+    if(!custMap[c]) custMap[c]={name:c,sales:0,gp:0,txns:0,credit:0,cash:0};
+    custMap[c].sales+=s.totalAmount||0;
+    custMap[c].gp+=s.grossProfit||0;
+    custMap[c].txns++;
+    if(s.paymentMode==='credit') custMap[c].credit+=s.totalAmount||0;
+    else custMap[c].cash+=s.totalAmount||0;
+  });
+  var custs=Object.values(custMap).sort(function(a,b){return b.sales-a.sales;});
+  var totalSales=custs.reduce(function(s,c){return s+c.sales;},0);
+  var top5=custs.slice(0,5);
+
+  var reply='<b>👤 Top Customer Analysis</b><br><br>';
+  if(!custs.length){
+    return reply+'Sales entries mein customer names darj karein — analysis milega.';
+  }
+  reply+='<b>🏆 Top 5 Customers by Sales:</b><br>';
+  top5.forEach(function(c,i){
+    var pct=totalSales>0?Math.round(c.sales/totalSales*100):0;
+    var gpPct=c.sales>0?Math.round(c.gp/c.sales*100):0;
+    reply+='<div style="background:#F5F5F5;border-radius:6px;padding:6px 8px;margin-bottom:5px">';
+    reply+='<div style="display:flex;justify-content:space-between"><b>'+(i+1)+'. '+esc(c.name)+'</b><span style="color:#1565C0;font-weight:700">'+fc(c.sales)+'</span></div>';
+    reply+='<div style="font-size:10px;color:#546E7A">'+c.txns+' purchases | GP: '+gpPct+'% | '+pct+'% of total sales | '+
+      (c.credit>0?'Credit: '+fc(c.credit):'All cash/UPI')+'</div>';
+    reply+='</div>';
+  });
+
+  // Credit risk customers
+  var highCredit=custs.filter(function(c){return c.credit>c.sales*0.5&&c.sales>5000;});
+  if(highCredit.length){
+    reply+='<br><b>⚠️ High Credit Risk Customers:</b><br>';
+    highCredit.forEach(function(c){
+      reply+='• '+esc(c.name)+': '+fc(c.credit)+' on credit ('+Math.round(c.credit/c.sales*100)+'% of their purchases)<br>';
+    });
+  }
+  reply+='<br><b>💡 Strategy:</b><br>';
+  reply+='• Top customer ko special discount ya credit dein — loyalty maintain karein<br>';
+  reply+='• High credit customers se payment schedule agree karein<br>';
+  reply+='• Cash customers ko small discount dein — credit risk kam hoga<br>';
+  reply+='• Ek customer pe zyada depend mat karo — diversify karein';
+  return reply;
+}
+
+// ── Q15: Expense Control Advice ────────────────────────────────────
+function analyseExpenseControl(){
+  var _f={}; try{_f=getF();}catch(e){}
+  var ts=_f.ts||0;
+  var expCat={};
+  D.expenses.forEach(function(e){
+    var cat=e.category||'Other';
+    expCat[cat]=(expCat[cat]||{total:0,fixed:false});
+    expCat[cat].total+=e.amount||0;
+    if(['Rent','Salary'].indexOf(cat)>=0) expCat[cat].fixed=true;
+  });
+  var totalExp=Object.values(expCat).reduce(function(s,e){return s+e.total;},0);
+  var fixedExp=Object.values(expCat).filter(function(e){return e.fixed;}).reduce(function(s,e){return s+e.total;},0);
+  var varExp=totalExp-fixedExp;
+  var cats=Object.entries(expCat).sort(function(a,b){return b[1].total-a[1].total;});
+  var budget=D.budget||{};
+
+  var reply='<b>💸 Expense Control Report</b><br><br>';
+  reply+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">';
+  reply+='<div style="background:#FFEBEE;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Total Expenses</div><div style="font-size:13px;font-weight:700;color:#C62828">'+fc(totalExp)+'</div></div>';
+  reply+='<div style="background:#FFF3E0;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Fixed</div><div style="font-size:13px;font-weight:700;color:#E65100">'+fc(fixedExp)+'</div></div>';
+  reply+='<div style="background:#E3F2FD;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Variable</div><div style="font-size:13px;font-weight:700;color:#1565C0">'+fc(varExp)+'</div></div>';
+  reply+='</div>';
+  reply+='Expenses as % of Sales: '+(ts>0?Math.round(totalExp/ts*100)+'%':'N/A')+'<br><br>';
+
+  reply+='<b>📊 Category-wise + Budget vs Actual:</b><br>';
+  cats.forEach(function(c){
+    var budgetAmt=budget[c[0].toLowerCase()]||budget[c[0]]||0;
+    var variance=budgetAmt>0?c[1].total-budgetAmt:0;
+    reply+='<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid #F0F0F0">';
+    reply+='<span>'+(c[1].fixed?'🔒':'🔄')+' '+c[0]+'</span>';
+    reply+='<span>'+fc(c[1].total)+(budgetAmt>0?' <span style="color:'+(variance>0?'#C62828':'#2E7D32')+'">'+(variance>0?'▲ +':'▼ ')+fc(Math.abs(variance))+'</span>':'')+'</span>';
+    reply+='</div>';
+  });
+
+  reply+='<br><b>💡 Cost Reduction Tips:</b><br>';
+  if(fixedExp>totalExp*0.6) reply+='• Fixed expenses '+Math.round(fixedExp/totalExp*100)+'% of total — difficult to cut. Focus on variable expenses.<br>';
+  var topVar=cats.filter(function(c){return !c[1].fixed;});
+  if(topVar.length) reply+='• Biggest variable expense: '+topVar[0][0]+' ('+fc(topVar[0][1].total)+') — kya reduce ho sakta hai?<br>';
+  reply+='• 🔒 Fixed expenses (Rent/Salary) = every month same<br>';
+  reply+='• 🔄 Variable expenses = control kar sakte hain<br>';
+  reply+='• Budget set karein (Reports → Budget vs Actual) aur monthly compare karein';
+  return reply;
+}
+
+// ── Q16: Profitability by Month (Trend) ────────────────────────────
+function analyseMonthlyTrend(){
+  var moData={};
+  var now=new Date();
+  for(var i=5;i>=0;i--){
+    var dt=new Date(); dt.setMonth(dt.getMonth()-i);
+    var k=dt.getFullYear()+'-'+(dt.getMonth()<9?'0':'')+(dt.getMonth()+1);
+    moData[k]={label:dt.toLocaleString('default',{month:'short'}),sales:0,cogs:0,exp:0};
+  }
+  D.sales.forEach(function(s){if(moData[s.date&&s.date.slice(0,7)]){moData[s.date.slice(0,7)].sales+=s.totalAmount||0;moData[s.date.slice(0,7)].cogs+=s.cogs||0;}});
+  D.expenses.forEach(function(e){if(moData[e.date&&e.date.slice(0,7)])moData[e.date.slice(0,7)].exp+=e.amount||0;});
+  var months=Object.entries(moData);
+  var hasData=months.some(function(m){return m[1].sales>0;});
+  if(!hasData) return '<b>📈 Monthly Trend</b><br><br>Koi sales data nahi. Sales entries karein pehle!';
+
+  var reply='<b>📈 6-Month Profitability Trend</b><br><br>';
+  reply+='<table style="width:100%;border-collapse:collapse;font-size:10px">';
+  reply+='<tr style="background:#1565C0;color:#fff"><td style="padding:4px">Month</td><td style="padding:4px;text-align:right">Sales</td><td style="padding:4px;text-align:right">GP%</td><td style="padding:4px;text-align:right">NP</td></tr>';
+  var prevNP=null;
+  months.forEach(function(m,i){
+    var d=m[1];
+    var gp=d.sales-d.cogs; var np=gp-d.exp;
+    var gpPct=d.sales>0?Math.round(gp/d.sales*100):0;
+    var trend=prevNP!==null?(np>prevNP?'↑':np<prevNP?'↓':'→'):'';
+    var npColor=np>=0?'#2E7D32':'#C62828';
+    var trendColor=trend==='↑'?'#2E7D32':trend==='↓'?'#C62828':'#546E7A';
+    reply+='<tr style="background:'+(i%2?'#F5F5F5':'#fff')+'">';
+    reply+='<td style="padding:4px">'+d.label+'</td>';
+    reply+='<td style="padding:4px;text-align:right">'+fc(d.sales)+'</td>';
+    reply+='<td style="padding:4px;text-align:right">'+gpPct+'%</td>';
+    reply+='<td style="padding:4px;text-align:right;font-weight:700;color:'+npColor+'">'+fc(np)+' <span style="color:'+trendColor+'">'+trend+'</span></td>';
+    reply+='</tr>';
+    if(d.sales>0) prevNP=np;
+  });
+  reply+='</table><br>';
+
+  // Trend analysis
+  var npValues=months.filter(function(m){return m[1].sales>0;}).map(function(m){var d=m[1];return d.sales-d.cogs-d.exp;});
+  if(npValues.length>=2){
+    var last=npValues[npValues.length-1], first=npValues[0];
+    var trend3mo=last-first;
+    reply+='<b>📊 Trend:</b> Profit '+( trend3mo>=0?'improving ↑ by '+fc(trend3mo):'declining ↓ by '+fc(Math.abs(trend3mo)))+' over '+npValues.length+' months<br><br>';
+  }
+  reply+='<b>💡 Action:</b><br>';
+  reply+='• Downward trend months mein kya hua? Expenses badhey ya sales girein?<br>';
+  reply+='• Best month ka margin % target rakho har month<br>';
+  reply+='• Reports → Monthly P&L mein aur detail dekh sakte hain';
+  return reply;
+}
+
+// ── Q17: Stock Turnover Ratio ───────────────────────────────────────
+function analyseStockTurnover(){
+  var _f={}; try{_f=getF();}catch(e){}
+  var cs=_f.cs||0;
+  var totalCOGS=D.sales.reduce(function(s,x){return s+(x.cogs||0);},0);
+  var os=D.opening.stock||0;
+  var avgStock=(os+cs)/2||cs;
+  var stockTurnover=avgStock>0?totalCOGS/avgStock:0;
+  var daysToSell=stockTurnover>0?Math.round(365/stockTurnover/4):0; // 3 months data
+
+  var reply='<b>📦 Stock Turnover Analysis</b><br><br>';
+  reply+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">';
+  reply+='<div style="background:#E3F2FD;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Closing Stock Value</div><div style="font-size:13px;font-weight:700;color:#1565C0">'+fc(Math.round(cs))+'</div></div>';
+  reply+='<div style="background:#E8F5E9;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Total COGS</div><div style="font-size:13px;font-weight:700;color:#2E7D32">'+fc(Math.round(totalCOGS))+'</div></div>';
+  reply+='<div style="background:#FFF3E0;border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Stock Turnover Ratio</div><div style="font-size:16px;font-weight:900;color:#E65100">'+stockTurnover.toFixed(1)+'x</div></div>';
+  reply+='<div style="background:'+(daysToSell<=30?'#E8F5E9':daysToSell<=60?'#FFF3E0':'#FFEBEE')+';border-radius:8px;padding:8px;text-align:center"><div style="font-size:9px;color:#546E7A">Days to Sell Stock</div><div style="font-size:16px;font-weight:900;color:'+(daysToSell<=30?'#2E7D32':daysToSell<=60?'#E65100':'#C62828')+'">'+daysToSell+' days</div></div>';
+  reply+='</div>';
+
+  // Item-wise turnover
+  var itemTurn=D.inventory.map(function(inv){
+    var sold=D.sales.filter(function(s){return s.itemId===inv.id;}).reduce(function(t,s){return t+(s.cogs||0);},0);
+    var avgS=((inv.openingStock||0)*inv.avgCost+(inv.currentStock||0)*inv.avgCost)/2;
+    return {name:inv.itemName,turnover:avgS>0?sold/avgS:0,stock:inv.currentStock||0,unit:inv.unit};
+  }).sort(function(a,b){return b.turnover-a.turnover;});
+
+  if(itemTurn.length){
+    reply+='<b>📊 Item-wise Turnover:</b><br>';
+    itemTurn.slice(0,5).forEach(function(it){
+      var color=it.turnover>=2?'#2E7D32':it.turnover>=1?'#E65100':'#C62828';
+      var label=it.turnover>=2?'Fast':it.turnover>=1?'Moderate':'Slow';
+      reply+='• '+esc(it.name)+': <span style="color:'+color+';font-weight:700">'+it.turnover.toFixed(1)+'x</span> ('+label+')<br>';
+    });
+  }
+  reply+='<br><b>💡 Benchmarks:</b><br>';
+  reply+='• Grocery: 8-12x per year ✅<br>';
+  reply+='• Textile: 3-5x per year ✅<br>';
+  reply+='• Manufacturing: 4-6x per year ✅<br>';
+  reply+='• Low turnover = zyada paisa stock mein bandh — fast sellers pe focus karein';
+  return reply;
+}
 
 function smartAIAnswer(question){
   var q=question.toLowerCase();
@@ -2300,19 +2672,29 @@ function pgAIAdvisor(){
   '</div><div style="font-size:10px;color:#546E7A">'+(proxyUrl2?'AI Advisor is ready to use':'Set up proxy to enable AI')+'</div></div>';
   h+='<button onclick="go(\'data\')" style="padding:5px 10px;background:'+(proxyUrl2?'#2E7D32':'#E65100')+';color:#fff;border:none;border-radius:6px;font-size:10px;cursor:pointer">'+(proxyUrl2?'⚙️ Settings':'Setup ▶')+'</button>';
   h+='</div>';
-  h+=card('⚡ Quick Questions',
-    '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Tap a question or type your own below:</div>'+
-    ['Why has my profit reduced this month?',
-     'Which products should I reorder now?',
-     'Which customers are paying late?',
-     'How can I increase my profit?',
-     'Predict next month\'s sales',
-     'Which items are most profitable?',
-     'What is my cash position and how to improve?',
-     'Analyse my business health',
+  h+=card('⚡ Quick Questions — 16 Topics (Smart AI)',
+    '<div style="font-size:11px;color:#2E7D32;background:#E8F5E9;border-radius:6px;padding:6px 8px;margin-bottom:8px">✅ Smart AI — reads your actual data, works offline!</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">'+
+    ['Why has my profit reduced?',
+     'Which products to reorder?',
+     'Which customers pay late?',
+     'How to increase profit?',
+     'Predict next month sales',
+     'Which items most profitable?',
+     'What is my cash position?',
+     'Analyse business health',
+     'What is my GST liability?',
+     'Assess my working capital',
+     'Am I eligible for bank loan?',
+     'Seasonal sales pattern',
+     'Who are my top customers?',
+     'How to control expenses?',
+     'Monthly profit trend',
+     'Stock turnover ratio',
     ].map(function(q){
-      return '<button onclick="askAI(\''+q.replace(/'/g,"\\'")+'\')" style="display:block;width:100%;text-align:left;padding:8px 10px;margin-bottom:6px;background:#F3E5F5;border:1px solid #CE93D8;border-radius:8px;font-size:12px;color:#4A148C;cursor:pointer">'+q+'</button>';
-    }).join('')
+      return '<button onclick="askAI(\''+q.replace(/'/g,"\\'")+'\')" style="text-align:left;padding:7px 8px;background:#F3E5F5;border:1px solid #CE93D8;border-radius:8px;font-size:11px;color:#4A148C;cursor:pointer;line-height:1.3">'+q+'</button>';
+    }).join('')+
+    '</div>'
   );
 
   // Chat interface
