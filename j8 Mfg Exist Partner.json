@@ -1,0 +1,1080 @@
+{
+  "profile": {
+    "businessName": "Patel Garments Mfg",
+    "ownerName": "Suresh Patel & Mahesh Patel",
+    "mobile": "9879012345",
+    "address": "Garment Park, Surat-395004",
+    "businessType": "Manufacturing",
+    "businessStage": "existing",
+    "constitution": "Partnership",
+    "udyam": "UDYAM-GJ-24-0088888",
+    "gst": "24AABFP6789F1Z3",
+    "pan": "AABFP6789F",
+    "tan": "",
+    "commencementDate": "2021-04-01",
+    "shopLicenseNo": "VNS-IND-2024-012",
+    "fssaiNo": "12315003000003",
+    "email": "patel.garments@gmail.com",
+    "natureOfBusiness": "wholesale",
+    "defaultPaymentMode": "cash",
+    "defaultBankAccount": "ba1",
+    "businessLogo": "",
+    "openingDateLocked": false,
+    "partners": [
+      {
+        "name": "Suresh Patel",
+        "share": 53
+      },
+      {
+        "name": "Mahesh Patel",
+        "share": 47
+      }
+    ]
+  },
+  "capital": {
+    "initialCapital": 380000,
+    "additionalCapital": 0,
+    "partnerCapital": {
+      "Suresh Patel": {
+        "initial": 200000
+      },
+      "Mahesh Patel": {
+        "initial": 180000
+      }
+    }
+  },
+  "opening": {
+    "cash": 30000,
+    "bank": 195879,
+    "stock": 75000,
+    "debtors": 0,
+    "creditors": 0,
+    "capital": 380000,
+    "takenOn": "2026-04-01"
+  },
+  "bankAccounts": [
+    {
+      "id": "ba1",
+      "name": "Canara Bank CA-223344",
+      "accountNumber": "CA-223344",
+      "upiId": "deviprasad@canarabank"
+    }
+  ],
+  "settings": {
+    "creditDays": 30,
+    "defaultMargin": 42,
+    "defaultUPIAccount": "ba1"
+  },
+  "gst": {
+    "enabled": true,
+    "gstin": "09ABCDP3456F1Z6",
+    "type": "regular",
+    "defaultRate": 5,
+    "supplyType": "intra",
+    "stateCode": "09"
+  },
+  "incomeTax": {
+    "ay": "2026-27",
+    "taxpayerType": "individual",
+    "gender": "male",
+    "section": "new",
+    "useManual": false
+  },
+  "inventory": [
+    {
+      "id": "ae7be26cdaa7",
+      "itemName": "Bamboo Sticks",
+      "unit": "Kg",
+      "category": "Raw Material",
+      "currentStock": 420,
+      "avgCost": 29.63,
+      "importedStock": 0,
+      "importedAvgCost": 0,
+      "reorderLevel": 100,
+      "mrp": 0
+    },
+    {
+      "id": "aaf2f8999237",
+      "itemName": "Charcoal Powder",
+      "unit": "Kg",
+      "category": "Raw Material",
+      "currentStock": 170,
+      "avgCost": 18.86,
+      "importedStock": 0,
+      "importedAvgCost": 0,
+      "reorderLevel": 50,
+      "mrp": 0
+    },
+    {
+      "id": "9678f7a7939f",
+      "itemName": "Fragrance Oil Rose",
+      "unit": "Ltr",
+      "category": "Consumable",
+      "currentStock": 25,
+      "avgCost": 525.31,
+      "importedStock": 0,
+      "importedAvgCost": 0,
+      "reorderLevel": 10,
+      "mrp": 0
+    },
+    {
+      "id": "fd6b6fc9220b",
+      "itemName": "Fragrance Oil Sandalwood",
+      "unit": "Ltr",
+      "category": "Consumable",
+      "currentStock": 18,
+      "avgCost": 552.25,
+      "importedStock": 0,
+      "importedAvgCost": 0,
+      "reorderLevel": 8,
+      "mrp": 0
+    },
+    {
+      "id": "7b1f6dff14d8",
+      "itemName": "Agarbatti Rose Box 100stk",
+      "unit": "Box",
+      "category": "FG",
+      "currentStock": 480,
+      "avgCost": 15.83,
+      "importedStock": 0,
+      "importedAvgCost": 0,
+      "reorderLevel": 200,
+      "mrp": 55,
+      "priceRetail": 46,
+      "priceWholesale": 42,
+      "priceBulk": 38
+    },
+    {
+      "id": "36604411a85d",
+      "itemName": "Agarbatti Sandalwood Box 100stk",
+      "unit": "Box",
+      "category": "FG",
+      "currentStock": 220,
+      "avgCost": 16.97,
+      "importedStock": 0,
+      "importedAvgCost": 0,
+      "reorderLevel": 100,
+      "mrp": 62,
+      "priceRetail": 52,
+      "priceWholesale": 48,
+      "priceBulk": 43
+    }
+  ],
+  "purchases": [
+    {
+      "id": "37bb92ebe664",
+      "date": "2026-04-03",
+      "supplier": "Bamboo Traders UP",
+      "itemId": "ae7be26cdaa7",
+      "itemName": "Bamboo Sticks",
+      "qty": 600,
+      "rate": 44,
+      "amount": 26670,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isImported": false
+    },
+    {
+      "id": "6fa071113737",
+      "date": "2026-04-03",
+      "supplier": "Carbon India",
+      "itemId": "aaf2f8999237",
+      "itemName": "Charcoal Powder",
+      "qty": 250,
+      "rate": 28,
+      "amount": 7071,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isImported": false
+    },
+    {
+      "id": "ef6c69b71c8f",
+      "date": "2026-04-04",
+      "supplier": "Fragrance World",
+      "itemId": "9678f7a7939f",
+      "itemName": "Fragrance Oil Rose",
+      "qty": 40,
+      "rate": 780,
+      "amount": 31519,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isImported": false
+    },
+    {
+      "id": "06677e8083a1",
+      "date": "2026-04-04",
+      "supplier": "Fragrance World",
+      "itemId": "fd6b6fc9220b",
+      "itemName": "Fragrance Oil Sandalwood",
+      "qty": 30,
+      "rate": 820,
+      "amount": 24851,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isImported": false
+    },
+    {
+      "id": "25e55443baaa",
+      "date": "2026-05-06",
+      "supplier": "Bamboo Traders UP",
+      "itemId": "ae7be26cdaa7",
+      "itemName": "Bamboo Sticks",
+      "qty": 350,
+      "rate": 44,
+      "amount": 15557,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isImported": false
+    },
+    {
+      "id": "392df827b2eb",
+      "date": "2026-05-07",
+      "supplier": "Carbon India",
+      "itemId": "aaf2f8999237",
+      "itemName": "Charcoal Powder",
+      "qty": 150,
+      "rate": 28,
+      "amount": 4243,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "isImported": false
+    },
+    {
+      "id": "6688694f8e01",
+      "date": "2026-05-08",
+      "supplier": "Fragrance World",
+      "itemId": "9678f7a7939f",
+      "itemName": "Fragrance Oil Rose",
+      "qty": 25,
+      "rate": 782,
+      "amount": 19750,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isImported": false
+    },
+    {
+      "id": "535b5cebb1a1",
+      "date": "2026-06-05",
+      "supplier": "Bamboo Traders UP",
+      "itemId": "ae7be26cdaa7",
+      "itemName": "Bamboo Sticks",
+      "qty": 250,
+      "rate": 45,
+      "amount": 11365,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isImported": false
+    },
+    {
+      "id": "be714804296d",
+      "date": "2026-06-06",
+      "supplier": "Carbon India",
+      "itemId": "aaf2f8999237",
+      "itemName": "Charcoal Powder",
+      "qty": 100,
+      "rate": 29,
+      "amount": 2930,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "isImported": false
+    },
+    {
+      "id": "c0bf123e10c0",
+      "date": "2026-06-07",
+      "supplier": "Fragrance World",
+      "itemId": "fd6b6fc9220b",
+      "itemName": "Fragrance Oil Sandalwood",
+      "qty": 15,
+      "rate": 822,
+      "amount": 12456,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isImported": false
+    }
+  ],
+  "sales": [
+    {
+      "id": "8ddf878039b7",
+      "date": "2026-04-19",
+      "customer": "Religious Stores VNS",
+      "itemId": "7b1f6dff14d8",
+      "itemName": "Agarbatti Rose Box 100stk",
+      "qty": 400,
+      "price": 46,
+      "totalAmount": 27600,
+      "cogs": 14100,
+      "grossProfit": 13500,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isExport": false
+    },
+    {
+      "id": "fac989447cad",
+      "date": "2026-04-21",
+      "customer": "Pooja Emporium VNS",
+      "itemId": "36604411a85d",
+      "itemName": "Agarbatti Sandalwood Box 100stk",
+      "qty": 250,
+      "price": 52,
+      "totalAmount": 19500,
+      "cogs": 8625,
+      "grossProfit": 10875,
+      "paymentMode": "credit",
+      "bankAccountId": "ba1",
+      "isExport": false
+    },
+    {
+      "id": "c0828e038173",
+      "date": "2026-04-23",
+      "customer": "Kashi Wholesale Traders",
+      "itemId": "7b1f6dff14d8",
+      "itemName": "Agarbatti Rose Box 100stk",
+      "qty": 350,
+      "price": 43,
+      "totalAmount": 22575,
+      "cogs": 12338,
+      "grossProfit": 10237,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isExport": false
+    },
+    {
+      "id": "7e7cb6814b74",
+      "date": "2026-04-27",
+      "customer": "Walk-in",
+      "itemId": "7b1f6dff14d8",
+      "itemName": "Agarbatti Rose Box 100stk",
+      "qty": 60,
+      "price": 46,
+      "totalAmount": 4140,
+      "cogs": 2115,
+      "grossProfit": 2025,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "isExport": false
+    },
+    {
+      "id": "437f57809f82",
+      "date": "2026-04-29",
+      "customer": "Dubai Al Haram Traders",
+      "itemId": "7b1f6dff14d8",
+      "itemName": "Agarbatti Rose Box 100stk",
+      "qty": 200,
+      "price": 60,
+      "totalAmount": 18000,
+      "cogs": 7050,
+      "grossProfit": 10950,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isExport": true
+    },
+    {
+      "id": "425db905039f",
+      "date": "2026-05-16",
+      "customer": "Religious Stores VNS",
+      "itemId": "7b1f6dff14d8",
+      "itemName": "Agarbatti Rose Box 100stk",
+      "qty": 450,
+      "price": 47,
+      "totalAmount": 31725,
+      "cogs": 15862,
+      "grossProfit": 15863,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isExport": false
+    },
+    {
+      "id": "9d7115b42254",
+      "date": "2026-05-19",
+      "customer": "Pooja Emporium VNS",
+      "itemId": "36604411a85d",
+      "itemName": "Agarbatti Sandalwood Box 100stk",
+      "qty": 300,
+      "price": 53,
+      "totalAmount": 23850,
+      "cogs": 11340,
+      "grossProfit": 12510,
+      "paymentMode": "credit",
+      "bankAccountId": "ba1",
+      "isExport": false
+    },
+    {
+      "id": "3e8d88fdd85d",
+      "date": "2026-05-23",
+      "customer": "Kashi Wholesale Traders",
+      "itemId": "7b1f6dff14d8",
+      "itemName": "Agarbatti Rose Box 100stk",
+      "qty": 300,
+      "price": 43,
+      "totalAmount": 19350,
+      "cogs": 10575,
+      "grossProfit": 8775,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isExport": false
+    },
+    {
+      "id": "03e04301b15a",
+      "date": "2026-05-26",
+      "customer": "Walk-in",
+      "itemId": "36604411a85d",
+      "itemName": "Agarbatti Sandalwood Box 100stk",
+      "qty": 80,
+      "price": 52,
+      "totalAmount": 6240,
+      "cogs": 3024,
+      "grossProfit": 3216,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "isExport": false
+    },
+    {
+      "id": "2b3357d90b70",
+      "date": "2026-06-12",
+      "customer": "Religious Stores VNS",
+      "itemId": "7b1f6dff14d8",
+      "itemName": "Agarbatti Rose Box 100stk",
+      "qty": 500,
+      "price": 47,
+      "totalAmount": 35250,
+      "cogs": 17625,
+      "grossProfit": 17625,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isExport": false
+    },
+    {
+      "id": "e744f97eb579",
+      "date": "2026-06-14",
+      "customer": "Kashi Wholesale Traders",
+      "itemId": "36604411a85d",
+      "itemName": "Agarbatti Sandalwood Box 100stk",
+      "qty": 250,
+      "price": 53,
+      "totalAmount": 19875,
+      "cogs": 9450,
+      "grossProfit": 10425,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isExport": false
+    },
+    {
+      "id": "3dfae9d68590",
+      "date": "2026-06-17",
+      "customer": "Dubai Al Haram Traders",
+      "itemId": "7b1f6dff14d8",
+      "itemName": "Agarbatti Rose Box 100stk",
+      "qty": 300,
+      "price": 62,
+      "totalAmount": 27900,
+      "cogs": 10575,
+      "grossProfit": 17325,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "isExport": true
+    },
+    {
+      "id": "f38672fc0f5a",
+      "date": "2026-06-20",
+      "customer": "Walk-in",
+      "itemId": "36604411a85d",
+      "itemName": "Agarbatti Sandalwood Box 100stk",
+      "qty": 60,
+      "price": 52,
+      "totalAmount": 4680,
+      "cogs": 2268,
+      "grossProfit": 2412,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "isExport": false
+    }
+  ],
+  "expenses": [
+    {
+      "id": "4cc253b642ac",
+      "date": "2026-04-02",
+      "category": "Rent",
+      "amount": 6389,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "desc": "Rent April"
+    },
+    {
+      "id": "e51f5972298d",
+      "date": "2026-04-29",
+      "category": "Salary",
+      "amount": 9584,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "desc": "Salary April"
+    },
+    {
+      "id": "9c8f961378fe",
+      "date": "2026-04-16",
+      "category": "Electricity",
+      "amount": 958,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Electricity April"
+    },
+    {
+      "id": "0c00797ea2f3",
+      "date": "2026-04-11",
+      "category": "Transportation",
+      "amount": 799,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Transport April"
+    },
+    {
+      "id": "fa46ba29d6ee",
+      "date": "2026-04-21",
+      "category": "Fuel",
+      "amount": 1597,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Fuel"
+    },
+    {
+      "id": "ef491799d97c",
+      "date": "2026-04-21",
+      "category": "Repair",
+      "amount": 799,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Repair"
+    },
+    {
+      "id": "f98081e9f2e6",
+      "date": "2026-04-21",
+      "category": "Interest Payment",
+      "amount": 1597,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Interest Payment"
+    },
+    {
+      "id": "eb3de1912f1c",
+      "date": "2026-05-02",
+      "category": "Rent",
+      "amount": 6389,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "desc": "Rent May"
+    },
+    {
+      "id": "7076abc4002d",
+      "date": "2026-05-29",
+      "category": "Salary",
+      "amount": 9584,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "desc": "Salary May"
+    },
+    {
+      "id": "443c0bcd0f01",
+      "date": "2026-05-16",
+      "category": "Electricity",
+      "amount": 958,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Electricity May"
+    },
+    {
+      "id": "e6b26a20b244",
+      "date": "2026-05-11",
+      "category": "Transportation",
+      "amount": 799,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Transport May"
+    },
+    {
+      "id": "5fb92de0062f",
+      "date": "2026-05-21",
+      "category": "Fuel",
+      "amount": 1597,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Fuel"
+    },
+    {
+      "id": "144f32bc8e0c",
+      "date": "2026-05-21",
+      "category": "Repair",
+      "amount": 799,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Repair"
+    },
+    {
+      "id": "a015e0023b1b",
+      "date": "2026-05-21",
+      "category": "Interest Payment",
+      "amount": 1597,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Interest Payment"
+    },
+    {
+      "id": "bb2e9a629359",
+      "date": "2026-06-01",
+      "category": "Rent",
+      "amount": 6389,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "desc": "Rent June"
+    },
+    {
+      "id": "a362cecef78b",
+      "date": "2026-06-28",
+      "category": "Salary",
+      "amount": 9584,
+      "paymentMode": "bank",
+      "bankAccountId": "ba1",
+      "desc": "Salary June"
+    },
+    {
+      "id": "4bbf7790894f",
+      "date": "2026-06-15",
+      "category": "Electricity",
+      "amount": 958,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Electricity June"
+    },
+    {
+      "id": "10a206ae5478",
+      "date": "2026-06-10",
+      "category": "Transportation",
+      "amount": 799,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Transport June"
+    },
+    {
+      "id": "ce1d4461a0df",
+      "date": "2026-06-20",
+      "category": "Fuel",
+      "amount": 1597,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Fuel"
+    },
+    {
+      "id": "5ea0459d20e3",
+      "date": "2026-06-20",
+      "category": "Repair",
+      "amount": 799,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Repair"
+    },
+    {
+      "id": "14cd5d9129ca",
+      "date": "2026-06-20",
+      "category": "Interest Payment",
+      "amount": 1597,
+      "paymentMode": "cash",
+      "bankAccountId": "ba1",
+      "desc": "Interest Payment"
+    }
+  ],
+  "cashBook": [],
+  "debtors": [
+    {
+      "id": "cf8a5fefc196",
+      "name": "Pooja Emporium VNS",
+      "amount": 13000,
+      "date": "2026-04-21",
+      "ref": "Sandalwood Apr"
+    },
+    {
+      "id": "b4a19e94a323",
+      "name": "Pooja Emporium VNS",
+      "amount": 15900,
+      "date": "2026-05-19",
+      "ref": "Sandalwood May"
+    }
+  ],
+  "creditors": [],
+  "loans": [
+    {
+      "id": "c7c9bd6cbfe5",
+      "loanType": "Term Loan",
+      "lender": "SBI",
+      "sanctionDate": "2023-04-01",
+      "sanctionedAmount": 200000,
+      "outstandingBalance": 10000,
+      "rate": 9,
+      "tenure": 36,
+      "emi": 6360,
+      "lastInterestDate": "2026-03-01",
+      "accountNumber": "SBI-TL-MTH-001",
+      "undrawn": false,
+      "payments": []
+    }
+  ],
+  "fixedAssets": [
+    {
+      "id": "992d83184783",
+      "name": "Pickle Making Equipment",
+      "purchaseDate": "2021-04-01",
+      "cost": 120000,
+      "life": 8,
+      "accumDep": 45000,
+      "disposed": false
+    },
+    {
+      "id": "f833a448a5a5",
+      "name": "Storage & Sealing Machine",
+      "purchaseDate": "2022-04-01",
+      "cost": 40000,
+      "life": 7,
+      "accumDep": 11429,
+      "disposed": false
+    }
+  ],
+  "drawings": [
+    {
+      "id": "54f9239c0e8d",
+      "date": "2026-04-30",
+      "amount": 5324,
+      "partner": "Suresh Patel",
+      "desc": "Partner Apr"
+    },
+    {
+      "id": "c96631a2b571",
+      "date": "2026-04-30",
+      "amount": 4792,
+      "partner": "Mahesh Patel",
+      "desc": "Partner Apr"
+    },
+    {
+      "id": "46350e879a82",
+      "date": "2026-05-30",
+      "amount": 5324,
+      "partner": "Suresh Patel",
+      "desc": "Partner May"
+    },
+    {
+      "id": "c511b00fbb64",
+      "date": "2026-05-30",
+      "amount": 4792,
+      "partner": "Mahesh Patel",
+      "desc": "Partner May"
+    },
+    {
+      "id": "89678a1dd67f",
+      "date": "2026-06-27",
+      "amount": 5324,
+      "partner": "Suresh Patel",
+      "desc": "Partner Jun"
+    },
+    {
+      "id": "0b6aaa5f02c6",
+      "date": "2026-06-27",
+      "amount": 4792,
+      "partner": "Mahesh Patel",
+      "desc": "Partner Jun"
+    }
+  ],
+  "advances": [],
+  "bills": [],
+  "nextBillNo": 1,
+  "productions": [
+    {
+      "id": "a6c85163d954",
+      "date": "2026-04-11",
+      "fgItemId": "7b1f6dff14d8",
+      "fgItemName": "Agarbatti Rose Box 100stk",
+      "qtyProduced": 1000,
+      "consumedItems": [
+        {
+          "itemId": "ae7be26cdaa7",
+          "itemName": "Bamboo Sticks",
+          "unit": "Kg",
+          "qty": 185,
+          "cost": 5482,
+          "fromIndig": 185,
+          "fromImp": 0,
+          "indigCostEach": 29.63,
+          "impCostEach": 0
+        },
+        {
+          "itemId": "aaf2f8999237",
+          "itemName": "Charcoal Powder",
+          "unit": "Kg",
+          "qty": 100,
+          "cost": 1886,
+          "fromIndig": 100,
+          "fromImp": 0,
+          "indigCostEach": 18.86,
+          "impCostEach": 0
+        },
+        {
+          "itemId": "9678f7a7939f",
+          "itemName": "Fragrance Oil Rose",
+          "unit": "Ltr",
+          "qty": 15,
+          "cost": 7880,
+          "fromIndig": 15,
+          "fromImp": 0,
+          "indigCostEach": 525.31,
+          "impCostEach": 0
+        }
+      ],
+      "totalCost": 15247,
+      "notes": "April Rose — Batch APR26-R1"
+    },
+    {
+      "id": "6f50456b91ef",
+      "date": "2026-04-15",
+      "fgItemId": "36604411a85d",
+      "fgItemName": "Agarbatti Sandalwood Box 100stk",
+      "qtyProduced": 700,
+      "consumedItems": [
+        {
+          "itemId": "ae7be26cdaa7",
+          "itemName": "Bamboo Sticks",
+          "unit": "Kg",
+          "qty": 130,
+          "cost": 3852,
+          "fromIndig": 130,
+          "fromImp": 0,
+          "indigCostEach": 29.63,
+          "impCostEach": 0
+        },
+        {
+          "itemId": "aaf2f8999237",
+          "itemName": "Charcoal Powder",
+          "unit": "Kg",
+          "qty": 70,
+          "cost": 1320,
+          "fromIndig": 70,
+          "fromImp": 0,
+          "indigCostEach": 18.86,
+          "impCostEach": 0
+        },
+        {
+          "itemId": "fd6b6fc9220b",
+          "itemName": "Fragrance Oil Sandalwood",
+          "unit": "Ltr",
+          "qty": 10,
+          "cost": 5522,
+          "fromIndig": 10,
+          "fromImp": 0,
+          "indigCostEach": 552.25,
+          "impCostEach": 0
+        }
+      ],
+      "totalCost": 10695,
+      "notes": "April Sandal — Batch APR26-S1"
+    },
+    {
+      "id": "f5fa6d847e7c",
+      "date": "2026-05-13",
+      "fgItemId": "7b1f6dff14d8",
+      "fgItemName": "Agarbatti Rose Box 100stk",
+      "qtyProduced": 800,
+      "consumedItems": [
+        {
+          "itemId": "ae7be26cdaa7",
+          "itemName": "Bamboo Sticks",
+          "unit": "Kg",
+          "qty": 148,
+          "cost": 4386,
+          "fromIndig": 148,
+          "fromImp": 0,
+          "indigCostEach": 29.63,
+          "impCostEach": 0
+        },
+        {
+          "itemId": "aaf2f8999237",
+          "itemName": "Charcoal Powder",
+          "unit": "Kg",
+          "qty": 80,
+          "cost": 1509,
+          "fromIndig": 80,
+          "fromImp": 0,
+          "indigCostEach": 18.86,
+          "impCostEach": 0
+        },
+        {
+          "itemId": "9678f7a7939f",
+          "itemName": "Fragrance Oil Rose",
+          "unit": "Ltr",
+          "qty": 12,
+          "cost": 6320,
+          "fromIndig": 12,
+          "fromImp": 0,
+          "indigCostEach": 526.66,
+          "impCostEach": 0
+        }
+      ],
+      "totalCost": 12214,
+      "notes": "May Rose — Batch MAY26-R1"
+    },
+    {
+      "id": "511716512170",
+      "date": "2026-06-10",
+      "fgItemId": "36604411a85d",
+      "fgItemName": "Agarbatti Sandalwood Box 100stk",
+      "qtyProduced": 500,
+      "consumedItems": [
+        {
+          "itemId": "ae7be26cdaa7",
+          "itemName": "Bamboo Sticks",
+          "unit": "Kg",
+          "qty": 93,
+          "cost": 2818,
+          "fromIndig": 93,
+          "fromImp": 0,
+          "indigCostEach": 30.31,
+          "impCostEach": 0
+        },
+        {
+          "itemId": "aaf2f8999237",
+          "itemName": "Charcoal Powder",
+          "unit": "Kg",
+          "qty": 50,
+          "cost": 977,
+          "fromIndig": 50,
+          "fromImp": 0,
+          "indigCostEach": 19.53,
+          "impCostEach": 0
+        },
+        {
+          "itemId": "fd6b6fc9220b",
+          "itemName": "Fragrance Oil Sandalwood",
+          "unit": "Ltr",
+          "qty": 8,
+          "cost": 4429,
+          "fromIndig": 8,
+          "fromImp": 0,
+          "indigCostEach": 553.6,
+          "impCostEach": 0
+        }
+      ],
+      "totalCost": 8224,
+      "notes": "June Sandal — Batch JUN26-S1"
+    }
+  ],
+  "consumptions": [
+    {
+      "id": "0383817ff49c",
+      "date": "2026-04-26",
+      "itemId": "9678f7a7939f",
+      "itemName": "Fragrance Oil Rose",
+      "category": "Consumable",
+      "qty": 2,
+      "amount": 1560,
+      "notes": "Sample testing Apr",
+      "fromIndig": 2,
+      "fromImp": 0,
+      "indigCostEach": 780,
+      "impCostEach": 0
+    }
+  ],
+  "trialBalance": [
+    {
+      "id": "9e80b8d082c5",
+      "head": "cash",
+      "name": "Cash",
+      "amount": 30000,
+      "side": "dr",
+      "notes": ""
+    },
+    {
+      "id": "b4b6620bd3ce",
+      "head": "bank",
+      "name": "Bank SBI",
+      "amount": 200000,
+      "side": "dr",
+      "notes": ""
+    },
+    {
+      "id": "fdeab17336d1",
+      "head": "stock",
+      "name": "RM & FG Stock",
+      "amount": 75000,
+      "side": "dr",
+      "notes": "As per stock register"
+    },
+    {
+      "id": "157b626c7d24",
+      "head": "fa",
+      "name": "Machinery",
+      "amount": 85000,
+      "side": "dr",
+      "notes": "WDV"
+    },
+    {
+      "id": "93573f4bf089",
+      "head": "capital",
+      "name": "Capital",
+      "amount": 380000,
+      "side": "cr",
+      "notes": ""
+    },
+    {
+      "id": "f207442b7b30",
+      "head": "loan",
+      "name": "SBI TL",
+      "amount": 10000,
+      "side": "cr",
+      "notes": "Remaining balance"
+    }
+  ],
+  "tbPosted": true,
+  "tbPostedOn": "2026-04-01",
+  "otherAssets": 0,
+  "otherLiab": 0,
+  "otherAssetsNotes": [],
+  "otherLiabNotes": [],
+  "partyCodes": {},
+  "customHSN": {},
+  "security": {
+    "pinEnabled": false,
+    "pinHash": ""
+  },
+  "priorPeriod": {
+    "enabled": false,
+    "fromDate": "",
+    "toDate": "",
+    "sales": 0,
+    "cogs": 0,
+    "expenseByCat": {}
+  },
+  "budget": {
+    "sales": 600000,
+    "purchase": 250000,
+    "rent": 144000,
+    "salary": 216000,
+    "fuel": 36000,
+    "repair": 18000
+  },
+  "loanAssessment": {
+    "tlAmount": 0,
+    "tlRate": 0,
+    "tlTenure": 0,
+    "salesGrowth": 20,
+    "stockDays": 20,
+    "debtorDays": 15,
+    "creditorDays": 0,
+    "marginPctTurnover": 25,
+    "useManual": false
+  },
+  "expenseCategories": [
+    "Rent",
+    "Electricity",
+    "Salary",
+    "Transportation",
+    "Telephone",
+    "Fuel",
+    "Repair",
+    "Marketing",
+    "Interest Payment",
+    "Miscellaneous"
+  ]
+}
