@@ -2823,7 +2823,7 @@ function askAI(quickQ){
   var ts=D.sales.reduce(function(s,x){return s+(x.totalAmount||0);},0);
   var tp=D.purchases.reduce(function(s,x){return s+(x.amount||0);},0);
   var te=D.expenses.reduce(function(s,x){return s+(x.amount||0);},0);
-  var cs=D.inventory.reduce(function(s,x){return s+((x.currentStock||0)+(x.importedStock||0))*(x.avgCost||0);},0);
+  var cs=D.inventory.reduce(function(s,x){return s+((x.currentStock||0)*(x.avgCost||0))+((x.importedStock||0)*(x.importedAvgCost||0));},0);
   var np=ts-tp+cs-te;
 
   // Top items by sales
@@ -4423,16 +4423,24 @@ function pgSal(){
 
   var _defM=+(D.settings&&D.settings.defaultMargin)||20;
   var _curM=(window._salMargin!=null)?window._salMargin:_defM;
-  if(selItem&&(!window._salPrice||window._salPrice===0)){
-    // Use blended cost (domestic + imported weighted average)
+  if(selItem){
+    // Always recalculate cost — blended (domestic + imported weighted average)
     var _initDom=(selItem.currentStock||0)*(selItem.avgCost||0);
     var _initImp=(selItem.importedStock||0)*(selItem.importedAvgCost||0);
     var _initTot=(selItem.currentStock||0)+(selItem.importedStock||0);
-    var _initCost=_initTot>0?(_initDom+_initImp)/_initTot:
+    var _initCost=_initTot>0?Math.round((_initDom+_initImp)/_initTot*100)/100:
                  ((selItem.avgCost||0)||(selItem.importedAvgCost||0));
-    // Also check priceRetail as fallback
+    // Fallback to priceRetail / MRP
     if(!_initCost&&selItem.priceRetail) _initCost=selItem.priceRetail/(1+_curM/100);
-    if(_initCost>0) window._salPrice=Math.round(_initCost*(1+_curM/100));
+    if(!_initCost&&selItem.mrp) _initCost=selItem.mrp/1.22;
+    // Set sale price from cost if not manually overridden
+    if(_initCost>0&&(!window._salPrice||window._salPrice===0)){
+      window._salPrice=Math.round(_initCost*(1+_curM/100));
+    }
+    // If price still 0 but cost found — set it
+    if(_initCost>0&&window._salPrice===0){
+      window._salPrice=Math.round(_initCost*(1+_curM/100));
+    }
   }
   var costInfo='';
   if(selItem){
@@ -4461,8 +4469,11 @@ function pgSal(){
           fc(_sp)+' | '+fc(_pr)+' ('+_pc+'%)'+
         '</span>'+
       '</div>'+
-      '<div style="font-size:10px;color:#90A4AE;margin-top:2px">'+
-        'Stock: '+fmt(selItem.currentStock)+' '+esc(selItem.unit)+
+      '<div style="font-size:10px;color:#546E7A;margin-top:2px">'+
+        'Stock: '+((_totStk>0&&(selItem.importedStock||0)>0&&(selItem.currentStock||0)>0)?
+          'Dom:'+fmt(selItem.currentStock)+' + Imp:'+fmt(selItem.importedStock||0):
+          (selItem.importedStock||0)>0?'Imp:'+fmt(selItem.importedStock||0):fmt(selItem.currentStock))+
+        ' '+esc(selItem.unit)+
         (selItem.itemMargin!=null&&selItem.itemMargin>=0 ?
           ' | <span style="color:#2E7D32;font-weight:700">📊 Item margin: '+selItem.itemMargin+'%</span> (change below for this sale)' :
           ' | Global margin: '+_defM+'% — change below for this sale') +
@@ -4578,7 +4589,7 @@ function onSalItemChange(){
   var prevItem=window._salItem;
   window._salItem=gv('sl_i');window._salCustomer=gv('sl_c');window._salDate=gv('sl_d');window._salQty=gv('sl_q');window._salMode=gv('sl_m');
   // If item changed, reset margin so new item's margin loads fresh
-  if(prevItem!==window._salItem) window._salMargin=null;
+  if(prevItem!==window._salItem){window._salMargin=null;window._salPrice=0;}
   // If margin field was manually edited by user, keep their value
   var _nm=gvn('sl_margin');
   if(_nm!==null&&!isNaN(_nm)&&window._salMargin!==null) window._salMargin=_nm;
@@ -4593,10 +4604,14 @@ function onSalItemChange(){
     var _sBlendDom=(_sit.currentStock||0)*(_sit.avgCost||0);
     var _sBlendImp=(_sit.importedStock||0)*(_sit.importedAvgCost||0);
     var _sBlendTot=(_sit.currentStock||0)+(_sit.importedStock||0);
-    var _sBlendCost=_sBlendTot>0?(_sBlendDom+_sBlendImp)/_sBlendTot:
-                   ((_sit.avgCost||0)||(_sit.importedAvgCost||0));
-    // If cost still 0 — check if priceRetail is set (fallback)
+    // Blended cost from stock
+    var _sBlendCost=_sBlendTot>0?Math.round((_sBlendDom+_sBlendImp)/_sBlendTot*100)/100:0;
+    // Fallback: use avgCost or importedAvgCost directly
+    if(!_sBlendCost) _sBlendCost=(_sit.avgCost||0)||(_sit.importedAvgCost||0);
+    // Fallback: priceRetail
     if(!_sBlendCost&&_sit.priceRetail) _sBlendCost=_sit.priceRetail/(1+_mg/100);
+    // Fallback: MRP
+    if(!_sBlendCost&&_sit.mrp) _sBlendCost=_sit.mrp/1.22;
     if(_sBlendCost>0) window._salPrice=Math.round(_sBlendCost*(1+_mg/100));
     else window._salPrice=gvn('sl_p')||0;
   } else window._salPrice=gvn('sl_p')||0;window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
