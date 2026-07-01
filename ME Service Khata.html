@@ -4382,7 +4382,9 @@ function pgSal(){
     var _initImp=(selItem.importedStock||0)*(selItem.importedAvgCost||0);
     var _initTot=(selItem.currentStock||0)+(selItem.importedStock||0);
     var _initCost=_initTot>0?(_initDom+_initImp)/_initTot:
-                 (selItem.avgCost||0)||(selItem.importedAvgCost||0);
+                 ((selItem.avgCost||0)||(selItem.importedAvgCost||0));
+    // Also check priceRetail as fallback
+    if(!_initCost&&selItem.priceRetail) _initCost=selItem.priceRetail/(1+_curM/100);
     if(_initCost>0) window._salPrice=Math.round(_initCost*(1+_curM/100));
   }
   var costInfo='';
@@ -4391,8 +4393,12 @@ function pgSal(){
     var _domVal=(selItem.currentStock||0)*(selItem.avgCost||0);
     var _impVal=(selItem.importedStock||0)*(selItem.importedAvgCost||0);
     var _totStk=(selItem.currentStock||0)+(selItem.importedStock||0);
-    var _cp=_totStk>0?(_domVal+_impVal)/_totStk:((selItem.avgCost||0)||(selItem.importedAvgCost||0));
+    // Use blended if stock exists, else use best available cost price
+    var _cp=_totStk>0?(_domVal+_impVal)/_totStk:
+            ((selItem.avgCost||0)||(selItem.importedAvgCost||0)||(selItem.mrp?selItem.mrp/1.22:0));
     _cp=Math.round(_cp*100)/100;
+    // If still 0 — item has no cost history, use selling price as entered
+    if(_cp===0&&window._salPrice>0) _cp=window._salPrice;
     var _sp=window._salPrice||0,_pr=_sp-_cp;
     var _pc=_cp>0?Math.round(_pr/_cp*100):0,_prc=_pr>=0?'#2E7D32':'#C62828';
     costInfo='<div class="al ali" style="margin-bottom:8px">'+
@@ -4806,7 +4812,9 @@ function onSalItemChange(){
     var _sBlendImp=(_sit.importedStock||0)*(_sit.importedAvgCost||0);
     var _sBlendTot=(_sit.currentStock||0)+(_sit.importedStock||0);
     var _sBlendCost=_sBlendTot>0?(_sBlendDom+_sBlendImp)/_sBlendTot:
-                   (_sit.avgCost||0)||(_sit.importedAvgCost||0);
+                   ((_sit.avgCost||0)||(_sit.importedAvgCost||0));
+    // If cost still 0 — check if priceRetail is set (fallback)
+    if(!_sBlendCost&&_sit.priceRetail) _sBlendCost=_sit.priceRetail/(1+_mg/100);
     if(_sBlendCost>0) window._salPrice=Math.round(_sBlendCost*(1+_mg/100));
     else window._salPrice=gvn('sl_p')||0;
   } else window._salPrice=gvn('sl_p')||0;window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById(window._salItem==='__service__'?'sl_svcdesc':'sl_q');if(q)q.focus();},50);}
