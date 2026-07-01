@@ -4282,8 +4282,14 @@ function pgSal(){
 
   var _defM=+(D.settings&&D.settings.defaultMargin)||20;
   var _curM=(window._salMargin!=null)?window._salMargin:_defM;
-  if(selItem&&selItem.avgCost>0&&(!window._salPrice||window._salPrice===0)){
-    window._salPrice=Math.round(selItem.avgCost*(1+_curM/100));
+  if(selItem&&(!window._salPrice||window._salPrice===0)){
+    // Use blended cost (domestic + imported weighted average)
+    var _initDom=(selItem.currentStock||0)*(selItem.avgCost||0);
+    var _initImp=(selItem.importedStock||0)*(selItem.importedAvgCost||0);
+    var _initTot=(selItem.currentStock||0)+(selItem.importedStock||0);
+    var _initCost=_initTot>0?(_initDom+_initImp)/_initTot:
+                 (selItem.avgCost||0)||(selItem.importedAvgCost||0);
+    if(_initCost>0) window._salPrice=Math.round(_initCost*(1+_curM/100));
   }
   var costInfo='';
   if(selItem){
@@ -4291,7 +4297,7 @@ function pgSal(){
     var _domVal=(selItem.currentStock||0)*(selItem.avgCost||0);
     var _impVal=(selItem.importedStock||0)*(selItem.importedAvgCost||0);
     var _totStk=(selItem.currentStock||0)+(selItem.importedStock||0);
-    var _cp=_totStk>0?(_domVal+_impVal)/_totStk:(selItem.avgCost||0);
+    var _cp=_totStk>0?(_domVal+_impVal)/_totStk:((selItem.avgCost||0)||(selItem.importedAvgCost||0));
     _cp=Math.round(_cp*100)/100;
     var _sp=window._salPrice||0,_pr=_sp-_cp;
     var _pc=_cp>0?Math.round(_pr/_cp*100):0,_prc=_pr>=0?'#2E7D32':'#C62828';
@@ -4701,8 +4707,15 @@ function onSalItemChange(){
   if(window._salMargin!=null) _mg=window._salMargin;
   else if(_itemSpecificMg!=null){_mg=_itemSpecificMg;window._salMargin=_itemSpecificMg;}
   else{_mg=(+(D.settings&&D.settings.defaultMargin)||20);}
-  if(_sit&&_sit.avgCost>0) window._salPrice=Math.round(_sit.avgCost*(1+_mg/100));
-  else window._salPrice=gvn('sl_p')||0;window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById(window._salItem==='__service__'?'sl_svcdesc':'sl_q');if(q)q.focus();},50);}
+  if(_sit){
+    var _sBlendDom=(_sit.currentStock||0)*(_sit.avgCost||0);
+    var _sBlendImp=(_sit.importedStock||0)*(_sit.importedAvgCost||0);
+    var _sBlendTot=(_sit.currentStock||0)+(_sit.importedStock||0);
+    var _sBlendCost=_sBlendTot>0?(_sBlendDom+_sBlendImp)/_sBlendTot:
+                   (_sit.avgCost||0)||(_sit.importedAvgCost||0);
+    if(_sBlendCost>0) window._salPrice=Math.round(_sBlendCost*(1+_mg/100));
+    else window._salPrice=gvn('sl_p')||0;
+  } else window._salPrice=gvn('sl_p')||0;window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById(window._salItem==='__service__'?'sl_svcdesc':'sl_q');if(q)q.focus();},50);}
 function addSal(){
   var c2=gv('sl_c')||window._salCustomer||'',iid=gv('sl_i');
   if(!c2){toast('Enter customer name','e');return;}
