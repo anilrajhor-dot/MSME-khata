@@ -1676,7 +1676,7 @@ function renderDemo(){
 // ── PRACTICE MODE: Load demo + set as today's starting point ──────
 function loadDemoForPractice(filename){
   if(!confirm('Load demo data for today\'s practice?\n\nThis will:\n1. Load the demo business data\n2. You can then add today\'s purchases/sales/expenses\n3. Balance Sheet will tally correctly\n\nक्या आप practice के लिए demo data load करना चाहते हैं?')) return;
-  var url='https://anilrajhor-dot.github.io/MSME-khata/'+filename+'.json';
+  var url='https://anilrajhor-dot.github.io/MSME-khata/'+filename+'.json?v='+Date.now();
   toast('Loading demo data for practice... ⏳');
   fetch(url).then(function(r){return r.json();}).then(function(data){
     // Load the base data
@@ -1713,7 +1713,7 @@ function reloadDemoKeepEntries(filename){
   var userPurchases=D.purchases.slice(baseline.purchasesCount);
   var userExpenses=D.expenses.slice(baseline.expensesCount);
   
-  var url='https://anilrajhor-dot.github.io/MSME-khata/'+filename+'.json';
+  var url='https://anilrajhor-dot.github.io/MSME-khata/'+filename+'.json?v='+Date.now();
   toast('Reloading demo data... ⏳');
   fetch(url).then(function(r){return r.json();}).then(function(data){
     Object.assign(D,data);
@@ -1755,7 +1755,7 @@ function getDemoEntryCount(){
 
 function loadDemoData(filename){
   if(!confirm('This will replace all current data with demo data. Are you sure?\n\nयह सभी current data को demo data से replace करेगा। क्या आप confirm करते हैं?')) return;
-  var url='https://anilrajhor-dot.github.io/MSME-khata/'+filename+'.json';
+  var url='https://anilrajhor-dot.github.io/MSME-khata/'+filename+'.json?v='+Date.now();
   toast('Loading demo data... ⏳');
   fetch(url).then(function(r){return r.json();}).then(function(data){
     Object.assign(D,data);
