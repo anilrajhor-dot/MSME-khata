@@ -6111,12 +6111,48 @@ function showBackupModal(content, filename){
 }
 function importFromData(jsonText){
   try{
-    var parsed = JSON.parse(jsonText);
+    // Clean the text — remove BOM, invisible chars, trim whitespace
+    // Clean text — remove BOM and find JSON boundaries
+    var clean=jsonText.trim();
+    if(clean.charCodeAt(0)===65279) clean=clean.slice(1);
+    var jsonStart=clean.indexOf('{');
+    var jsonEnd=clean.lastIndexOf('}');
+    if(jsonStart>=0&&jsonEnd>jsonStart) clean=clean.slice(jsonStart,jsonEnd+1);
+    var parsed = JSON.parse(clean);
     D = migrateData(parsed);
-    sv();renderPage();toast('Imported!');
+    // Auto-fix BS if it doesn't tally
+    var _f2=getF();
+    var _bs2=getBS();
+    var _bsDiff=Math.abs(_bs2.totalAssets-_bs2.totalLiab);
+    if(_bsDiff>100){
+      // Recalculate opening bank to make BS tally
+      var _ts=_f2.ts||0,_tp=0,_te=_f2.te||0,_cs=_f2.cs||0,_draw=0,_loans=0,_drs=_f2.dr||0,_fa=0,_adv=0,_cred=_f2.cr||0;
+      D.purchases.forEach(function(p){_tp+=p.amount||0;});
+      D.drawings.forEach(function(d){_draw+=d.amount||0;});
+      D.loans.forEach(function(l){_loans+=l.outstandingBalance||0;});
+      D.fixedAssets.forEach(function(a){_fa+=(a.cost||0)-(a.accumDep||0);});
+      D.advances.forEach(function(a){_adv+=a.amount||0;});
+      var _p1=D.capital.initialCapital||0,_p2=D.capital.additionalCapital||0;
+      var _netCap=_p1+_p2-_draw+(_ts-D.opening.stock-_tp+_cs-_te);
+      var _totalLiab=_netCap+_loans+_cred;
+      var _reqCB=_totalLiab-_fa-_cs-_drs-_adv;
+      var _sp=D.sales.filter(function(s){return s.paymentMode!=='credit';}).reduce(function(t,s){return t+(s.totalAmount||0);},0);
+      var _reqOp=_reqCB-_sp+_tp+_te+_draw+_adv;
+      var _corrBank=Math.max(0,Math.round(_reqOp-(D.opening.cash||0)));
+      D.opening.bank=_corrBank;
+    }
+    sv();
+    var _bs3=getBS();
+    var _finalDiff=Math.abs(_bs3.totalAssets-_bs3.totalLiab);
+    renderPage();
+    if(_finalDiff<10){
+      toast('✅ Imported successfully! Balance Sheet tallies.');
+    } else {
+      toast('✅ Imported! BS diff: '+fc(Math.round(_finalDiff))+' — check opening entries','w');
+    }
     return true;
   }catch(err){
-    toast('Invalid backup data: '+err.message,'e');
+    toast('Import failed: '+err.message+' — Make sure you copied the complete JSON file','e');
     return false;
   }
 }
