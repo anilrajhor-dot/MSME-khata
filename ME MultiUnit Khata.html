@@ -5986,6 +5986,7 @@ function impDat(e){var f2=e.target.files[0];if(!f2)return;var r2=new FileReader(
 
 function showImportModal(){
   var overlay = document.createElement('div');
+  overlay.id='import_overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;padding:14px';
   var box = document.createElement('div');
   box.style.cssText = 'background:#fff;border-radius:12px;padding:16px;max-width:480px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 4px 20px rgba(0,0,0,0.2)';
@@ -6594,6 +6595,12 @@ function deleteSale(id){
     sv();renderPage();toast('Sale deleted, stock and balance reversed.');
   });
 }
+function editSaleEntry(id){
+  var s=D.sales.find(function(x){return x.id===id;});
+  if(!s) return;
+  confirmDialog('Edit this sale?\n\nItem: '+s.itemName+'\nDate: '+s.date+'\nQty: '+s.qty+' | Amount: '+fc(s.totalAmount||0)+'\n\nStock will be reversed temporarily.',
+    function(){ window._editSaleId=id; renderPage(); go('sales'); });
+}
 function editSaleForm(s){
   var iOpts=[];
   for(var i=0;i<D.inventory.length;i++){
@@ -6692,6 +6699,12 @@ function deletePurchase(id){
     sv();renderPage();toast('Purchase deleted, stock and balance reversed.');
   });
 }
+function editPurchaseEntry(id){
+  var p=D.purchases.find(function(x){return x.id===id;});
+  if(!p) return;
+  confirmDialog('Edit this purchase?\n\nItem: '+p.itemName+'\nDate: '+p.date+'\nQty: '+p.qty+' | Amount: '+fc(p.amount||0)+'\n\nStock will be reversed temporarily.',
+    function(){ window._editPurId=id; renderPage(); go('purchase'); });
+}
 function editPurchaseForm(p){
   var iOpts=[];for(var i=0;i<D.inventory.length;i++)iOpts.push({v:D.inventory[i].id,l:D.inventory[i].itemName+' ('+D.inventory[i].unit+')'});
   return card('Edit Purchase',
@@ -6770,6 +6783,12 @@ function deleteExpense(id){
     D.expenses.splice(idx,1);
     sv();renderPage();toast('Expense deleted, balance reversed.');
   });
+}
+function editExpenseEntry(id){
+  var e=D.expenses.find(function(x){return x.id===id;});
+  if(!e) return;
+  confirmDialog('Edit this expense?\n\nCategory: '+(e.category||'')+' | Date: '+e.date+'\nAmount: '+fc(e.amount||0),
+    function(){ window._editExpId=id; renderPage(); go('expenses'); });
 }
 function editExpenseForm(e){
   return card('Edit Expense',
