@@ -12069,7 +12069,17 @@ function pgCFS() {
   var cfFinancing = netLoanChange + netCcOdChange + capitalIntroduced - drawings;
 
   // Opening and closing cash+bank
-  var openCash = (+D.opening.cash||0) + (+D.opening.bank||0);
+  // For NEW business (no Trial Balance posted): opening cash = 0
+  // because Capital + Loan receipts in Financing Activities ARE the opening balance
+  // For EXISTING business (TB posted): opening cash from Trial Balance
+  var openCash = 0;
+  if(D.tbPosted && D.trialBalance && D.trialBalance.length>0){
+    // Existing business — opening cash+bank from Trial Balance
+    (D.trialBalance||[]).forEach(function(r){
+      if(r.head==='cash'&&r.side==='dr') openCash += (+r.amount||0);
+      if(r.head==='bank'&&r.side==='dr') openCash += (+r.amount||0);
+    });
+  }
   // Use getBalances() directly — pure cash+bank only (CC/OD excluded)
   var balances = getBalances();
   var closCash = (balances.cb||0) + (balances.bb||0);
@@ -14730,8 +14740,23 @@ var _wiz = {step:0, data:{stage:'new', constitution:'Individual', btype:'Trading
 function showWelcomeIfNeeded(){
   var dismissed = false;
   try{ dismissed = localStorage.getItem('mfm_welcome_done')==='1'; }catch(e){}
-  var isPWA = window.navigator.standalone===true || window.matchMedia('(display-mode: standalone)').matches;
   if(dismissed) return;
+
+  // KEY FIX: Do NOT show wizard if data already exists
+  // Check if business already has data loaded
+  var hasData = (
+    (D.profile && D.profile.businessName && D.profile.businessName.length>0) ||
+    (D.capital && D.capital.initialCapital > 0) ||
+    (D.sales && D.sales.length > 0) ||
+    (D.purchases && D.purchases.length > 0) ||
+    (D.inventory && D.inventory.length > 0)
+  );
+  if(hasData){
+    // Data exists — mark wizard as done and skip
+    try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
+    return;
+  }
+
   _wiz = {step:0, data:{stage:'new', constitution:'Individual', btype:BIZ_TYPE||'Trading', name:'', owner:'', mobile:'', cash:0, bank:0, bankName:'SBI Bank Account', capital:0, capitalMode:'bank'}};
   showWizStep(0);
 }
