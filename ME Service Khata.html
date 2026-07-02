@@ -129,7 +129,7 @@ var BIZ_TYPE='Service';
 
 function defD(){
   return {
-    profile:{businessName:'',ownerName:'',mobile:'',mobileExtended:false,address:'',businessType:BIZ_TYPE,businessStage:'existing',udyam:'',gst:'',pan:'',tan:'',partners:[]},
+    profile:{businessName:'',ownerName:'',mobile:'',mobileExtended:false,address:'',businessType:BIZ_TYPE,businessStage:'new',udyam:'',gst:'',pan:'',tan:'',partners:[]},
     capital:{initialCapital:0,additionalCapital:0},
     loans:[],
     bankAccounts:[{id:'acc1',name:'Bank Account 1'}],
@@ -193,7 +193,7 @@ function migrateData(d){
   if(!d.otherAssetItems)d.otherAssetItems=[];
   if(!d.otherLiabItems)d.otherLiabItems=[];
   if(!d.priorPeriod)d.priorPeriod={enabled:false,fromDate:'',toDate:'',sales:0,cogs:0,expenseByCat:{}};
-  if(!d.profile.businessStage) d.profile.businessStage = 'existing';
+  if(!d.profile.businessStage) d.profile.businessStage = 'new';
   if(!d.security) d.security = {pinEnabled:false,pinHash:''};
   if(!d.bills) d.bills=[];
   if(!d.nextBillNo) d.nextBillNo=1;
@@ -3366,7 +3366,7 @@ function saveProf(){
     var mobile=gv('p_mob');
     if(!ext && mobile && mobile.length!==10){toast('Mobile number must be 10 digits, or check "Allow longer number"','e');return;}
     var existingPartners = (D.profile && Array.isArray(D.profile.partners)) ? D.profile.partners : [];
-    var newStage=gv('p_stage')||'existing';
+    var newStage=gv('p_stage')||'new';
     var oldStage=D.profile.businessStage||'existing';
     var hasTB=D.tbPosted||(D.trialBalance&&D.trialBalance.length>0);
     var doSaveProfile=function(){
@@ -14131,7 +14131,7 @@ function wizFinish(pg){
   try{ localStorage.setItem('mfm_welcome_done','1'); }catch(e){}
   // If existing business, set up properly
   if(_wiz.data.stage==='existing'){
-    D.profile.businessStage='existing';
+    D.profile.businessStage=_wiz.data.stage||'new';
     sv();
   }
   var overlay = document.getElementById('wiz-overlay');
