@@ -3310,7 +3310,24 @@ function pgProf(){
               '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="color:#5B5BD6">'+fc(a.balance)+'</b>'+
               (acctBal3.length>1?'<button onclick="deleteBankAccount('+Q+a.id+Q+')" style="background:none;border:none;color:#C62828;font-weight:700;cursor:pointer;font-size:14px">✕ Remove</button>':'')+
               '</div>'+
-              g2(inp('Account Name','ba_name_'+a.id,'text',a.name),inp('Account Number','ba_num_'+a.id,'text',a.accountNumber||''))+
+              (function(){
+          var banks=['State Bank of India','Punjab National Bank','Bank of Baroda','Canara Bank',
+            'Bank of India','Union Bank of India','Central Bank of India','HDFC Bank','ICICI Bank',
+            'Axis Bank','Kotak Mahindra Bank','UCO Bank','Indian Bank','Bank of Maharashtra',
+            'Bandhan Bank','IDFC First Bank','RBL Bank','Yes Bank','UCO Bank','Grameen Bank',
+            'RRB - Regional Rural Bank','District Co-op Bank','Urban Co-op Bank'];
+          var isKnown=banks.indexOf(a.name)>=0;
+          return '<div style="margin-bottom:8px">'+
+            '<label style="font-size:11px;font-weight:700;color:#546E7A;display:block;margin-bottom:4px">Account Name / Bank Name</label>'+
+            '<select id="ba_name_'+a.id+'" onchange="(function(){var v=this.value;if(v===\'__custom__\'){document.getElementById(\'ba_custom_'+a.id+'\').style.display=\'block\';}else{document.getElementById(\'ba_custom_'+a.id+'\').style.display=\'none\';}}).call(this)" style="width:100%;padding:8px;border:1px solid #BBDEFB;border-radius:6px;font-size:12px;box-sizing:border-box;margin-bottom:4px">'+
+            banks.map(function(b){return '<option value="'+esc(b)+'"'+(a.name===b?' selected':'')+'>'+esc(b)+'</option>';}).join('')+
+            '<option value="__custom__"'+(isKnown?'':' selected')+'>Other Bank (type below)</option>'+
+            '</select>'+
+            '<input type="text" id="ba_custom_'+a.id+'" placeholder="Type bank name..." value="'+(isKnown?'':esc(a.name))+'" '+
+            'style="width:100%;padding:8px;border:1px solid #BBDEFB;border-radius:6px;font-size:12px;box-sizing:border-box;display:'+(isKnown?'none':'block')+'">'+
+            '</div>'+
+            inp('Account Number (optional)','ba_num_'+a.id,'text',a.accountNumber||'');
+        })()+
               inp('UPI ID (linked to this account)','ba_upi_'+a.id,'text',a.upiId||'')+
               '<div style="font-size:10px;color:#546E7A;margin-bottom:6px">Enter UPI ID if this account is UPI-enabled (e.g. 9812345678@okicici)</div>'+
               ((D.settings&&D.settings.defaultUPIAccount)===a.id?'<div style="font-size:11px;color:#2E7D32;font-weight:700;margin-bottom:6px">📱 ✅ This is your UPI Account</div>':btn('📱 Set as UPI Account','setUPIAccount('+Q+a.id+Q+')','#2E7D32'))+
@@ -4796,7 +4813,24 @@ function pgCB(){
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="color:#5B5BD6">'+fc(a.balance)+'</b>'+
         (acctBalances.length>1?'<button onclick="deleteBankAccount('+Q+a.id+Q+')" style="background:none;border:none;color:#C62828;font-weight:700;cursor:pointer;font-size:14px">✕ Remove</button>':'')+
         '</div>'+
-        g2(inp('Account Name','ba_name_'+a.id,'text',a.name),inp('Account Number','ba_num_'+a.id,'text',a.accountNumber||''))+
+        (function(){
+          var banks=['State Bank of India','Punjab National Bank','Bank of Baroda','Canara Bank',
+            'Bank of India','Union Bank of India','Central Bank of India','HDFC Bank','ICICI Bank',
+            'Axis Bank','Kotak Mahindra Bank','UCO Bank','Indian Bank','Bank of Maharashtra',
+            'Bandhan Bank','IDFC First Bank','RBL Bank','Yes Bank','UCO Bank','Grameen Bank',
+            'RRB - Regional Rural Bank','District Co-op Bank','Urban Co-op Bank'];
+          var isKnown=banks.indexOf(a.name)>=0;
+          return '<div style="margin-bottom:8px">'+
+            '<label style="font-size:11px;font-weight:700;color:#546E7A;display:block;margin-bottom:4px">Account Name / Bank Name</label>'+
+            '<select id="ba_name_'+a.id+'" onchange="(function(){var v=this.value;if(v===\'__custom__\'){document.getElementById(\'ba_custom_'+a.id+'\').style.display=\'block\';}else{document.getElementById(\'ba_custom_'+a.id+'\').style.display=\'none\';}}).call(this)" style="width:100%;padding:8px;border:1px solid #BBDEFB;border-radius:6px;font-size:12px;box-sizing:border-box;margin-bottom:4px">'+
+            banks.map(function(b){return '<option value="'+esc(b)+'"'+(a.name===b?' selected':'')+'>'+esc(b)+'</option>';}).join('')+
+            '<option value="__custom__"'+(isKnown?'':' selected')+'>Other Bank (type below)</option>'+
+            '</select>'+
+            '<input type="text" id="ba_custom_'+a.id+'" placeholder="Type bank name..." value="'+(isKnown?'':esc(a.name))+'" '+
+            'style="width:100%;padding:8px;border:1px solid #BBDEFB;border-radius:6px;font-size:12px;box-sizing:border-box;display:'+(isKnown?'none':'block')+'">'+
+            '</div>'+
+            inp('Account Number (optional)','ba_num_'+a.id,'text',a.accountNumber||'');
+        })()+
         btn('Save','saveBankAcctInline('+Q+a.id+Q+')','#2E7D32')+
         '</div>';
     }).join('')+
@@ -4915,8 +4949,17 @@ function saveBudget(){
 function saveBankAcctInline(id){
   var acct=null; for(var i=0;i<D.bankAccounts.length;i++) if(D.bankAccounts[i].id===id) acct=D.bankAccounts[i];
   if(!acct){toast('Account not found','e');return;}
-  var name = gv('ba_name_'+id).trim();
-  var num = gv('ba_num_'+id).trim();
+  // Read from dropdown (select) OR plain text input
+  var selEl=document.getElementById('ba_name_'+id);
+  var custEl=document.getElementById('ba_custom_'+id);
+  var name='';
+  if(selEl&&selEl.tagName==='SELECT'){
+    var sv2=selEl.value;
+    if(sv2==='__custom__'&&custEl) name=(custEl.value||'').trim();
+    else name=sv2;
+  }
+  if(!name) name=(gv('ba_name_'+id)||'').trim();
+  var num = (gv('ba_num_'+id)||'').trim();
   if(!name){toast('Enter an account name','e');return;}
   acct.name=name; acct.accountNumber=num;
   sv();renderPage();toast('Saved!');
