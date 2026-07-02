@@ -3110,12 +3110,17 @@ function pgProf(){
     })()+
     (function(){
       var accts4=D.bankAccounts&&D.bankAccounts.length?D.bankAccounts:[{id:'acc1',name:'Bank Account 1'}];
-      var defBankOpts=accts4.map(function(a){return{v:a.id,l:a.name};});
-      var defPayOpts=[{v:'cash',l:'Cash'},{v:'bank',l:'Bank Transfer'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}];
-      return g2(
-        sl('Default Bank Account','p_defbank',defBankOpts,p.defaultBankAccount||accts4[0].id),
-        sl('Default Payment Mode','p_defpay',defPayOpts,p.defaultPaymentMode||'cash')
-      )+'<div style="font-size:10px;color:#546E7A;margin-bottom:10px">These pre-select in Sales/Purchase/Expense forms — saves time on repetitive entries. Can override per entry.</div>';
+      var defBankOpts=accts4.map(function(a){return{v:a.id,l:a.name+(a.accountNumber?' ('+a.accountNumber+')':'')};});
+      var defPayOpts=[{v:'',l:'— Select each time —'},{v:'cash',l:'Cash'},{v:'bank',l:'Bank Transfer'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}];
+      return '<div style="background:#E3F2FD;border-radius:8px;padding:8px;margin-bottom:8px">'+
+        '<div style="font-size:11px;font-weight:700;color:#1565C0;margin-bottom:4px">🏦 Default Accounts</div>'+
+        g2(
+          sl('Default Bank Account','p_defbank',defBankOpts,p.defaultBankAccount||accts4[0].id),
+          sl('Default Payment Mode','p_defpay',defPayOpts,p.defaultPaymentMode||'cash')
+        )+
+        '<div style="font-size:10px;color:#546E7A;margin-bottom:6px">These pre-select in Sales/Purchase/Expense forms. To add more banks: <b style="color:#1565C0;cursor:pointer" onclick="go(\'cashbank\');">Capital/Loans → Bank Accounts →</b></div>'+
+        '<button onclick="go(\'cashbank\')" style="padding:5px 10px;background:#1565C0;color:#fff;border:none;border-radius:6px;font-size:10px;cursor:pointer">+ Add/Edit Bank Accounts</button>'+
+      '</div>';
     })()+
     (function(){
       var logo=p.businessLogo;
