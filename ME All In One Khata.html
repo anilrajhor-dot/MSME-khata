@@ -3034,7 +3034,7 @@ function pgDash(){
   for(i=0;i<D.inventory.length;i++){
     var inv=D.inventory[i];
     var totStk=(inv.currentStock||0)+(inv.importedStock||0);
-    if(totStk===0&&inv.avgCost>0) outStock.push(inv);
+    if(totStk===0&&(inv.avgCost>0||inv.importedAvgCost>0)) outStock.push(inv);
     else if(inv.reorderLevel&&totStk<=inv.reorderLevel) lowStock.push({item:inv,pct:totStk/inv.reorderLevel});
     else if(inv.reorderLevel&&totStk<=inv.reorderLevel*1.5) nearStock.push(inv);
   }
