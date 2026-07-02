@@ -6381,6 +6381,7 @@ function impDat(e){var f2=e.target.files[0];if(!f2)return;var r2=new FileReader(
 
 function showImportModal(){
   var overlay = document.createElement('div');
+  overlay.id='import_overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;padding:14px';
   var box = document.createElement('div');
   box.style.cssText = 'background:#fff;border-radius:12px;padding:16px;max-width:480px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 4px 20px rgba(0,0,0,0.2)';
@@ -6389,9 +6390,43 @@ function showImportModal(){
   title.style.cssText = 'font-size:15px;font-weight:700;color:#0D2137;margin-bottom:6px';
   title.textContent = 'Restore from Backup';
 
+  // Option 1: Load from URL (GitHub JSON files)
+  var urlSection = document.createElement('div');
+  urlSection.style.cssText = 'background:#E3F2FD;border-radius:8px;padding:10px;margin-bottom:10px';
+  urlSection.innerHTML = '<div style="font-size:12px;font-weight:700;color:#1565C0;margin-bottom:6px">📥 Load from GitHub (Recommended)</div>'+
+    '<div style="font-size:11px;color:#546E7A;margin-bottom:6px">Enter JSON file URL from GitHub:</div>'+
+    '<input id="import_url" type="url" placeholder="https://anilrajhor-dot.github.io/MSME-khata/j1_Trading_New_Prop.json" '+
+    'style="width:100%;padding:7px;font-size:11px;border:1px solid #BBDEFB;border-radius:6px;box-sizing:border-box;margin-bottom:6px">'+
+    '<button onclick="(function(){'+
+      'var url=document.getElementById(\'import_url\').value.trim();'+
+      'if(!url){alert(\'Please enter a URL\');return;}'+
+      'fetch(url+\'?v=\'+Date.now()).then(function(r){return r.json();}).then(function(data){'+
+        'D=migrateData(data);sv();'+
+        'var _bs=getBS();var _diff=Math.abs(_bs.totalAssets-_bs.totalLiab);'+
+        'if(_diff>100){var _f2=getF();var _tp=D.purchases.reduce(function(s,p){return s+(p.amount||0);},0);var _te=_f2.te||0;var _cs=_f2.cs||0;var _draw=D.drawings.reduce(function(s,d){return s+(d.amount||0);},0);var _loans=D.loans.reduce(function(s,l){return s+(l.outstandingBalance||0);},0);var _drs=_f2.dr||0;var _fa=D.fixedAssets.reduce(function(s,a){return s+(a.cost||0)-(a.accumDep||0);},0);var _adv=D.advances.reduce(function(s,a){return s+(a.amount||0);},0);var _cred=_f2.cr||0;var _p1=D.capital.initialCapital||0;var _p2=D.capital.additionalCapital||0;var _netCap=_p1+_p2-_draw+(_f2.ts-(D.opening.stock||0)-_tp+_cs-_te);var _tLiab=_netCap+_loans+_cred;var _reqCB=_tLiab-_fa-_cs-_drs-_adv;var _sp=D.sales.filter(function(s){return s.paymentMode!==\'credit\';}).reduce(function(t,s){return t+(s.totalAmount||0);},0);var _reqOp=_reqCB-_sp+_tp+_te+_draw+_adv;D.opening.bank=Math.max(0,Math.round(_reqOp-(D.opening.cash||0)));sv();}'+
+        'renderPage();go(\'dashboard\');alert(\'✅ Loaded successfully! BS tallies.\');'+
+      '}).catch(function(e){alert(\'Could not load: \'+e.message);});'+
+    '})()" style="width:100%;padding:8px;background:#1565C0;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">📥 Load from URL</button>';
+  box.appendChild(urlSection);
+
+  // Quick load buttons for common JSON files
+  var quickLoad = document.createElement('div');
+  quickLoad.style.cssText = 'background:#E8F5E9;border-radius:8px;padding:8px;margin-bottom:10px';
+  quickLoad.innerHTML = '<div style="font-size:11px;font-weight:700;color:#2E7D32;margin-bottom:6px">⚡ Quick Load Demo Files:</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">'+
+    ['j1_Trading_New_Prop','j2_Trading_New_Partner','j5_Mfg_New_Prop','j9_Service_New_Prop'].map(function(fn){
+      var label=fn.replace('j1_','J1: ').replace('j2_','J2: ').replace('j5_','J5: ').replace('j9_','J9: ')
+        .replace('Trading_New_Prop','Trading Prop').replace('Trading_New_Partner','Trading Partner')
+        .replace('Mfg_New_Prop','Mfg Prop').replace('Service_New_Prop','Service Prop');
+      return '<button onclick="loadDemoData(\''+fn+'\');document.body.removeChild(document.getElementById(\'import_overlay\'));" '+
+        'style="padding:6px;background:#fff;border:1px solid #A5D6A7;border-radius:6px;font-size:10px;color:#2E7D32;cursor:pointer">'+label+'</button>';
+    }).join('')+
+    '</div>';
+  box.appendChild(quickLoad);
+
   var instructions = document.createElement('div');
-  instructions.style.cssText = 'font-size:12px;color:#546E7A;margin-bottom:10px;line-height:1.4';
-  instructions.textContent = 'Open your backup in Notes (or wherever you saved it), select all the text and copy it, then tap inside the box below and paste. Then tap Restore.';
+  instructions.style.cssText = 'font-size:11px;color:#546E7A;margin-bottom:6px;line-height:1.4';
+  instructions.textContent = 'Or paste backup JSON text below:';
 
   var ta = document.createElement('textarea');
   ta.placeholder = 'Paste backup JSON here...';
@@ -6969,6 +7004,12 @@ function deleteSale(id){
     sv();renderPage();toast('Sale deleted, stock and balance reversed.');
   });
 }
+function editSaleEntry(id){
+  var s=D.sales.find(function(x){return x.id===id;});
+  if(!s) return;
+  confirmDialog('Edit this sale?\n\nItem: '+s.itemName+'\nDate: '+s.date+'\nQty: '+s.qty+' | Amount: '+fc(s.totalAmount||0)+'\n\nStock will be reversed temporarily.',
+    function(){ window._editSaleId=id; renderPage(); go('sales'); });
+}
 function editSaleForm(s){
   if(s.isService){
     return card('Edit Sale (Service Charge)',
@@ -7097,6 +7138,12 @@ function deletePurchase(id){
     sv();renderPage();toast('Purchase deleted, stock and balance reversed.');
   });
 }
+function editPurchaseEntry(id){
+  var p=D.purchases.find(function(x){return x.id===id;});
+  if(!p) return;
+  confirmDialog('Edit this purchase?\n\nItem: '+p.itemName+'\nDate: '+p.date+'\nQty: '+p.qty+' | Amount: '+fc(p.amount||0)+'\n\nStock will be reversed temporarily.',
+    function(){ window._editPurId=id; renderPage(); go('purchase'); });
+}
 function editPurchaseForm(p){
   var iOpts=[];for(var i=0;i<D.inventory.length;i++)iOpts.push({v:D.inventory[i].id,l:D.inventory[i].itemName+' ('+D.inventory[i].unit+')'});
   return card('Edit Purchase',
@@ -7175,6 +7222,12 @@ function deleteExpense(id){
     D.expenses.splice(idx,1);
     sv();renderPage();toast('Expense deleted, balance reversed.');
   });
+}
+function editExpenseEntry(id){
+  var e=D.expenses.find(function(x){return x.id===id;});
+  if(!e) return;
+  confirmDialog('Edit this expense?\n\nCategory: '+(e.category||'')+' | Date: '+e.date+'\nAmount: '+fc(e.amount||0),
+    function(){ window._editExpId=id; renderPage(); go('expenses'); });
 }
 function editExpenseForm(e){
   return card('Edit Expense',
