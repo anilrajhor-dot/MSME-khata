@@ -6066,7 +6066,16 @@ function pgDat(){
   }
   var stats=[['Inventory',D.inventory.length],['Purchases',D.purchases.length],['Sales',D.sales.length],['Expenses',D.expenses.length],['Cash/Bank Entries',D.cashBook.length],['Loans',D.loans.length],['Debtors',D.debtors.length],['Creditors',D.creditors.length]];
   h+=card('Data Overview','<div class="g2">'+stats.map(function(s){return'<div style="display:flex;justify-content:space-between;padding:7px 9px;background:#F0F4FF;border-radius:7px;font-size:12px"><span style="color:#546E7A">'+s[0]+'</span><b>'+s[1]+'</b></div>';}).join('')+'</div>');
-  h+=card('Backup &amp; Restore',btn('⬇ Download Backup','expDat()')+'<br><br>'+btn('⬆ Paste Backup to Restore','showImportModal()','#546E7A')+'<br><br><label class="btn bfull" style="background:#546E7A;cursor:pointer">⬆ Import Backup File<input type="file" accept=".json" onchange="impDat(event)" style="display:none"></label><br>'+btn('🗑 Clear All Data','clrAll()','#C62828'));
+  h+=card('Backup &amp; Restore',
+  btn('⬇ Download Backup','expDat()')+
+  '<br><br>'+
+  btn('⬆ Paste Backup to Restore','showImportModal()','#546E7A')+
+  '<br><br>'+
+  '<button onclick="triggerFileImport()" class="btn bfull" style="background:#546E7A;cursor:pointer">⬆ Import Backup File</button>'+
+  '<input type="file" id="json_file_inp" accept=".json,application/json" style="display:none;position:absolute;left:-9999px" onchange="impDat(event)">'+
+  '<br>'+
+  btn('🗑 Clear All Data','clrAll()','#C62828')
+);
   h+=card('Install on Phone','<div class="al ali"><b style="font-size:12px">Android (Chrome)</b><p style="font-size:11px;margin-top:4px">Menu ⋮ → Add to Home Screen</p></div><div class="al ali"><b style="font-size:12px">iPhone (Safari)</b><p style="font-size:11px;margin-top:4px">Share ↑ → Add to Home Screen</p></div><div class="al als"><b style="font-size:12px;color:#2E7D32">✅ Works Offline</b><p style="font-size:11px;margin-top:4px">Data saved on your device</p></div>');
   return h;
 }
@@ -6184,7 +6193,37 @@ function importFromData(jsonText){
     return false;
   }
 }
-function impDat(e){var f2=e.target.files[0];if(!f2)return;var r2=new FileReader();r2.onload=function(ev){importFromData(ev.target.result);};r2.readAsText(f2);}
+
+function triggerFileImport(){
+  // Create fresh input element each time — more reliable on iOS Safari PWA
+  var inp=document.getElementById('json_file_inp');
+  if(!inp){
+    inp=document.createElement('input');
+    inp.type='file';
+    inp.id='json_file_inp';
+    inp.accept='.json,application/json,text/plain';
+    inp.style.cssText='display:none;position:absolute;left:-9999px';
+    inp.onchange=function(e){impDat(e);};
+    document.body.appendChild(inp);
+  }
+  inp.value=''; // Reset so same file can be selected again
+  inp.click();
+}
+
+function impDat(e){
+  var f2=e.target.files[0];
+  if(!f2){toast('No file selected','e');return;}
+  if(f2.size>10*1024*1024){toast('File too large (max 10MB)','e');return;}
+  toast('Reading file: '+f2.name+' ('+Math.round(f2.size/1024)+'KB)...');
+  var r2=new FileReader();
+  r2.onload=function(ev){
+    var result=ev.target.result;
+    if(!result||result.length<10){toast('File appears empty','e');return;}
+    importFromData(result);
+  };
+  r2.onerror=function(){toast('Could not read file. Try Paste Backup method.','e');};
+  r2.readAsText(f2,'UTF-8');
+}
 
 function showImportModal(){
   var overlay = document.createElement('div');
