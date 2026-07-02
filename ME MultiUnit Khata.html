@@ -688,6 +688,43 @@ function getF(){
   });
   return{ts:ts,tc:tc,os:os,tp:tp,cs:cs,csIndig:csIndig,csImp:csImp,csByCat:csByCat,csByCatIndig:csByCatIndig,csByCatImp:csByCatImp,gp:gp,te:te,np:gp-te,cap:cap,ltl:ltl,stl:stl,cb:cb,bb:bb,dr:dr,cr:cr,expPayable:expPayable,oa:oa,ol:ol,rmConsumed:rmConsumed,consumableConsumed:consumableConsumed,salesByType:salesByType,purchasesByType:purchasesByType,advToSuppliers:advToSuppliers,advPrepaidExp:advPrepaidExp,advFromCustomers:advFromCustomers};
 }
+
+function getBS(){
+  // Returns Balance Sheet totals using same logic as Financials → Balance Sheet
+  var f=getF();
+  var fa=fixedAssetsNetTotal();
+  var oa=otherAssetsExclFA();
+  var cs=f.cs, dr=f.dr, cb=f.cb, bb=f.bb;
+  var adv=(f.advToSuppliers||0)+(f.advPrepaidExp||0);
+  var advFromCust=f.advFromCustomers||0;
+  var expPayable=f.expPayable||0;
+
+  // ASSETS
+  var totalCurrentAssets=cs+dr+adv+cb+bb;
+  var totalAssets=fa+oa+totalCurrentAssets;
+
+  // LIABILITIES
+  var np=f.np;
+  var p1=(D.capital.initialCapital||0);
+  var p2=(D.capital.additionalCapital||0);
+  var totalDrawings=(D.drawings||[]).reduce(function(s,d){return s+(+d.amount||0);},0);
+  var netCap=p1+p2-totalDrawings+np;
+  var loans=f.ltl||0;
+  var cred=f.cr||0;
+  var currentLiab=cred+advFromCust+expPayable;
+  var totalLiab=netCap+loans+currentLiab+(f.ol||0);
+
+  return {
+    totalAssets:totalAssets,
+    totalLiab:totalLiab,
+    diff:totalAssets-totalLiab,
+    currentAssets:totalCurrentAssets,
+    currentLiab:currentLiab,
+    netCap:netCap,
+    loans:loans
+  };
+}
+
 function isCcOdLoan(l){ return l.loanType==='Cash Credit (CC)' || l.loanType==='Overdraft (OD)'; }
 // Net block of Fixed Assets + Intangibles (book value)
 function fixedAssetsNetTotal(){
