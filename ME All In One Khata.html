@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <script>
-var _BUILD="202406300001";
+var _BUILD="202407020002";
 try{ sessionStorage.setItem("mfm_build",_BUILD); }catch(e){}
 // Note: removed forced location.reload() — this caused blank screens in
 // standalone "Add to Home Screen" mode on iOS Safari (reload loop/race condition)
@@ -4075,6 +4075,11 @@ function pgInv(){
   var tv=0,i;for(i=0;i<D.inventory.length;i++)tv+=D.inventory[i].currentStock*D.inventory[i].avgCost+(D.inventory[i].importedStock||0)*(D.inventory[i].importedAvgCost||0);
   var hasImported = D.inventory.some(function(r){return (r.importedStock||0)>0;});
   var h='<div class="sg">'+sc('Items',D.inventory.length,'#1565C0','')+sc('Stock Value',fc(tv),'#2E7D32','')+'</div>';
+  h+='<div style="background:#E8F5E9;border-left:4px solid #2E7D32;border-radius:8px;padding:10px;margin-bottom:8px">'+
+    '<b style="font-size:12px;color:#2E7D32">ℹ️ Inventory is OPTIONAL for new business</b><br>'+
+    '<span style="font-size:11px;color:#37474F">You can directly go to <b>Purchase</b> and use "+ New Item" to add items while purchasing. Stock updates automatically.<br>'+
+    'नई business में Inventory पहले add करना जरूरी नहीं। Purchase में "+ New Item" से item add करें — stock automatic update होगा।</span>'+
+  '</div>';
   h+=card('Add Item',
       g2(inp('Item Name','iv_n','text',''),sl('Unit','iv_u',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
       g2(inp('Current Stock (on hand)','iv_os','number',0),inp('Cost per Unit (₹)','iv_pr','number',0))+
@@ -4886,11 +4891,52 @@ function saveBankAcctInline(id){
   sv();renderPage();toast('Saved!');
 }
 // Add a new blank bank account row for the user to fill in and save
+function _selBankName(b){
+  var el=document.getElementById('newbk_custom');
+  if(el) el.value=b;
+}
+function _addBankConfirm(){
+  var nm=(document.getElementById('newbk_custom').value||'').trim();
+  var ac=(document.getElementById('newbk_accno').value||'').trim();
+  if(!nm){toast('Please enter bank name','e');return;}
+  D.bankAccounts=D.bankAccounts||[];
+  D.bankAccounts.push({id:uid(),name:nm+(ac?' '+ac:''),accountNumber:ac,upiId:''});
+  sv();
+  var ov=document.getElementById('addbank_overlay');
+  if(ov) document.body.removeChild(ov);
+  renderPage();
+  toast('✅ Bank account added: '+nm);
+}
 function addBankAccountBlank(){
   D.bankAccounts=D.bankAccounts||[];
-  var n = D.bankAccounts.length+1;
-  D.bankAccounts.push({id:uid(),name:'Bank Account '+n,accountNumber:''});
-  sv();renderPage();toast('New account row added - enter details and tap Save.');
+  var overlay=document.createElement('div');
+  overlay.id='addbank_overlay';
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  var banks=['State Bank of India','Punjab National Bank','Bank of Baroda','Canara Bank',
+    'Bank of India','Union Bank of India','Central Bank of India','HDFC Bank','ICICI Bank',
+    'Axis Bank','Kotak Mahindra Bank','UCO Bank','Indian Bank','Bank of Maharashtra',
+    'Bandhan Bank','IDFC First Bank','RBL Bank','Yes Bank','Grameen Bank','RRB',
+    'District Co-op Bank','Urban Co-op Bank','Other Bank'];
+  box.innerHTML='<div style="font-size:15px;font-weight:800;color:#1565C0;margin-bottom:4px">🏦 Add Bank Account</div>'+
+    '<div style="font-size:11px;color:#546E7A;margin-bottom:10px">Select your bank or type name below:</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">'+
+    banks.map(function(b){
+      return '<button onclick="_selBankName(this.getAttribute(\'data-b\'))" data-b="'+esc(b)+'" '+
+        'style="padding:6px 8px;background:#E3F2FD;border:1px solid #BBDEFB;border-radius:6px;font-size:10px;color:#1565C0;cursor:pointer;text-align:left">'+b+'</button>';
+    }).join('')+
+    '</div>'+
+    '<input id="newbk_custom" type="text" placeholder="Or type bank name here..." '+
+    'style="width:100%;padding:10px;border:2px solid #1565C0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:8px">'+
+    '<input id="newbk_accno" type="text" placeholder="Account Number (optional) e.g. CA-123456" '+
+    'style="width:100%;padding:10px;border:1px solid #E0E0E0;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:10px">'+
+    '<div style="display:flex;gap:8px">'+
+    '<button onclick="_addBankConfirm()" style="flex:1;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">+ Add Account</button>'+
+    '<button onclick="var ov=document.getElementById(\'addbank_overlay\');if(ov)document.body.removeChild(ov);" '+
+    'style="padding:10px 16px;background:#E0E0E0;color:#546E7A;border:none;border-radius:8px;font-size:13px;cursor:pointer">Cancel</button>'+
+    '</div>';
+  overlay.id='addbank_overlay';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
 function deleteBankAccount(id){
   var used = D.cashBook.some(function(x){return x.bankAccountId===id;});
@@ -14912,6 +14958,11 @@ function wizStepHtml(step){
         return '<option value="' + b + '" ' + (_wiz.data.bankName===b?'selected':'') + '>' + b + '</option>';
       }).join('') +
       '</select>' +
+    '</div>' +
+
+    '<div style="margin-bottom:10px">' +
+      '<label style="display:block;font-size:11px;font-weight:700;color:#546E7A;margin-bottom:4px">✏️ Or type bank name manually / या खुद नाम टाइप करें:</label>' +
+      '<input id="wiz_bankname_custom" type="text" placeholder="e.g. Grameen Bank, NKGSB Bank..." style="width:100%;padding:10px;border:1px solid #BBDEFB;border-radius:8px;font-size:13px;box-sizing:border-box" oninput="_wiz.data.bankName=this.value||document.getElementById(\'wiz_bankname\').value">' +
     '</div>' +
 
     '<div style="margin-bottom:12px">' +
