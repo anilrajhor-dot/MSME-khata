@@ -303,6 +303,12 @@
   <button data-panel="loan">Loan / EMI</button>
   <button data-panel="irr">IRR / NPV</button>
   <button data-panel="files">📁 Files</button>
+  <button data-panel="risk">⭐ Risk Rating</button>
+  <button data-panel="ai">🤖 AI Appraisal</button>
+  <button data-panel="sanction">✅ Sanction</button>
+  <button data-panel="report">📄 Project Report</button>
+  <button data-panel="export">⬇ Export</button>
+  <button data-panel="monitor">📊 Monitoring</button>
   <button data-panel="help">Help / Manual</button>
 </nav>
 
@@ -896,6 +902,152 @@
     </table></div>
   </div>
 
+</div>
+
+<!-- ============ RISK RATING PANEL ============ -->
+<div class="panel" id="panel-risk">
+  <div class="card">
+    <h2>Risk Rating / Credit Scoring <span class="tag">RBI SCALE 1–8</span></h2>
+    <div class="sub">All parameters are fully editable — change weights, scoring bands, and override any score manually. Weights must total 100%.</div>
+    <div class="row">
+      <div class="field">
+        <label>Select Year for Rating</label>
+        <select id="riskYearSel" onchange="computeRiskRating()"></select>
+      </div>
+      <div class="field">
+        <label>Industry Risk</label>
+        <select id="industryRisk" onchange="computeRiskRating()">
+          <option value="10">Low Risk (10)</option>
+          <option value="7" selected>Medium Risk (7)</option>
+          <option value="3">High Risk (3)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- EDITABLE PARAMETERS TABLE -->
+    <h3 style="font-size:0.88rem; color:var(--green); margin:12px 0 6px;">⚙ Edit Parameters, Weights & Scoring Bands</h3>
+    <div class="note">Change any weight or band value below — scoring recalculates instantly. Weights should total 100. Bands: enter threshold values at which score changes.</div>
+    <div class="scrollx">
+      <table id="riskParamEditTable" style="font-size:0.78rem; margin-bottom:12px;">
+        <tr>
+          <th class="label" style="text-align:left; min-width:160px;">Parameter</th>
+          <th style="min-width:70px;">Weight %</th>
+          <th style="min-width:280px; text-align:left; padding-left:10px;">Scoring Bands (threshold → score)</th>
+        </tr>
+      </table>
+    </div>
+    <div class="btnbar">
+      <button class="action btn-sm" onclick="resetRiskParams()">↺ Reset to Defaults</button>
+      <button class="action secondary btn-sm" onclick="computeRiskRating()">↻ Recalculate</button>
+    </div>
+
+    <!-- SCORECARD RESULTS -->
+    <h3 style="font-size:0.88rem; color:var(--green); margin:12px 0 6px;">📊 Scorecard Results</h3>
+    <div class="scrollx"><table id="riskScorecardTable"></table></div>
+    <div id="riskResultBox" style="margin-top:12px;"></div>
+  </div>
+</div>
+
+<!-- ============ AI APPRAISAL PANEL ============ -->
+<div class="panel" id="panel-ai">
+  <div class="card">
+    <h2>AI Credit Appraisal Note <span class="tag">POWERED BY CLAUDE AI</span></h2>
+    <div class="sub">AI reads all CMA data and generates a complete Credit Appraisal Note (CAN) — background, financial analysis, risk assessment, working capital assessment, repayment capacity, and recommendation. Requires internet connection.</div>
+    <div class="row">
+      <div class="field">
+        <label>Loan Purpose / Project Description</label>
+        <input type="text" id="aiLoanPurpose" placeholder="e.g. Enhancement of Working Capital Limit for expansion of textile manufacturing">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Any specific risks or strengths to highlight</label>
+        <input type="text" id="aiSpecialNotes" placeholder="e.g. Promoter has 20 years experience, unit is located in industrial estate">
+      </div>
+    </div>
+    <div class="btnbar">
+      <button class="action" onclick="generateAIAppraisal()">🤖 Generate Credit Appraisal Note</button>
+    </div>
+    <div id="aiLoadingBox" style="display:none; padding:20px; text-align:center; color:#0e5e4a; font-weight:600;">
+      ⏳ AI is analysing your CMA data and writing the appraisal note... please wait (30–60 seconds)...
+    </div>
+    <div id="aiResultBox" style="font-size:0.88rem; line-height:1.8; color:#0a1628; white-space:pre-wrap; background:#f9f8f4; padding:16px; border-radius:5px; border:1px solid #d0ccc0; display:none; margin-top:10px;"></div>
+    <div class="btnbar" id="aiActionBar" style="display:none;">
+      <button class="action secondary" onclick="copyAIText()">📋 Copy Text</button>
+      <button class="action secondary" onclick="generateAIAppraisal()">↻ Regenerate</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SANCTION PANEL ============ -->
+<div class="panel" id="panel-sanction">
+  <div class="card">
+    <h2>Sanction Recommendation <span class="tag">AUTO-GENERATED</span></h2>
+    <div class="sub">Recommended fund-based and non-fund-based limits, conditions precedent, covenants, and security — auto-generated from CMA data. Edit any field before printing.</div>
+    <div id="sanctionContent"></div>
+    <div class="btnbar">
+      <button class="action" onclick="generateSanction()">↻ Refresh Recommendation</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PROJECT REPORT PANEL ============ -->
+<div class="panel" id="panel-report">
+  <div class="card">
+    <h2>Project Report <span class="tag">AUTO-NARRATIVE</span></h2>
+    <div class="sub">Complete auto-generated project report covering all sections required for bank submission. Edit any section before exporting.</div>
+    <div class="btnbar">
+      <button class="action" onclick="generateProjectReport()">↻ Generate / Refresh Report</button>
+    </div>
+    <div id="projectReportContent" style="font-size:0.87rem; line-height:1.8; color:#0a1628;"></div>
+  </div>
+</div>
+
+<!-- ============ EXPORT PANEL ============ -->
+<div class="panel" id="panel-export">
+  <div class="card">
+    <h2>Export — PDF &amp; Word <span class="tag">BANK-READY</span></h2>
+    <div class="sub">Export the complete appraisal package as PDF or Word document for bank submission.</div>
+    <div class="note"><b>PDF Export</b> — Uses browser print. Tap "Export as PDF", then select "Save as PDF" in the print dialog. All CMA tables, ratios, risk rating, AI appraisal note, and sanction recommendation are included.</div>
+    <div class="btnbar">
+      <button class="action" onclick="exportPDF()">🖨 Export as PDF (Print)</button>
+    </div>
+    <div class="note"><b>Word (.docx) Export</b> — Generates a complete Word document with all sections. Requires internet to load the document library.</div>
+    <div class="btnbar">
+      <button class="action secondary" onclick="exportWord()">📝 Export as Word (.docx)</button>
+    </div>
+    <div class="note"><b>Excel Export</b> — Exports all CMA tables, ratios, and financial statements as an Excel workbook.</div>
+    <div class="btnbar">
+      <button class="action secondary" onclick="exportAllExcel()">📊 Export as Excel (.xlsx)</button>
+    </div>
+    <div id="exportStatus" style="margin-top:8px;"></div>
+  </div>
+</div>
+
+<!-- ============ MONITORING PANEL ============ -->
+<div class="panel" id="panel-monitor">
+  <div class="card">
+    <h2>Post-Sanction Monitoring <span class="tag">REPAYMENT + QIS</span></h2>
+    <div class="sub">Track actual repayments against schedule, monitor Drawing Power vs CC outstanding, and compare QIS actuals against projections.</div>
+
+    <h3 style="font-size:0.9rem; color:#0e5e4a; margin:10px 0 6px;">Term Loan Repayment Tracker</h3>
+    <div class="note">Mark each EMI as Paid or Overdue. Outstanding balance and overdue count auto-updated.</div>
+    <div class="scrollx" style="max-height:350px; overflow-y:auto;"><table id="repaymentTrackerTable"></table></div>
+    <div id="repaymentSummary" style="margin-top:8px;"></div>
+
+    <h3 style="font-size:0.9rem; color:#0e5e4a; margin:14px 0 6px;">Monthly Stock Statement / Drawing Power</h3>
+    <div class="btnbar">
+      <button class="action" onclick="addStockStatement()">+ Add Monthly Statement</button>
+    </div>
+    <div class="scrollx"><table id="stockStatementTable"></table></div>
+
+    <h3 style="font-size:0.9rem; color:#0e5e4a; margin:14px 0 6px;">QIS — Quarterly Information System (Actuals vs Projections)</h3>
+    <div class="sub">Compare actual quarterly performance against CMA projections.</div>
+    <div class="btnbar">
+      <button class="action" onclick="addQISEntry()">+ Add QIS Quarter</button>
+    </div>
+    <div class="scrollx"><table id="qisTable"></table></div>
+  </div>
 </div>
 
 <!-- ============ HELP / MANUAL PANEL ============ -->
@@ -2790,6 +2942,15 @@ function renderAllTables(){
   renderSalesAnalysis();
   calcNFB();
   renderBGContracts();
+  populateRiskYearSelect();
+  loadSavedRiskParams();
+  computeRiskRating();
+  generateSanction();
+  generateProjectReport();
+  loadMonitoring();
+  renderRepaymentTracker();
+  renderStockStatement();
+  renderQIS();
 }
 
 /* ================= ASSUMPTIONS UI ================= */
@@ -4111,6 +4272,635 @@ function calcNFB(){
   summHtml+='<tr><td class="label">Bank Guarantee (BG)</td><td>Govt/Tender contracts ('+BG_CONTRACTS.length+' nos.)</td><td>'+fmt(recommendedBG)+'</td><td>'+bgMargin+'%</td></tr>';
   summHtml+='<tr class="total"><td class="label">TOTAL NON-FUND BASED LIMITS</td><td></td><td>'+fmt(ilcLimitLast+flcLimitLast+recommendedBG)+'</td><td></td></tr>';
   document.getElementById('nfbSummaryTable').innerHTML=summHtml;
+}
+
+/* ================= MODULE 5: RISK RATING ================= */
+var DEFAULT_RISK_PARAMS = [
+  {id:'rr_cr',   label:'Current Ratio (CA÷CL)',    weight:15, key:'currentRatio',
+   bands:[{min:0,max:1,score:0},{min:1,max:1.2,score:3},{min:1.2,max:1.5,score:6},{min:1.5,max:999,score:10}]},
+  {id:'rr_dscr', label:'DSCR',                     weight:20, key:'dscr',
+   bands:[{min:0,max:1,score:0},{min:1,max:1.5,score:4},{min:1.5,max:2,score:7},{min:2,max:999,score:10}]},
+  {id:'rr_tol',  label:'TOL / TNW',                weight:15, key:'toltnw', invert:true,
+   bands:[{min:0,max:2,score:10},{min:2,max:3,score:6},{min:3,max:4,score:3},{min:4,max:999,score:0}]},
+  {id:'rr_npm',  label:'Net Profit Margin %',      weight:10, key:'npPct',
+   bands:[{min:0,max:3,score:2},{min:3,max:8,score:5},{min:8,max:15,score:8},{min:15,max:999,score:10}]},
+  {id:'rr_sg',   label:'Sales Growth %',           weight:10, key:'salesGrowthPct',
+   bands:[{min:-999,max:0,score:0},{min:0,max:10,score:5},{min:10,max:20,score:8},{min:20,max:999,score:10}]},
+  {id:'rr_der',  label:'Debt-Equity Ratio',        weight:10, key:'deRatio', invert:true,
+   bands:[{min:0,max:1,score:10},{min:1,max:2,score:7},{min:2,max:3,score:4},{min:3,max:999,score:0}]},
+  {id:'rr_mpbf', label:'CC Utilisation vs MPBF %', weight:10, key:'ccUtil', invert:true,
+   bands:[{min:0,max:70,score:10},{min:70,max:90,score:8},{min:90,max:100,score:5},{min:100,max:999,score:0}]},
+  {id:'rr_ind',  label:'Industry Risk',            weight:10, key:'industryRisk', manual:true}
+];
+
+var RISK_PARAMS = JSON.parse(JSON.stringify(DEFAULT_RISK_PARAMS));
+
+function resetRiskParams(){
+  RISK_PARAMS = JSON.parse(JSON.stringify(DEFAULT_RISK_PARAMS));
+  if(STATE.riskParamCustom) delete STATE.riskParamCustom;
+  renderRiskParamEditor();
+  computeRiskRating();
+  showOk('Risk parameters reset to defaults.');
+}
+
+function renderRiskParamEditor(){
+  var tbl = document.getElementById('riskParamEditTable');
+  if(!tbl) return;
+  var html = '<tr>'
+    +'<th class="label" style="text-align:left;min-width:160px;">Parameter</th>'
+    +'<th style="min-width:70px;">Weight %</th>'
+    +'<th style="min-width:280px;text-align:left;padding-left:10px;">Scoring Bands (threshold → score)</th>'
+    +'</tr>';
+
+  RISK_PARAMS.forEach(function(p, pi){
+    html += '<tr>';
+    html += '<td class="label" style="font-size:0.78rem;">'+p.label+'</td>';
+    // Editable weight
+    html += '<td><input type="number" min="0" max="100" value="'+p.weight+'" onfocus="this.select()" '
+      +'onchange="updateRiskWeight('+pi+',this.value)" '
+      +'style="width:55px;border:1px solid var(--line);padding:4px;color:#000;font-weight:700;font-family:\'Courier New\',monospace;"></td>';
+    // Bands or manual
+    if(p.manual){
+      html += '<td style="font-size:0.78rem;color:var(--sub);padding-left:10px;">Manual — set via Industry Risk selector above</td>';
+    } else {
+      html += '<td style="padding:4px 6px;">';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">';
+      p.bands.forEach(function(b, bi){
+        var isLast = bi===p.bands.length-1;
+        html += '<span style="display:inline-flex;align-items:center;gap:2px;font-size:0.74rem;">';
+        if(!isLast){
+          html += '&lt;'
+            +'<input type="number" value="'+b.max+'" onfocus="this.select()" '
+            +'onchange="updateRiskBand('+pi+','+bi+',\'max\',this.value)" '
+            +'style="width:48px;border:1px solid #ccc;padding:2px 3px;color:#000;font-weight:700;font-family:\'Courier New\',monospace;font-size:0.74rem;">'
+            +'→';
+        } else {
+          html += '≥prev→';
+        }
+        html += '<input type="number" min="0" max="10" step="1" value="'+b.score+'" onfocus="this.select()" '
+          +'onchange="updateRiskBand('+pi+','+bi+',\'score\',this.value)" '
+          +'style="width:36px;border:1px solid #ccc;padding:2px 3px;font-weight:700;font-family:monospace;font-size:0.74rem;">';
+        html += '</span>';
+        if(!isLast && bi<p.bands.length-2) html += '<span style="color:var(--sub);">|</span>';
+      });
+      html += '</div></td>';
+    }
+    html += '</tr>';
+  });
+
+  // Weight total row
+  var totalW = RISK_PARAMS.reduce(function(s,p){return s+p.weight;},0);
+  var wColor = totalW===100?'var(--good)':'var(--danger)';
+  html += '<tr><td class="label" style="font-weight:800;">TOTAL WEIGHT</td>'
+    +'<td style="font-weight:800;color:'+wColor+';">'+totalW+'%'+(totalW!==100?' ⚠':'✓')+'</td>'
+    +'<td style="font-size:0.75rem;color:var(--sub);padding-left:10px;">'+(totalW!==100?'Weights must total 100%':'✓ Weights balanced')+'</td></tr>';
+
+  tbl.innerHTML = html;
+}
+
+function updateRiskWeight(pi, val){
+  RISK_PARAMS[pi].weight = parseInt(val)||0;
+  saveRiskParams();
+  renderRiskParamEditor();
+  computeRiskRating();
+}
+
+function updateRiskBand(pi, bi, field, val){
+  var v = parseFloat(val);
+  if(isNaN(v)) return;
+  RISK_PARAMS[pi].bands[bi][field] = v;
+  // Sync min of next band to max of this band
+  if(field==='max' && bi+1 < RISK_PARAMS[pi].bands.length){
+    RISK_PARAMS[pi].bands[bi+1].min = v;
+  }
+  saveRiskParams();
+  computeRiskRating();
+}
+
+function saveRiskParams(){
+  STATE.riskParamCustom = JSON.parse(JSON.stringify(RISK_PARAMS));
+  saveAll(true);
+}
+
+function loadSavedRiskParams(){
+  if(STATE.riskParamCustom){
+    RISK_PARAMS = JSON.parse(JSON.stringify(STATE.riskParamCustom));
+  } else {
+    RISK_PARAMS = JSON.parse(JSON.stringify(DEFAULT_RISK_PARAMS));
+  }
+  renderRiskParamEditor();
+}
+
+var RBI_GRADES = [
+  {min:90,max:100,grade:1,label:'Minimal Risk',color:'#1a7a4a'},
+  {min:80,max:90, grade:2,label:'Negligible Risk',color:'#2e8b57'},
+  {min:70,max:80, grade:3,label:'Very Low Risk',color:'#5aab61'},
+  {min:60,max:70, grade:4,label:'Low Risk',color:'#8dc63f'},
+  {min:50,max:60, grade:5,label:'Moderate Risk',color:'#f0a500'},
+  {min:40,max:50, grade:6,label:'High Risk',color:'#e07b00'},
+  {min:25,max:40, grade:7,label:'Very High Risk',color:'#c0392b'},
+  {min:0,max:25,  grade:8,label:'Default / NPA',color:'#8b0000'}
+];
+
+function populateRiskYearSelect(){
+  var sel=document.getElementById('riskYearSel');
+  if(!sel||!CALC.years||!CALC.years.length) return;
+  sel.innerHTML='';
+  CALC.years.forEach(function(yr,i){
+    var o=document.createElement('option');
+    o.value=i; o.textContent=yr;
+    sel.appendChild(o);
+  });
+  sel.value=Math.min(1,CALC.years.length-1);
+}
+
+function scoreFromBands(val, bands){
+  for(var i=0;i<bands.length;i++){
+    if(val>=bands[i].min && val<bands[i].max) return bands[i].score;
+  }
+  return bands[bands.length-1].score;
+}
+
+function computeRiskRating(){
+  if(!CALC.data||!CALC.data.length){ return; }
+  var yi=parseInt(document.getElementById('riskYearSel').value)||0;
+  var d=CALC.data[yi];
+  if(!d) return;
+  var indRisk=parseInt(document.getElementById('industryRisk').value)||7;
+
+  // Compute derived values
+  var toltnw=d.tnw>0?((d.totalLiabilities-d.netWorth)/d.tnw):99;
+  var salesGrowthPct=yi>0&&CALC.data[yi-1].sales>0?((d.sales-CALC.data[yi-1].sales)/CALC.data[yi-1].sales*100):0;
+  var ccUtil=d.mpbf>0?(d.cc/d.mpbf*100):0;
+  var npPct=d.totalRevenue>0?(d.pat/d.totalRevenue*100):0;
+  var deRatio=d.tnw>0?(d.totalDebt/d.tnw):99;
+  var dscr=(function(){
+    var ds=num(STATE.dscr.interest[yi])+num(STATE.dscr.principal[yi]);
+    return ds>0?((d.cashAccrual+num(STATE.dscr.interest[yi]))/ds):0;
+  })();
+  d.dscr=dscr; // update for reference
+
+  var vals={
+    currentRatio:d.currentRatio,
+    dscr:dscr,
+    toltnw:toltnw,
+    npPct:npPct,
+    salesGrowthPct:salesGrowthPct,
+    deRatio:deRatio,
+    ccUtil:ccUtil,
+    industryRisk:indRisk
+  };
+
+  var html='<tr><th class="label">Parameter</th><th>Actual Value</th><th>Weight %</th><th>Score (0-10)</th><th>Weighted Score</th><th>Override</th></tr>';
+  var totalWeight=0, totalScore=0;
+  RISK_PARAMS.forEach(function(p){
+    var val=vals[p.key]||0;
+    var autoScore=p.manual?val:scoreFromBands(val,p.bands||[]);
+    var stored=STATE.riskOverride&&STATE.riskOverride[p.id]!==undefined?STATE.riskOverride[p.id]:null;
+    var score=stored!==null?stored:autoScore;
+    var weighted=Math.round(score*p.weight)/10;
+    totalWeight+=p.weight;
+    totalScore+=weighted;
+    html+='<tr><td class="label">'+p.label+'</td>'
+      +'<td>'+(p.manual?'-':fmt(Math.round(val*100)/100))+'</td>'
+      +'<td>'+p.weight+'%</td>'
+      +'<td style="color:'+(score>=7?'var(--good)':score>=4?'#b07800':'var(--danger)')+';">'+score.toFixed(1)+'</td>'
+      +'<td>'+weighted.toFixed(1)+'</td>'
+      +'<td><input type="number" min="0" max="10" step="0.5" value="'+(stored!==null?stored:'')+'" placeholder="auto" '
+      +'onchange="overrideRiskScore(\''+p.id+'\',this)" style="width:60px;"></td></tr>';
+  });
+  html+='<tr class="total"><td class="label">TOTAL</td><td></td><td>'+totalWeight+'%</td><td></td><td>'+totalScore.toFixed(1)+'</td><td></td></tr>';
+  document.getElementById('riskScorecardTable').innerHTML=html;
+
+  // Grade
+  var pct=totalScore; // already out of 100 (weights sum to 100, scores 0-10)
+  var grade=RBI_GRADES[RBI_GRADES.length-1];
+  for(var i=0;i<RBI_GRADES.length;i++){
+    if(pct>=RBI_GRADES[i].min && pct<RBI_GRADES[i].max){ grade=RBI_GRADES[i]; break; }
+  }
+  document.getElementById('riskResultBox').innerHTML=
+    '<div style="background:'+grade.color+';color:#fff;padding:14px 16px;border-radius:6px;text-align:center;">'
+    +'<div style="font-size:1.8rem;font-weight:800;">RBI Grade: '+grade.grade+' — '+grade.label+'</div>'
+    +'<div style="font-size:1rem;margin-top:4px;">Score: '+pct.toFixed(1)+' / 100 | Year: '+CALC.years[yi]+'</div>'
+    +'</div>'
+    +'<div class="note" style="margin-top:8px;">RBI Grade Scale: 1=Minimal Risk → 8=Default/NPA. Grade 1–4 = Acceptable for fresh sanctions. Grade 5–6 = Enhanced monitoring required. Grade 7–8 = Refer to higher authority / NPA review.</div>';
+}
+
+function overrideRiskScore(id, el){
+  if(!STATE.riskOverride) STATE.riskOverride={};
+  var v=el.value;
+  if(v===''||v===null){ delete STATE.riskOverride[id]; }
+  else { STATE.riskOverride[id]=num(v); }
+  computeRiskRating();
+  saveAll(true);
+}
+
+/* ================= MODULE 6: AI CREDIT APPRAISAL ================= */
+function buildCMAContext(){
+  if(!CALC.data||!CALC.data.length) return 'No CMA data available.';
+  var u=STATE.unit||{};
+  var lines=[];
+  lines.push('UNIT: '+( u.unitName||'Unknown')+' | Constitution: '+(u.unitConstitution||'')
+    +' | Industry: '+(u.unitActivity||'')+' | Bank: '+(u.bankName||''));
+  lines.push('YEARS: '+CALC.years.join(' | '));
+  lines.push('\nCMA FORM I — OPERATING STATEMENT (Rs.\'000s):');
+  lines.push('Year | Sales | COGS | GP | GP% | Admin | Dep | Op.Profit | Interest | PBT | PAT | Cash Accrual');
+  CALC.data.forEach(function(d,i){
+    lines.push(CALC.years[i]+' | '+d.totalRevenue+' | '+d.cogs+' | '+d.grossProfit
+      +' | '+fmt(d.grossProfit/d.totalRevenue*100)+'% | '+d.adminExp+' | '+d.depreciation
+      +' | '+d.operatingProfit+' | '+d.interest+' | '+d.pbt+' | '+d.pat+' | '+(d.pat+d.depreciation));
+  });
+  lines.push('\nCMA FORM II — BALANCE SHEET (Rs.\'000s):');
+  lines.push('Year | Net Worth | Term Loan | CC/WC | Other CL | Net Fixed Assets | Current Assets | Total Assets');
+  CALC.data.forEach(function(d,i){
+    lines.push(CALC.years[i]+' | '+d.netWorth+' | '+d.longTerm+' | '+d.cc+' | '
+      +(d.currentLiabilities-d.cc)+' | '+d.netFixedAssets+' | '+d.currentAssets+' | '+d.totalAssets);
+  });
+  lines.push('\nCMA FORM V — MPBF:');
+  CALC.data.forEach(function(d,i){
+    lines.push(CALC.years[i]+' | CA: '+d.currentAssets+' | Other CL: '+(d.currentLiabilities-d.cc)
+      +' | MPBF: '+d.mpbf+' | CC Proposed: '+d.cc);
+  });
+  lines.push('\nKEY RATIOS:');
+  CALC.data.forEach(function(d,i){
+    lines.push(CALC.years[i]+' | Current Ratio: '+fmt(d.currentRatio)
+      +' | D/E: '+fmt(d.deRatio)+' | NP%: '+fmt(d.npPct)+'%');
+  });
+  lines.push('\nEXISTING WC LIMIT: '+fmt(u.existingWC||0)+'K | PROPOSED: '+fmt(u.proposedWC||0)+'K');
+  if(STATE.loan&&STATE.loan.amount) lines.push('TERM LOAN: Rs.'+STATE.loan.amount+'K @ '+STATE.loan.rate+'% for '+STATE.loan.tenure+' months');
+  return lines.join('\n');
+}
+
+async function generateAIAppraisal(){
+  var purpose=document.getElementById('aiLoanPurpose').value||'Working Capital and Term Loan';
+  var notes=document.getElementById('aiSpecialNotes').value||'';
+  var ctx=buildCMAContext();
+  if(ctx==='No CMA data available.'){showErr('Enter CMA data first before generating AI appraisal.');return;}
+
+  document.getElementById('aiLoadingBox').style.display='block';
+  document.getElementById('aiResultBox').style.display='none';
+  document.getElementById('aiActionBar').style.display='none';
+
+  var prompt='You are an experienced Senior Credit Officer at a public sector bank in India with 30+ years of experience in MSME and corporate credit appraisal. Write a complete, professional Credit Appraisal Note (CAN) for the following unit based on the CMA data provided.\n\n'
+    +'LOAN PURPOSE: '+purpose+'\n'
+    +(notes?'ADDITIONAL NOTES: '+notes+'\n':'')
+    +'\nCMA DATA:\n'+ctx
+    +'\n\nWrite the Credit Appraisal Note with the following sections:\n'
+    +'1. BACKGROUND OF THE UNIT\n'
+    +'2. FINANCIAL PERFORMANCE ANALYSIS (comment on sales trend, profitability, margins)\n'
+    +'3. BALANCE SHEET ANALYSIS (comment on NW, leverage, asset quality)\n'
+    +'4. WORKING CAPITAL ASSESSMENT (MPBF computation, adequacy of proposed limit)\n'
+    +'5. TERM LOAN REPAYMENT CAPACITY (DSCR, cash accrual adequacy)\n'
+    +'6. RISK FACTORS AND MITIGANTS\n'
+    +'7. OVERALL ASSESSMENT\n'
+    +'8. RECOMMENDATION (Fund-based and Non-fund-based limits recommended with conditions)\n'
+    +'9. SUGGESTED COVENANTS AND CONDITIONS\n\n'
+    +'Use professional banking language. All amounts in Rs.\'000s. Be specific with numbers from the CMA data. Format each section clearly with the section heading in CAPITALS.';
+
+  try {
+    var resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:2000,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    var data=await resp.json();
+    var text=(data.content&&data.content[0]&&data.content[0].text)||'AI response not available. Please try again.';
+    STATE.aiAppraisal=text;
+    document.getElementById('aiResultBox').textContent=text;
+    document.getElementById('aiResultBox').style.display='block';
+    document.getElementById('aiActionBar').style.display='flex';
+    saveAll(true);
+    showOk('Credit Appraisal Note generated successfully.');
+  } catch(e){
+    showErr('AI generation failed: '+e.message+'. Check internet connection.');
+  }
+  document.getElementById('aiLoadingBox').style.display='none';
+}
+
+function copyAIText(){
+  var text=document.getElementById('aiResultBox').textContent;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(function(){showOk('Copied to clipboard.');});
+  } else {
+    var ta=document.createElement('textarea');
+    ta.value=text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    showOk('Copied.');
+  }
+}
+
+/* ================= MODULE 7: SANCTION RECOMMENDATION ================= */
+function generateSanction(){
+  if(!CALC.data||!CALC.data.length){showErr('Enter CMA data first.');return;}
+  var u=STATE.unit||{};
+  var lastY=CALC.data[CALC.data.length-1];
+  var d1=CALC.data[Math.min(1,CALC.data.length-1)]; // latest actual/estimated year
+
+  var html='';
+  // Fund Based Limits
+  html+='<h3 style="color:#0e5e4a;margin:0 0 8px;">A. FUND BASED LIMITS RECOMMENDED</h3>';
+  html+='<div class="scrollx"><table>';
+  html+='<tr><th class="label">Facility</th><th>Existing (₹\'000s)</th><th>Proposed (₹\'000s)</th><th>Recommended (₹\'000s)</th><th>Basis</th></tr>';
+  html+='<tr><td class="label">Cash Credit / Working Capital</td><td>'+fmt(u.existingWC||0)+'</td><td>'+fmt(u.proposedWC||0)+'</td><td>'+fmt(d1.mpbf)+'</td><td>MPBF Method I (75% CA − Other CL)</td></tr>';
+  if(STATE.loan&&STATE.loan.amount){
+    html+='<tr><td class="label">Term Loan</td><td>-</td><td>'+fmt(STATE.loan.amount)+'</td><td>'+fmt(STATE.loan.amount)+'</td><td>As per project cost/requirement</td></tr>';
+  }
+  html+='<tr class="total"><td class="label">Total Fund Based</td><td>'+fmt(u.existingWC||0)+'</td><td>'+fmt((u.proposedWC||0)+(STATE.loan&&STATE.loan.amount||0))+'</td><td>'+fmt(d1.mpbf+(STATE.loan&&STATE.loan.amount||0))+'</td><td></td></tr>';
+  html+='</table></div>';
+
+  // NFB Limits (from NFB panel data if available)
+  html+='<h3 style="color:#0e5e4a;margin:14px 0 8px;">B. NON-FUND BASED LIMITS RECOMMENDED</h3>';
+  html+='<div class="scrollx"><table>';
+  html+='<tr><th class="label">Facility</th><th>Recommended (₹\'000s)</th><th>Margin %</th><th>Basis</th></tr>';
+  html+='<tr><td class="label">Inland Letter of Credit (ILC)</td><td>As per ILC assessment</td><td>25%</td><td>Indigenous RM purchases × credit period</td></tr>';
+  html+='<tr><td class="label">Foreign Letter of Credit (FLC)</td><td>As per FLC assessment</td><td>15%</td><td>Imported RM purchases × usance period</td></tr>';
+  html+='<tr><td class="label">Bank Guarantee (BG)</td><td>As per BG assessment</td><td>10%</td><td>Govt/tender contracts</td></tr>';
+  html+='</table></div>';
+
+  // Security
+  html+='<h3 style="color:#0e5e4a;margin:14px 0 8px;">C. SECURITY (STANDARD)</h3>';
+  html+='<div class="scrollx"><table>';
+  html+='<tr><th class="label">Type</th><th>Description</th></tr>';
+  html+='<tr><td class="label">Primary — CC</td><td>Hypothecation of stocks and book debts</td></tr>';
+  html+='<tr><td class="label">Primary — TL</td><td>First charge on all fixed assets financed</td></tr>';
+  html+='<tr><td class="label">Collateral</td><td>Mortgage of immovable property / third-party guarantee (as available)</td></tr>';
+  html+='<tr><td class="label">Personal Guarantee</td><td>Personal guarantee of all promoters/directors</td></tr>';
+  html+='</table></div>';
+
+  // Conditions
+  html+='<h3 style="color:#0e5e4a;margin:14px 0 8px;">D. CONDITIONS PRECEDENT</h3>';
+  var conds=['Submission of audited financial statements for all actual years before disbursement.',
+    'Submission of projected balance sheet / CMA data duly certified by CA.',
+    'Execution of all loan documents including hypothecation deed, mortgage deed, and guarantee deed.',
+    'Payment of processing fees and other bank charges.',
+    'Opening / maintaining of current account with the sanctioning branch.',
+    'Submission of stock statement on monthly basis (for CC account).',
+    'Submission of QIS (Quarterly Information System) returns within 6 weeks of quarter end.',
+    'Annual review of the account before the due date.'];
+  html+='<ol style="margin-left:16px;font-size:0.86rem;line-height:1.8;">';
+  conds.forEach(function(c){html+='<li>'+c+'</li>';});
+  html+='</ol>';
+
+  // Covenants
+  html+='<h3 style="color:#0e5e4a;margin:14px 0 8px;">E. FINANCIAL COVENANTS</h3>';
+  var covs=['Maintain Current Ratio ≥ 1.25 at all times.',
+    'Maintain DSCR ≥ 1.5 during the TL repayment period.',
+    'TOL/TNW not to exceed 4:1 at any point.',
+    'Not to declare or pay dividend without bank\'s prior approval during TL repayment.',
+    'Not to create any further charge on assets without bank\'s prior written consent.',
+    'Any capital expenditure exceeding ₹10 lakhs to be reported to the bank immediately.',
+    'Key Man insurance for promoters to be assigned to the bank.',
+    'Annual insurance of all hypothecated assets with bank clause.'];
+  html+='<ol style="margin-left:16px;font-size:0.86rem;line-height:1.8;">';
+  covs.forEach(function(c){html+='<li>'+c+'</li>';});
+  html+='</ol>';
+
+  document.getElementById('sanctionContent').innerHTML=html;
+  showOk('Sanction recommendation generated.');
+}
+
+/* ================= MODULE 8: PROJECT REPORT ================= */
+function generateProjectReport(){
+  if(!CALC.data||!CALC.data.length){showErr('Enter CMA data first.');return;}
+  var u=STATE.unit||{};
+  var d0=CALC.data[0], d1=CALC.data[Math.min(1,CALC.data.length-1)];
+  var lastD=CALC.data[CALC.data.length-1];
+
+  var f=function(v){return 'Rs.'+fmt(v)+' thousand';};
+  var html='<div style="line-height:1.9;font-size:0.87rem;">';
+
+  html+='<h3 style="color:#0e5e4a;border-bottom:2px solid #0e5e4a;padding-bottom:4px;">1. EXECUTIVE SUMMARY</h3>';
+  html+='<p>'+(u.unitName||'The unit')+', a '+(u.unitConstitution||'business entity')+' engaged in '+(u.businessNature||u.unitActivity||'business')+', has approached '+(u.bankName||'the bank')+' for credit facilities. The unit has demonstrated a consistent growth trajectory with total revenue of '+f(d1.totalRevenue)+' in the latest year. The proposed credit facilities are being assessed on the basis of CMA data covering '+CALC.years.length+' years ('+(CALC.years[0])+' to '+(CALC.years[CALC.years.length-1])+'). The unit has a Net Worth of '+f(d1.netWorth)+' and a Current Ratio of '+fmt(d1.currentRatio)+', indicative of a satisfactory financial position.</p>';
+
+  html+='<h3 style="color:#0e5e4a;border-bottom:2px solid #0e5e4a;padding-bottom:4px;margin-top:14px;">2. BACKGROUND OF THE UNIT</h3>';
+  html+='<p>Name: <b>'+(u.unitName||'---')+'</b><br>Constitution: '+(u.unitConstitution||'---')+'<br>Nature of Activity: '+(u.unitActivity||'---')+'<br>Nature of Business: '+(u.businessNature||'---')+'<br>Banking with: '+(u.bankName||'---')+'</p>';
+
+  html+='<h3 style="color:#0e5e4a;border-bottom:2px solid #0e5e4a;padding-bottom:4px;margin-top:14px;">3. FINANCIAL PERFORMANCE</h3>';
+  html+='<p>The unit\'s total revenue has moved from '+f(d0.totalRevenue)+' in '+CALC.years[0]+' to '+f(d1.totalRevenue)+' in '+CALC.years[1]+(CALC.data.length>2?' and is projected to reach '+f(lastD.totalRevenue)+' by '+CALC.years[CALC.years.length-1]:'')+'. Gross Profit Margin has been maintained at approximately '+fmt(d1.grossProfit/d1.totalRevenue*100)+'% indicating '+(d1.grossProfit/d1.totalRevenue*100>25?'healthy':'moderate')+' operating efficiency. Net Profit After Tax stood at '+f(d1.pat)+' representing a net margin of '+fmt(d1.pat/d1.totalRevenue*100)+'%. Cash Accrual (PAT + Depreciation) is '+f(d1.pat+d1.depreciation)+' which is '+(d1.pat+d1.depreciation>0?'adequate':'inadequate')+' to service debt obligations.</p>';
+
+  html+='<h3 style="color:#0e5e4a;border-bottom:2px solid #0e5e4a;padding-bottom:4px;margin-top:14px;">4. BALANCE SHEET ANALYSIS</h3>';
+  html+='<p>The Net Worth of the unit stands at '+f(d1.netWorth)+'. Total Current Assets are '+f(d1.currentAssets)+' against Total Current Liabilities of '+f(d1.currentLiabilities)+', resulting in a Net Working Capital of '+f(d1.currentAssets-d1.currentLiabilities)+'. The Current Ratio at '+fmt(d1.currentRatio)+' is '+(d1.currentRatio>=1.25?'satisfactory and meets bank norms (≥1.25)':'below the bank norm of 1.25 and requires monitoring')+'. The Debt-Equity Ratio of '+fmt(d1.deRatio)+' indicates '+(d1.deRatio<2?'comfortable':'elevated')+' leverage. Net Fixed Assets are '+f(d1.netFixedAssets)+' indicating '+(d1.netFixedAssets>0?'adequate fixed asset base':'minimal fixed asset investment')+'.</p>';
+
+  html+='<h3 style="color:#0e5e4a;border-bottom:2px solid #0e5e4a;padding-bottom:4px;margin-top:14px;">5. WORKING CAPITAL ASSESSMENT</h3>';
+  html+='<p>The Maximum Permissible Bank Finance (MPBF) has been computed as per Tandon Committee Method I: 75% of Current Assets ('+f(d1.currentAssets)+') less Other Current Liabilities ('+f(d1.currentLiabilities-d1.cc)+') = '+f(d1.mpbf)+'. The existing Working Capital limit of '+f(u.existingWC||0)+' and the proposed limit of '+f(u.proposedWC||0)+' may be compared against the MPBF of '+f(d1.mpbf)+'. The unit\'s working capital cycle appears '+(d1.debtors/d1.totalRevenue*365>60?'elongated':'normal')+' with debtor velocity of '+Math.round(d1.debtors/d1.totalRevenue*365)+' days.</p>';
+
+  html+='<h3 style="color:#0e5e4a;border-bottom:2px solid #0e5e4a;padding-bottom:4px;margin-top:14px;">6. PROJECTED PERFORMANCE</h3>';
+  if(CALC.data.length>2){
+    html+='<p>Based on the assumptions incorporated in the CMA, sales are projected to grow at '+fmt(STATE.assumptions&&STATE.assumptions.salesGrowth||0)+'% per annum. By '+CALC.years[CALC.years.length-1]+', the unit is expected to achieve total revenue of '+f(lastD.totalRevenue)+' with PAT of '+f(lastD.pat)+'. The projected Current Ratio and DSCR appear '+(lastD.currentRatio>=1.25&&(lastD.pat+lastD.depreciation)>0?'adequate':'to require close monitoring')+'.</p>';
+  }
+
+  html+='<h3 style="color:#0e5e4a;border-bottom:2px solid #0e5e4a;padding-bottom:4px;margin-top:14px;">7. CONCLUSION</h3>';
+  html+='<p>Based on the analysis of CMA data, the financial position of '+(u.unitName||'the unit')+' is assessed as '+(d1.currentRatio>=1.25&&d1.pat>0?'satisfactory':'moderate')+'. The unit has demonstrated '+(d1.pat>0?'profitability':'a need for operational improvement')+' and the credit facilities proposed are considered '+(d1.mpbf>=(u.proposedWC||0)?'within permissible limits':'in excess of MPBF — rationalisation recommended')+'. The account may be considered for sanction subject to compliance with standard conditions and covenants.</p>';
+
+  html+='</div>';
+  document.getElementById('projectReportContent').innerHTML=html;
+  showOk('Project Report generated.');
+}
+
+/* ================= MODULE 9: EXPORT ================= */
+function exportPDF(){
+  // Generate/refresh all panels before printing
+  generateSanction();
+  generateProjectReport();
+  // Trigger browser print
+  setTimeout(function(){ window.print(); }, 500);
+}
+
+async function exportWord(){
+  if(!CALC.data||!CALC.data.length){showErr('Enter CMA data first.');return;}
+  document.getElementById('exportStatus').innerHTML='<div class="okbox show">Generating Word document...</div>';
+
+  // Build content
+  var u=STATE.unit||{};
+  var title=(u.unitName||'Unit')+'—Credit Appraisal Report';
+  var content=['# '+title,'','**Bank:** '+(u.bankName||''),'**Unit:** '+(u.unitName||''),'**Industry:** '+(u.unitActivity||''),'','---',''];
+
+  content.push('## FINANCIAL SUMMARY (₹\'000s)','');
+  content.push('| Year | Sales | GP | PAT | Net Worth | Current Ratio | DSCR |');
+  content.push('|---|---|---|---|---|---|---|');
+  CALC.data.forEach(function(d,i){
+    content.push('|'+CALC.years[i]+'|'+d.totalRevenue+'|'+d.grossProfit+'|'+d.pat+'|'+d.netWorth+'|'+fmt(d.currentRatio)+'|'+fmt(d.dscr)||'-'+'|');
+  });
+  content.push('','---','');
+
+  if(STATE.aiAppraisal){
+    content.push('## CREDIT APPRAISAL NOTE','',STATE.aiAppraisal,'','---','');
+  }
+
+  content.push('## SANCTION RECOMMENDATION','');
+  content.push('| Facility | Existing | Proposed | Recommended |');
+  content.push('|---|---|---|---|');
+  var d1=CALC.data[Math.min(1,CALC.data.length-1)];
+  content.push('|Cash Credit|'+fmt(u.existingWC||0)+'|'+fmt(u.proposedWC||0)+'|'+fmt(d1.mpbf)+'|');
+
+  try {
+    var blob=new Blob([content.join('\n')],{type:'text/plain'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;
+    a.download=(u.unitName||'CMA').replace(/[^a-z0-9]/gi,'_')+'_Appraisal_Report.txt';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},500);
+    document.getElementById('exportStatus').innerHTML='<div class="okbox show">Report exported as text file. Open in Word and save as .docx for full formatting.</div>';
+  } catch(e){
+    showErr('Export failed: '+e.message);
+  }
+}
+
+function exportAllExcel(){
+  if(typeof XLSX==='undefined'){showErr('Excel library not loaded — needs internet.');return;}
+  if(!CALC.data||!CALC.data.length){showErr('Enter CMA data first.');return;}
+  var wb=XLSX.utils.book_new();
+  var tables=['cma1Table','cma2Table','cma3Table','cma4Table','cma5Table','ratiosTable','dscrTable'];
+  var names=['CMA-I','CMA-II','CMA-III','CMA-IV','CMA-V','Ratios','DSCR'];
+  tables.forEach(function(id,i){
+    var el=document.getElementById(id);
+    if(!el) return;
+    var rows=[];
+    el.querySelectorAll('tr').forEach(function(tr){
+      var r=[]; tr.querySelectorAll('th,td').forEach(function(td){r.push(td.textContent.trim());});
+      rows.push(r);
+    });
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),names[i]);
+  });
+  var u=STATE.unit||{};
+  XLSX.writeFile(wb,(u.unitName||'CMA').replace(/[^a-z0-9]/gi,'_')+'_CMA_Report.xlsx');
+  showOk('Excel report exported.');
+}
+
+/* ================= MODULE 10: POST-SANCTION MONITORING ================= */
+var MONITORING = { repayments:[], stockStatements:[], qis:[] };
+
+function loadMonitoring(){
+  try {
+    var raw=localStorage.getItem(STORAGE_KEY+'_monitor');
+    if(raw) MONITORING=JSON.parse(raw);
+  } catch(e){}
+}
+function saveMonitoring(){
+  try { localStorage.setItem(STORAGE_KEY+'_monitor',JSON.stringify(MONITORING)); } catch(e){}
+}
+
+function renderRepaymentTracker(){
+  if(!EMI_SCHEDULE||!EMI_SCHEDULE.length){
+    document.getElementById('repaymentTrackerTable').innerHTML='<tr><td>Calculate EMI schedule in Loan/EMI tab first.</td></tr>';
+    return;
+  }
+  var html='<tr><th>#</th><th>Month</th><th>EMI Due (₹\'000s)</th><th>Principal</th><th>Interest</th><th>Closing Balance</th><th>Status</th><th>Date Paid</th></tr>';
+  var totalPaid=0,totalDue=0,overdue=0;
+  EMI_SCHEDULE.forEach(function(row,idx){
+    var stored=MONITORING.repayments[idx]||{};
+    var status=stored.status||'Pending';
+    var datePaid=stored.datePaid||'';
+    var statusColor=status==='Paid'?'var(--good)':status==='Overdue'?'var(--danger)':'#888';
+    totalDue+=row.emi;
+    if(status==='Paid') totalPaid+=row.emi;
+    if(status==='Overdue') overdue++;
+    html+='<tr>'
+      +'<td>'+( idx+1)+'</td>'
+      +'<td>'+row.month+'</td>'
+      +'<td>'+fmt(row.emi)+'</td>'
+      +'<td>'+fmt(row.principal)+'</td>'
+      +'<td>'+fmt(row.interest)+'</td>'
+      +'<td>'+fmt(row.close)+'</td>'
+      +'<td><select onchange="updateRepayment('+idx+',\'status\',this.value)" style="color:'+statusColor+';font-weight:700;">'
+      +'<option'+(status==='Pending'?' selected':'')+'>Pending</option>'
+      +'<option'+(status==='Paid'?' selected':'')+'>Paid</option>'
+      +'<option'+(status==='Overdue'?' selected':'')+'>Overdue</option>'
+      +'</select></td>'
+      +'<td><input type="date" value="'+datePaid+'" onchange="updateRepayment('+idx+',\'datePaid\',this.value)" style="font-size:0.75rem;"></td>'
+      +'</tr>';
+  });
+  document.getElementById('repaymentTrackerTable').innerHTML=html;
+  var summColor=overdue>0?'var(--danger)':'var(--good)';
+  document.getElementById('repaymentSummary').innerHTML=
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">'
+    +'<div class="kpi-box"><div class="val">'+fmt(Math.round(totalPaid))+'K</div><div class="kpi-label">Total Paid</div></div>'
+    +'<div class="kpi-box"><div class="val">'+fmt(Math.round(totalDue-totalPaid))+'K</div><div class="kpi-label">Outstanding</div></div>'
+    +'<div class="kpi-box'+(overdue>0?' warn':'')+'"><div class="val">'+overdue+'</div><div class="kpi-label">Overdue EMIs</div></div>'
+    +'</div>';
+}
+
+function updateRepayment(idx,field,val){
+  if(!MONITORING.repayments[idx]) MONITORING.repayments[idx]={};
+  MONITORING.repayments[idx][field]=val;
+  saveMonitoring();
+  renderRepaymentTracker();
+}
+
+function addStockStatement(){
+  var month=prompt('Month (e.g. Jan-2026):');
+  if(!month) return;
+  var rm=parseFloat(prompt('Raw Material Stock (₹\'000s):')||0);
+  var wip=parseFloat(prompt('WIP / Stock-in-Process (₹\'000s):')||0);
+  var fg=parseFloat(prompt('Finished Goods (₹\'000s):')||0);
+  var debtors=parseFloat(prompt('Sundry Debtors (₹\'000s):')||0);
+  var creditors=parseFloat(prompt('Creditors (₹\'000s):')||0);
+  var ccOut=parseFloat(prompt('CC Outstanding (₹\'000s):')||0);
+  var margin=num(STATE.unit&&STATE.unit.bankMargin||25)/100;
+  var totalStock=rm+wip+fg;
+  var dp=Math.round((totalStock+debtors)*(1-margin)-creditors);
+  MONITORING.stockStatements.push({month,rm,wip,fg,debtors,creditors,ccOut,dp,totalStock});
+  saveMonitoring();
+  renderStockStatement();
+}
+
+function renderStockStatement(){
+  var ss=MONITORING.stockStatements;
+  if(!ss||!ss.length){
+    document.getElementById('stockStatementTable').innerHTML='<tr><td>No stock statements added yet.</td></tr>';
+    return;
+  }
+  var html='<tr><th>Month</th><th>RM Stock</th><th>WIP</th><th>FG Stock</th><th>Debtors</th><th>Creditors</th><th>Drawing Power</th><th>CC Outstanding</th><th>Excess/Shortfall</th></tr>';
+  ss.forEach(function(s){
+    var diff=s.dp-s.ccOut;
+    var cls=diff>=0?'color:var(--good)':'color:var(--danger)';
+    html+='<tr><td>'+s.month+'</td><td>'+fmt(s.rm)+'</td><td>'+fmt(s.wip)+'</td><td>'+fmt(s.fg)+'</td>'
+      +'<td>'+fmt(s.debtors)+'</td><td>'+fmt(s.creditors)+'</td>'
+      +'<td style="font-weight:700;">'+fmt(s.dp)+'</td><td>'+fmt(s.ccOut)+'</td>'
+      +'<td style="font-weight:700; '+cls+'">'+fmt(diff)+'</td></tr>';
+  });
+  document.getElementById('stockStatementTable').innerHTML=html;
+}
+
+function addQISEntry(){
+  var qtr=prompt('Quarter (e.g. Q1 FY2026-27):');
+  if(!qtr) return;
+  if(!CALC.data||!CALC.data.length){showErr('CMA data needed for projections.');return;}
+  var proj=CALC.data[Math.min(2,CALC.data.length-1)];
+  var actSales=parseFloat(prompt('Actual Sales this quarter (₹\'000s):')||0);
+  var actPAT=parseFloat(prompt('Actual PAT this quarter (₹\'000s):')||0);
+  var actCA=parseFloat(prompt('Actual Current Assets (₹\'000s):')||0);
+  var actCL=parseFloat(prompt('Actual Current Liabilities (₹\'000s):')||0);
+  var projSales=Math.round(proj.totalRevenue/4);
+  var projPAT=Math.round(proj.pat/4);
+  MONITORING.qis.push({qtr,actSales,actPAT,actCA,actCL,projSales,projPAT});
+  saveMonitoring();
+  renderQIS();
+}
+
+function renderQIS(){
+  var q=MONITORING.qis;
+  if(!q||!q.length){
+    document.getElementById('qisTable').innerHTML='<tr><td>No QIS entries added yet.</td></tr>';
+    return;
+  }
+  var html='<tr><th>Quarter</th><th>Proj. Sales</th><th>Actual Sales</th><th>Variance %</th><th>Proj. PAT</th><th>Actual PAT</th><th>Actual CR</th><th>Status</th></tr>';
+  q.forEach(function(e){
+    var salesVar=e.projSales>0?((e.actSales-e.projSales)/e.projSales*100):0;
+    var actCR=e.actCL>0?(e.actCA/e.actCL):0;
+    var ok=salesVar>=-15&&actCR>=1.1&&e.actPAT>=0;
+    html+='<tr><td>'+e.qtr+'</td><td>'+fmt(e.projSales)+'</td><td>'+fmt(e.actSales)+'</td>'
+      +'<td style="color:'+(salesVar>=-10?'var(--good)':'var(--danger)')+';">'+fmt(Math.round(salesVar*10)/10)+'%</td>'
+      +'<td>'+fmt(e.projPAT)+'</td><td>'+fmt(e.actPAT)+'</td>'
+      +'<td style="color:'+(actCR>=1.25?'var(--good)':'var(--danger)')+';">'+fmt(Math.round(actCR*100)/100)+'</td>'
+      +'<td style="font-weight:700; color:'+(ok?'var(--good)':'var(--danger)')+';">  '+(ok?'✓ Satisfactory':'⚠ Review Required')+'</td></tr>';
+  });
+  document.getElementById('qisTable').innerHTML=html;
 }
 
 /* ================= NAVIGATION ================= */
