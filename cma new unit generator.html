@@ -642,29 +642,81 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
 <div class="panel" id="panel-nu-sensitivity">
 <div class="card">
   <h2>📐 Sensitivity Analysis <span class="tag">WHAT-IF</span></h2>
-  <div class="sub">Stress-test the projections. Changes here do NOT affect your CMA data.</div>
-  <div class="note">Generate CMA first, then use sliders to see impact on DSCR, IRR, MPBF.</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0;">
-    <div class="field"><label>Sales Change % <small style="color:#888;">(Base: <span id="nuSensSalesBase">—</span>)</small></label>
-      <input type="range" id="nuSensSales" min="-40" max="40" value="0" step="5" oninput="nuSensUpdate('sales',this.value)" style="width:100%">
-      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="nuSensSalesVal">0%</div></div>
-    <div class="field"><label>COGS % Change <small style="color:#888;">(Base: <span id="nuSensCogsBase">—</span>)</small></label>
-      <input type="range" id="nuSensCogs" min="-15" max="20" value="0" step="2" oninput="nuSensUpdate('cogs',this.value)" style="width:100%">
-      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="nuSensCogsVal">0%</div></div>
-    <div class="field"><label>Interest Rate Change (bps) <small style="color:#888;">(Base: <span id="nuSensIntBase">—</span>)</small></label>
-      <input type="range" id="nuSensInt" min="-100" max="300" value="0" step="25" oninput="nuSensUpdate('int',this.value)" style="width:100%">
-      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="nuSensIntVal">0 bps</div></div>
-    <div class="field"><label>Debtor Days Change <small style="color:#888;">(Base: <span id="nuSensDebBase">—</span>)</small></label>
-      <input type="range" id="nuSensDeb" min="-20" max="60" value="0" step="5" oninput="nuSensUpdate('deb',this.value)" style="width:100%">
-      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="nuSensDebVal">0 days</div></div>
+  <div class="sub">Enter exact % change for each parameter. Does NOT affect CMA projections.</div>
+  <div class="note">Generate CMA first, then enter stress figures below.</div>
+
+  <h3>Quick Scenarios</h3>
+  <div class="btnbar" style="flex-wrap:wrap;gap:6px;">
+    <button class="btn btn-secondary btn-sm" onclick="nuApplyScenario('base')">📊 Base (0%)</button>
+    <button class="btn btn-secondary btn-sm" onclick="nuApplyScenario('mild')">🟡 Mild (−10% Sales)</button>
+    <button class="btn btn-secondary btn-sm" onclick="nuApplyScenario('moderate')">🟠 Moderate (−20%)</button>
+    <button class="btn btn-secondary btn-sm" onclick="nuApplyScenario('severe')">🔴 Severe (−30%)</button>
+    <button class="btn btn-secondary btn-sm" onclick="nuApplyScenario('optimistic')">🟢 Optimistic (+15%)</button>
   </div>
-  <div class="btnbar">
-    <button class="btn btn-green" onclick="runNUSensitivity()">⚡ Recalculate</button>
-    <button class="btn btn-secondary" onclick="resetNUSensitivity()">↺ Reset</button>
+
+  <h3 style="margin-top:12px;">Enter Parameter Changes</h3>
+  <div style="overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+    <tr style="background:var(--navy);color:#fff;">
+      <th style="padding:8px 10px;text-align:left;min-width:180px;">Parameter</th>
+      <th style="padding:8px 10px;text-align:center;min-width:110px;">Base (Y1)</th>
+      <th style="padding:8px 10px;text-align:center;min-width:130px;">Change</th>
+      <th style="padding:8px 10px;text-align:center;min-width:110px;">Stressed</th>
+      <th style="padding:8px 10px;text-align:center;min-width:70px;">Impact</th>
+    </tr>
+    <tr style="background:var(--light);">
+      <td style="padding:7px 10px;font-weight:700;">Sales / Revenue</td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="nuSensBaseRev">—</td>
+      <td style="padding:4px 10px;text-align:center;">
+        <input type="number" id="nuSensSalesInp" value="0" min="-50" max="50" step="1" onfocus="this.select()"
+          oninput="runNUSensitivity()"
+          style="width:75px;padding:5px;border:2px solid var(--amber);border-radius:4px;text-align:center;font-size:0.9rem;font-weight:700;color:#000;font-family:'Courier New';">
+        <span style="color:var(--sub);font-size:0.75rem;">%</span></td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="nuSensStressRev">—</td>
+      <td style="padding:7px 10px;text-align:center;" id="nuSensImpRev">—</td>
+    </tr>
+    <tr>
+      <td style="padding:7px 10px;font-weight:700;">COGS / Direct Cost</td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="nuSensBaseCogs">—</td>
+      <td style="padding:4px 10px;text-align:center;">
+        <input type="number" id="nuSensCogsInp" value="0" min="-20" max="40" step="1" onfocus="this.select()"
+          oninput="runNUSensitivity()"
+          style="width:75px;padding:5px;border:2px solid var(--amber);border-radius:4px;text-align:center;font-size:0.9rem;font-weight:700;color:#000;font-family:'Courier New';">
+        <span style="color:var(--sub);font-size:0.75rem;">%</span></td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="nuSensStressCogs">—</td>
+      <td style="padding:7px 10px;text-align:center;" id="nuSensImpCogs">—</td>
+    </tr>
+    <tr style="background:var(--light);">
+      <td style="padding:7px 10px;font-weight:700;">Interest Rate</td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="nuSensBaseInt">—</td>
+      <td style="padding:4px 10px;text-align:center;">
+        <input type="number" id="nuSensIntInp" value="0" min="-100" max="300" step="25" onfocus="this.select()"
+          oninput="runNUSensitivity()"
+          style="width:75px;padding:5px;border:2px solid var(--amber);border-radius:4px;text-align:center;font-size:0.9rem;font-weight:700;color:#000;font-family:'Courier New';">
+        <span style="color:var(--sub);font-size:0.75rem;">bps</span></td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="nuSensStressInt">—</td>
+      <td style="padding:7px 10px;text-align:center;" id="nuSensImpInt">—</td>
+    </tr>
+    <tr>
+      <td style="padding:7px 10px;font-weight:700;">Debtor Days</td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="nuSensBaseDeb">—</td>
+      <td style="padding:4px 10px;text-align:center;">
+        <input type="number" id="nuSensDebInp" value="0" min="-30" max="90" step="5" onfocus="this.select()"
+          oninput="runNUSensitivity()"
+          style="width:75px;padding:5px;border:2px solid var(--amber);border-radius:4px;text-align:center;font-size:0.9rem;font-weight:700;color:#000;font-family:'Courier New';">
+        <span style="color:var(--sub);font-size:0.75rem;">days</span></td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="nuSensStressDeb">—</td>
+      <td style="padding:7px 10px;text-align:center;" id="nuSensImpDeb">—</td>
+    </tr>
+  </table>
+  </div>
+  <div class="btnbar" style="margin-top:10px;">
+    <button class="btn btn-green" onclick="runNUSensitivity()">⚡ Calculate</button>
+    <button class="btn btn-secondary" onclick="nuApplyScenario('base')">↺ Reset</button>
   </div>
 </div>
 <div class="card" id="nuSensResult" style="display:none;">
-  <h2>Sensitivity Results</h2>
+  <h2>Sensitivity Results <span class="tag" id="nuSensLabel">CUSTOM</span></h2>
   <div id="nuSensContent"></div>
 </div>
 </div>
@@ -2113,68 +2165,109 @@ function applyNUTemplate(name){
 function initNUSensitivity(){
   if(!C||!C.data||!C.data.length) return;
   var d0=C.data[0];
-  document.getElementById('nuSensSalesBase').textContent='₹'+nuFmt(d0.sales)+'K';
-  document.getElementById('nuSensCogsBase').textContent=d0.sales>0?Math.round(d0.cogs/d0.sales*100)+'%':'—';
-  document.getElementById('nuSensIntBase').textContent='₹'+nuFmt(d0.interest||0)+'K';
-  document.getElementById('nuSensDebBase').textContent=d0.debtors>0&&d0.sales>0?Math.round(d0.debtors/d0.sales*365)+' days':'—';
-}
-function nuSensUpdate(type,val){
-  var labels={sales:'nuSensSalesVal',cogs:'nuSensCogsVal',int:'nuSensIntVal',deb:'nuSensDebVal'};
-  var el=document.getElementById(labels[type]);
-  if(el) el.textContent=type==='int'?(val>0?'+':'')+val+' bps':type==='deb'?(val>0?'+':'')+val+' days':(val>0?'+':'')+val+'%';
+  var debDays=d0.debtors>0&&d0.sales>0?Math.round(d0.debtors/d0.sales*365):60;
+  function setB(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
+  setB('nuSensBaseRev','₹'+nuFmt(d0.sales)+'K');
+  setB('nuSensBaseCogs','₹'+nuFmt(d0.cogs)+'K ('+Math.round(d0.cogs/Math.max(d0.sales,1)*100)+'%)');
+  setB('nuSensBaseInt','₹'+nuFmt(d0.interest||0)+'K');
+  setB('nuSensBaseDeb',debDays+' days');
   runNUSensitivity();
 }
-function resetNUSensitivity(){
-  ['nuSensSales','nuSensCogs','nuSensInt','nuSensDeb'].forEach(function(id){var e=document.getElementById(id);if(e)e.value=0;});
-  ['nuSensSalesVal','nuSensCogsVal','nuSensIntVal','nuSensDebVal'].forEach(function(id){var e=document.getElementById(id);if(e)e.textContent='0';});
+function nuSensUpdate(){}  // legacy stub
+function resetNUSensitivity(){ nuApplyScenario('base'); }
+
+function nuApplyScenario(type){
+  var s={base:{sales:0,cogs:0,int:0,deb:0},mild:{sales:-10,cogs:5,int:50,deb:15},
+    moderate:{sales:-20,cogs:10,int:100,deb:30},severe:{sales:-30,cogs:20,int:200,deb:45},
+    optimistic:{sales:15,cogs:-5,int:-50,deb:-15}};
+  var labels={base:'BASE CASE',mild:'MILD STRESS',moderate:'MODERATE STRESS',severe:'SEVERE STRESS',optimistic:'OPTIMISTIC'};
+  var sc=s[type]||s.base;
+  function setV(id,v){var el=document.getElementById(id);if(el)el.value=v;}
+  setV('nuSensSalesInp',sc.sales); setV('nuSensCogsInp',sc.cogs);
+  setV('nuSensIntInp',sc.int);     setV('nuSensDebInp',sc.deb);
+  var lbl=document.getElementById('nuSensLabel'); if(lbl) lbl.textContent=labels[type]||'CUSTOM';
   runNUSensitivity();
 }
+
 function runNUSensitivity(){
-  if(!C||!C.data||!C.data.length){showErr('Generate CMA first.');return;}
+  if(!C||!C.data||!C.data.length) return;
   var d0=C.data[0];
-  var sc=nuN(document.getElementById('nuSensSales').value)/100;
-  var cc=nuN(document.getElementById('nuSensCogs').value)/100;
-  var ic=nuN(document.getElementById('nuSensInt').value)/10000;
-  var dc=nuN(document.getElementById('nuSensDeb').value);
+  var salesChg=parseFloat(document.getElementById('nuSensSalesInp').value)||0;
+  var cogsChg =parseFloat(document.getElementById('nuSensCogsInp').value)||0;
+  var intChg  =parseFloat(document.getElementById('nuSensIntInp').value)||0;
+  var debChg  =parseFloat(document.getElementById('nuSensDebInp').value)||0;
 
-  var newSales=Math.round(d0.sales*(1+sc));
-  var newCogs=Math.round(d0.cogs*(1+cc)*(1+sc));
-  var newGP=newSales-newCogs;
-  var newInt=Math.round((d0.interest||0)*(1+ic*12));
-  var newPBIT=newGP-(d0.adminExp||0)-(d0.dep||d0.depreciation||0);
-  var newPBT=newPBIT-newInt;
-  var taxRate=d0.pbt>0?d0.tax/d0.pbt:0.25;
-  var newPAT=newPBT*(1-taxRate);
-  var newCA=d0.currentAssets+(d0.debtors>0?Math.round(newSales/365*dc):0);
+  var dep=d0.dep||d0.depreciation||0;
+  var newSales=Math.round(d0.sales*(1+salesChg/100));
+  var newCogs =Math.round(d0.cogs*(1+cogsChg/100));
+  var newGP   =newSales-newCogs;
+  var newInt  =Math.round((d0.interest||0)*(1+intChg/10000));
+  var taxRate =d0.pbt>0?d0.tax/d0.pbt:0.25;
+  var newPBT  =newGP-(d0.adminExp||0)-dep-newInt;
+  var newPAT  =Math.round(newPBT*(1-taxRate));
+  var newCash =newPAT+dep;
+  var newGPPct=newSales>0?newGP/newSales*100:0;
+  var newNPPct=newSales>0?newPAT/newSales*100:0;
+  var debDaysBase=d0.debtors>0&&d0.sales>0?Math.round(d0.debtors/d0.sales*365):60;
+  var newDebDays=debDaysBase+debChg;
+  var newDebtors=Math.round(newSales*newDebDays/365);
   var otherCL=(d0.creditors||0)+(d0.otherCL||0);
+  var newCA=(d0.currentAssets-d0.debtors)+newDebtors;
   var newMPBF=Math.max(0,Math.min(newCA-otherCL,newCA*0.75));
-  var newCashAcc=newPAT+(d0.dep||d0.depreciation||0);
-  var tlInt=d0.tlInt||0, tlPrin=d0.tlRepay||d0.tlPrincipal||0;
-  var newDSCR=(tlInt+tlPrin)>0?(newCashAcc+tlInt)/(tlInt+tlPrin):0;
+  var tlInt=d0.tlInt||0,tlPrin=d0.tlRepay||0;
   var baseDSCR=d0.dscr||0;
+  var newDSCR=(tlInt+tlPrin)>0?(newCash+tlInt)/(tlInt+tlPrin):0;
+  var newCR=(otherCL+newMPBF)>0?Math.round(newCA/(otherCL+newMPBF)*100)/100:0;
 
+  // Update stressed column
+  function setS(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
+  function setImp(id,nv,bv,goodIfUp){
+    var el=document.getElementById(id);if(!el)return;
+    var d2=nv-bv,p=bv!==0?Math.round(d2/Math.abs(bv)*100):0;
+    var good=goodIfUp?d2>0:d2<0;
+    var c2=d2===0?'var(--sub)':good?'var(--good)':'var(--danger)';
+    el.innerHTML='<span style="color:'+c2+';font-weight:700;">'+(d2>0?'▲':'▼')+Math.abs(p)+'%</span>';
+  }
+  setS('nuSensStressRev','₹'+nuFmt(newSales)+'K');
+  setS('nuSensStressCogs','₹'+nuFmt(newCogs)+'K');
+  setS('nuSensStressInt','₹'+nuFmt(newInt)+'K');
+  setS('nuSensStressDeb',newDebDays+' days');
+  setImp('nuSensImpRev',newSales,d0.sales,true);
+  setImp('nuSensImpCogs',newCogs,d0.cogs,false);
+  setImp('nuSensImpInt',newInt,d0.interest||1,false);
+  setImp('nuSensImpDeb',newDebDays,debDaysBase,false);
+
+  // Results
   var rows=[
-    ['Sales (₹\'000s)',nuFmt(d0.sales),nuFmt(newSales)],
-    ['Gross Profit (₹\'000s)',nuFmt(d0.grossProfit||d0.sales-d0.cogs),nuFmt(newGP)],
-    ['GP Margin %',nuPct(d0.sales>0?(d0.sales-d0.cogs)/d0.sales*100:0),nuPct(newSales>0?newGP/newSales*100:0)],
-    ['PAT (₹\'000s)',nuFmt(d0.pat),nuFmt(Math.round(newPAT))],
-    ['MPBF (₹\'000s)',nuFmt(d0.mpbf||0),nuFmt(newMPBF)],
-    ['DSCR',baseDSCR>0?baseDSCR.toFixed(2):'—',newDSCR>0?newDSCR.toFixed(2):'—'],
+    {l:'Sales (₹\'000s)',    b:nuFmt(d0.sales),     s:nuFmt(newSales),   ok:newSales>0},
+    {l:'Gross Profit',       b:nuFmt(d0.grossProfit||d0.sales-d0.cogs), s:nuFmt(newGP), ok:newGP>0},
+    {l:'GP Margin %',        b:nuPct(d0.sales>0?(d0.sales-d0.cogs)/d0.sales*100:0), s:nuPct(newGPPct), ok:newGPPct>=15},
+    {l:'PAT (₹\'000s)',      b:nuFmt(d0.pat),       s:nuFmt(newPAT),     ok:newPAT>0},
+    {l:'NP Margin %',        b:nuPct(d0.npPct||0),  s:nuPct(newNPPct),   ok:newNPPct>=5},
+    {l:'Cash Accrual',       b:nuFmt(d0.cashAccrual||0), s:nuFmt(newCash), ok:newCash>0},
+    {l:'MPBF (₹\'000s)',     b:nuFmt(d0.mpbf||0),   s:nuFmt(newMPBF),    ok:true},
+    {l:'Current Ratio',      b:nuFmt(d0.currentRatio||0), s:newCR,        ok:newCR>=1.25},
+    {l:'DSCR',               b:baseDSCR>0?baseDSCR.toFixed(2):'—', s:newDSCR>0?newDSCR.toFixed(2):'—', ok:newDSCR>=1.5||newDSCR===0},
   ];
+  var html='<div class="scrollx"><table>'
+    +'<tr><th class="label" style="text-align:left;">Parameter</th><th>Base (Y1)</th><th style="background:#fff8e1;">Stressed</th><th>Status</th></tr>'
+    +rows.map(function(r){
+      return '<tr style="'+(r.ok?'':'background:#fdecea;')+'"><td class="label">'+r.l+'</td>'
+        +'<td style="font-family:\'Courier New\',monospace;">'+r.b+'</td>'
+        +'<td style="font-weight:800;font-family:\'Courier New\',monospace;background:#fff8e1;">'+r.s+'</td>'
+        +'<td>'+(r.ok?'<span style="color:var(--good);">✓</span>':'<span style="color:var(--danger);">⚠</span>')+'</td></tr>';
+    }).join('')+'</table></div>';
 
   var alerts=[];
-  if(newPAT<0) alerts.push('🔴 Unit turns loss-making under stress — PAT = ₹'+nuFmt(Math.round(newPAT))+'K');
-  if(newDSCR>0&&newDSCR<1.5) alerts.push('🔴 DSCR falls to '+newDSCR.toFixed(2)+' — below bank norm of 1.5');
-  if(newGP/Math.max(newSales,1)*100<10) alerts.push('🔴 Gross margin compressed to '+nuPct(newGP/Math.max(newSales,1)*100));
-  if(alerts.length===0) alerts.push('🟢 Unit remains financially viable under this stress scenario.');
-
-  var html='<div class="scrollx"><table><tr><th class="label" style="text-align:left;">Parameter</th><th>Base (Y1)</th><th>Stressed</th></tr>'
-    +rows.map(function(r){return '<tr><td class="label">'+r[0]+'</td><td>'+r[1]+'</td><td style="font-weight:700;">'+r[2]+'</td></tr>';}).join('')
-    +'</table></div>'
-    +'<div style="margin-top:8px;">'+alerts.map(function(a){
-      var c=a.startsWith('🔴')?'#fdecea':'#e8f5e9',b=a.startsWith('🔴')?'#c0392b':'#1a7a4a';
-      return '<div style="padding:8px 12px;margin-bottom:5px;border-left:4px solid '+b+';background:'+c+';border-radius:0 4px 4px 0;font-size:0.83rem;">'+a+'</div>';
-    }).join('')+'</div>';
+  if(newPAT<0) alerts.push({t:'🔴 LOSS: PAT = ₹'+nuFmt(newPAT)+'K — Unit loss-making under this scenario.',c:'bad'});
+  if(newDSCR>0&&newDSCR<1.5) alerts.push({t:'🔴 DSCR = '+newDSCR.toFixed(2)+' — Below bank norm of 1.5.',c:'bad'});
+  if(newCR<1.25) alerts.push({t:'🔴 Current Ratio = '+newCR+' — Below norm of 1.25.',c:'bad'});
+  if(newGPPct<10) alerts.push({t:'🟡 GP Margin = '+nuPct(newGPPct)+' — Very thin margins.',c:'warn'});
+  if(alerts.length===0) alerts.push({t:'🟢 Projections remain viable under this stress scenario.',c:'good'});
+  var ac={bad:'#fdecea',warn:'#fff8e1',good:'#e8f5e9'},bc={bad:'#c0392b',warn:'#f0a500',good:'#1a7a4a'};
+  html+='<div style="margin-top:10px;">'+alerts.map(function(a){
+    return '<div style="padding:9px 14px;margin-bottom:6px;border-left:4px solid '+bc[a.c]+';background:'+ac[a.c]+';border-radius:0 5px 5px 0;font-size:0.84rem;font-weight:600;">'+a.t+'</div>';
+  }).join('')+'</div>';
 
   document.getElementById('nuSensResult').style.display='block';
   document.getElementById('nuSensContent').innerHTML=html;

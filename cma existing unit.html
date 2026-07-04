@@ -418,39 +418,121 @@
 <div class="panel" id="panel-sensitivity">
 <div class="card">
   <h2>📐 Sensitivity Analysis <span class="tag">WHAT-IF SCENARIOS</span></h2>
-  <div class="sub">Adjust any parameter to instantly see the impact on DSCR, MPBF, IRR and Cash Flow. Base values auto-loaded from your CMA data.</div>
-  <div class="note" id="sensNoData" style="display:none;">⚠ Enter Trial Balance data first, then return to this tab.</div>
-  <div class="note">All changes here are for analysis only — they do NOT affect your actual CMA data.</div>
-  <h3>Select Year</h3>
-  <div class="row"><div class="field">
-    <select id="sensYearSel" onchange="updateSensBaseValues();runSensitivity()"></select>
-  </div></div>
-  <h3>Adjust Parameters</h3>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-    <div class="field"><label>Sales Change %<br><small style="color:var(--sub);">Base: <span id="sensSalesBase">—</span></small></label>
-      <input type="range" id="sensSales" min="-40" max="40" value="0" step="5" oninput="sensUpdate('sales',this.value)" style="width:100%">
-      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="sensSalesVal">0%</div>
-    </div>
-    <div class="field"><label>Raw Material Cost Change %<br><small style="color:var(--sub);">Base: <span id="sensRMBase">—</span></small></label>
-      <input type="range" id="sensRM" min="-20" max="30" value="0" step="2" oninput="sensUpdate('rm',this.value)" style="width:100%">
-      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="sensRMVal">0%</div>
-    </div>
-    <div class="field"><label>Interest Rate Change (bps)<br><small style="color:var(--sub);">Base: <span id="sensIntBase">—</span></small></label>
-      <input type="range" id="sensInt" min="-200" max="400" value="0" step="25" oninput="sensUpdate('int',this.value)" style="width:100%">
-      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="sensIntVal">0 bps</div>
-    </div>
-    <div class="field"><label>Debtor Days Change<br><small style="color:var(--sub);">Base: <span id="sensDebBase">—</span></small></label>
-      <input type="range" id="sensDeb" min="-30" max="60" value="0" step="5" oninput="sensUpdate('deb',this.value)" style="width:100%">
-      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="sensDebVal">0 days</div>
+  <div class="sub">Enter exact % change for each parameter. Results update instantly. Does NOT affect actual CMA data.</div>
+  <div class="note" id="sensNoData" style="display:none;">⚠ Enter Trial Balance data first, then come back here.</div>
+
+  <!-- Quick Scenario Presets -->
+  <h3>Quick Scenarios</h3>
+  <div class="btnbar" style="flex-wrap:wrap;gap:6px;">
+    <button class="action btn-sm" onclick="applyScenario('base')">📊 Base Case (0%)</button>
+    <button class="action btn-sm" onclick="applyScenario('mild')">🟡 Mild Stress (−10% Sales, +5% Cost)</button>
+    <button class="action btn-sm" onclick="applyScenario('moderate')">🟠 Moderate Stress (−20%, +10%)</button>
+    <button class="action btn-sm" onclick="applyScenario('severe')">🔴 Severe Stress (−30%, +20%)</button>
+    <button class="action btn-sm" onclick="applyScenario('optimistic')">🟢 Optimistic (+15% Sales, −5% Cost)</button>
+  </div>
+
+  <h3 style="margin-top:12px;">Select Year &amp; Edit Parameters</h3>
+  <div class="row">
+    <div class="field">
+      <label>Select Year for Analysis</label>
+      <select id="sensYearSel" onchange="updateSensBaseValues();runSensitivity()"></select>
     </div>
   </div>
+
+  <!-- Editable parameter inputs -->
+  <div style="overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+    <tr style="background:var(--navy);color:#fff;">
+      <th style="padding:8px 10px;text-align:left;min-width:180px;">Parameter</th>
+      <th style="padding:8px 10px;text-align:center;min-width:120px;">Base Value</th>
+      <th style="padding:8px 10px;text-align:center;min-width:140px;">Change % / Units</th>
+      <th style="padding:8px 10px;text-align:center;min-width:120px;">Stressed Value</th>
+      <th style="padding:8px 10px;text-align:center;min-width:80px;">Impact</th>
+    </tr>
+    <tr style="background:var(--light);">
+      <td style="padding:7px 10px;font-weight:700;">Sales / Revenue</td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensBaseRevenue">—</td>
+      <td style="padding:7px 10px;text-align:center;">
+        <input type="number" id="sensSalesInp" value="0" min="-50" max="50" step="1" onfocus="this.select()"
+          oninput="runSensitivity()"
+          style="width:80px;padding:5px;border:2px solid var(--amber);border-radius:4px;text-align:center;font-size:0.9rem;font-weight:700;color:#000;font-family:'Courier New';">
+        <span style="color:var(--sub);font-size:0.75rem;">%</span>
+      </td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensStressRevenue">—</td>
+      <td style="padding:7px 10px;text-align:center;font-size:0.75rem;" id="sensImpactRevenue">—</td>
+    </tr>
+    <tr>
+      <td style="padding:7px 10px;font-weight:700;">COGS / Direct Cost</td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensBaseCOGS">—</td>
+      <td style="padding:7px 10px;text-align:center;">
+        <input type="number" id="sensRMInp" value="0" min="-20" max="40" step="1" onfocus="this.select()"
+          oninput="runSensitivity()"
+          style="width:80px;padding:5px;border:2px solid var(--amber);border-radius:4px;text-align:center;font-size:0.9rem;font-weight:700;color:#000;font-family:'Courier New';">
+        <span style="color:var(--sub);font-size:0.75rem;">%</span>
+      </td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensStressCOGS">—</td>
+      <td style="padding:7px 10px;text-align:center;font-size:0.75rem;" id="sensImpactCOGS">—</td>
+    </tr>
+    <tr style="background:var(--light);">
+      <td style="padding:7px 10px;font-weight:700;">Admin / Overhead Expenses</td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensBaseAdmin">—</td>
+      <td style="padding:7px 10px;text-align:center;">
+        <input type="number" id="sensAdminInp" value="0" min="-20" max="40" step="1" onfocus="this.select()"
+          oninput="runSensitivity()"
+          style="width:80px;padding:5px;border:2px solid var(--amber);border-radius:4px;text-align:center;font-size:0.9rem;font-weight:700;color:#000;font-family:'Courier New';">
+        <span style="color:var(--sub);font-size:0.75rem;">%</span>
+      </td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensStressAdmin">—</td>
+      <td style="padding:7px 10px;text-align:center;font-size:0.75rem;" id="sensImpactAdmin">—</td>
+    </tr>
+    <tr>
+      <td style="padding:7px 10px;font-weight:700;">Interest Rate</td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensBaseInt">—</td>
+      <td style="padding:7px 10px;text-align:center;">
+        <input type="number" id="sensIntInp" value="0" min="-200" max="500" step="25" onfocus="this.select()"
+          oninput="runSensitivity()"
+          style="width:80px;padding:5px;border:2px solid var(--amber);border-radius:4px;text-align:center;font-size:0.9rem;font-weight:700;color:#000;font-family:'Courier New';">
+        <span style="color:var(--sub);font-size:0.75rem;">bps</span>
+      </td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensStressInt">—</td>
+      <td style="padding:7px 10px;text-align:center;font-size:0.75rem;" id="sensImpactInt">—</td>
+    </tr>
+    <tr style="background:var(--light);">
+      <td style="padding:7px 10px;font-weight:700;">Debtor Days</td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensBaseDeb">—</td>
+      <td style="padding:7px 10px;text-align:center;">
+        <input type="number" id="sensDebInp" value="0" min="-30" max="90" step="5" onfocus="this.select()"
+          oninput="runSensitivity()"
+          style="width:80px;padding:5px;border:2px solid var(--amber);border-radius:4px;text-align:center;font-size:0.9rem;font-weight:700;color:#000;font-family:'Courier New';">
+        <span style="color:var(--sub);font-size:0.75rem;">days</span>
+      </td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensStressDeb">—</td>
+      <td style="padding:7px 10px;text-align:center;font-size:0.75rem;" id="sensImpactDeb">—</td>
+    </tr>
+    <tr>
+      <td style="padding:7px 10px;font-weight:700;">Stock Days</td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensBaseStock">—</td>
+      <td style="padding:7px 10px;text-align:center;">
+        <input type="number" id="sensStockInp" value="0" min="-30" max="60" step="5" onfocus="this.select()"
+          oninput="runSensitivity()"
+          style="width:80px;padding:5px;border:2px solid var(--amber);border-radius:4px;text-align:center;font-size:0.9rem;font-weight:700;color:#000;font-family:'Courier New';">
+        <span style="color:var(--sub);font-size:0.75rem;">days</span>
+      </td>
+      <td style="padding:7px 10px;text-align:center;font-family:'Courier New';font-weight:700;" id="sensStressStock">—</td>
+      <td style="padding:7px 10px;text-align:center;font-size:0.75rem;" id="sensImpactStock">—</td>
+    </tr>
+  </table>
+  </div>
+
   <div class="btnbar" style="margin-top:10px;">
-    <button class="action" onclick="runSensitivity()">⚡ Recalculate</button>
+    <button class="action" onclick="runSensitivity()">⚡ Calculate Impact</button>
     <button class="action secondary" onclick="resetSensitivity()">↺ Reset All</button>
+    <button class="action secondary btn-sm" onclick="copyText('sensResults')">📋 Copy Results</button>
   </div>
 </div>
+
 <div class="card" id="sensResultCard" style="display:none;">
-  <h2>Sensitivity Results <span class="tag">IMPACT ANALYSIS</span></h2>
+  <h2>📊 Sensitivity Results <span class="tag" id="sensScenarioLabel">CUSTOM</span></h2>
   <div id="sensResults"></div>
 </div>
 </div>
@@ -489,13 +571,13 @@
     <div class="field"><label>Year</label><input type="text" id="ssYear" placeholder="2025-26"></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-    <div class="field"><label>Raw Material Stock (₹'000s)</label><input type="number" id="ssRM" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
+    <div class="field"><label>Raw Material Stock (Rs.\'000s)</label><input type="number" id="ssRM" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
     <div class="field"><label>WIP (₹'000s)</label><input type="number" id="ssWIP" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
     <div class="field"><label>Finished Goods (₹'000s)</label><input type="number" id="ssFG" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
-    <div class="field"><label>Stores & Spares (₹'000s)</label><input type="number" id="ssSS" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
+    <div class="field"><label>Stores & Spares (Rs.\'000s)</label><input type="number" id="ssSS" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
     <div class="field"><label>Sundry Debtors (₹'000s)</label><input type="number" id="ssDebtors" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
     <div class="field"><label>Sundry Creditors (₹'000s)</label><input type="number" id="ssCreditors" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
-    <div class="field"><label>CC Outstanding (₹'000s)</label><input type="number" id="ssCCOut" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
+    <div class="field"><label>CC Outstanding (Rs.\'000s)</label><input type="number" id="ssCCOut" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
     <div class="field"><label>Bank Margin % (default 25)</label><input type="number" id="ssMargin" value="25" onfocus="this.select()" oninput="calcStockDP()"></div>
   </div>
   <div id="stockDPResult" style="margin-top:8px;"></div>
@@ -648,7 +730,7 @@
 <div class="panel" id="panel-assumptions">
   <div class="card">
     <h2>Projection Assumptions <span class="tag">FOR AUTO-FILLED YEARS</span></h2>
-    <div class="sub">All amounts in ₹'000s. Set Sales growth and holding-period norms here. Years after the "Actual" years (set in Setup) will be auto-calculated from these assumptions, based on the last actual year's figures.</div>
+    <div class="sub">All amounts in Rs.\'000s. Set Sales growth and holding-period norms here. Years after the "Actual" years (set in Setup) will be auto-calculated from these assumptions, based on the last actual year's figures.</div>
     <div class="row">
       <div class="field">
         <label>Sales Growth Rate, % p.a. (applied each projected year)</label>
@@ -707,7 +789,7 @@
 <!-- ============ TRIAL BALANCE PANEL ============ -->
 <div class="panel" id="panel-tb">
   <div class="card">
-    <h2>Trial Balance Entry <span class="tag">SOURCE DATA — ₹'000s</span></h2>
+    <h2>Trial Balance Entry <span class="tag">SOURCE DATA — Rs.\'000s</span></h2>
     <div class="sub">All amounts in ₹'000s. Enter Actual year figures directly, or import from Excel/CSV. Projected years auto-filled from Assumptions.</div>
 
     <div class="note" style="margin-bottom:10px;">
@@ -807,34 +889,74 @@
 <!-- ============ CMA-V PANEL ============ -->
 <div class="panel" id="panel-cma5">
   <div class="card">
-    <h2>CMA Form V — Working Capital Assessment <span class="tag">3 METHODS</span></h2>
-    <div class="sub">RBI guidelines prescribe different methods based on credit limit. All three methods computed automatically — select applicable method.</div>
+    <h2>CMA Form V — Working Capital Assessment <span class="tag">4 METHODS</span></h2>
+    <div class="sub">RBI-prescribed methods. Turnover Method for limits ≤ ₹5 Crore. MPBF (Tandon) for limits > ₹5 Crore. Cash Budget for seasonal industries.</div>
 
-    <div class="note" style="border-color:#1565C0;">
-      <b>RBI Guidelines — Which method to apply:</b><br>
-      • <b>Turnover Method:</b> WC limit up to ₹5 Crore (₹500K in ₹'000s) — simpler computation based on 20% of projected annual turnover<br>
-      • <b>MPBF Method I:</b> WC limit above ₹5 Crore — Tandon Committee (75% CA less other CL)<br>
-      • <b>Cash Budget / Cash Flow:</b> Seasonal industries, construction, film finance — based on actual monthly cash flow gaps<br>
-      • <b>MPBF Method II:</b> Used by some banks as alternative to Method I — 75% CA less core CA margin
+    <div class="note" style="border-color:#1565C0;font-size:0.82rem;">
+      <b>Which method to use:</b><br>
+      📌 <b>Turnover Method</b> — Limit ≤ ₹5 Crore (₹500 lakh). Formula: 20% of projected annual sales.<br>
+      📌 <b>MPBF Method I</b> — Limit > ₹5 Crore. Formula: Min(75% CA, WCG where WCG = CA − Other CL).<br>
+      📌 <b>MPBF Method II</b> — Alternative. Formula: 75% CA − All CL (excl. CC). Higher margin from borrower.<br>
+      📌 <b>Cash Budget Method</b> — Seasonal/project-based. Peak month cash deficit = WC limit.
     </div>
 
-    <div class="row" style="margin-bottom:10px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div class="field">
-        <label>Select Applicable Method</label>
+        <label>Select Method to Display</label>
         <select id="wcMethodSel" onchange="renderCMA5()">
           <option value="all">Show All Methods</option>
           <option value="turnover">Turnover Method (limit ≤ ₹5 Cr)</option>
           <option value="mpbf1">MPBF Method I (limit > ₹5 Cr)</option>
           <option value="mpbf2">MPBF Method II</option>
-          <option value="cashflow">Cash Budget / Cash Flow Method</option>
+          <option value="cashflow">Cash Budget Method</option>
         </select>
       </div>
       <div class="field">
-        <label>Turnover % for WC (default 20%)</label>
-        <input type="number" id="turnoverPct" value="20" min="10" max="33" onfocus="this.select()" onchange="renderCMA5()">
+        <label>Turnover % (default 20%, max 25%)</label>
+        <input type="number" id="turnoverPct" value="20" min="10" max="33" onfocus="this.select()" onchange="renderCMA5()"
+          style="font-weight:700;font-size:1rem;">
       </div>
     </div>
     <div class="scrollx"><table id="cma5Table"></table></div>
+  </div>
+
+  <!-- MONTHLY CASH BUDGET ENTRY -->
+  <div class="card" id="cashBudgetCard">
+    <h2>📅 Monthly Cash Budget <span class="tag">CASH FLOW METHOD</span></h2>
+    <div class="sub">Enter projected monthly cash inflows and outflows to compute peak deficit = WC limit required. Used for seasonal/construction/project industries.</div>
+    <div class="note">Enter figures in Rs.\'000s. Peak cumulative deficit in any month = recommended WC limit.</div>
+
+    <div class="scrollx">
+    <table id="cashBudgetTable" style="min-width:900px;border-collapse:collapse;font-size:0.8rem;">
+      <thead>
+        <tr style="background:var(--navy);color:#fff;">
+          <th style="padding:7px 8px;text-align:left;min-width:180px;">Particulars</th>
+          <th style="padding:7px 6px;min-width:70px;">Apr</th>
+          <th style="padding:7px 6px;min-width:70px;">May</th>
+          <th style="padding:7px 6px;min-width:70px;">Jun</th>
+          <th style="padding:7px 6px;min-width:70px;">Jul</th>
+          <th style="padding:7px 6px;min-width:70px;">Aug</th>
+          <th style="padding:7px 6px;min-width:70px;">Sep</th>
+          <th style="padding:7px 6px;min-width:70px;">Oct</th>
+          <th style="padding:7px 6px;min-width:70px;">Nov</th>
+          <th style="padding:7px 6px;min-width:70px;">Dec</th>
+          <th style="padding:7px 6px;min-width:70px;">Jan</th>
+          <th style="padding:7px 6px;min-width:70px;">Feb</th>
+          <th style="padding:7px 6px;min-width:70px;">Mar</th>
+          <th style="padding:7px 6px;min-width:80px;background:#0e5e4a;">Total</th>
+        </tr>
+      </thead>
+      <tbody id="cashBudgetBody"></tbody>
+      <tfoot id="cashBudgetFoot"></tfoot>
+    </table>
+    </div>
+
+    <div class="btnbar" style="margin-top:10px;">
+      <button class="action" onclick="calcCashBudget()">⚡ Calculate WC Limit</button>
+      <button class="action secondary" onclick="clearCashBudget()">↺ Clear</button>
+      <button class="action secondary btn-sm" onclick="autoFillCashBudget()">🔄 Auto-fill from CMA</button>
+    </div>
+    <div id="cashBudgetResult" style="margin-top:10px;"></div>
   </div>
 </div>
 
@@ -1008,7 +1130,7 @@
         <input type="number" step="any" id="discountRate" value="12">
       </div>
       <div class="field">
-        <label>Initial Investment / Project Cost at Year 0 (₹'000s)</label>
+        <label>Initial Investment / Project Cost at Year 0 (Rs.\'000s)</label>
         <input type="number" id="initialInvestment" placeholder="0">
       </div>
     </div>
@@ -1114,7 +1236,7 @@
       <tr><td class="label">A</td><td>Group</td><td>assets</td><td>assets / liabilities / income / expenses</td></tr>
       <tr><td class="label">B</td><td>Item Name</td><td>Sundry Debtors / Receivables</td><td>Must match app item name exactly</td></tr>
       <tr><td class="label">C</td><td>Category</td><td>ca</td><td>Do not change — internal use</td></tr>
-      <tr><td class="label">D</td><td>Year 1 (Actual)</td><td>820</td><td>Amount in ₹'000s. Blank = zero.</td></tr>
+      <tr><td class="label">D</td><td>Year 1 (Actual)</td><td>820</td><td>Amount in Rs.\'000s. Blank = zero.</td></tr>
       <tr><td class="label">E</td><td>Year 2 (Actual)</td><td>920</td><td>Amount in ₹'000s</td></tr>
       <tr><td class="label">F+</td><td>Projected</td><td></td><td>Leave blank — auto-filled by app</td></tr>
     </table></div>
@@ -1126,7 +1248,7 @@
       <tr><td class="label">A</td><td>Section (BS)</td><td>ASSETS-FIXED / ASSETS-CA / ASSETS-OTHER / LIAB-NW / LIAB-LT / LIAB-CL</td></tr>
       <tr><td class="label">B</td><td>Particulars</td><td>Item name — must match app exactly</td></tr>
       <tr><td class="label">C</td><td>Year 1</td><td>Amount in ₹'000s</td></tr>
-      <tr><td class="label">D</td><td>Year 2</td><td>Amount in ₹'000s</td></tr>
+      <tr><td class="label">D</td><td>Year 2</td><td>Amount in Rs.\'000s</td></tr>
       <tr><td class="label">E+</td><td>Projected</td><td>Leave blank</td></tr>
     </table></div>
 
@@ -3207,6 +3329,7 @@ function renderAllTables(){
   renderStockHistory();
   renderIndustryTemplateGrid();
   renderCollateral();
+  initCashBudget();
 }
 
 /* ================= ASSUMPTIONS UI ================= */
@@ -3730,7 +3853,169 @@ function renderCMA4(){
   document.getElementById('cma4Table').innerHTML = html;
 }
 
-/* ---- CMA Form V: WC Assessment — All 3 Methods ---- */
+/* ---- MONTHLY CASH BUDGET (Cash Flow WC Method) ---- */
+var CB_ROWS = [
+  {key:'sales_cash',  label:'Cash Sales / Collections from Debtors', type:'inflow'},
+  {key:'other_inc',   label:'Other Cash Income', type:'inflow'},
+  {key:'capital_in',  label:'Capital / Loan Drawdowns', type:'inflow'},
+  {key:'purchases',   label:'Payments to Suppliers / Raw Material', type:'outflow'},
+  {key:'wages',       label:'Wages & Salaries', type:'outflow'},
+  {key:'overhead',    label:'Overhead / Admin Expenses', type:'outflow'},
+  {key:'interest',    label:'Interest Payments', type:'outflow'},
+  {key:'tax',         label:'Tax / GST Payments', type:'outflow'},
+  {key:'capex',       label:'Capital Expenditure', type:'outflow'},
+  {key:'other_out',   label:'Other Cash Outflows', type:'outflow'},
+];
+var MONTHS = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+var CB_DATA = {};  // CB_DATA[key][month] = value
+
+function initCashBudget(){
+  if(!CB_DATA || Object.keys(CB_DATA).length === 0){
+    CB_ROWS.forEach(function(r){ CB_DATA[r.key] = new Array(12).fill(0); });
+  }
+  renderCashBudgetTable();
+}
+
+function renderCashBudgetTable(){
+  var body = document.getElementById('cashBudgetBody');
+  if(!body) return;
+  var html = '';
+
+  // Inflow header
+  html += '<tr><td style="padding:5px 8px;font-weight:800;color:var(--good);background:var(--light);" colspan="14">A. CASH INFLOWS</td></tr>';
+  CB_ROWS.filter(function(r){return r.type==='inflow';}).forEach(function(r){
+    html += '<tr><td style="padding:4px 8px;font-weight:600;font-size:0.8rem;">'+r.label+'</td>';
+    for(var m=0;m<12;m++){
+      html += '<td style="padding:2px;"><input type="number" value="'+(CB_DATA[r.key]&&CB_DATA[r.key][m]||'')+'" onfocus="this.select()" '
+        +'oninput="cbSet(\''+r.key+'\','+m+',this.value)" '
+        +'style="width:62px;padding:4px;border:1px solid var(--line);text-align:right;font-size:0.78rem;font-family:\'Courier New\',monospace;border-radius:3px;color:#000;font-weight:700;"></td>';
+    }
+    html += '<td style="padding:4px;font-weight:700;font-family:\'Courier New\',monospace;text-align:right;color:var(--good);" id="cbRowTot_'+r.key+'">—</td></tr>';
+  });
+
+  // Outflow header
+  html += '<tr><td style="padding:5px 8px;font-weight:800;color:var(--danger);background:var(--light);" colspan="14">B. CASH OUTFLOWS</td></tr>';
+  CB_ROWS.filter(function(r){return r.type==='outflow';}).forEach(function(r){
+    html += '<tr><td style="padding:4px 8px;font-weight:600;font-size:0.8rem;">'+r.label+'</td>';
+    for(var m=0;m<12;m++){
+      html += '<td style="padding:2px;"><input type="number" value="'+(CB_DATA[r.key]&&CB_DATA[r.key][m]||'')+'" onfocus="this.select()" '
+        +'oninput="cbSet(\''+r.key+'\','+m+',this.value)" '
+        +'style="width:62px;padding:4px;border:1px solid var(--line);text-align:right;font-size:0.78rem;font-family:\'Courier New\',monospace;border-radius:3px;color:#000;font-weight:700;"></td>';
+    }
+    html += '<td style="padding:4px;font-weight:700;font-family:\'Courier New\',monospace;text-align:right;color:var(--danger);" id="cbRowTot_'+r.key+'">—</td></tr>';
+  });
+
+  body.innerHTML = html;
+  updateCashBudgetTotals();
+}
+
+function cbSet(key,month,val){
+  if(!CB_DATA[key]) CB_DATA[key]=new Array(12).fill(0);
+  CB_DATA[key][month] = parseFloat(val)||0;
+  updateCashBudgetTotals();
+}
+
+function updateCashBudgetTotals(){
+  // Row totals
+  CB_ROWS.forEach(function(r){
+    var tot = (CB_DATA[r.key]||[]).reduce(function(s,v){return s+(v||0);},0);
+    var el = document.getElementById('cbRowTot_'+r.key);
+    if(el) el.textContent = tot ? Math.round(tot).toLocaleString('en-IN') : '—';
+  });
+
+  // Monthly totals
+  var inKeys  = CB_ROWS.filter(function(r){return r.type==='inflow';}).map(function(r){return r.key;});
+  var outKeys = CB_ROWS.filter(function(r){return r.type==='outflow';}).map(function(r){return r.key;});
+  var inflows=[],outflows=[],nets=[],cumulative=[],cum=0;
+  for(var m=0;m<12;m++){
+    var inf = inKeys.reduce(function(s,k){return s+(CB_DATA[k]&&CB_DATA[k][m]||0);},0);
+    var out = outKeys.reduce(function(s,k){return s+(CB_DATA[k]&&CB_DATA[k][m]||0);},0);
+    var net = inf-out; cum+=net;
+    inflows.push(Math.round(inf)); outflows.push(Math.round(out));
+    nets.push(Math.round(net)); cumulative.push(Math.round(cum));
+  }
+
+  var foot = document.getElementById('cashBudgetFoot');
+  if(!foot) return;
+  function footRow(label,vals,cls,colorFn){
+    var h='<tr style="background:var(--light);"><td style="padding:5px 8px;font-weight:800;font-size:0.8rem;">'+label+'</td>';
+    vals.forEach(function(v){
+      var c=colorFn?colorFn(v):'inherit';
+      h+='<td style="padding:4px 6px;font-weight:700;font-family:\'Courier New\',monospace;text-align:right;color:'+c+';font-size:0.8rem;">'+v.toLocaleString('en-IN')+'</td>';
+    });
+    var tot=vals.reduce(function(s,v){return s+v;},0);
+    h+='<td style="padding:4px 6px;font-weight:800;font-family:\'Courier New\',monospace;text-align:right;">'+tot.toLocaleString('en-IN')+'</td></tr>';
+    return h;
+  }
+  foot.innerHTML =
+    footRow('Total Inflows (A)',  inflows,  '',  function(){return 'var(--good)';})
+   +footRow('Total Outflows (B)', outflows, '',  function(){return 'var(--danger)';})
+   +footRow('Net Cash Flow (A−B)',nets,     '',  function(v){return v>=0?'var(--good)':'var(--danger)';})
+   +footRow('Cumulative Balance', cumulative,'', function(v){return v>=0?'var(--good)':'var(--danger)';});
+}
+
+function calcCashBudget(){
+  var inKeys  = CB_ROWS.filter(function(r){return r.type==='inflow';}).map(function(r){return r.key;});
+  var outKeys = CB_ROWS.filter(function(r){return r.type==='outflow';}).map(function(r){return r.key;});
+  var cum=0, peakDeficit=0, peakMonth=-1, deficitMonths=[];
+  for(var m=0;m<12;m++){
+    var inf = inKeys.reduce(function(s,k){return s+(CB_DATA[k]&&CB_DATA[k][m]||0);},0);
+    var out = outKeys.reduce(function(s,k){return s+(CB_DATA[k]&&CB_DATA[k][m]||0);},0);
+    cum += (inf-out);
+    if(cum < peakDeficit){ peakDeficit=Math.round(cum); peakMonth=m; }
+    if(inf<out) deficitMonths.push(MONTHS[m]);
+  }
+  var wcLimit = Math.max(0,-peakDeficit);
+  var el = document.getElementById('cashBudgetResult');
+  if(!el) return;
+  el.innerHTML = '<div style="background:var(--navy);color:#fff;border-radius:7px;padding:14px 18px;margin-bottom:10px;">'
+    +'<div style="font-size:0.78rem;opacity:0.8;">CASH BUDGET METHOD — WC LIMIT ASSESSMENT</div>'
+    +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:8px;">'
+    +'<div><div style="font-size:0.72rem;opacity:0.8;">PEAK CUMULATIVE DEFICIT</div>'
+    +'<div style="font-size:1.6rem;font-weight:900;color:'+(peakDeficit<0?'#ff6b6b':'#69db7c')+';">₹'+Math.abs(peakDeficit).toLocaleString('en-IN')+'K</div>'
+    +(peakMonth>=0?'<div style="font-size:0.72rem;opacity:0.8;">in '+MONTHS[peakMonth]+'</div>':'')+'</div>'
+    +'<div><div style="font-size:0.72rem;opacity:0.8;">RECOMMENDED WC LIMIT</div>'
+    +'<div style="font-size:1.6rem;font-weight:900;color:#69db7c;">₹'+wcLimit.toLocaleString('en-IN')+'K</div>'
+    +'<div style="font-size:0.72rem;opacity:0.8;">'+(wcLimit<=5000?'Turnover Method also applicable':'Use MPBF if limit > ₹5 Cr')+'</div></div>'
+    +'<div><div style="font-size:0.72rem;opacity:0.8;">DEFICIT MONTHS</div>'
+    +'<div style="font-size:0.9rem;font-weight:700;">'+(deficitMonths.length?deficitMonths.join(', '):'None')+'</div></div>'
+    +'</div></div>'
+    +(wcLimit<=5000?
+      '<div class="note" style="border-color:var(--good);">✓ Limit ≤ ₹5 Crore — Turnover Method also applicable. Compare both and recommend lower limit.</div>'
+      :'<div class="note" style="border-color:var(--amber);">⚠ Limit > ₹5 Crore — MPBF Method I (Tandon) is the prescribed method. Use Cash Budget as cross-check.</div>');
+  showOk('WC limit computed: ₹'+wcLimit.toLocaleString('en-IN')+'K');
+}
+
+function clearCashBudget(){
+  CB_DATA = {};
+  CB_ROWS.forEach(function(r){ CB_DATA[r.key] = new Array(12).fill(0); });
+  renderCashBudgetTable();
+  var el=document.getElementById('cashBudgetResult'); if(el) el.innerHTML='';
+}
+
+function autoFillCashBudget(){
+  if(!CALC.data||!CALC.data.length){showErr('Enter CMA data first.');return;}
+  var na=parseInt(STATE.unit.numActualYears)||2;
+  var d=CALC.data[Math.min(na-1,CALC.data.length-1)];
+  CB_ROWS.forEach(function(r){ CB_DATA[r.key] = new Array(12).fill(0); });
+  // Distribute annual figures across 12 months (equal monthly)
+  var monthly=function(annual){return Math.round(annual/12);};
+  // Inflows — distribute sales with seasonal pattern (higher Q3, Q4 typically)
+  var salesPattern=[0.07,0.07,0.08,0.08,0.08,0.08,0.09,0.09,0.09,0.09,0.09,0.09]; // Apr-Mar
+  for(var m=0;m<12;m++){
+    CB_DATA['sales_cash'][m] = Math.round(d.totalRevenue*salesPattern[m]);
+    CB_DATA['other_inc'][m]  = monthly(d.otherIncome||0);
+    CB_DATA['purchases'][m]  = Math.round(d.cogs*salesPattern[m]*1.05); // slight lag
+    CB_DATA['wages'][m]      = monthly(d.adminExp*0.4);
+    CB_DATA['overhead'][m]   = monthly(d.adminExp*0.6);
+    CB_DATA['interest'][m]   = monthly(d.interest);
+    CB_DATA['tax'][m]        = m===11?Math.round(d.tax):0; // tax in Mar
+  }
+  renderCashBudgetTable();
+  showOk('Auto-filled from CMA data ('+CALC.years[Math.min(na-1,CALC.data.length-1)].replace(/\(.*?\)/,'').trim()+'). Adjust monthly figures as needed.');
+}
+
+/* ---- CMA Form V: WC Assessment — All 4 Methods ---- */
 function renderCMA5(){
   var abf = (STATE.unit.abfPercent || 75) / 100;
   var margin = (STATE.unit.bankMargin || 25) / 100;
@@ -3738,7 +4023,7 @@ function renderCMA5(){
   var method = (document.getElementById('wcMethodSel')||{value:'all'}).value || 'all';
   var html = '';
 
-  // ── TURNOVER METHOD (RBI: WC limit ≤ ₹5 Crore = 5000 in ₹'000s) ──
+  // ── TURNOVER METHOD (RBI: WC limit ≤ ₹5 Crore = 5000 in Rs.\'000s) ──
   if(method==='all' || method==='turnover'){
     html += tableHeader('METHOD A: TURNOVER METHOD (RBI — WC Limit up to ₹5 Crore)');
     html += '<tr><td class="label" colspan="2" style="background:#e3f2fd;color:#1565C0;font-size:0.78rem;">RBI Circular: For borrowers with WC requirement ≤ ₹5 Cr — 20% of Projected Annual Turnover (25% for non-seasonal). Min 5% own margin.</td></tr>';
@@ -5114,111 +5399,193 @@ function updateSensBaseValues(){
   if(!CALC.data||!CALC.data.length) return;
   var yi=parseInt(document.getElementById('sensYearSel').value)||0;
   var d=CALC.data[yi];
-  document.getElementById('sensSalesBase').textContent='₹'+fmtN(d.totalRevenue)+'K';
-  document.getElementById('sensRMBase').textContent=d.cogs>0?Math.round(d.cogs/d.totalRevenue*100)+'% of sales':'—';
-  document.getElementById('sensIntBase').textContent=d.interest>0?'₹'+fmtN(d.interest)+'K':'—';
   var debDays=d.debtors>0&&d.totalRevenue>0?Math.round(d.debtors/d.totalRevenue*365):0;
-  document.getElementById('sensDebBase').textContent=debDays+' days';
+  var stockDays=d.rawMaterial>0&&d.cogs>0?Math.round((d.rawMaterial+(d.wip||0)+(d.finishedGoods||0))/d.cogs*365):0;
+  // Update base column
+  function setBase(id,val){var el=document.getElementById(id);if(el)el.textContent=val;}
+  setBase('sensBaseRevenue','₹'+fmtN(d.totalRevenue)+'K');
+  setBase('sensBaseCOGS','₹'+fmtN(d.cogs)+'K ('+Math.round(d.cogs/Math.max(d.totalRevenue,1)*100)+'%)');
+  setBase('sensBaseAdmin','₹'+fmtN(d.adminExp)+'K');
+  setBase('sensBaseInt','₹'+fmtN(d.interest)+'K');
+  setBase('sensBaseDeb',debDays+' days');
+  setBase('sensBaseStock',stockDays+' days');
+  // Update stressed column
+  runSensitivity();
 }
 
-function sensUpdate(type,val){
-  document.getElementById('sens'+type.charAt(0).toUpperCase()+type.slice(1)+'Val').textContent=
-    type==='int'?val+' bps':val+'%'+(type==='deb'?' days change':'');
-  if(type==='deb') document.getElementById('sensDebVal').textContent=(val>0?'+':'')+val+' days';
+function applyScenario(type){
+  var scenarios={
+    base:   {sales:0, rm:0, admin:0, int:0, deb:0, stock:0},
+    mild:   {sales:-10, rm:5, admin:5, int:50, deb:15, stock:10},
+    moderate:{sales:-20, rm:10, admin:10, int:100, deb:30, stock:20},
+    severe: {sales:-30, rm:20, admin:15, int:200, deb:45, stock:30},
+    optimistic:{sales:15, rm:-5, admin:-5, int:-50, deb:-15, stock:-10}
+  };
+  var s=scenarios[type]||scenarios.base;
+  var labels={base:'BASE CASE',mild:'MILD STRESS',moderate:'MODERATE STRESS',severe:'SEVERE STRESS',optimistic:'OPTIMISTIC'};
+  function setInp(id,v){var el=document.getElementById(id);if(el)el.value=v;}
+  setInp('sensSalesInp',s.sales); setInp('sensRMInp',s.rm);
+  setInp('sensAdminInp',s.admin); setInp('sensIntInp',s.int);
+  setInp('sensDebInp',s.deb);     setInp('sensStockInp',s.stock);
+  var lbl=document.getElementById('sensScenarioLabel');
+  if(lbl) lbl.textContent=labels[type]||'CUSTOM';
   runSensitivity();
 }
 
 function resetSensitivity(){
-  ['sensSales','sensRM','sensInt','sensDeb'].forEach(function(id){
-    document.getElementById(id).value=0;
-  });
-  document.getElementById('sensSalesVal').textContent='0%';
-  document.getElementById('sensRMVal').textContent='0%';
-  document.getElementById('sensIntVal').textContent='0 bps';
-  document.getElementById('sensDebVal').textContent='0 days';
-  runSensitivity();
+  applyScenario('base');
 }
 
+function sensUpdate(){}  // legacy stub
+
 function runSensitivity(){
-  if(!CALC.data||!CALC.data.length){showErr('Load CMA data first.');return;}
+  if(!CALC.data||!CALC.data.length) return;
   var yi=parseInt(document.getElementById('sensYearSel').value)||0;
-  updateSensBaseValues();
   var d=CALC.data[yi];
-  var salesChg=parseInt(document.getElementById('sensSales').value)||0;
-  var rmChg=parseInt(document.getElementById('sensRM').value)||0;
-  var intChg=parseInt(document.getElementById('sensInt').value)||0;
-  var debChg=parseInt(document.getElementById('sensDeb').value)||0;
 
-  // Apply changes
-  var newSales=d.totalRevenue*(1+salesChg/100);
-  var newCOGS=d.cogs*(1+rmChg/100)*(newSales/Math.max(d.totalRevenue,1));
-  var newGP=newSales-newCOGS;
-  var newInterest=d.interest*(1+intChg/10000)*12; // bps
-  var newInterest2=d.interest+d.totalRevenue*intChg/10000;
-  var newPBIT=newGP-d.adminExp-d.depreciation;
-  var newPBT=newPBIT-newInterest2;
-  var newPAT=newPBT*(1-(d.tax/Math.max(d.pbt,1)));
-  var newCA=d.currentAssets+(d.debtors>0?d.debtors*debChg/Math.max(newSales/365,1):0);
-  var otherCL=(d.creditors||0)+(d.advancesFromCustomers||0)+(d.statutoryLiab||0)+(d.otherCL||0);
-  var newWCG=newCA-otherCL;
-  var newMPBF=Math.max(0,Math.min(newWCG,newCA*0.75));
-  var tlInt=num(STATE.dscr&&STATE.dscr.interest&&STATE.dscr.interest[yi]);
-  var tlPrin=num(STATE.dscr&&STATE.dscr.principal&&STATE.dscr.principal[yi]);
-  var newCashAcc=(newPAT||0)+d.depreciation;
-  var newDSCR=(tlInt+tlPrin)>0?(newCashAcc+tlInt)/(tlInt+tlPrin):0;
-  var newNPPct=newSales>0?newPAT/newSales*100:0;
-  var newGPPct=newSales>0?newGP/newSales*100:0;
-  var fc=d.adminExp+d.depreciation+newInterest2;
-  var newBEP=newSales>0&&newGP>0?fc/(newGP/newSales):0;
+  // Read inputs
+  var salesChg=parseFloat(document.getElementById('sensSalesInp').value)||0;
+  var rmChg=parseFloat(document.getElementById('sensRMInp').value)||0;
+  var adminChg=parseFloat(document.getElementById('sensAdminInp').value)||0;
+  var intChg=parseFloat(document.getElementById('sensIntInp').value)||0;
+  var debChg=parseFloat(document.getElementById('sensDebInp').value)||0;
+  var stockChg=parseFloat(document.getElementById('sensStockInp').value)||0;
 
-  var base={sales:d.totalRevenue,cogs:d.cogs,gp:d.grossProfit,gpPct:d.totalRevenue>0?d.grossProfit/d.totalRevenue*100:0,
-    pat:d.pat,npPct:d.totalRevenue>0?d.pat/d.totalRevenue*100:0,mpbf:0,dscr:0,bep:0};
-  base.mpbf=Math.max(0,Math.min(d.currentAssets-otherCL,d.currentAssets*0.75));
-  base.dscr=(tlInt+tlPrin)>0?(d.pat+d.depreciation+tlInt)/(tlInt+tlPrin):0;
-  var bfc=d.adminExp+d.depreciation+d.interest;
-  base.bep=d.totalRevenue>0&&d.grossProfit>0?bfc/(d.grossProfit/d.totalRevenue):0;
+  // Stressed P&L
+  var newSales   = Math.round(d.totalRevenue*(1+salesChg/100));
+  var newCOGS    = Math.round(d.cogs*(1+rmChg/100));
+  var newAdmin   = Math.round(d.adminExp*(1+adminChg/100));
+  var newGP      = newSales-newCOGS;
+  var newInterest= Math.round(d.interest*(1+intChg/10000));  // bps → rate
+  var taxRate    = d.pbt>0?d.tax/d.pbt:0.25;
+  var newPBIT    = newGP-newAdmin-d.depreciation;
+  var newPBT     = newPBIT-newInterest;
+  var newPAT     = Math.round(newPBT*(1-taxRate));
+  var newCashAcc = newPAT+d.depreciation;
+  var newGPPct   = newSales>0?newGP/newSales*100:0;
+  var newNPPct   = newSales>0?newPAT/newSales*100:0;
 
-  function chgStr(n,o,pct){
-    var d=n-o; var p=o>0?d/o*100:0;
-    var c=d>=0?'#1a7a4a':'#c0392b'; var ico=d>=0?'▲':'▼';
-    return '<span style="color:'+c+';font-size:0.75rem;"> '+ico+' '+Math.abs(pct?Math.round(p*10)/10:Math.round(d))+( pct?'%':'K')+'</span>';
+  // Stressed WC
+  var debDaysBase  = d.debtors>0&&d.totalRevenue>0?Math.round(d.debtors/d.totalRevenue*365):60;
+  var stockDaysBase= d.rawMaterial>0&&d.cogs>0?Math.round((d.rawMaterial+(d.wip||0)+(d.finishedGoods||0))/d.cogs*365):45;
+  var newDebDays  = debDaysBase+debChg;
+  var newStockDays= stockDaysBase+stockChg;
+  var newDebtors  = Math.round(newSales*newDebDays/365);
+  var newStock    = Math.round(newCOGS*newStockDays/365);
+  var cashHand    = Math.round(newSales*0.01);
+  var newCA       = newDebtors+newStock+cashHand+(d.cashBank||0);
+  var otherCL     = (d.creditors||0)+(d.advancesFromCustomers||0)+(d.statutoryLiab||0)+(d.otherCL||0);
+  var newMPBF     = Math.max(0,Math.min(newCA-otherCL,newCA*0.75));
+  var newCR       = (otherCL+newMPBF)>0?Math.round(newCA/(otherCL+newMPBF)*100)/100:0;
+
+  // DSCR
+  var tlInt  = num(STATE.dscr&&STATE.dscr.interest&&STATE.dscr.interest[yi]);
+  var tlPrin = num(STATE.dscr&&STATE.dscr.principal&&STATE.dscr.principal[yi]);
+  var baseDSCR= (tlInt+tlPrin)>0?(d.pat+d.depreciation+tlInt)/(tlInt+tlPrin):0;
+  var newDSCR = (tlInt+tlPrin)>0?(newCashAcc+tlInt)/(tlInt+tlPrin):0;
+
+  // BEP
+  var baseMPBF= Math.max(0,Math.min(d.currentAssets-otherCL,d.currentAssets*0.75));
+  var fc=newAdmin+d.depreciation+newInterest;
+  var cmr=newSales>0?newGP/newSales:0;
+  var newBEP=cmr>0?Math.round(fc/cmr):0;
+  var baseBEP=d.adminExp>0&&d.grossProfit>0?Math.round((d.adminExp+d.depreciation+d.interest)/(d.grossProfit/Math.max(d.totalRevenue,1))):0;
+  var newMoS=newSales>0?Math.round((newSales-newBEP)/newSales*100):0;
+
+  // Update stressed column in table
+  function setSt(id,val){var el=document.getElementById(id);if(el)el.textContent=val;}
+  function setImp(id,newV,baseV,invertColor){
+    var el=document.getElementById(id); if(!el) return;
+    var diff=newV-baseV; var pct2=baseV!==0?Math.round(diff/Math.abs(baseV)*100):0;
+    var good=invertColor?diff<0:diff>0;
+    var ico=diff>0?'▲':'▼'; var color=diff===0?'var(--sub)':good?'var(--good)':'var(--danger)';
+    el.innerHTML='<span style="color:'+color+';font-weight:700;">'+ico+' '+Math.abs(pct2)+'%</span>';
+  }
+  setSt('sensStressRevenue','₹'+fmtN(newSales)+'K');
+  setSt('sensStressCOGS','₹'+fmtN(newCOGS)+'K');
+  setSt('sensStressAdmin','₹'+fmtN(newAdmin)+'K');
+  setSt('sensStressInt','₹'+fmtN(newInterest)+'K');
+  setSt('sensStressDeb',newDebDays+' days');
+  setSt('sensStressStock',newStockDays+' days');
+  setImp('sensImpactRevenue',newSales,d.totalRevenue,false);
+  setImp('sensImpactCOGS',newCOGS,d.cogs,true);
+  setImp('sensImpactAdmin',newAdmin,d.adminExp,true);
+  setImp('sensImpactInt',newInterest,d.interest,true);
+  setImp('sensImpactDeb',newDebDays,debDaysBase,true);
+  setImp('sensImpactStock',newStockDays,stockDaysBase,true);
+
+  // Results table
+  var yrLabel=CALC.years[yi]?CALC.years[yi].replace(/\(.*?\)/,'').trim():'Y'+(yi+1);
+  function chg(n,o){
+    if(o===0) return '';
+    var d2=n-o,p=Math.round(d2/Math.abs(o)*100);
+    var c2=d2===0?'var(--sub)':d2>0?'var(--good)':'var(--danger)';
+    return '<span style="color:'+c2+';font-size:0.8rem;">'+(d2>0?'▲':'▼')+Math.abs(p)+'%</span>';
+  }
+  function chgAbs(n,o,goodIfUp){
+    if(o===0) return '';
+    var d2=n-o; var good2=goodIfUp?d2>0:d2<0;
+    var c2=d2===0?'var(--sub)':good2?'var(--good)':'var(--danger)';
+    return '<span style="color:'+c2+';font-size:0.8rem;">'+(d2>0?'▲':'▼')+fmtN(Math.abs(Math.round(d2)))+'K</span>';
   }
 
   var rows=[
-    ['Total Sales (₹\'000s)',fmtN(d.totalRevenue),fmtN(Math.round(newSales)),chgStr(newSales,d.totalRevenue)],
-    ['Gross Profit (₹\'000s)',fmtN(d.grossProfit),fmtN(Math.round(newGP)),chgStr(newGP,d.grossProfit)],
-    ['GP Margin %',Math.round(d.grossProfit/Math.max(d.totalRevenue,1)*100*10)/10+'%',Math.round(newGPPct*10)/10+'%',''],
-    ['PAT (₹\'000s)',fmtN(d.pat),fmtN(Math.round(newPAT)),chgStr(newPAT,d.pat)],
-    ['NP Margin %',Math.round(d.pat/Math.max(d.totalRevenue,1)*100*10)/10+'%',Math.round(newNPPct*10)/10+'%',''],
-    ['MPBF (₹\'000s)',fmtN(Math.round(base.mpbf)),fmtN(Math.round(newMPBF)),chgStr(newMPBF,base.mpbf)],
-    ['DSCR',base.dscr>0?Math.round(base.dscr*100)/100:'—',newDSCR>0?Math.round(newDSCR*100)/100:'—',
-      base.dscr>0&&newDSCR>0?chgStr(newDSCR,base.dscr):''],
-    ['BEP Sales (₹\'000s)',fmtN(Math.round(base.bep)),fmtN(Math.round(newBEP)),chgStr(newBEP,base.bep)],
+    {l:'Net Revenue (Rs.\'000s)',       b:fmtN(d.totalRevenue),  s:fmtN(newSales),   c:chgAbs(newSales,d.totalRevenue,true),   ok:newSales>0},
+    {l:'Gross Profit (Rs.\'000s)',      b:fmtN(d.grossProfit),   s:fmtN(newGP),      c:chgAbs(newGP,d.grossProfit,true),       ok:newGP>0},
+    {l:'GP Margin %',                 b:Math.round(d.grossProfit/Math.max(d.totalRevenue,1)*100*10)/10+'%', s:Math.round(newGPPct*10)/10+'%', c:'', ok:newGPPct>=15},
+    {l:'EBITDA (GP−Admin)',           b:fmtN(d.grossProfit-d.adminExp), s:fmtN(newGP-newAdmin), c:chgAbs(newGP-newAdmin,d.grossProfit-d.adminExp,true), ok:(newGP-newAdmin)>0},
+    {l:'PAT (Rs.\'000s)',               b:fmtN(d.pat),           s:fmtN(newPAT),     c:chgAbs(newPAT,d.pat,true),              ok:newPAT>0},
+    {l:'NP Margin %',                 b:Math.round(d.pat/Math.max(d.totalRevenue,1)*100*10)/10+'%', s:Math.round(newNPPct*10)/10+'%', c:'', ok:newNPPct>=5},
+    {l:'Cash Accrual (Rs.\'000s)',      b:fmtN(d.pat+d.depreciation), s:fmtN(newCashAcc), c:chgAbs(newCashAcc,d.pat+d.depreciation,true), ok:newCashAcc>0},
+    {l:'MPBF (Rs.\'000s)',              b:fmtN(Math.round(baseMPBF)), s:fmtN(Math.round(newMPBF)), c:chgAbs(newMPBF,baseMPBF,false), ok:true},
+    {l:'Current Ratio',               b:d.currentLiabilities>0?Math.round(d.currentAssets/d.currentLiabilities*100)/100:'—', s:newCR, c:'', ok:newCR>=1.25},
+    {l:'DSCR',                        b:baseDSCR>0?Math.round(baseDSCR*100)/100:'—', s:newDSCR>0?Math.round(newDSCR*100)/100:'—', c:'', ok:newDSCR>=1.5||newDSCR===0},
+    {l:'BEP Sales (Rs.\'000s)',         b:fmtN(baseBEP),         s:fmtN(newBEP),     c:chgAbs(newBEP,baseBEP,false),           ok:newBEP<newSales*0.75},
+    {l:'Margin of Safety %',          b:'—',                   s:newMoS+'%',       c:'',                                     ok:newMoS>=25},
   ];
 
   var html='<div class="scrollx"><table>';
-  html+='<tr><th class="label" style="text-align:left;">Parameter</th><th>Base ('+CALC.years[yi].replace(/\(.*?\)/,'').trim()+')</th><th>Stressed</th><th>Change</th></tr>';
+  html+='<tr><th class="label" style="text-align:left;min-width:200px;">Parameter</th>'
+    +'<th>Base ('+yrLabel+')</th><th style="background:#fff8e1;">Stressed</th>'
+    +'<th>Change</th><th>Status</th></tr>';
   rows.forEach(function(r){
-    var ok=true;
-    if(r[0].includes('DSCR')&&newDSCR>0&&newDSCR<1.5) ok=false;
-    if(r[0].includes('GP')&&newGPPct<10) ok=false;
-    if(r[0].includes('PAT')&&newPAT<0) ok=false;
-    html+='<tr style="'+(ok?'':'background:#fdecea;')+'"><td class="label">'+r[0]+'</td><td>'+r[1]+'</td><td style="font-weight:700;">'+r[2]+'</td><td>'+r[3]+'</td></tr>';
+    var bg=r.ok?'':'background:#fdecea;';
+    html+='<tr style="'+bg+'"><td class="label">'+r.l+'</td>'
+      +'<td style="font-family:monospace;">'+r.b+'</td>'
+      +'<td style="font-weight:800;font-family:monospace;background:#fff8e1;">'+r.s+'</td>'
+      +'<td>'+r.c+'</td>'
+      +'<td style="font-size:0.8rem;">'+(r.ok?'<span style="color:var(--good);">✓</span>':'<span style="color:var(--danger);">⚠</span>')+'</td>'
+      +'</tr>';
   });
   html+='</table></div>';
 
-  // Stress Alerts
+  // Alerts
   var alerts=[];
-  if(newPAT<0) alerts.push('🔴 Unit turns loss-making under this scenario — PAT = ₹'+fmtN(Math.round(newPAT))+'K');
-  if(newDSCR>0&&newDSCR<1.5) alerts.push('🔴 DSCR falls below norm ('+Math.round(newDSCR*100)/100+') — TL repayment at risk');
-  if(newMPBF<base.mpbf*0.9) alerts.push('🟡 MPBF reduces by ₹'+fmtN(Math.round(base.mpbf-newMPBF))+'K — WC limit may need revision');
-  if(newGPPct<10) alerts.push('🔴 Gross margin compressed to '+Math.round(newGPPct*10)/10+'% — very thin margins');
-  if(alerts.length===0) alerts.push('🟢 Unit remains financially viable under this stress scenario.');
+  if(newPAT<0) alerts.push({t:'🔴 LOSS-MAKING: PAT = ₹'+fmtN(newPAT)+'K — Unit is unprofitable under this scenario.',c:'bad'});
+  if(newDSCR>0&&newDSCR<1.5) alerts.push({t:'🔴 DSCR = '+Math.round(newDSCR*100)/100+' — Below bank norm of 1.5. TL repayment at risk.',c:'bad'});
+  if(newCR<1.25) alerts.push({t:'🔴 Current Ratio = '+newCR+' — Below norm of 1.25. Liquidity stressed.',c:'bad'});
+  if(newGPPct<10) alerts.push({t:'🟡 GP Margin = '+Math.round(newGPPct*10)/10+'% — Very thin. Vulnerable to cost increases.',c:'warn'});
+  if(newMPBF<baseMPBF*0.85) alerts.push({t:'🟡 MPBF reduces by ₹'+fmtN(Math.round(baseMPBF-newMPBF))+'K — WC limit needs revision.',c:'warn'});
+  if(newMoS<20) alerts.push({t:'🟡 Margin of Safety = '+newMoS+'% — Low. Unit close to break-even.',c:'warn'});
+  if(alerts.length===0) alerts.push({t:'🟢 Unit remains financially viable under this scenario. All key parameters within norms.',c:'good'});
 
-  html+='<div style="margin-top:10px;">'+alerts.map(function(a){
-    return '<div style="padding:8px 12px;margin-bottom:6px;border-left:4px solid '+(a.startsWith('🔴')?'#c0392b':a.startsWith('🟡')?'#f0a500':'#1a7a4a')+
-      ';background:'+(a.startsWith('🔴')?'#fdecea':a.startsWith('🟡')?'#fff8e1':'#e8f5e9')+';border-radius:0 4px 4px 0;font-size:0.83rem;">'+a+'</div>';
+  var ac={bad:'#fdecea',warn:'#fff8e1',good:'#e8f5e9'};
+  var bc={bad:'#c0392b',warn:'#f0a500',good:'#1a7a4a'};
+  html+='<div style="margin-top:12px;">'+alerts.map(function(a){
+    return '<div style="padding:9px 14px;margin-bottom:6px;border-left:4px solid '+bc[a.c]+';background:'+ac[a.c]+';border-radius:0 5px 5px 0;font-size:0.84rem;font-weight:600;">'+a.t+'</div>';
   }).join('')+'</div>';
+
+  // Improvement Suggestions
+  var suggestions=[];
+  if(newPAT<0) suggestions.push('Increase selling price by '+(Math.ceil(Math.abs(newPAT)/newSales*100)+1)+'% OR reduce COGS by '+(Math.ceil(Math.abs(newPAT)/newCOGS*100)+1)+'% to break even.');
+  if(newDSCR>0&&newDSCR<1.5) suggestions.push('To achieve DSCR 1.5: Extend TL tenure OR reduce EMI by ₹'+fmtN(Math.round(tlPrin-(newCashAcc+tlInt)/1.5-tlInt))+'K per year.');
+  if(newCR<1.25) suggestions.push('Improve Current Ratio by infusing ₹'+fmtN(Math.round((1.25*(otherCL+newMPBF)-newCA)))+'K as additional margin/promoter deposit.');
+  if(suggestions.length>0){
+    html+='<div style="margin-top:10px;padding:12px;background:var(--light);border-radius:5px;">';
+    html+='<div style="font-weight:700;color:var(--navy);margin-bottom:6px;">💡 Improvement Suggestions:</div>';
+    suggestions.forEach(function(s){html+='<div style="font-size:0.82rem;margin-bottom:4px;">→ '+s+'</div>';});
+    html+='</div>';
+  }
 
   document.getElementById('sensResultCard').style.display='block';
   document.getElementById('sensResults').innerHTML=html;
