@@ -282,12 +282,24 @@
       <button onclick="showHelpSection('backup')" class="action" style="font-size:0.75rem; padding:5px 12px;">💾 Save & Restore</button>
       <button onclick="showHelpSection('menus')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📋 All Menus</button>
       <button onclick="showHelpSection('import_export')" class="action" style="font-size:0.75rem; padding:5px 12px;">📁 Import/Export</button>
-      <button onclick="showHelpSection('industry_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">🏭 Industry Templates</button>
-      <button onclick="showHelpSection('ai_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">🤖 AI Appraisal</button>
-      <button onclick="showHelpSection('project_report_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">📄 Project Report</button>
-      <button onclick="showHelpSection('sensitivity_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📐 Sensitivity</button>
-      <button onclick="showHelpSection('collateral_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">🏠 Collateral</button>
-      <button onclick="showHelpSection('dashboard_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">🏦 Dashboard</button>
+      <button onclick="showHelpSection('manage_items')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">Manage Items</button>
+      <button onclick="showHelpSection('statements_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">P&amp;L / BS</button>
+      <button onclick="showHelpSection('cma4_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">CMA-IV Fund Flow</button>
+      <button onclick="showHelpSection('ratios_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">Ratios</button>
+      <button onclick="showHelpSection('dp_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">Drawing Power</button>
+      <button onclick="showHelpSection('irr_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">IRR / NPV</button>
+      <button onclick="showHelpSection('risk_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">⭐ Risk Rating</button>
+      <button onclick="showHelpSection('sanction_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">✅ Sanction</button>
+      <button onclick="showHelpSection('export_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">⬇ Export</button>
+      <button onclick="showHelpSection('monitor_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">📊 Monitoring</button>
+      <button onclick="showHelpSection('stockstmt_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📦 Stock Stmt</button>
+      <button onclick="showHelpSection('errors_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">🔍 Errors</button>
+      <button onclick="showHelpSection('industry_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">🏭 Industry</button>
+      <button onclick="showHelpSection('ai_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">🤖 AI Appraisal</button>
+      <button onclick="showHelpSection('project_report_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📄 Project Report</button>
+      <button onclick="showHelpSection('sensitivity_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">📐 Sensitivity</button>
+      <button onclick="showHelpSection('collateral_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">🏠 Collateral</button>
+      <button onclick="showHelpSection('dashboard_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">🏦 Dashboard</button>
       <button onclick="showHelpSection('glossary')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📖 Glossary</button>
     </div>
     <div id="helpSectionContent" style="font-size:0.88rem; line-height:1.7; color:#222;"></div>
@@ -1131,8 +1143,8 @@
 <!-- ============ AI APPRAISAL PANEL ============ -->
 <div class="panel" id="panel-ai">
   <div class="card">
-    <h2>AI Credit Appraisal Note <span class="tag">POWERED BY CLAUDE AI</span></h2>
-    <div class="sub">AI reads all CMA data and generates a complete Credit Appraisal Note (CAN) — background, financial analysis, risk assessment, working capital assessment, repayment capacity, and recommendation. Requires internet connection.</div>
+    <h2>Credit Appraisal Note <span class="tag">AUTO-GENERATED</span></h2>
+    <div class="sub">Complete Credit Appraisal Note (CAN) auto-generated from your CMA data — no internet or API key required. Works fully offline.</div>
     <div class="row">
       <div class="field">
         <label>Loan Purpose / Project Description</label>
@@ -1141,17 +1153,19 @@
     </div>
     <div class="row">
       <div class="field">
-        <label>Any specific risks or strengths to highlight</label>
-        <input type="text" id="aiSpecialNotes" placeholder="e.g. Promoter has 20 years experience, unit is located in industrial estate">
+        <label>Promoter Strengths / Special Notes</label>
+        <input type="text" id="aiSpecialNotes" placeholder="e.g. Promoter has 20 years experience, ISO certified unit, established export customers">
       </div>
     </div>
     <div class="btnbar">
-      <button class="action" onclick="generateAIAppraisal()">🤖 Generate Credit Appraisal Note</button>
+      <button class="action" onclick="generateAIAppraisal()">📋 Generate Credit Appraisal Note</button>
+      <button class="action secondary" onclick="copyAIText()">📋 Copy</button>
+      <button class="action secondary" onclick="window.print()">🖨 Print</button>
     </div>
-    <div id="aiLoadingBox" style="display:none; padding:20px; text-align:center; color:#0e5e4a; font-weight:600;">
-      ⏳ AI is analysing your CMA data and writing the appraisal note... please wait (30–60 seconds)...
+    <div id="aiLoadingBox" style="display:none; padding:16px; text-align:center; color:#0e5e4a; font-weight:600;">
+      ⏳ Generating Credit Appraisal Note...
     </div>
-    <div id="aiResultBox" style="font-size:0.88rem; line-height:1.8; color:#0a1628; white-space:pre-wrap; background:#f9f8f4; padding:16px; border-radius:5px; border:1px solid #d0ccc0; display:none; margin-top:10px;"></div>
+    <div id="aiResultBox" style="font-size:0.88rem; line-height:1.9; color:#0a1628; background:#f9f8f4; padding:16px; border-radius:5px; border:1px solid #d0ccc0; display:none; margin-top:10px;"></div>
     <div class="btnbar" id="aiActionBar" style="display:none;">
       <button class="action secondary" onclick="copyAIText()">📋 Copy Text</button>
       <button class="action secondary" onclick="generateAIAppraisal()">↻ Regenerate</button>
@@ -5421,6 +5435,78 @@ function runErrorChecker(){
   document.getElementById('errorCheckerResults').innerHTML=html;
 }
 
+
+/* ── ANTHROPIC API KEY MANAGEMENT (shared across all AI features) ── */
+var ANTHROPIC_KEY_STORE = 'cma_anthropic_key_v2';
+
+function getApiKey(){
+  return localStorage.getItem(ANTHROPIC_KEY_STORE) || '';
+}
+
+function saveApiKeyGlobal(val){
+  val = (val||'').trim();
+  if(val.startsWith('sk-ant-') && val.length > 20){
+    localStorage.setItem(ANTHROPIC_KEY_STORE, val);
+    updateApiKeyStatus('✓ API key saved. AI features are now active.', 'var(--good)');
+    return true;
+  } else if(val.length > 5){
+    updateApiKeyStatus('⚠ Invalid key — must start with sk-ant-', 'var(--danger)');
+    return false;
+  }
+  return false;
+}
+
+function updateApiKeyStatus(msg, color){
+  ['aiKeyStatus','nuAIKeyStatus'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el){ el.textContent = msg; el.style.color = color; }
+  });
+}
+
+function loadApiKeyToFields(){
+  var k = getApiKey();
+  ['aiApiKey','nuAIApiKey'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el && k) el.value = k;
+  });
+  if(k) updateApiKeyStatus('✓ API key loaded — AI features active.', 'var(--good)');
+}
+
+// Aliases so both old and new function names work
+function saveApiKey(val){ saveApiKeyGlobal(val); }
+function nuSaveApiKey(val){ saveApiKeyGlobal(val); }
+function loadApiKey(){ loadApiKeyToFields(); }
+
+async function callAnthropicAPI(prompt, maxTokens){
+  var apiKey = getApiKey();
+  if(!apiKey){
+    throw new Error('No API key. Enter your Anthropic API key in the AI Appraisal tab first. Get a free key at console.anthropic.com');
+  }
+  var resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens || 2000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if(!resp.ok){
+    var err = await resp.json().catch(function(){return {};});
+    if(resp.status === 401) throw new Error('Invalid API key. Check your key at console.anthropic.com');
+    if(resp.status === 429) throw new Error('Rate limit reached. Wait 30 seconds and try again.');
+    if(resp.status === 400) throw new Error('Bad request: ' + (err.error && err.error.message || resp.status));
+    throw new Error('API error ' + resp.status + ': ' + (err.error && err.error.message || 'Unknown error'));
+  }
+  var data = await resp.json();
+  return (data.content && data.content[0] && data.content[0].text) || '';
+}
+
 var RISK_PARAMS = [
   {id:'rr_cr',    label:'Current Ratio (CA÷CL)',         weight:15, key:'currentRatio',
    bands:[{min:0,max:1,score:0},{min:1,max:1.2,score:3},{min:1.2,max:1.5,score:6},{min:1.5,max:999,score:10}]},
@@ -5579,54 +5665,239 @@ function buildCMAContext(){
   return lines.join('\n');
 }
 
-async function generateAIAppraisal(){
+/* ── API KEY MANAGEMENT ── */
+function saveApiKey(val){
+  if(val&&val.startsWith('sk-ant-')){
+    localStorage.setItem('cma_anthropic_key',val);
+    var el=document.getElementById('aiKeyStatus');
+    if(el){el.textContent='✓ API key saved on this device.';el.style.color='var(--good)';}
+  } else if(val&&val.length>10){
+    var el=document.getElementById('aiKeyStatus');
+    if(el){el.textContent='⚠ Key should start with sk-ant-';el.style.color='var(--danger)';}
+  }
+}
+function loadApiKey(){
+  var k=localStorage.getItem('cma_anthropic_key')||'';
+  var el=document.getElementById('aiApiKey');
+  var st=document.getElementById('aiKeyStatus');
+  if(el&&k){el.value=k;}
+  if(st&&k){st.textContent='✓ API key loaded from this device.';st.style.color='var(--good)';}
+}
+
+function generateAIAppraisal(){
   var purpose=document.getElementById('aiLoanPurpose').value||'Working Capital and Term Loan';
   var notes=document.getElementById('aiSpecialNotes').value||'';
-  var ctx=buildCMAContext();
-  if(ctx==='No CMA data available.'){showErr('Enter CMA data first before generating AI appraisal.');return;}
+  if(!CALC.data||!CALC.data.length){showErr('Enter CMA data first.');return;}
 
   document.getElementById('aiLoadingBox').style.display='block';
   document.getElementById('aiResultBox').style.display='none';
   document.getElementById('aiActionBar').style.display='none';
 
-  var prompt='You are an experienced Senior Credit Officer at a public sector bank in India with 30+ years of experience in MSME and corporate credit appraisal. Write a complete, professional Credit Appraisal Note (CAN) for the following unit based on the CMA data provided.\n\n'
-    +'LOAN PURPOSE: '+purpose+'\n'
-    +(notes?'ADDITIONAL NOTES: '+notes+'\n':'')
-    +'\nCMA DATA:\n'+ctx
-    +'\n\nWrite the Credit Appraisal Note with the following sections:\n'
-    +'1. BACKGROUND OF THE UNIT\n'
-    +'2. FINANCIAL PERFORMANCE ANALYSIS (comment on sales trend, profitability, margins)\n'
-    +'3. BALANCE SHEET ANALYSIS (comment on NW, leverage, asset quality)\n'
-    +'4. WORKING CAPITAL ASSESSMENT (MPBF computation, adequacy of proposed limit)\n'
-    +'5. TERM LOAN REPAYMENT CAPACITY (DSCR, cash accrual adequacy)\n'
-    +'6. RISK FACTORS AND MITIGANTS\n'
-    +'7. OVERALL ASSESSMENT\n'
-    +'8. RECOMMENDATION (Fund-based and Non-fund-based limits recommended with conditions)\n'
-    +'9. SUGGESTED COVENANTS AND CONDITIONS\n\n'
-    +'Use professional banking language. All amounts in Rs.\'000s. Be specific with numbers from the CMA data. Format each section clearly with the section heading in CAPITALS.';
+  setTimeout(function(){
+    try{
+      var u=STATE.unit||{};
+      var na=parseInt(u.numActualYears)||2;
+      var da=CALC.data[Math.min(na-1,CALC.data.length-1)];
+      var d0=CALC.data[0];
+      var dL=CALC.data[CALC.data.length-1];
+      var NY=CALC.data.length;
 
-  try {
-    var resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-6',
-        max_tokens:2000,
-        messages:[{role:'user',content:prompt}]
-      })
-    });
-    var data=await resp.json();
-    var text=(data.content&&data.content[0]&&data.content[0].text)||'AI response not available. Please try again.';
-    STATE.aiAppraisal=text;
-    document.getElementById('aiResultBox').textContent=text;
-    document.getElementById('aiResultBox').style.display='block';
-    document.getElementById('aiActionBar').style.display='flex';
-    saveAll(true);
-    showOk('Credit Appraisal Note generated successfully.');
-  } catch(e){
-    showErr('AI generation failed: '+e.message+'. Check internet connection.');
-  }
-  document.getElementById('aiLoadingBox').style.display='none';
+      function f2(v){return isNaN(v)||v===null?'—':Math.round(v*100)/100;}
+      function fm(v){if(!v&&v!==0)return '—';var neg=v<0;v=Math.abs(Math.round(v));var s=String(v),l=s.slice(-3),r=s.slice(0,-3);if(r)l=','+l;return (neg?'(':'')+(r.replace(/\B(?=(\d{2})+(?!\d))/g,',')+l)+(neg?')':'');}
+      function pct(v){return isNaN(v)||!isFinite(v)?'—':(Math.round(v*10)/10).toFixed(1)+'%';}
+      function yr(yi){return (CALC.years&&CALC.years[yi])||('Y'+(yi+1));}
+
+      var tlInt0=num(STATE.dscr&&STATE.dscr.interest&&STATE.dscr.interest[0]);
+      var tlPrin0=num(STATE.dscr&&STATE.dscr.principal&&STATE.dscr.principal[0]);
+      var ds0=tlInt0+tlPrin0;
+      var dscr0=ds0>0?Math.round((d0.cashAccrual+tlInt0)/ds0*100)/100:0;
+      var dscra=CALC.data[Math.min(na-1,CALC.data.length-1)];
+      var dscrA=0; if(STATE.dscr){var ti=num(STATE.dscr.interest&&STATE.dscr.interest[na-1]),tp=num(STATE.dscr.principal&&STATE.dscr.principal[na-1]);if(ti+tp>0)dscrA=Math.round((dscra.cashAccrual+ti)/(ti+tp)*100)/100;}
+
+      // Sales growth
+      var sgPct=d0.totalRevenue>0&&CALC.data.length>1?Math.round((CALC.data[1].totalRevenue-d0.totalRevenue)/d0.totalRevenue*100):0;
+      var sgTrend=sgPct>15?'strong growth':'moderate growth';
+      if(sgPct<0)sgTrend='declining sales';
+
+      // Debtor days
+      var debDays=d0.debtors>0&&d0.totalRevenue>0?Math.round(d0.debtors/d0.totalRevenue*365):0;
+      var debDaysA=da.debtors>0&&da.totalRevenue>0?Math.round(da.debtors/da.totalRevenue*365):0;
+
+      // MPBF
+      var otherCLa=(da.creditors||0)+(da.advancesFromCustomers||0)+(da.statutoryLiab||0)+(da.otherCL||0);
+      var mpbfA=Math.max(0,Math.min(da.currentAssets-otherCLa,da.currentAssets*0.75));
+
+      var can='';
+      var line=function(s){can+=s+'\n';};
+      var sec=function(s){can+='\n'+s+'\n'+'─'.repeat(s.length)+'\n';};
+
+      line('CREDIT APPRAISAL NOTE (CAN)');
+      line('Unit: '+(u.unitName||'—')+' | Bank: '+(u.bankName||'—')+' | Date: '+new Date().toLocaleDateString('en-IN'));
+      line('Loan Purpose: '+purpose);
+
+      sec('1. BACKGROUND OF THE UNIT');
+      line((u.unitName||'The unit')+', constituted as a '+(u.unitConstitution||'business entity')+', is engaged in '+(u.businessNature||u.unitActivity||'manufacturing / trading / service')+'. The unit has been banking with '+(u.bankName||'our bank')+(u.existingWC>0?' with an existing working capital limit of ₹'+fm(u.existingWC)+'K':'')+'. The unit is applying for '+purpose+'.');
+      if(notes) line('Additional Information: '+notes);
+
+      sec('2. FINANCIAL PERFORMANCE ANALYSIS');
+      line('The financial performance of the unit over the assessment period is summarised below (₹\'000s):');
+      line('');
+      line('  Particulars           '+CALC.years.map(function(y){return y.replace(/\(.*?\)/,'').trim().padStart(14);}).join(''));
+      line('  '+('─'.repeat(16+CALC.years.length*15)));
+      [
+        ['Total Revenue',     CALC.data.map(function(d){return fm(d.totalRevenue);})],
+        ['Gross Profit',      CALC.data.map(function(d){return fm(d.grossProfit);})],
+        ['GP Margin %',       CALC.data.map(function(d){return pct(d.gpPct);})],
+        ['PAT',               CALC.data.map(function(d){return fm(d.pat);})],
+        ['NP Margin %',       CALC.data.map(function(d){return pct(d.npPct);})],
+        ['Cash Accrual',      CALC.data.map(function(d){return fm(d.cashAccrual);})],
+      ].forEach(function(r){
+        line('  '+r[0].padEnd(22)+r[1].map(function(v){return String(v).padStart(14);}).join(''));
+      });
+      line('');
+      line('Sales trend: The unit has demonstrated '+sgTrend+' with revenue moving from ₹'+fm(d0.totalRevenue)+'K in '+yr(0)+' to ₹'+fm(da.totalRevenue)+'K in '+yr(na-1)+(NY>na?' with projections reaching ₹'+fm(dL.totalRevenue)+'K by '+yr(NY-1):'')+'.');
+      line('Gross Margin: GP margin '+(Math.abs(da.gpPct-d0.gpPct)<1?'has remained stable':'has '+(da.gpPct>d0.gpPct?'improved':'declined'))+' from '+pct(d0.gpPct)+' to '+pct(da.gpPct)+', indicating '+(da.gpPct>=20?'healthy cost management':'tight margins — monitor raw material costs')+'.');
+      line('Profitability: Net Profit Margin stood at '+pct(da.npPct)+' in '+yr(na-1)+'. '+(da.pat>0?'The unit is profitable and generating positive cash accrual of ₹'+fm(da.cashAccrual)+'K.':'The unit has reported '+(da.pat<0?'net losses':'marginal profits')+' — needs attention.'));
+
+      sec('3. BALANCE SHEET ANALYSIS');
+      line('  Particulars           '+CALC.years.map(function(y){return y.replace(/\(.*?\)/,'').trim().padStart(14);}).join(''));
+      line('  '+('─'.repeat(16+CALC.years.length*15)));
+      [
+        ['Net Worth',         CALC.data.map(function(d){return fm(d.netWorth);})],
+        ['Long Term Debt',    CALC.data.map(function(d){return fm(d.longTerm||0);})],
+        ['Current Liab',      CALC.data.map(function(d){return fm(d.currentLiabilities);})],
+        ['Current Assets',    CALC.data.map(function(d){return fm(d.currentAssets);})],
+        ['Total Assets',      CALC.data.map(function(d){return fm(d.totalAssets);})],
+        ['Current Ratio',     CALC.data.map(function(d){return f2(d.currentRatio||d.currentAssets/Math.max(d.currentLiabilities,1));})],
+        ['D/E Ratio',         CALC.data.map(function(d){return f2(d.deRatio||(d.longTerm||0)/Math.max(d.netWorth,1));})],
+        ['TOL/TNW',           CALC.data.map(function(d){return f2(d.toltnw||((d.longTerm||0)+d.currentLiabilities)/Math.max(d.netWorth,1));})],
+      ].forEach(function(r){
+        line('  '+r[0].padEnd(22)+r[1].map(function(v){return String(v).padStart(14);}).join(''));
+      });
+      var cr=da.currentRatio||(da.currentAssets/Math.max(da.currentLiabilities,1));
+      var de=da.deRatio||((da.longTerm||0)/Math.max(da.netWorth,1));
+      var tol=da.toltnw||((da.longTerm||0)+da.currentLiabilities)/Math.max(da.netWorth,1);
+      line('');
+      line('Net Worth: The net worth of the unit stands at ₹'+fm(da.netWorth)+'K in '+yr(na-1)+', reflecting '+(da.netWorth>d0.netWorth?'an improving':'a declining')+' financial position.');
+      line('Liquidity: Current Ratio of '+f2(cr)+' is '+(cr>=1.33?'above':'below')+' the standard bank norm of 1.25. '+(cr>=1.25?'Liquidity position is satisfactory.':'Needs improvement — borrower to infuse margin.'));
+      line('Leverage: TOL/TNW ratio of '+f2(tol)+' is '+(tol<=3?'within acceptable limits (norm ≤ 3:1).':'above the norm of 3:1 — leverage is high, monitor closely.'));
+      line('Debtor Position: Debtor collection period is '+debDaysA+' days in '+yr(na-1)+(debDaysA>debDays?' (increased from '+debDays+' days in '+yr(0)+' — collection efficiency declining)':(debDaysA<debDays?' (improved from '+debDays+' days — good collection efficiency)':' (stable)'))+'.');
+
+      sec('4. WORKING CAPITAL ASSESSMENT');
+      line('MPBF COMPUTATION — TANDON COMMITTEE METHOD I (₹\'000s):');
+      line('');
+      line('  Total Current Assets (TCA)                : '+fm(da.currentAssets));
+      line('  25% Margin (to be funded by borrower)     : '+fm(Math.round(da.currentAssets*0.25)));
+      line('  75% of TCA (Maximum Eligible)             : '+fm(Math.round(da.currentAssets*0.75)));
+      line('  Less: Other Current Liabilities           : '+fm(otherCLa));
+      line('  Working Capital Gap (WCG)                 : '+fm(Math.round(da.currentAssets-otherCLa)));
+      line('  MPBF (Min of 75% TCA and WCG)             : '+fm(Math.round(mpbfA)));
+      line('  Proposed WC Limit                         : '+fm(u.proposedWC||mpbfA));
+      line('');
+      line((u.proposedWC&&u.proposedWC<=mpbfA?'The proposed working capital limit of ₹'+fm(u.proposedWC)+'K is within the assessed MPBF of ₹'+fm(Math.round(mpbfA))+'K. The limit is justified.':'The MPBF works out to ₹'+fm(Math.round(mpbfA))+'K as per Tandon Committee Method I. '+(u.proposedWC>mpbfA?'The proposed limit of ₹'+fm(u.proposedWC)+'K exceeds MPBF — needs justification.':'Working capital limit of ₹'+fm(Math.round(mpbfA))+'K is recommended.')));
+
+      if(STATE.loan&&STATE.loan.amount){
+        sec('5. TERM LOAN REPAYMENT CAPACITY');
+        line('Term Loan of ₹'+fm(STATE.loan.amount)+'K @ '+STATE.loan.rate+'% p.a. for '+STATE.loan.tenure+' months with moratorium of '+(STATE.loan.moratorium||0)+' months.');
+        line('');
+        line('  DSCR ANALYSIS (₹\'000s):');
+        line('  Year         Cash Accrual    TL Interest    TL Principal    DSCR');
+        line('  '+('─'.repeat(70)));
+        var dscrOk=true;
+        CALC.data.forEach(function(d,yi){
+          var ti=num(STATE.dscr&&STATE.dscr.interest&&STATE.dscr.interest[yi]);
+          var tp=num(STATE.dscr&&STATE.dscr.principal&&STATE.dscr.principal[yi]);
+          var ds2=ti+tp;
+          var dscr2=ds2>0?Math.round((d.cashAccrual+ti)/ds2*100)/100:0;
+          if(dscr2>0&&dscr2<1.5)dscrOk=false;
+          if(ds2>0)line('  '+yr(yi).padEnd(14)+fm(d.cashAccrual).padStart(14)+fm(ti).padStart(14)+fm(tp).padStart(14)+(dscr2>0?String(dscr2).padStart(10):'  —').padStart(10));
+        });
+        line('');
+        line(dscrOk?'DSCR is satisfactory across all years — the unit has adequate capacity to service the term loan from its operations.':'DSCR falls below the bank norm of 1.5 in certain years — TL repayment capacity is marginal. Enhanced monitoring recommended.');
+        line('Cash Accrual (PAT + Depreciation) is sufficient to meet debt obligations with '+(dscrOk?'comfortable':'tight')+' margins.');
+      } else {
+        sec('5. REPAYMENT CAPACITY');
+        line('The unit does not have a term loan outstanding. Working capital is to be repaid / rolled over annually as per CC limit terms.');
+      }
+
+      sec('6. RISK FACTORS AND MITIGANTS');
+      var risks=[
+        ['Business/Market Risk','Fluctuations in demand, competition, pricing pressure in '+( u.businessNature||'the sector')+'.',da.gpPct>=15?'Healthy gross margins of '+pct(da.gpPct)+' provide buffer against demand shocks.':'Thin margins — diversification and long-term contracts recommended.'],
+        ['Raw Material Risk','Input cost volatility especially for '+(da.impPurch>0?'imported and domestic ':'domestic ')+'raw materials.',da.impPurch>0?'Forward covers and FLC limits recommended for imported RM.':'Domestic sourcing reduces forex risk; maintain adequate RM stock norms.'],
+        ['Financial Risk','Leveraged capital structure with TOL/TNW of '+f2(tol)+'.',tol<=2?'Leverage is conservative and within bank norms.':tol<=3?'Leverage is moderate — monitor quarterly.':'Leverage is high — no additional borrowings without bank\'s prior approval.'],
+        ['Liquidity Risk','Current Ratio of '+f2(cr)+' indicates '+(cr>=1.25?'adequate':'tight')+' liquidity.',cr>=1.25?'Liquidity is satisfactory. Monthly stock statements to be obtained.':'Borrower to improve current ratio by infusing margin or reducing current liabilities.'],
+        ['Management Risk','Dependence on promoter(s) for business decisions and relationships.','Key-man insurance to be assigned to the bank. Regular management reviews.'],
+        ['Regulatory Risk','GST compliance, environmental clearances, labour law requirements.','Annual compliance certificate from CA. GST returns to be verified before renewal.'],
+      ];
+      risks.forEach(function(r,i){
+        line((i+1)+'. '+r[0]+': '+r[1]);
+        line('   Mitigation: '+r[2]);
+        line('');
+      });
+
+      sec('7. OVERALL ASSESSMENT');
+      var overallOk=da.pat>0&&cr>=1.25&&(dscrA>=1.5||!STATE.loan||!STATE.loan.amount)&&tol<=3;
+      line('Based on the analysis of the financial statements and CMA data, the financial position of '+(u.unitName||'the unit')+' is assessed as follows:');
+      line('');
+      line('• Financial Performance  : '+(da.pat>0?'SATISFACTORY — Unit profitable with positive cash accrual':'BELOW EXPECTATION — Unit incurring losses'));
+      line('• Liquidity              : '+(cr>=1.33?'SATISFACTORY':cr>=1.25?'ADEQUATE':'BELOW NORM — needs improvement'));
+      line('• Leverage               : '+(tol<=2?'CONSERVATIVE':tol<=3?'ACCEPTABLE':'HIGH — monitor'));
+      var repCap=dscrA>=1.5?'ADEQUATE (DSCR '+f2(dscrA)+')':dscrA>0?'MARGINAL (DSCR '+f2(dscrA)+' — below 1.5)':'Not applicable'; line('• Repayment Capacity     : '+repCap);
+      line('• Overall                : '+(overallOk?'CREDIT WORTHY — Account recommended for sanction.':'REQUIRES ATTENTION — Sanction with enhanced monitoring recommended.'));
+
+      sec('8. RECOMMENDATION');
+      line('Based on the above assessment, the following limits are recommended:');
+      line('');
+      line('FUND BASED LIMITS:');
+      line('  Cash Credit (WC)  : ₹'+fm(Math.round(mpbfA))+'K (MPBF as assessed)');
+      if(STATE.loan&&STATE.loan.amount)
+        line('  Term Loan         : ₹'+fm(STATE.loan.amount)+'K @ '+STATE.loan.rate+'% for '+STATE.loan.tenure+' months');
+      line('');
+      if(STATE.nfb){
+        line('NON-FUND BASED LIMITS:');
+        if(STATE.nfb.ilc&&STATE.nfb.ilc>0)   line('  Inland LC (ILC)   : ₹'+fm(STATE.nfb.ilc)+'K');
+        if(STATE.nfb.flc&&STATE.nfb.flc>0)   line('  Foreign LC (FLC)  : ₹'+fm(STATE.nfb.flc)+'K');
+        if(STATE.nfb.bg&&STATE.nfb.bg>0)     line('  Bank Guarantee    : ₹'+fm(STATE.nfb.bg)+'K');
+        line('');
+      }
+      line('Sanction is recommended subject to the following conditions:');
+      ['Hypothecation of entire current assets (first charge).',
+       'Equitable mortgage of immovable property as collateral security.',
+       'Personal guarantee of all promoters/directors.',
+       'Submission of monthly stock statements by 10th of each month.',
+       'Submission of audited financial statements within 6 months of year-end.',
+       'No additional borrowings without prior written approval of the bank.',
+       'Maintain Current Ratio ≥ 1.25 at all times.',
+       'DSCR not to fall below 1.25 in any year during TL repayment.',
+       'Annual review and renewal of CC limit on or before due date.',
+       'All insurance policies (fire, stock, machinery) with bank mortgage clause.',
+      ].forEach(function(c2,i){line('  '+(i+1)+'. '+c2);});
+
+      sec('9. SUGGESTED COVENANTS');
+      ['TOL/TNW ratio not to exceed 4:1 at any time.',
+       'Capital expenditure above ₹10 lakh to be reported to the bank.',
+       'No dividend/withdrawal of capital during TL repayment without bank approval.',
+       'End-use certificate for all TL disbursements.',
+       'Quarterly QIS submission within 6 weeks of quarter-end (if WC limit ≥ ₹200 lakh).',
+       'Key-man insurance of promoters to be assigned to the bank.',
+       'Submission of GST returns copy to bank — quarterly.',
+      ].forEach(function(c2,i){line('  '+(i+1)+'. '+c2);});
+
+      line('\n'+'─'.repeat(60));
+      line('Prepared by CMA Generator | '+(u.bankName||'Bank')+' | '+new Date().toLocaleDateString('en-IN'));
+      line('All amounts in ₹\'000s | For internal bank use — verify before submission');
+
+      STATE.aiAppraisal=can;
+      document.getElementById('aiResultBox').textContent=can;
+      document.getElementById('aiResultBox').style.display='block';
+      document.getElementById('aiActionBar').style.display='flex';
+      saveAll(true);
+      showOk('Credit Appraisal Note generated.');
+    } catch(e){
+      showErr('Generation failed: '+e.message);
+    }
+    document.getElementById('aiLoadingBox').style.display='none';
+  }, 300);
 }
 
 function copyAIText(){
@@ -5981,6 +6252,7 @@ function init(){
     var loaded = loadAll();
     populateUnitFields();
     populateLoanIRRFields();
+    loadApiKeyToFields();
     if (!STATE.years || STATE.years.length===0){
       // default setup
       document.getElementById('numYears').value = 5;
@@ -6148,7 +6420,233 @@ var HELP_SECTIONS = {
     + '<h4>Export Options</h4>'
     + '<p>Trial Balance → Excel or CSV | P&L+BS → Excel (2 sheets) or CSV | Full backup → JSON</p>',
 
+  manage_items: '<h3 style="color:#0e5e4a;">Manage Items</h3>'
+    +'<p>Add, rename, reorder and delete line items in the Trial Balance.</p>'
+    +'<p><b>Add Item:</b> Select the group (Assets / Liabilities / Income / Expenses), enter item name, select category, tap Add. The item appears in the Trial Balance immediately.</p>'
+    +'<p><b>Rename Item:</b> Tap the pencil icon next to any item to rename it.</p>'
+    +'<p><b>Delete Item:</b> Tap the trash icon. Warning — deleting an item removes all its values permanently.</p>'
+    +'<p><b>Reorder:</b> Use up/down arrows to move items within their group.</p>'
+    +'<p><b>Categories — Assets:</b> fixed (Fixed Assets), ca (Current Assets), other (Other Assets).</p>'
+    +'<p><b>Categories — Liabilities:</b> networth (Capital/Reserves), longterm (Term Loans), cl (Current Liabilities).</p>'
+    +'<p><b>Categories — Income:</b> sales, sales_trading, sales_export, sales_cash, sales_credit, other.</p>'
+    +'<p><b>Categories — Expenses:</b> cogs, cogs_indigenous, cogs_imported, cogs_neg (closing stock), admin, depreciation, interest, tax.</p>'
+    +'<p><b>Note:</b> Do not delete standard items like Reserves & Surplus, Cash at Bank, Depreciation — these are used by the projection engine.</p>',
+
+  statements_help: '<h3 style="color:#0e5e4a;">P&L / Balance Sheet (Direct Entry)</h3>'
+    +'<p>An alternative to the Trial Balance — enter P&L and Balance Sheet figures directly from audited statements.</p>'
+    +'<p><b>When to use:</b> When you have audited P&L and BS statements and prefer to enter totals directly rather than individual TB items.</p>'
+    +'<p><b>P&L Sections:</b> Income → COGS → Gross Profit → Admin Expenses → Depreciation → Interest → Tax → PAT.</p>'
+    +'<p><b>Balance Sheet Sections:</b> Fixed Assets → Current Assets → Liabilities (Net Worth + LT + CL).</p>'
+    +'<p><b>Sync:</b> Values entered here automatically update corresponding Trial Balance items. Both are kept in sync.</p>'
+    +'<p><b>Import from Excel:</b> Use the Files tab → Import P&L+BS to populate from Excel with ProfitAndLoss and BalanceSheet sheets.</p>',
+
+  cma4_help: '<h3 style="color:#0e5e4a;">CMA Form IV — Fund Flow Statement</h3>'
+    +'<p>CMA Form IV shows the movement of funds between two periods — where funds came from (Sources) and where they went (Uses).</p>'
+    +'<p><b>Sources of Funds:</b> Net Profit After Tax (PAT), Depreciation added back, Increase in Net Worth (fresh capital), Increase in Long-Term Liabilities (new TL), Decrease in Fixed Assets (sale of assets).</p>'
+    +'<p><b>Uses of Funds:</b> Capital Expenditure (increase in Fixed Assets), Repayment of Term Loans, Increase in Working Capital, Dividend / Drawings.</p>'
+    +'<p><b>Net Working Capital Change:</b> Change in CA minus Change in CL. Positive = more funds locked in WC.</p>'
+    +'<p><b>Purpose for banker:</b> Fund Flow shows whether profits are being ploughed back or diverted. Negative fund flow from operations is a red flag. Check if TL repayment is being met from cash accrual.</p>'
+    +'<p><b>Auto-computed:</b> All Fund Flow figures are computed automatically from your Trial Balance data. No manual entry needed.</p>',
+
+  ratios_help: '<h3 style="color:#0e5e4a;">Ratios — Financial Ratio Analysis</h3>'
+    +'<p>All key ratios are auto-computed from CMA data for all years:</p>'
+    +'<table style="width:100%;font-size:0.82rem;border-collapse:collapse;margin-top:8px;">'
+    +'<tr style="background:#0a1628;color:#fff;"><th style="padding:5px;text-align:left;">Ratio</th><th style="padding:5px;">Formula</th><th style="padding:5px;">Bank Norm</th></tr>'
+    +[['Current Ratio','CA ÷ CL','≥ 1.25'],['Quick Ratio','(CA − Stock) ÷ CL','≥ 1.0'],
+      ['Debt-Equity Ratio','LT Debt ÷ Net Worth','≤ 2:1'],['TOL/TNW','(LT + CL) ÷ Net Worth','≤ 3:1'],
+      ['Interest Coverage','PBIT ÷ Interest','≥ 1.5'],['DSCR','(PAT+Dep+TL Int) ÷ (TL Int+TL Prin)','≥ 1.5'],
+      ['GP Margin %','Gross Profit ÷ Sales × 100','Industry norm'],['NP Margin %','PAT ÷ Sales × 100','>5%'],
+      ['Return on NW','PAT ÷ Net Worth × 100','> Bank Rate'],['Debtors Days','Debtors ÷ Sales × 365','Per industry'],
+      ['Creditors Days','Creditors ÷ Purchases × 365','Per industry'],['Inventory Days','Stock ÷ COGS × 365','Per industry'],
+      ['MPBF','Min(75% CA, WCG)','Tandon I'],['BEP','Fixed Costs ÷ P/V Ratio','<70% sales'],
+      ['Margin of Safety','Sales − BEP','> 30% sales']]
+    .map(function(r,i){return '<tr style="background:'+(i%2===0?'#f0f8f5':'#fff')+';"><td style="padding:4px 6px;font-weight:700;">'+r[0]+'</td><td style="padding:4px 6px;font-family:\'Courier New\',monospace;font-size:0.78rem;">'+r[1]+'</td><td style="padding:4px 6px;color:#0e5e4a;font-weight:700;">'+r[2]+'</td></tr>';}).join('')
+    +'</table>',
+
+  dp_help: '<h3 style="color:#0e5e4a;">Drawing Power</h3>'
+    +'<p>Drawing Power (DP) is the maximum amount a borrower can draw from the Cash Credit account on a given date, based on stock and debtors pledged as security.</p>'
+    +'<p><b>Formula:</b> DP = (Stock + Eligible Debtors) × (1 − Bank Margin%) − Sundry Creditors</p>'
+    +'<p><b>Stock eligibility:</b> Raw Material, WIP, Finished Goods, Stores & Spares — all eligible subject to prescribed margins.</p>'
+    +'<p><b>Debtor eligibility:</b> Only debtors up to 90 days old are eligible. Debtors beyond 90 days are excluded or marked non-standard.</p>'
+    +'<p><b>Bank Margin:</b> Typically 25% for all categories. Some banks use different margins for RM (10%), WIP (25%), FG (20%).</p>'
+    +'<p><b>In this tab:</b> Enter the stock and debtor values from your latest stock statement. DP is computed instantly. Compare with CC outstanding to check for excess drawing.</p>'
+    +'<p><b>ILC/FLC impact:</b> If ILC or FLC is opened, the eligible stock reduces by the portion covered under LC — to avoid double financing.</p>',
+
+  irr_help: '<h3 style="color:#0e5e4a;">IRR / NPV</h3>'
+    +'<p><b>IRR — Internal Rate of Return:</b> The discount rate at which NPV of all project cash flows = 0. Represents the expected annual return on total project investment.</p>'
+    +'<p><b>Decision rule:</b> If IRR > Cost of Capital (typically 12–14%), the project is financially viable. Banks generally look for IRR ≥ 14–16% for MSME projects.</p>'
+    +'<p><b>Cash flows used:</b> Year 0 = −(Fixed Assets + WC Margin). Years 1 to N = Annual Cash Accrual (PAT + Depreciation). Terminal year includes recovery of WC margin.</p>'
+    +'<p><b>NPV — Net Present Value:</b> Present value of all future cash flows minus initial investment, discounted at your chosen rate. NPV > 0 = project is viable at that discount rate.</p>'
+    +'<p><b>Discount Rate:</b> Enter the hurdle rate (usually weighted average cost of TL + equity cost). Default 14%.</p>'
+    +'<p><b>For existing units:</b> IRR reflects return on incremental investment (capex + WC margin).</p>'
+    +'<p><b>IRR computed by:</b> Bisection method (300 iterations) for accuracy. Result shown to 2 decimal places.</p>',
+
+  risk_help: '<h3 style="color:#0e5e4a;">⭐ Risk Rating</h3>'
+    +'<p>Automatic credit risk scoring based on financial ratios. All parameters and bands are fully editable.</p>'
+    +'<p><b>Default 8 parameters:</b></p>'
+    +'<table style="width:100%;font-size:0.82rem;border-collapse:collapse;margin-top:6px;">'
+    +'<tr style="background:#0a1628;color:#fff;"><th style="padding:4px 6px;text-align:left;">Parameter</th><th>Weight</th><th>Norm</th></tr>'
+    +[['Current Ratio','15%','≥1.5 = 10, ≥1.25 = 6, ≥1.0 = 3'],
+      ['DSCR','20%','≥2.0 = 10, ≥1.5 = 7, ≥1.0 = 4'],
+      ['TOL/TNW','15%','≤2 = 10, ≤3 = 6, ≤4 = 3'],
+      ['Net Profit %','10%','≥15% = 10, ≥8% = 8, ≥3% = 5'],
+      ['Sales Growth %','10%','≥20% = 10, ≥10% = 8, ≥0% = 5'],
+      ['Debt-Equity Ratio','10%','≤1 = 10, ≤2 = 7, ≤3 = 4'],
+      ['CC Utilisation vs MPBF','10%','≤70% = 10, ≤90% = 8, ≤100% = 5'],
+      ['Industry Risk','10%','Set via Industry Risk dropdown']]
+    .map(function(r,i){return '<tr style="background:'+(i%2===0?'#f0f8f5':'#fff')+';"><td style="padding:4px 6px;font-weight:700;">'+r[0]+'</td><td style="padding:4px 6px;">'+r[1]+'</td><td style="padding:4px 6px;font-size:0.75rem;">'+r[2]+'</td></tr>';}).join('')
+    +'</table>'
+    +'<p style="margin-top:8px;"><b>How to edit parameters:</b> Change weight % by typing in the weight column. Change band thresholds by editing the threshold values. Change scores (0–10) per band. Reset to Defaults button restores original values.</p>'
+    +'<p><b>RBI Grade:</b> Score ≥90 = Grade 1 (Minimal Risk) down to Score &lt;25 = Grade 8 (Default/NPA).</p>'
+    +'<p><b>Credit Rating:</b> Score ≥85 = AAA | ≥75 = AA | ≥65 = A | ≥55 = BBB | ≥45 = BB | ≥35 = B | below = High Risk.</p>',
+
+  sanction_help: '<h3 style="color:#0e5e4a;">✅ Sanction Recommendation</h3>'
+    +'<p>Auto-generates complete sanction terms in standard bank format from your CMA data.</p>'
+    +'<p><b>A. Recommended Limits:</b> Fund-based (CC, TL) and non-fund-based (ILC, FLC, BG) limits with rates and tenors.</p>'
+    +'<p><b>B. TL Repayment Schedule:</b> Monthly EMI, moratorium period, average DSCR confirmation.</p>'
+    +'<p><b>C. Primary Security:</b> Hypothecation of stocks and debtors (first charge), mortgage of fixed assets.</p>'
+    +'<p><b>D. Collateral Security:</b> Equitable mortgage of property, personal guarantee of promoters.</p>'
+    +'<p><b>E. Conditions Precedent to Disbursement:</b> Documents, KYC, insurance, registration requirements before first disbursement.</p>'
+    +'<p><b>F. Post-Sanction Conditions:</b> Monthly stock statement, QIS, annual review, insurance renewal, no additional borrowing without consent.</p>'
+    +'<p><b>G. Covenants:</b> Maintain CR ≥ 1.25, DSCR ≥ 1.25, TOL/TNW ≤ 4:1, no dividend during TL repayment without approval.</p>'
+    +'<p>Copy or print for inclusion in sanction letter / credit proposal.</p>',
+
+  export_help: '<h3 style="color:#0e5e4a;">⬇ Export</h3>'
+    +'<p>Export all CMA reports in multiple formats:</p>'
+    +'<p><b>PDF (Print):</b> Tap Print / Save as PDF — browser print dialog opens. On iPhone, choose Save to Files → PDF. Prints all visible CMA forms and reports.</p>'
+    +'<p><b>Excel (.xlsx):</b> Downloads formatted Excel workbook with all financial tables, ratios, and CMA forms. Use for further analysis or bank submission.</p>'
+    +'<p><b>Word (.txt → .docx):</b> Downloads a text file with all reports. Open in MS Word → File → Save As → .docx format. Includes AI Appraisal, Risk Assessment, Sanction Terms.</p>'
+    +'<p><b>JSON (Backup):</b> Complete app state backup — Trial Balance, Assumptions, Loan, IRR, Risk parameters, AI Appraisal. Import via Setup tab to restore all data.</p>'
+    +'<p><b>XML:</b> Structured data export for integration with bank systems or other software.</p>'
+    +'<p><b>Best practice:</b> Always export JSON backup before sharing or closing the app. Export Excel for bank submission. Export PDF for physical records.</p>',
+
+  monitor_help: '<h3 style="color:#0e5e4a;">📊 Monitoring</h3>'
+    +'<p>Post-sanction monitoring tools for the banker to track the account:</p>'
+    +'<p><b>Repayment Tracker:</b> Month-by-month TL EMI payment record. Mark each EMI as Paid/Pending/Bounced. Outstanding balance auto-computed. Tracks irregularities for SMA classification.</p>'
+    +'<p><b>Stock Statement:</b> Monthly stock and debtors entry with Drawing Power calculation. Highlights excess drawing immediately. History stored for trend analysis.</p>'
+    +'<p><b>QIS (Quarterly Information System):</b> Generate QIS-I, QIS-II, QIS-III templates pre-filled with projected figures from CMA. Borrower fills actual figures. Required by RBI for WC limits above ₹2 crore.</p>'
+    +'<p><b>QIS-I:</b> Statement of Current Assets and Current Liabilities (quarterly).</p>'
+    +'<p><b>QIS-II:</b> Operating Statement — half-yearly actuals vs projections.</p>'
+    +'<p><b>QIS-III:</b> Annual Fund Flow Statement — actual vs projected.</p>'
+    +'<p>Submit QIS within 6 weeks of quarter-end. Significant deviations (>15%) require explanation from borrower.</p>',
+
+  stockstmt_help: '<h3 style="color:#0e5e4a;">📦 Monthly Stock Statement</h3>'
+    +'<p>Enter month-end stock and debtor figures to compute Drawing Power for the Cash Credit account.</p>'
+    +'<p><b>Drawing Power formula:</b></p>'
+    +'<p style="font-family:\'Courier New\',monospace;background:#f0f8f5;padding:8px;border-radius:4px;font-size:0.82rem;">DP = (RM + WIP + FG + Stores + Debtors) × (1 − Margin%) − Creditors</p>'
+    +'<p><b>Bank Margin:</b> Default 25%. Change in the margin field if your bank uses a different margin.</p>'
+    +'<p><b>Status:</b> If CC Outstanding ≤ Drawing Power → ✓ OK (no irregularity). If CC Outstanding > DP → ⚠ Excess Drawing — borrower must regularise immediately by depositing funds or reducing outstanding.</p>'
+    +'<p><b>Save Statement:</b> Tap Save to record this month\'s statement. History shows all months with excess/surplus status at a glance.</p>'
+    +'<p><b>Submit to bank:</b> By 10th of each month. Include certified stock list with quantities and rates. Bank field officer may verify physically.</p>'
+    +'<p><b>Important:</b> Stores & Spares are eligible for Drawing Power only if they are essential for production. Old/slow-moving stock should be excluded or discounted.</p>',
+
+  errors_help: '<h3 style="color:#0e5e4a;">🔍 CMA Error Checker</h3>'
+    +'<p>Runs 25+ automated validation checks on your CMA data before bank submission. Tap Run Full Check.</p>'
+    +'<p><b>Checks performed:</b></p>'
+    +'<ul>'
+    +'<li>Balance Sheet tally — Assets = Liabilities for all actual years</li>'
+    +'<li>Projected BS tally — Cash at Bank as balancing figure</li>'
+    +'<li>Negative values — stock, debtors, creditors, assets</li>'
+    +'<li>Negative Net Worth — technical insolvency</li>'
+    +'<li>Zero sales with non-zero expenses</li>'
+    +'<li>Negative Gross Profit — COGS exceeds sales</li>'
+    +'<li>Depreciation zero when Fixed Assets exist</li>'
+    +'<li>Depreciation rate abnormally high (>40%)</li>'
+    +'<li>Interest zero when Term Loan outstanding</li>'
+    +'<li>Tax provision with net losses</li>'
+    +'<li>CC limit exceeding MPBF by >15%</li>'
+    +'<li>Current Ratio below 1.0</li>'
+    +'<li>Debtor days exceeding 180 days</li>'
+    +'<li>Stock holding period exceeding 180 days</li>'
+    +'<li>Other Assets >25% of Total Assets</li>'
+    +'<li>Sales declining in actual years</li>'
+    +'<li>Reserves not growing despite profits</li>'
+    +'<li>DSCR below 1.5 in any year with TL repayment</li>'
+    +'<li>Negative TB item values for assets</li>'
+    +'<li>No income entries in Trial Balance</li>'
+    +'<li>Loan details incomplete</li>'
+    +'<li>MPBF computation for all years</li></ul>'
+    +'<p><b>Results:</b> 🔴 ERRORS (must fix), 🟡 WARNINGS (review recommended), 🟢 PASSED. Each error has a "Go to Tab" button for direct navigation to the issue.</p>'
+    +'<p>Fix all errors before submitting CMA to bank. Warnings should be reviewed and explained if leaving unchanged.</p>',
+
   industry_help: '<h3 style="color:#0e5e4a;">🏭 Industry Templates</h3>'
+    +'<p>One-tap selection of 18 industry types that auto-loads the correct Chart of Accounts for your industry.</p>'
+    +'<p><b>Available industries:</b> Rice Mill, Flour Mill, Dairy, Medical Store, Grocery Shop, Hotel, Restaurant, Petrol Pump, Transport, Hospital, Engineering, Textile, Poultry, School, Automobile Dealer, Plastic, Furniture, Service Centre.</p>'
+    +'<p><b>What gets loaded:</b> All income items (sales categories), COGS items (raw materials, labour, power etc.), admin expenses, asset categories, and liability structure — specific to that industry.</p>'
+    +'<p><b>⚠ Important:</b> Loading a template RESETS the Trial Balance. Export a JSON backup first if you have existing data.</p>'
+    +'<p><b>After loading:</b> Go to Trial Balance tab and enter actual financial figures. The template provides the structure — you fill in the numbers from the unit\'s audited accounts.</p>'
+    +'<p><b>Custom items:</b> After loading a template, use Manage Items tab to add or remove specific line items for your unit.</p>',
+
+  ai_help: '<h3 style="color:#0e5e4a;">🤖 AI Credit Appraisal</h3>'
+    +'<p>Generates a complete Credit Appraisal Note (CAN) in bank format using Claude AI. Requires internet connection and an Anthropic API key.</p>'
+    +'<p><b>Getting your API key (free):</b></p>'
+    +'<ol><li>Visit <b>console.anthropic.com</b> and sign up</li>'
+    +'<li>Go to API Keys → Create Key</li>'
+    +'<li>Copy the key (starts with sk-ant-)</li>'
+    +'<li>Paste in the API Key field — saved on your device only</li></ol>'
+    +'<p><b>Generated sections:</b> Unit Profile & Background, Management & Promoters, Industry Overview & Market Position, Financial Performance Analysis (with actual numbers), Balance Sheet & Leverage Analysis, Working Capital Assessment & MPBF, TL Repayment Capacity & DSCR, Risk Factors & Mitigants, Overall Credit Assessment, Recommendation, Terms & Conditions.</p>'
+    +'<p><b>Best results:</b> Enter all TB data for both actual years first. Add loan details. Then generate AI appraisal with specific loan purpose and promoter details.</p>'
+    +'<p>Takes 30–60 seconds. Output can be copied or printed for bank submission.</p>',
+
+  project_report_help: '<h3 style="color:#0e5e4a;">📄 Project Report</h3>'
+    +'<p>Auto-generates a complete narrative Project Report from your CMA data.</p>'
+    +'<p><b>Sections included:</b></p>'
+    +'<ul><li>Executive Summary with all key financial highlights</li>'
+    +'<li>Unit and promoter details</li>'
+    +'<li>Business description and industry background</li>'
+    +'<li>Financial performance — P&L summary all years</li>'
+    +'<li>Balance sheet analysis and leverage</li>'
+    +'<li>Working capital assessment with MPBF</li>'
+    +'<li>Debt service capacity (DSCR)</li>'
+    +'<li>Risk assessment</li>'
+    +'<li>Recommendation</li></ul>'
+    +'<p><b>Print to PDF:</b> Tap Print button → Save to Files as PDF (iPhone). Share via email or WhatsApp.</p>'
+    +'<p><b>Export Word:</b> Copies report text to clipboard or downloads as .txt — open in MS Word, save as .docx.</p>',
+
+  sensitivity_help: '<h3 style="color:#0e5e4a;">📐 Sensitivity Analysis</h3>'
+    +'<p>Stress-tests your CMA data by adjusting key parameters. All changes are for analysis only — actual CMA data is NOT affected.</p>'
+    +'<p><b>4 stress parameters:</b></p>'
+    +'<ul><li><b>Sales Change %:</b> Simulate revenue drop (e.g. −20% = sales decline by 20%)</li>'
+    +'<li><b>Raw Material Cost Change %:</b> Simulate RM price increase (e.g. +10% = RM becomes 10% costlier)</li>'
+    +'<li><b>Interest Rate Change (bps):</b> Simulate RBI rate hike (100 bps = 1% increase in rate)</li>'
+    +'<li><b>Debtor Days Change:</b> Simulate slower collections (+30 = debtors take 30 more days to pay)</li></ul>'
+    +'<p><b>Results shown:</b> New Sales, Gross Profit, GP%, PAT, MPBF, DSCR compared to base values. Red alerts when DSCR < 1.5, GP% < 10%, or unit turns loss-making.</p>'
+    +'<p><b>Year selection:</b> Choose which year to stress-test from the dropdown. Select actual years to test historical resilience.</p>'
+    +'<p><b>Reset:</b> Reset All button returns all sliders to 0 (base case).</p>'
+    +'<p><b>Note:</b> Enter Trial Balance data first — year dropdown will be empty until data is loaded.</p>',
+
+  collateral_help: '<h3 style="color:#0e5e4a;">🏠 Collateral Module</h3>'
+    +'<p>Record and analyse all securities offered by the borrower. Data saved in JSON backup.</p>'
+    +'<p><b>Security types:</b> Immovable Property, Plant & Machinery, Vehicle, Fixed Deposit / LIC, Stock & Debtors (Primary), Bank Guarantee, Other.</p>'
+    +'<p><b>For each security:</b></p>'
+    +'<ul><li><b>Market Value:</b> Current market value as per bank-approved valuer\'s report (₹\'000s)</li>'
+    +'<li><b>FSV %:</b> Forced Sale Value — what bank can realise under distress sale. Typically: Residential property 65%, Commercial 55%, Industrial 50%, Machinery 40%</li>'
+    +'<li><b>Distress Value:</b> Auto-computed at 40% of Market Value (conservative estimate)</li>'
+    +'<li><b>Charge:</b> First Charge Mortgage (strongest) / Second Charge / Hypothecation / Pledge / Assignment</li></ul>'
+    +'<p><b>Summary computed:</b></p>'
+    +'<ul><li>Total Market Value and FSV across all securities</li>'
+    +'<li>Total Exposure = Proposed WC + Term Loan</li>'
+    +'<li>LTV Ratio = Exposure ÷ Total FSV. RBI norm: generally ≤ 75%</li></ul>'
+    +'<p><b>CGTMSE:</b> For MSME loans up to ₹200 lakh — CGTMSE guarantee can replace collateral entirely. No property needed.</p>',
+
+  dashboard_help: '<h3 style="color:#0e5e4a;">🏦 Banker\'s Dashboard</h3>'
+    +'<p>Complete at-a-glance view of all key financial parameters with RAG (Red/Amber/Green) colour coding.</p>'
+    +'<p><b>12 KPI Indicators:</b> Current Ratio, DSCR, ISCR (Interest Service Coverage), Debt-Equity Ratio, TOL/TNW, GP Margin%, NP Margin%, MPBF, CC Limit, BEP Sales, Working Capital Cycle, Net Worth — each colour-coded against bank norms.</p>'
+    +'<p><b>Credit Rating:</b> AAA / AA / A / BBB / BB / B / High Risk — computed from 7 weighted parameters. Score shown out of 100.</p>'
+    +'<p><b>Automatic Remarks (10 observations):</b></p>'
+    +'<ul><li>Sales trend — growth or decline with percentage</li>'
+    +'<li>Current Ratio — satisfactory or below norm</li>'
+    +'<li>Debtor holding period — stable or increasing</li>'
+    +'<li>DSCR — adequate or below norm</li>'
+    +'<li>Profit trend — improving or declining</li>'
+    +'<li>Inventory levels — reasonable or excessive</li>'
+    +'<li>Leverage (TOL/TNW) — conservative or over-leveraged</li>'
+    +'<li>Net Worth — positive/growing or declining</li>'
+    +'<li>CC vs MPBF — within limits or excess drawing</li></ul>'
+    +'<p><b>4 Trend Charts:</b> Sales & Profit, Current Ratio & DSCR, MPBF vs CC, Net Worth & Total Debt — all years plotted.</p>'
+    +'<p><b>Overall Recommendation:</b> Recommend Sanction / Recommend with Conditions / Refer to Higher Authority / Decline — auto-generated from credit score with justification.</p>',
+
+  glossary: '<h3 style="color:#0e5e4a;">📖 Glossary of Banking & CMA Terms</h3>'
     +'<p>One-tap selection of 18 industry types — Rice Mill, Flour Mill, Dairy, Medical Store, Grocery, Hotel, Restaurant, Petrol Pump, Textile, Transport, Hospital, Engineering, School, Poultry, Auto Dealer, Plastic, Furniture, Service Centre.</p>'
     +'<p>Each template <b>resets the Trial Balance</b> and loads the correct Chart of Accounts with industry-specific income items, COGS items, and admin expenses.</p>'
     +'<p><b>Before loading a template:</b> Export a JSON backup from Setup tab if you have existing data.</p>'

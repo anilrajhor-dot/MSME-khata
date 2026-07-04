@@ -292,18 +292,18 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
     <div class="note">For a new unit, Capital = promoter's own investment (equity). Term Loan = bank finance for fixed assets and margin. Working Capital loan is computed automatically.</div>
     <div class="row">
       <div class="field">
-        <label>Promoter's Own Capital (₹'000s)</label>
+        <label>Promoter's Own Capital (Rs.'000s)</label>
         <input type="number" id="capital" placeholder="e.g. 500" onfocus="this.select()">
         <div class="hint">Equity brought in by promoter(s)</div>
       </div>
       <div class="field">
-        <label>Unsecured Loans / Friends & Family (₹'000s)</label>
+        <label>Unsecured Loans / Friends & Family (Rs.'000s)</label>
         <input type="number" id="unsecuredLoans" placeholder="0" onfocus="this.select()">
       </div>
     </div>
     <div class="row">
       <div class="field">
-        <label>Term Loan Required (₹'000s)</label>
+        <label>Term Loan Required (Rs.'000s)</label>
         <input type="number" id="termLoan" placeholder="e.g. 1000" onfocus="this.select()">
         <div class="hint">Bank term loan for project cost</div>
       </div>
@@ -325,7 +325,7 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
     </div>
     <div class="row">
       <div class="field">
-        <label>Working Capital Limit Proposed (₹'000s)</label>
+        <label>Working Capital Limit Proposed (Rs.'000s)</label>
         <input type="number" id="wcLimit" placeholder="auto-computed" onfocus="this.select()">
         <div class="hint">Leave blank to auto-compute from MPBF</div>
       </div>
@@ -348,7 +348,7 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
     <div class="sub">All amounts in ₹'000s. Enter cost of each fixed asset. Depreciation is auto-calculated using WDV rates shown.</div>
     <div class="note">Project cost = Fixed Assets + Margin on Working Capital. This should match Capital + Term Loan + Unsecured Loans.</div>
     <div class="scrollx"><table id="faTable">
-      <tr><th class="lbl" style="text-align:left;">Asset Class</th><th>Cost (₹'000s)</th><th>WDV Rate %</th><th>Dep. Year 1 (₹'000s)</th></tr>
+      <tr><th class="lbl" style="text-align:left;">Asset Class</th><th>Cost (Rs.'000s)</th><th>WDV Rate %</th><th>Dep. Year 1 (Rs.'000s)</th></tr>
       <tr><td class="lbl">Land &amp; Building</td><td><input type="number" class="fa-input" data-fa="lb" placeholder="0" onfocus="this.select()" oninput="calcFASummary()"></td><td><input type="number" class="fa-rate" data-fa="lb" value="5" onfocus="this.select()" oninput="calcFASummary()"></td><td id="dep_lb">-</td></tr>
       <tr><td class="lbl">Plant &amp; Machinery</td><td><input type="number" class="fa-input" data-fa="pm" placeholder="0" onfocus="this.select()" oninput="calcFASummary()"></td><td><input type="number" class="fa-rate" data-fa="pm" value="15" onfocus="this.select()" oninput="calcFASummary()"></td><td id="dep_pm">-</td></tr>
       <tr><td class="lbl">Furniture &amp; Fixtures</td><td><input type="number" class="fa-input" data-fa="fn" placeholder="0" onfocus="this.select()" oninput="calcFASummary()"></td><td><input type="number" class="fa-rate" data-fa="fn" value="10" onfocus="this.select()" oninput="calcFASummary()"></td><td id="dep_fn">-</td></tr>
@@ -371,7 +371,7 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
 
     <div class="row">
       <div class="field">
-        <label>Estimated Sales — Year 1 (₹'000s)</label>
+        <label>Estimated Sales — Year 1 (Rs.'000s)</label>
         <input type="number" id="sales1" placeholder="e.g. 3000" onfocus="this.select()">
       </div>
       <div class="field">
@@ -484,7 +484,7 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
     </div>
     <div class="row">
       <div class="field">
-        <label>Bank Guarantee — Total Contract Value (₹'000s)</label>
+        <label>Bank Guarantee — Total Contract Value (Rs.'000s)</label>
         <input type="number" id="bgValueNew" placeholder="0 = no BG" onfocus="this.select()">
         <div class="hint">Total value of govt/tender contracts requiring BG</div>
       </div>
@@ -670,12 +670,12 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
     <div class="field"><label>Month</label>
       <select id="nuSSMonth"><option>April</option><option>May</option><option>June</option><option>July</option><option>August</option><option>September</option><option>October</option><option>November</option><option>December</option><option>January</option><option>February</option><option>March</option></select></div>
     <div class="field"><label>Year</label><input type="text" id="nuSSYear" placeholder="2026-27"></div>
-    <div class="field"><label>Raw Material (₹'000s)</label><input type="number" id="nuSSRM" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
-    <div class="field"><label>WIP (₹'000s)</label><input type="number" id="nuSSWIP" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
-    <div class="field"><label>Finished Goods (₹'000s)</label><input type="number" id="nuSSFG" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
-    <div class="field"><label>Sundry Debtors (₹'000s)</label><input type="number" id="nuSSDebtors" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
-    <div class="field"><label>Sundry Creditors (₹'000s)</label><input type="number" id="nuSSCreditors" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
-    <div class="field"><label>CC Outstanding (₹'000s)</label><input type="number" id="nuSSCC" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>Raw Material (Rs.'000s)</label><input type="number" id="nuSSRM" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>WIP (Rs.'000s)</label><input type="number" id="nuSSWIP" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>Finished Goods (Rs.'000s)</label><input type="number" id="nuSSFG" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>Sundry Debtors (Rs.'000s)</label><input type="number" id="nuSSDebtors" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>Sundry Creditors (Rs.'000s)</label><input type="number" id="nuSSCreditors" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>CC Outstanding (Rs.'000s)</label><input type="number" id="nuSSCC" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
     <div class="field"><label>Bank Margin %</label><input type="number" id="nuSSMargin" value="25" onfocus="this.select()" oninput="calcNUDP()"></div>
   </div>
   <div id="nuDPResult"></div>
@@ -698,7 +698,17 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
 <div class="panel" id="panel-nu-ai">
 <div class="card">
   <h2>🤖 AI Credit Appraisal <span class="tag">AI GENERATED</span></h2>
-  <div class="sub">Complete Credit Appraisal Note generated by AI — exactly as a bank officer writes.</div>
+  <div class="sub">Complete Credit Appraisal Note generated by AI. Requires internet and your Anthropic API key.</div>
+  <div class="note" style="border-color:#1565C0;">
+    🔑 <b>API Key:</b> Get free key at <b>console.anthropic.com</b> → Sign up → API Keys → Create Key. Paste below. Saved on device only.
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>Anthropic API Key</label>
+      <input type="password" id="nuAIApiKey" placeholder="sk-ant-api03-..." oninput="nuSaveApiKey(this.value)" style="font-family:'Courier New',monospace;font-size:0.82rem;">
+      <small id="nuAIKeyStatus" style="color:var(--sub);font-size:0.75rem;"></small>
+    </div>
+  </div>
   <div class="row">
     <div class="field"><label>Loan Purpose</label><input type="text" id="nuAIPurpose" placeholder="e.g. Term Loan and Working Capital for new manufacturing unit"></div>
   </div>
@@ -778,7 +788,7 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
   <h3 style="margin-top:14px;">Disbursement Tracker</h3>
   <div id="nuDisbTracker">
     <div class="scrollx"><table>
-      <tr><th>Tranche</th><th>Amount (₹'000s)</th><th>Purpose</th><th>Date</th><th>Status</th></tr>
+      <tr><th>Tranche</th><th>Amount (Rs.'000s)</th><th>Purpose</th><th>Date</th><th>Status</th></tr>
       <tr><td class="label">1st Tranche (25%)</td><td id="nuTr1Amt" style="font-weight:700;font-family:'Courier New',monospace;"></td><td>Site preparation / civil work</td><td><input type="text" placeholder="MM/YYYY" style="width:80px;border:1px solid var(--line);padding:3px;color:#000;font-weight:700;"></td><td><select style="border:1px solid var(--line);padding:3px;color:#000;font-weight:700;"><option>Pending</option><option>Disbursed</option></select></td></tr>
       <tr><td class="label">2nd Tranche (50%)</td><td id="nuTr2Amt" style="font-weight:700;font-family:'Courier New',monospace;"></td><td>Machinery erection & trial run</td><td><input type="text" placeholder="MM/YYYY" style="width:80px;border:1px solid var(--line);padding:3px;color:#000;font-weight:700;"></td><td><select style="border:1px solid var(--line);padding:3px;color:#000;font-weight:700;"><option>Pending</option><option>Disbursed</option></select></td></tr>
       <tr><td class="label">3rd Tranche (25%)</td><td id="nuTr3Amt" style="font-weight:700;font-family:'Courier New',monospace;"></td><td>Commercial production start</td><td><input type="text" placeholder="MM/YYYY" style="width:80px;border:1px solid var(--line);padding:3px;color:#000;font-weight:700;"></td><td><select style="border:1px solid var(--line);padding:3px;color:#000;font-weight:700;"><option>Pending</option><option>Disbursed</option></select></td></tr>
@@ -1788,7 +1798,80 @@ function showNewUnitHelp(key){
 document.addEventListener('DOMContentLoaded', function(){
   showNUHelp('overview');
   renderNUIndustryGrid();
+  loadApiKeyToFields();
 });
+
+
+/* ── ANTHROPIC API KEY MANAGEMENT (shared across all AI features) ── */
+var ANTHROPIC_KEY_STORE = 'cma_anthropic_key_v2';
+
+function getApiKey(){
+  return localStorage.getItem(ANTHROPIC_KEY_STORE) || '';
+}
+
+function saveApiKeyGlobal(val){
+  val = (val||'').trim();
+  if(val.startsWith('sk-ant-') && val.length > 20){
+    localStorage.setItem(ANTHROPIC_KEY_STORE, val);
+    updateApiKeyStatus('✓ API key saved. AI features are now active.', 'var(--good)');
+    return true;
+  } else if(val.length > 5){
+    updateApiKeyStatus('⚠ Invalid key — must start with sk-ant-', 'var(--danger)');
+    return false;
+  }
+  return false;
+}
+
+function updateApiKeyStatus(msg, color){
+  ['aiKeyStatus','nuAIKeyStatus'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el){ el.textContent = msg; el.style.color = color; }
+  });
+}
+
+function loadApiKeyToFields(){
+  var k = getApiKey();
+  ['aiApiKey','nuAIApiKey'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el && k) el.value = k;
+  });
+  if(k) updateApiKeyStatus('✓ API key loaded — AI features active.', 'var(--good)');
+}
+
+// Aliases so both old and new function names work
+function saveApiKey(val){ saveApiKeyGlobal(val); }
+function nuSaveApiKey(val){ saveApiKeyGlobal(val); }
+function loadApiKey(){ loadApiKeyToFields(); }
+
+async function callAnthropicAPI(prompt, maxTokens){
+  var apiKey = getApiKey();
+  if(!apiKey){
+    throw new Error('No API key. Enter your Anthropic API key in the AI Appraisal tab first. Get a free key at console.anthropic.com');
+  }
+  var resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens || 2000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if(!resp.ok){
+    var err = await resp.json().catch(function(){return {};});
+    if(resp.status === 401) throw new Error('Invalid API key. Check your key at console.anthropic.com');
+    if(resp.status === 429) throw new Error('Rate limit reached. Wait 30 seconds and try again.');
+    if(resp.status === 400) throw new Error('Bad request: ' + (err.error && err.error.message || resp.status));
+    throw new Error('API error ' + resp.status + ': ' + (err.error && err.error.message || 'Unknown error'));
+  }
+  var data = await resp.json();
+  return (data.content && data.content[0] && data.content[0].text) || '';
+}
 
 // ─── NEW TABS JS ──────────────────────────────────────────
 
@@ -2345,37 +2428,78 @@ function renderNURisk(){
 }
 
 /* ── AI APPRAISAL ── */
-async function generateNUAI(){
+function generateNUAI(){
   if(!C||!C.data||!C.data.length){showErr('Generate CMA first.');return;}
-  var purpose=document.getElementById('nuAIPurpose').value||'Term Loan and Working Capital for new manufacturing unit';
-  var promoter=document.getElementById('nuAIPromoter').value||'technically qualified promoter with industry experience';
-  var d0=C.data[0];
-  var dscrArr=C.data.map(function(d){return d.dscr||0;}).filter(function(v){return v>0;});
-  var avgDSCR=dscrArr.length?Math.round(dscrArr.reduce(function(s,v){return s+v;},0)/dscrArr.length*100)/100:0;
-  var ctx='UNIT: '+(document.getElementById('unitName')?document.getElementById('unitName').value:'New Unit');
-  ctx+='\nBANK: '+(document.getElementById('bankName')?document.getElementById('bankName').value:'');
-  ctx+='\nPROJECTOR: '+promoter;
-  ctx+='\nPURPOSE: '+purpose;
-  ctx+='\nPROJECT: Capital=₹'+(document.getElementById('capital')?document.getElementById('capital').value:0)+'K';
-  ctx+=', TL=₹'+(document.getElementById('termLoan')?document.getElementById('termLoan').value:0)+'K';
-  ctx+=' @ '+(document.getElementById('tlRate')?document.getElementById('tlRate').value:0)+'%, Tenure='+(document.getElementById('tlTenure')?document.getElementById('tlTenure').value:0)+' months';
-  ctx+='\nPROJECTIONS (₹\'000s):\nYear|Sales|PAT|MPBF|CR|DSCR|BEP\n';
-  C.data.forEach(function(d,i){ctx+='Y'+(i+1)+'|'+d.sales+'|'+d.pat+'|'+(d.mpbf||0)+'|'+(d.currentRatio||0)+'|'+(d.dscr||0)+'|'+(d.bep||0)+'\n';});
-  ctx+='\nIRR: '+(C.irr?Math.round(C.irr*1000)/10+'%':'N/A')+' | Avg DSCR: '+avgDSCR+' | Investment: ₹'+(C.invest||0)+'K';
+  var purpose=document.getElementById('nuAIPurpose').value||'Term Loan and Working Capital for new unit';
+  var promoter=document.getElementById('nuAIPromoter').value||'technically qualified promoter';
   document.getElementById('nuAILoading').style.display='block';
   document.getElementById('nuAIOutput').style.display='none';
-  try{
-    var resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,
-        messages:[{role:'user',content:'You are a Senior Credit Officer at a public sector bank in India. Write a complete Credit Appraisal Note (CAN) for this NEW UNIT project exactly as a bank officer writes it.\n\n'+ctx+'\n\nWrite a professional CAN covering:\n1. UNIT / PROJECT BACKGROUND\n2. PROMOTER PROFILE\n3. PROJECT DESCRIPTION & TECHNICAL FEASIBILITY\n4. MARKET & INDUSTRY ANALYSIS\n5. FINANCIAL PROJECTIONS ANALYSIS (cite specific numbers)\n6. PROJECT COST & MEANS OF FINANCE\n7. WORKING CAPITAL ASSESSMENT (MPBF — Tandon Committee)\n8. DSCR & REPAYMENT CAPACITY\n9. IRR & PROJECT VIABILITY\n10. RISK ASSESSMENT & MITIGANTS\n11. SECURITY (recommend CGTMSE for MSME)\n12. OVERALL ASSESSMENT & RECOMMENDATION\n13. PROPOSED TERMS & CONDITIONS\n\nUse CAPITALS for section headings. All amounts in ₹\'000s. Professional banking language.'}]})});
-    var data=await resp.json();
-    var text=(data.content&&data.content[0]&&data.content[0].text)||'Generation failed.';
-    document.getElementById('nuAIOutput').textContent=text;
-    document.getElementById('nuAIOutput').style.display='block';
-    showOk('AI Appraisal generated.');
-  }catch(e){showErr('AI failed: '+e.message);}
-  document.getElementById('nuAILoading').style.display='none';
+  setTimeout(function(){
+    try{
+      var d0=C.data[0];var dL=C.data[C.data.length-1];
+      var unitName=document.getElementById('unitName')?document.getElementById('unitName').value:'New Unit';
+      var bank=document.getElementById('bankName')?document.getElementById('bankName').value:'Bank';
+      var industry=document.getElementById('industryType')?document.getElementById('industryType').value:'manufacturing';
+      var tl=nuN(document.getElementById('termLoan')?document.getElementById('termLoan').value:0);
+      var tlRate=nuN(document.getElementById('tlRate')?document.getElementById('tlRate').value:0);
+      var tenure=nuN(document.getElementById('tlTenure')?document.getElementById('tlTenure').value:0);
+      var mora=nuN(document.getElementById('tlMoratorium')?document.getElementById('tlMoratorium').value:0);
+      var cap=nuN(document.getElementById('capital')?document.getElementById('capital').value:0);
+      var dscrArr=C.data.map(function(d){return d.dscr||0;}).filter(function(v){return v>0;});
+      var avgDSCR=dscrArr.length?Math.round(dscrArr.reduce(function(s,v){return s+v;},0)/dscrArr.length*100)/100:0;
+      function fm(v){if(!v&&v!==0)return '—';var neg=v<0;v=Math.abs(Math.round(v));var s=String(v),l=s.slice(-3),r=s.slice(0,-3);if(r)l=','+l;return (neg?'(':'')+(r.replace(/\B(?=(\d{2})+(?!\d))/g,',')+l)+(neg?')':'');}
+      function f2(v){return isNaN(v)?'—':Math.round(v*100)/100;}
+      function pct(v){return isNaN(v)||!isFinite(v)?'—':(Math.round(v*10)/10).toFixed(1)+'%';}
+      var can='',line=function(s){can+=s+'\n';},sec=function(s){can+='\n'+s+'\n'+'─'.repeat(s.length)+'\n';};
+      line('CREDIT APPRAISAL NOTE — NEW UNIT');
+      line('Unit: '+unitName+' | Bank: '+bank+' | Date: '+new Date().toLocaleDateString('en-IN'));
+      line('Purpose: '+purpose);
+      sec('1. BACKGROUND');
+      line(unitName+' is a proposed '+industry+' unit by '+promoter+'. Seeking '+purpose+' from '+bank+'.');
+      line('Project Cost: ₹'+fm(C.invest||0)+'K | Own Capital: ₹'+fm(cap)+'K ('+Math.round(cap/Math.max(C.invest||1,1)*100)+'%) | TL: ₹'+fm(tl)+'K | IRR: '+(C.irr?Math.round(C.irr*1000)/10+'%':'—'));
+      sec('2. PROJECTED FINANCIALS (Rs.\'000s)');
+      line('  Year    Sales    GP%    PAT    NP%    MPBF    DSCR    BEP');
+      line('  '+'─'.repeat(65));
+      C.data.forEach(function(d,i){
+        line('  Y'+(i+1)+'      '+fm(d.sales)+'  '+pct(d.gpPct||0)+'  '+fm(d.pat)+'  '+pct(d.npPct||0)+'  '+fm(d.mpbf||0)+'  '+f2(d.dscr||0)+'  '+fm(d.bep||0));
+      });
+      line(d0.pat>0?'\nUnit projected profitable from Year 1 — PAT ₹'+fm(d0.pat)+'K, growing to ₹'+fm(dL.pat)+'K by Year '+C.data.length+'.':'\nUnit shows losses in early years — review assumptions.');
+      sec('3. PROJECT COST vs MEANS OF FINANCE');
+      line('  Fixed Assets: ₹'+fm(C.totalFA||0)+'K | WC Margin: ₹'+fm(C.wcMargin||0)+'K | Total: ₹'+fm(C.invest||0)+'K');
+      line('  Capital: ₹'+fm(cap)+'K | TL: ₹'+fm(tl)+'K | Total: ₹'+fm(cap+tl)+'K');
+      line(Math.abs((cap+tl)-(C.invest||0))<50?'  Balanced ✓':'  Difference: ₹'+fm(Math.abs((cap+tl)-(C.invest||0)))+'K — review');
+      sec('4. WORKING CAPITAL — MPBF');
+      line('  CA (Y1): ₹'+fm(d0.currentAssets||0)+'K | 75% CA: ₹'+fm(Math.round((d0.currentAssets||0)*0.75))+'K');
+      line('  Other CL: ₹'+fm((d0.creditors||0)+(d0.otherCL||0))+'K | MPBF: ₹'+fm(d0.mpbf||0)+'K');
+      line('  Recommended CC Limit: ₹'+fm(d0.mpbf||0)+'K (Tandon Method I, 25% margin)');
+      sec('5. TL REPAYMENT — DSCR');
+      line('  TL: ₹'+fm(tl)+'K @ '+tlRate+'% | '+tenure+' months | '+mora+' months moratorium | EMI: ₹'+fm(Math.round(C.emi||0))+'K/month');
+      line('  Average DSCR: '+avgDSCR+' '+(avgDSCR>=1.5?'✓ meets norm (≥1.5)':'⚠ below norm — review'));
+      sec('6. IRR & VIABILITY');
+      var irr=(C.irr||0)*100;
+      line('  IRR: '+(C.irr?Math.round(irr*10)/10+'%':'—')+' '+(C.irr>=0.14?'✓ viable (>14%)':C.irr>0?'⚠ below 14%':''));
+      line(C.irr>=0.14?'  Project financially viable — IRR exceeds cost of capital. ✓':'  Review cost structure to improve viability.');
+      sec('7. RISK ASSESSMENT');
+      [['Implementation Risk','Delays in setup','Phased disbursement linked to milestones'],
+       ['Revenue Risk','Projections untested','Conservative estimates; review orders-in-hand'],
+       ['Technology Risk','Production teething issues','Promoter expertise; machinery warranty'],
+       ['Security Risk','Limited assets initially','CGTMSE cover — no collateral up to ₹200L'],
+      ].forEach(function(r,i){line('  '+(i+1)+'. '+r[0]+': '+r[1]+'. Mitigation: '+r[2]+'.\n');});
+      sec('8. RECOMMENDATION');
+      var ok=d0.pat>0&&avgDSCR>=1.5&&(C.irr||0)>=0.12;
+      line(ok?'Project is financially viable. Sanction RECOMMENDED.':'Project requires review. Sanction subject to revised projections.');
+      line('  Term Loan     : ₹'+fm(tl)+'K @ '+tlRate+'% | '+tenure+' months | Moratorium: '+mora+' months');
+      line('  Cash Credit   : ₹'+fm(d0.mpbf||0)+'K (MPBF)');
+      line('  CGTMSE        : Recommended (collateral-free for MSME up to ₹200L)');
+      line('\nConditions: All clearances obtained | Phased TL disbursement | Hypothecation of assets | Personal guarantee | Monthly stock statements after production');
+      line('\n'+'─'.repeat(60));
+      line('CMA New Unit Generator | '+bank+' | '+new Date().toLocaleDateString('en-IN'));
+      document.getElementById('nuAIOutput').textContent=can;
+      document.getElementById('nuAIOutput').style.display='block';
+      showOk('Credit Appraisal Note generated.');
+    }catch(e){showErr('Generation failed: '+e.message);}
+    document.getElementById('nuAILoading').style.display='none';
+  },300);
 }
 
 /* ── SANCTION ── */
