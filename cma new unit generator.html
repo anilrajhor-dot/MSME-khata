@@ -108,7 +108,8 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
   <div class="hdr-sub">Enter minimum data → Full CMA auto-generated &nbsp;
     <button onclick="document.getElementById('glossaryModal').style.display='block'" style="background:#f0a500;border:none;color:#0a1628;font-weight:700;font-size:0.72rem;padding:3px 10px;border-radius:3px;cursor:pointer;">📖 Glossary</button>
   </div>
-  <div class="dev-credit">Developed by Anil Sharma, Former General Manager, Central Bank of India</div>
+  <div class="dev-credit">Developed by Anil Sharma, Former General Manager, Central Bank of India  <button onclick="document.getElementById('helpModal').style.display='block'" style="background:#f0a500;border:none;color:#0a1628;font-weight:700;font-size:0.72rem;padding:4px 12px;border-radius:3px;cursor:pointer;margin-top:4px;">? Help</button>
+</div>
 </header>
 
 <!-- GLOSSARY MODAL -->
@@ -160,14 +161,57 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
 </div>
 
 <div class="step-nav" id="stepNav">
+  <button class="step-btn" data-step="dashboard" style="color:#f0a500;font-weight:900;">🏦 Dashboard</button>
   <button class="step-btn active" data-step="1">1. Unit Info</button>
   <button class="step-btn" data-step="2">2. Capital & Loan</button>
   <button class="step-btn" data-step="3">3. Fixed Assets</button>
   <button class="step-btn" data-step="4">4. Sales & Costs</button>
   <button class="step-btn" data-step="5">5. Holding Norms</button>
   <button class="step-btn" data-step="6">6. CMA Results</button>
+  <button class="step-btn" data-step="industry">🏭 Industry</button>
+  <button class="step-btn" data-step="sensitivity">📐 Sensitivity</button>
+  <button class="step-btn" data-step="collateral">🏠 Collateral</button>
+  <button class="step-btn" data-step="stockstmt">📦 Stock Stmt</button>
+  <button class="step-btn" data-step="errors">🔍 Errors</button>
 </div>
 
+<!-- BACKUP REMINDER -->
+<div id="backupReminder" style="display:none;background:linear-gradient(135deg,#f0a500,#e09000);
+  color:#0a1628;padding:10px 16px;font-size:0.82rem;font-weight:700;
+  text-align:center;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;">
+  ⚠ Don't forget to backup your data! &nbsp;
+  <button onclick="exportBackup();document.getElementById('backupReminder').style.display='none';"
+    style="background:#0a1628;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-weight:700;">
+    💾 Export JSON Backup
+  </button>
+  <button onclick="document.getElementById('backupReminder').style.display='none'"
+    style="background:transparent;border:1px solid #0a1628;color:#0a1628;padding:4px 10px;border-radius:4px;cursor:pointer;">
+    Dismiss
+  </button>
+</div>
+
+
+<!-- HELP MODAL -->
+<div id="helpModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.75);z-index:999;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+  <div style="background:#fff;max-width:700px;margin:20px auto;border-radius:6px;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;
+      border-bottom:3px solid #0e5e4a;padding-bottom:8px;">
+      <h2 style="margin:0;font-size:1.05rem;color:#0a1628;font-weight:800;">Help & User Guide</h2>
+      <button onclick="document.getElementById('helpModal').style.display='none'"
+        style="background:#0a1628;color:#fff;border:none;padding:6px 14px;border-radius:3px;cursor:pointer;">✕ Close</button>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+      <button onclick="showNewUnitHelp('workflow')" class="btn btn-green" style="font-size:0.72rem;padding:4px 10px;">Workflow</button>
+      <button onclick="showNewUnitHelp('menus')" class="btn btn-navy" style="font-size:0.72rem;padding:4px 10px;">📋 All Steps</button>
+      <button onclick="showNewUnitHelp('backup')" class="btn btn-amber" style="font-size:0.72rem;padding:4px 10px;">💾 Backup</button>
+      <button onclick="showNewUnitHelp('results')" class="btn btn-green" style="font-size:0.72rem;padding:4px 10px;">CMA Results</button>
+      <button onclick="showNewUnitHelp('glossary')" class="btn btn-navy" style="font-size:0.72rem;padding:4px 10px;">📖 Glossary</button>
+      <button onclick="showNewUnitHelp('nfb')" class="btn btn-amber" style="font-size:0.72rem;padding:4px 10px;">Non-Fund Limits</button>
+    </div>
+    <div id="newUnitHelpContent" style="font-size:0.85rem;line-height:1.8;color:#222;"></div>
+  </div>
+</div>
 <main>
 <div class="errbox" id="errBox"></div>
 <div class="okbox" id="okBox"></div>
@@ -532,11 +576,146 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
   </div>
 </div>
 
+<!-- ── DASHBOARD ── -->
+<div class="panel" id="panel-nu-dashboard">
+<div class="card" id="nuDashUnitHdr" style="display:none;"><div id="nuDashTitle" style="font-size:1.1rem;font-weight:800;color:var(--navy);"></div><div id="nuDashSub" style="font-size:0.78rem;color:#666;margin-top:3px;"></div></div>
+<div class="note" id="nuDashNoData">⚡ Generate CMA first (Step 5 → Generate Full CMA), then view the Dashboard.</div>
+<div id="nuDashContent" style="display:none;">
+  <div id="nuDashKPIs" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px;"></div>
+  <div id="nuDashRating" style="margin-bottom:14px;"></div>
+  <div class="card"><h2>🔍 Automatic Remarks <span class="tag">PROJECT ANALYSIS</span></h2><div id="nuDashRemarks"></div></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+    <div class="card" style="padding:10px;"><div style="font-size:0.72rem;font-weight:700;color:var(--green);text-align:center;margin-bottom:6px;">📈 PROJECTED SALES & PAT</div><canvas id="nuChartSales" style="max-height:180px;"></canvas></div>
+    <div class="card" style="padding:10px;"><div style="font-size:0.72rem;font-weight:700;color:var(--green);text-align:center;margin-bottom:6px;">📉 DSCR TREND</div><canvas id="nuChartDSCR" style="max-height:180px;"></canvas></div>
+    <div class="card" style="padding:10px;"><div style="font-size:0.72rem;font-weight:700;color:var(--green);text-align:center;margin-bottom:6px;">🏦 MPBF vs CC</div><canvas id="nuChartMPBF" style="max-height:180px;"></canvas></div>
+    <div class="card" style="padding:10px;"><div style="font-size:0.72rem;font-weight:700;color:var(--green);text-align:center;margin-bottom:6px;">💰 CASH ACCRUAL</div><canvas id="nuChartCash" style="max-height:180px;"></canvas></div>
+  </div>
+  <div id="nuDashRec"></div>
+</div>
+</div>
+
+<!-- ── INDUSTRY TEMPLATES ── -->
+<div class="panel" id="panel-nu-industry">
+<div class="card">
+  <h2>🏭 Industry Templates <span class="tag">ONE-CLICK SETUP</span></h2>
+  <div class="sub">Select your industry to auto-fill all cost ratios, holding norms, and chart of accounts in Steps 1–5.</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:12px 0;" id="nuIndustryGrid"></div>
+</div>
+<div class="card" id="nuIndustryPreview" style="display:none;">
+  <h2>Preview — <span id="nuIndustryPreviewTitle"></span></h2>
+  <div class="sub" id="nuIndustryPreviewDesc"></div>
+  <div class="btnbar">
+    <button class="btn btn-green" id="nuIndustryLoadBtn">✓ Apply This Template</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('nuIndustryPreview').style.display='none'">Cancel</button>
+  </div>
+  <div id="nuIndustryPreviewContent" style="font-size:0.82rem;margin-top:8px;"></div>
+</div>
+</div>
+
+<!-- ── SENSITIVITY ── -->
+<div class="panel" id="panel-nu-sensitivity">
+<div class="card">
+  <h2>📐 Sensitivity Analysis <span class="tag">WHAT-IF</span></h2>
+  <div class="sub">Stress-test the projections. Changes here do NOT affect your CMA data.</div>
+  <div class="note">Generate CMA first, then use sliders to see impact on DSCR, IRR, MPBF.</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0;">
+    <div class="field"><label>Sales Change % <small style="color:#888;">(Base: <span id="nuSensSalesBase">—</span>)</small></label>
+      <input type="range" id="nuSensSales" min="-40" max="40" value="0" step="5" oninput="nuSensUpdate('sales',this.value)" style="width:100%">
+      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="nuSensSalesVal">0%</div></div>
+    <div class="field"><label>COGS % Change <small style="color:#888;">(Base: <span id="nuSensCogsBase">—</span>)</small></label>
+      <input type="range" id="nuSensCogs" min="-15" max="20" value="0" step="2" oninput="nuSensUpdate('cogs',this.value)" style="width:100%">
+      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="nuSensCogsVal">0%</div></div>
+    <div class="field"><label>Interest Rate Change (bps) <small style="color:#888;">(Base: <span id="nuSensIntBase">—</span>)</small></label>
+      <input type="range" id="nuSensInt" min="-100" max="300" value="0" step="25" oninput="nuSensUpdate('int',this.value)" style="width:100%">
+      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="nuSensIntVal">0 bps</div></div>
+    <div class="field"><label>Debtor Days Change <small style="color:#888;">(Base: <span id="nuSensDebBase">—</span>)</small></label>
+      <input type="range" id="nuSensDeb" min="-20" max="60" value="0" step="5" oninput="nuSensUpdate('deb',this.value)" style="width:100%">
+      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="nuSensDebVal">0 days</div></div>
+  </div>
+  <div class="btnbar">
+    <button class="btn btn-green" onclick="runNUSensitivity()">⚡ Recalculate</button>
+    <button class="btn btn-secondary" onclick="resetNUSensitivity()">↺ Reset</button>
+  </div>
+</div>
+<div class="card" id="nuSensResult" style="display:none;">
+  <h2>Sensitivity Results</h2>
+  <div id="nuSensContent"></div>
+</div>
+</div>
+
+<!-- ── COLLATERAL ── -->
+<div class="panel" id="panel-nu-collateral">
+<div class="card">
+  <h2>🏠 Collateral Module <span class="tag">SECURITY</span></h2>
+  <div class="sub">Record primary and collateral securities. LTV and FSV auto-calculated.</div>
+  <div class="btnbar"><button class="btn btn-green" onclick="addNUCollateral()">+ Add Security</button></div>
+  <div id="nuCollateralList"></div>
+  <div id="nuCollateralSummary"></div>
+</div>
+</div>
+
+<!-- ── STOCK STATEMENT ── -->
+<div class="panel" id="panel-nu-stockstmt">
+<div class="card">
+  <h2>📦 Monthly Stock Statement <span class="tag">DRAWING POWER</span></h2>
+  <div class="note">For post-disbursement monitoring. Enter month-end figures to compute Drawing Power.</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+    <div class="field"><label>Month</label>
+      <select id="nuSSMonth"><option>April</option><option>May</option><option>June</option><option>July</option><option>August</option><option>September</option><option>October</option><option>November</option><option>December</option><option>January</option><option>February</option><option>March</option></select></div>
+    <div class="field"><label>Year</label><input type="text" id="nuSSYear" placeholder="2026-27"></div>
+    <div class="field"><label>Raw Material (₹'000s)</label><input type="number" id="nuSSRM" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>WIP (₹'000s)</label><input type="number" id="nuSSWIP" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>Finished Goods (₹'000s)</label><input type="number" id="nuSSFG" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>Sundry Debtors (₹'000s)</label><input type="number" id="nuSSDebtors" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>Sundry Creditors (₹'000s)</label><input type="number" id="nuSSCreditors" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>CC Outstanding (₹'000s)</label><input type="number" id="nuSSCC" placeholder="0" onfocus="this.select()" oninput="calcNUDP()"></div>
+    <div class="field"><label>Bank Margin %</label><input type="number" id="nuSSMargin" value="25" onfocus="this.select()" oninput="calcNUDP()"></div>
+  </div>
+  <div id="nuDPResult"></div>
+  <div class="btnbar"><button class="btn btn-secondary" onclick="saveNUStock()">💾 Save Statement</button></div>
+  <div id="nuStockHistory" style="margin-top:12px;"></div>
+</div>
+</div>
+
+<!-- ── ERROR CHECKER ── -->
+<div class="panel" id="panel-nu-errors">
+<div class="card">
+  <h2>🔍 Error Checker <span class="tag">VALIDATION</span></h2>
+  <div class="sub">Validates all CMA projections — tally, DSCR, MPBF, BEP, IRR, negative values and more.</div>
+  <div class="btnbar"><button class="btn btn-green" onclick="runNUErrors()">🔍 Run Full Check</button></div>
+  <div id="nuErrorResults"></div>
+</div>
+</div>
+
 </main>
 <footer>CMA New Unit Wizard · All amounts ₹'000s · Data stays on this device · Developed by Anil Sharma, Former General Manager, Central Bank of India</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" async defer></script>
 <script>
+
+/* ── BACKUP REMINDER & EXPORT ── */
+function exportBackup(){
+  var u = {
+    unitName: document.getElementById('unitName')?document.getElementById('unitName').value:'',
+    industry: document.getElementById('industryType')?document.getElementById('industryType').value:'',
+    bank: document.getElementById('bankName')?document.getElementById('bankName').value:'',
+    capital: document.getElementById('capital')?document.getElementById('capital').value:'',
+    termLoan: document.getElementById('termLoan')?document.getElementById('termLoan').value:'',
+    sales1: document.getElementById('sales1')?document.getElementById('sales1').value:'',
+    data: C && C.data ? C : null
+  };
+  var blob = new Blob([JSON.stringify(u, null, 2)], {type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (u.unitName||'NewUnit').replace(/[^a-z0-9]/gi,'_')+'_backup.json';
+  a.click();
+  showOk('Backup exported successfully.');
+}
+function showBackupReminder(){
+  var el=document.getElementById('backupReminder');
+  if(el) el.style.display='flex';
+}
+// Show reminder after CMA is generated
 // ─── GLOBALS ──────────────────────────────────────────────
 var C = {}; // computed CMA data
 var YEARS = [];
@@ -563,17 +742,28 @@ function setBench(id,val){ var el=document.getElementById(id); if(el){el.value=v
 // ─── NAVIGATION ───────────────────────────────────────────
 function goStep(s){
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
-  document.getElementById('step'+s).classList.add('active');
+  var panelId = (typeof s === 'string' && isNaN(s)) ? 'panel-nu-'+s : 'step'+s;
+  var el = document.getElementById(panelId);
+  if(el) el.classList.add('active');
   document.querySelectorAll('.step-btn').forEach(function(b){
-    b.classList.remove('active');
-    if(parseInt(b.dataset.step)<s) b.classList.add('done');
-    else b.classList.remove('done');
-    if(parseInt(b.dataset.step)===s) b.classList.add('active');
+    b.classList.remove('active','done');
+    var ds = b.dataset.step;
+    if(ds === String(s)) b.classList.add('active');
+    else if(!isNaN(ds) && !isNaN(s) && parseInt(ds)<parseInt(s)) b.classList.add('done');
   });
   window.scrollTo(0,0);
+  // trigger dashboard render on switch
+  if(s==='dashboard') renderNUDashboard();
+  if(s==='sensitivity') initNUSensitivity();
+  if(s==='collateral') renderNUCollateral();
+  if(s==='stockstmt') renderNUStockHistory();
+  if(s==='errors') {}; // user triggers manually
 }
 document.querySelectorAll('.step-btn').forEach(function(b){
-  b.addEventListener('click',function(){ goStep(parseInt(this.dataset.step)); });
+  b.addEventListener('click',function(){
+    var ds = this.dataset.step;
+    goStep(isNaN(ds)?ds:parseInt(ds));
+  });
 });
 
 // ─── INDUSTRY FIELDS ──────────────────────────────────────
@@ -873,7 +1063,7 @@ function generateCMA(){
 
     renderResults();
     goStep(6);
-    showOk('CMA generated successfully for '+NYears+' years.');
+    showBackupReminder(); showOk('CMA generated successfully for '+NYears+' years.');
   } catch(e){ showErr('Error generating CMA: '+e.message); console.error(e); }
 }
 
@@ -1370,6 +1560,604 @@ function resetAll(){
   C={}; YEARS=[];
   goStep(1);
   showOk('Reset. Enter details for a new unit.');
+}
+
+
+/* ── HELP SYSTEM ── */
+var NEW_UNIT_HELP = {
+  workflow: '<h3 style="color:#0e5e4a;">Step-by-Step Workflow</h3>'
+    + '<ol><li><b>Step 1 — Unit Info:</b> Enter unit name, industry type (Trading/Manufacturing/Service), bank name, base year, and number of projection years.</li>'
+    + '<li><b>Step 2 — Capital & Loan:</b> Enter own capital, unsecured loans, term loan amount, rate, tenure, moratorium period, and working capital interest rate.</li>'
+    + '<li><b>Step 3 — Fixed Assets:</b> Enter cost of each asset class with WDV depreciation rate. Depreciation auto-calculated. Project cost vs means of finance check shown.</li>'
+    + '<li><b>Step 4 — Sales & Costs:</b> Enter Year 1 sales, growth %, and cost ratios. Use benchmark chips for industry-typical values. Enter sales mix (Export/Cash/Credit) and purchase mix (Imported %).</li>'
+    + '<li><b>Step 5 — Holding Norms:</b> Enter debtor days, stock days, creditor days. Use benchmark chips. Enter NFB parameters (ILC days, FLC days, BG value).</li>'
+    + '<li><b>Step 6 — Generate CMA:</b> Tap Generate Full CMA. All projections, CMA forms, ratios, BEP, IRR/NPV, Sales Analysis, NFB Limits, and EMI schedule auto-generated.</li>'
+    + '<li><b>Export:</b> Export to Excel. Backup JSON exported automatically — save to Google Drive.</li></ol>',
+
+  menus: '<h3 style="color:#0e5e4a;">📋 All Steps & Results — Quick Reference</h3>'
+    + '<table style="width:100%;font-size:0.82rem;border-collapse:collapse;">'
+    + '<tr style="background:#0a1628;color:#fff;"><th style="padding:6px;text-align:left;">Section</th><th style="padding:6px;text-align:left;">What it does</th></tr>'
+    + '<tr style="background:#e8f4f0;"><td style="padding:5px 6px;font-weight:700;">Step 1 — Unit Info</td><td style="padding:5px 6px;">Unit name, industry type, bank, base year, projection period</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">Step 2 — Capital & Loan</td><td style="padding:5px 6px;">Capital, TL amount/rate/tenure/moratorium, WC interest rate</td></tr>'
+    + '<tr style="background:#e8f4f0;"><td style="padding:5px 6px;font-weight:700;">Step 3 — Fixed Assets</td><td style="padding:5px 6px;">Asset costs, WDV rates, depreciation, project cost vs means of finance</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">Step 4 — Sales & Costs</td><td style="padding:5px 6px;">Year 1 sales, growth %, COGS %, admin %, tax %, export/cash/credit split, import %</td></tr>'
+    + '<tr style="background:#e8f4f0;"><td style="padding:5px 6px;font-weight:700;">Step 5 — Holding Norms</td><td style="padding:5px 6px;">Debtor days, stock days, creditor days, bank margin, ILC/FLC/BG parameters</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">Step 6 — CMA Results</td><td style="padding:5px 6px;">All projections auto-generated (see below)</td></tr>'
+    + '<tr style="background:#fff8e8;"><td style="padding:5px 6px;font-weight:700;">→ Project Cost</td><td style="padding:5px 6px;">Fixed Assets + WC Margin vs Capital + TL</td></tr>'
+    + '<tr style="background:#fff8e8;"><td style="padding:5px 6px;font-weight:700;">→ CMA Form I</td><td style="padding:5px 6px;">Operating Statement — Sales, COGS, GP, Admin, Dep, Interest, PAT</td></tr>'
+    + '<tr style="background:#fff8e8;"><td style="padding:5px 6px;font-weight:700;">→ CMA Form II</td><td style="padding:5px 6px;">Balance Sheet Analysis — NW, LT, CA/CL</td></tr>'
+    + '<tr style="background:#fff8e8;"><td style="padding:5px 6px;font-weight:700;">→ CMA Form III</td><td style="padding:5px 6px;">Current Assets & Liabilities comparison</td></tr>'
+    + '<tr style="background:#fff8e8;"><td style="padding:5px 6px;font-weight:700;">→ CMA Form V</td><td style="padding:5px 6px;">MPBF — Tandon Committee Method I</td></tr>'
+    + '<tr style="background:#fff8e8;"><td style="padding:5px 6px;font-weight:700;">→ Ratio Analysis</td><td style="padding:5px 6px;">Current Ratio, D/E, TOL/TNW, DSCR, GP%, NP%</td></tr>'
+    + '<tr style="background:#fff8e8;"><td style="padding:5px 6px;font-weight:700;">→ Break-Even</td><td style="padding:5px 6px;">BEP Sales, Margin of Safety, P/V Ratio, Cash BEP</td></tr>'
+    + '<tr style="background:#fff8e8;"><td style="padding:5px 6px;font-weight:700;">→ IRR / NPV</td><td style="padding:5px 6px;">Project IRR and NPV at chosen discount rate</td></tr>'
+    + '<tr style="background:#fff8e8;"><td style="padding:5px 6px;font-weight:700;">→ Sales Analysis</td><td style="padding:5px 6px;">Export/Cash/Credit split, Indigenous/Imported purchases</td></tr>'
+    + '<tr style="background:#fff8e8;"><td style="padding:5px 6px;font-weight:700;">→ NFB Limits</td><td style="padding:5px 6px;">ILC, FLC, Bank Guarantee auto-calculated</td></tr>'
+    + '<tr style="background:#fff8e8;"><td style="padding:5px 6px;font-weight:700;">→ EMI Schedule</td><td style="padding:5px 6px;">Monthly TL amortization with moratorium</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">Export Excel</td><td style="padding:5px 6px;">All CMA tables exported as Excel workbook</td></tr>'
+    + '</table>',
+
+  backup: '<h3 style="color:#0e5e4a;">💾 How to Save & Restore Data</h3>'
+    + '<h4 style="margin:10px 0 4px;">Save your data:</h4>'
+    + '<ol><li>After generating CMA, tap <b>Export JSON Backup</b> button (appears automatically)</li>'
+    + '<li>Or tap <b>Export Excel</b> to save all tables as Excel file</li>'
+    + '<li>Save the file to Google Drive, iCloud, or Downloads</li></ol>'
+    + '<h4 style="margin:10px 0 4px;">Restore your data:</h4>'
+    + '<ol><li>The New Unit Generator uses entered inputs — simply re-enter Step 1–5 values</li>'
+    + '<li>Keep a note of your input values (sales, cost %, holding norms etc.)</li>'
+    + '<li>Or use the Credit Appraisal Suite → Load CMA JSON to restore full projections</li></ol>'
+    + '<h4 style="margin:10px 0 4px;">⚠ Important:</h4>'
+    + '<p>New Unit Generator does NOT store data in browser localStorage between sessions. Always export before closing. The JSON backup contains all inputs and computed projections.</p>',
+
+  results: '<h3 style="color:#0e5e4a;">📊 Understanding CMA Results</h3>'
+    + '<p><b>CMA Form I (Operating Statement)</b> — Shows profitability: Sales → Gross Profit → PBIT → PBT → PAT. All projected years shown side by side.</p>'
+    + '<p><b>CMA Form V (MPBF)</b> — Working Capital limit recommended. MPBF = Min(75% of CA, WCG). This is the maximum CC limit the bank should sanction.</p>'
+    + '<p><b>DSCR</b> — Debt Service Coverage Ratio = (PAT + Dep + TL Interest) ÷ (TL Principal + TL Interest). Bank norm: Average ≥ 1.5. Below 1.5 flagged in red.</p>'
+    + '<p><b>IRR</b> — Internal Rate of Return on total project. Year 0 = −(Fixed Assets + WC Margin). Cash flows = Annual PAT + Dep. Terminal year includes WC margin recovery. IRR > 14% = viable project.</p>'
+    + '<p><b>Break-Even Point</b> — BEP Sales = Fixed Costs ÷ P/V Ratio. Fixed Costs = Admin + Dep + Interest. Margin of Safety = Actual Sales − BEP. Higher MoS = less risk.</p>'
+    + '<p><b>Balance Sheet tally</b> — Cash at Bank is computed as balancing figure. Accumulated profits → NW grows → Cash Bank increases. Assets = Liabilities for all years.</p>',
+
+  nfb: '<h3 style="color:#0e5e4a;">Non-Fund Based Limits</h3>'
+    + '<p><b>Inland LC (ILC)</b> — Guarantee to domestic supplier. Formula: Indigenous Purchases × Credit Days ÷ 365 × (1 − Margin%). Enter ILC Credit Period in Step 5.</p>'
+    + '<p><b>Foreign LC (FLC)</b> — Guarantee to overseas supplier. Formula: Imported Purchases × Usance Period ÷ 365 × (1 − Margin%). Enter FLC Usance Days in Step 5.</p>'
+    + '<p><b>Bank Guarantee (BG)</b> — For government/tender contracts. Formula: Contract Value × BG Margin %. Enter BG Contract Value in Step 5.</p>'
+    + '<p><b>Usance Period</b> — Credit period allowed by overseas supplier (time from shipment to payment). Typical: 60, 90, 180 days.</p>'
+    + '<p><b>Deemed Export</b> — Goods supplied within India but treated as exports (supply to SEZ, EOU, EPCG holders). Eligible for export incentives without physical export.</p>',
+
+  glossary: '<h3 style="color:#0e5e4a;">📖 Glossary</h3>'
+    + '<p><b>MPBF</b> — Maximum Permissible Bank Finance. Maximum WC limit as per Tandon Committee. Method I = 75% CA − Other CL.</p>'
+    + '<p><b>DSCR</b> — Debt Service Coverage Ratio. Measures TL repayment capacity. Norm ≥ 1.5.</p>'
+    + '<p><b>IRR</b> — Internal Rate of Return. Expected annual return on project investment. Accept if IRR > cost of capital.</p>'
+    + '<p><b>BEP</b> — Break-Even Point. Sales level at which profit = zero.</p>'
+    + '<p><b>WDV</b> — Written Down Value depreciation. Fixed % on opening book value each year.</p>'
+    + '<p><b>ILC</b> — Inland Letter of Credit. Bank guarantee for domestic purchases.</p>'
+    + '<p><b>FLC</b> — Foreign Letter of Credit. Bank guarantee for imports.</p>'
+    + '<p><b>BG</b> — Bank Guarantee. Bank commitment for contract performance.</p>'
+    + '<p><b>TOL/TNW</b> — Total Outside Liabilities to Tangible Net Worth. Leverage ratio. Norm ≤ 3:1.</p>'
+    + '<p><b>P/V Ratio</b> — Profit/Volume Ratio = Contribution ÷ Sales. Used for BEP calculation.</p>'
+};
+
+function showNewUnitHelp(key){
+  var el = document.getElementById('newUnitHelpContent');
+  if(el) el.innerHTML = NEW_UNIT_HELP[key] || '<p>Section not found.</p>';
+  showNewUnitHelp.last = key;
+}
+// Show workflow by default
+document.addEventListener('DOMContentLoaded', function(){
+  showNewUnitHelp('workflow');
+  renderNUIndustryGrid();
+});
+
+// ─── NEW TABS JS ──────────────────────────────────────────
+
+/* helpers */
+function nuN(v){var x=parseFloat(v);return isNaN(x)?0:x;}
+function nuFmt(v){
+  if(v===undefined||v===null||isNaN(v))return '-';
+  var neg=v<0; v=Math.abs(Math.round(v));
+  var s=String(v),l3=s.slice(-3),rest=s.slice(0,-3);
+  if(rest)l3=','+l3;
+  var f=rest.replace(/\B(?=(\d{2})+(?!\d))/g,',')+l3;
+  return neg?'('+f+')':f;
+}
+function nuPct(v){return isNaN(v)||!isFinite(v)?'-':(Math.round(v*10)/10).toFixed(1)+'%';}
+
+/* ── DASHBOARD ── */
+var nuCharts={};
+function renderNUDashboard(){
+  if(!C||!C.data||!C.data.length){
+    document.getElementById('nuDashNoData').style.display='block';
+    document.getElementById('nuDashContent').style.display='none';
+    return;
+  }
+  document.getElementById('nuDashNoData').style.display='none';
+  document.getElementById('nuDashContent').style.display='block';
+
+  var unitName=document.getElementById('unitName')?document.getElementById('unitName').value:'New Unit';
+  var bank=document.getElementById('bankName')?document.getElementById('bankName').value:'';
+  document.getElementById('nuDashUnitHdr').style.display='block';
+  document.getElementById('nuDashTitle').textContent=unitName+' — Banker\'s Dashboard (New Unit)';
+  document.getElementById('nuDashSub').textContent=(bank?bank+' | ':'')+'Projected '+C.data.length+' Years';
+
+  var d0=C.data[0], tl=nuN(C.t&&C.t.tl||document.getElementById('termLoan').value);
+  var tlRate=nuN(C.t&&C.t.tlRate||document.getElementById('tlRate').value)/100;
+
+  // Compute avg DSCR
+  var dscrArr=C.data.map(function(d){return d.dscr||0;}).filter(function(v){return v>0;});
+  var avgDSCR=dscrArr.length?Math.round(dscrArr.reduce(function(s,v){return s+v;},0)/dscrArr.length*100)/100:0;
+  var irr=C.irr||0;
+  var d0cr=d0.currentRatio||0;
+
+  function rag(v,g,a,inv){if(!inv){return v>=g?'#1a7a4a':v>=a?'#b07800':'#c0392b';}return v<=g?'#1a7a4a':v<=a?'#b07800':'#c0392b';}
+  function ragI(v,g,a,inv){if(!inv){return v>=g?'🟢':v>=a?'🟡':'🔴';}return v<=g?'🟢':v<=a?'🟡':'🔴';}
+
+  var kpis=[
+    {l:'Y1 Sales',v:'₹'+nuFmt(d0.sales)+'K',color:'#1565C0',ico:'🔵'},
+    {l:'Y1 PAT',v:'₹'+nuFmt(d0.pat)+'K',color:d0.pat>0?'#1a7a4a':'#c0392b',ico:d0.pat>0?'🟢':'🔴'},
+    {l:'Y1 Current Ratio',v:d0cr.toFixed(2),color:rag(d0cr,1.33,1.25),ico:ragI(d0cr,1.33,1.25),norm:'≥1.25'},
+    {l:'Avg DSCR',v:avgDSCR>0?avgDSCR.toFixed(2):'—',color:rag(avgDSCR,1.5,1.2),ico:ragI(avgDSCR,1.5,1.2),norm:'≥1.5'},
+    {l:'Y1 MPBF',v:'₹'+nuFmt(d0.mpbf)+'K',color:'#1565C0',ico:'🔵'},
+    {l:'IRR',v:irr>0?nuPct(irr*100):'—',color:rag(irr*100,14,12),ico:ragI(irr*100,14,12),norm:'≥14%'},
+    {l:'Y1 BEP',v:'₹'+nuFmt(d0.bep)+'K',color:d0.bep<d0.sales?'#1a7a4a':'#c0392b',ico:d0.bep<d0.sales?'🟢':'🔴'},
+    {l:'Y1 Margin of Safety',v:nuPct(d0.mos/Math.max(d0.sales,1)*100),color:rag(d0.mos/Math.max(d0.sales,1)*100,30,15),ico:ragI(d0.mos/Math.max(d0.sales,1)*100,30,15)},
+    {l:'Project Investment',v:'₹'+nuFmt(C.invest||0)+'K',color:'#555',ico:'💼'},
+    {l:'Term Loan',v:'₹'+nuFmt(tl)+'K',color:'#555',ico:'🏦'},
+  ];
+  document.getElementById('nuDashKPIs').innerHTML=kpis.map(function(k){
+    return '<div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:10px;text-align:center;border-top:3px solid '+k.color+';">'
+      +'<div>'+k.ico+'</div><div style="font-size:1rem;font-weight:800;color:'+k.color+';font-family:\'Courier New\',monospace;">'+k.v+'</div>'
+      +'<div style="font-size:0.7rem;font-weight:700;color:#333;margin-top:2px;">'+k.l+'</div>'
+      +(k.norm?'<div style="font-size:0.65rem;color:#888;">'+k.norm+'</div>':'')+'</div>';
+  }).join('');
+
+  // Credit Rating
+  var score=0;
+  [[d0cr,1.33,1.0,15],[avgDSCR,1.5,1.0,20],[irr*100,14,12,15],
+   [d0.pat/Math.max(d0.sales,1)*100,10,5,15],[d0.mos/Math.max(d0.sales,1)*100,30,15,10],
+   [tl/(nuN(document.getElementById('capital')?document.getElementById('capital').value:800)),0,2,15,true],
+   [d0.gpPct||0,25,15,10]].forEach(function(p){
+    var v=p[0],g=p[1],a=p[2],w=p[3],inv=p[4];
+    if(!inv){score+=v>=g?w:v>=a?w*0.6:w*0.2;}
+    else{score+=v<=g?w:v<=a?w*0.6:w*0.2;}
+  });
+  score=Math.round(score);
+  var rating=score>=85?'AAA':score>=75?'AA':score>=65?'A':score>=55?'BBB':score>=45?'BB':score>=35?'B':'High Risk';
+  var rc=score>=75?'#1a7a4a':score>=55?'#b07800':'#c0392b';
+  document.getElementById('nuDashRating').innerHTML=
+    '<div style="background:'+rc+';color:#fff;border-radius:8px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
+    +'<div><div style="font-size:0.75rem;opacity:0.85;">PROJECT CREDIT RATING</div><div style="font-size:1.8rem;font-weight:900;">'+rating+'</div></div>'
+    +'<div style="text-align:right;"><div style="font-size:0.75rem;opacity:0.85;">SCORE</div><div style="font-size:1.8rem;font-weight:900;">'+score+'/100</div></div></div>';
+
+  // Remarks
+  var remarks=[];
+  function rem(ico,txt,sev){remarks.push({ico:ico,txt:txt,sev:sev});}
+  if(d0.pat>0) rem('🟢','Unit projected profitable from Year 1 — PAT ₹'+nuFmt(d0.pat)+'K ('+nuPct(d0.pat/Math.max(d0.sales,1)*100)+' margin).','good');
+  else rem('🔴','Unit projected at loss in Year 1 — PAT ₹'+nuFmt(d0.pat)+'K. Review cost structure.','bad');
+  if(avgDSCR>=1.5) rem('🟢','Average DSCR of '+avgDSCR.toFixed(2)+' meets bank norm of 1.50 — TL repayable from operations.','good');
+  else if(avgDSCR>0) rem('🔴','Average DSCR of '+avgDSCR.toFixed(2)+' is below norm of 1.50 — TL repayment at risk. Review tenure or reduce loan.','bad');
+  if(irr>0){if(irr>=0.14) rem('🟢','IRR of '+nuPct(irr*100)+' exceeds cost of capital — project is financially viable.','good');
+    else rem('🟡','IRR of '+nuPct(irr*100)+' is below 14% threshold — project viability marginal.','warn');}
+  if(d0.bep<d0.sales*0.7) rem('🟢','Break-even point (₹'+nuFmt(d0.bep)+'K) is '+Math.round(d0.bep/Math.max(d0.sales,1)*100)+'% of projected sales — adequate cushion.','good');
+  else rem('🟡','Break-even point ('+Math.round(d0.bep/Math.max(d0.sales,1)*100)+'% of sales) is high — limited margin of safety.','warn');
+  if(d0.gpPct>=25) rem('🟢','Gross margin of '+nuPct(d0.gpPct)+' is healthy for the sector.','good');
+  else rem('🟡','Gross margin of '+nuPct(d0.gpPct)+' is thin — vulnerable to input cost increases.','warn');
+  var mos=d0.mos/Math.max(d0.sales,1)*100;
+  if(mos>=30) rem('🟢','Margin of Safety of '+nuPct(mos)+' provides adequate buffer above break-even.','good');
+  else rem('🟡','Margin of Safety of '+nuPct(mos)+' is low — unit vulnerable to demand shortfall.','warn');
+  // Sales growth
+  if(C.data.length>1){
+    var sg=(C.data[1].sales-C.data[0].sales)/Math.max(C.data[0].sales,1)*100;
+    rem('🔵','Projected annual sales growth of '+nuPct(sg)+' — verify this is realistic for the sector and market.','info');
+  }
+  rem('🔵','New unit has no historical track record — projections require careful scrutiny of promoter capability and market assessment.','info');
+
+  var sc2={good:'#e8f5e9',warn:'#fff8e1',bad:'#fdecea',info:'#e3f2fd'};
+  var sb2={good:'#4caf50',warn:'#ff9800',bad:'#f44336',info:'#2196f3'};
+  document.getElementById('nuDashRemarks').innerHTML=remarks.map(function(r){
+    return '<div style="padding:8px 12px;margin-bottom:5px;border-left:4px solid '+sb2[r.sev]+';background:'+sc2[r.sev]+';border-radius:0 4px 4px 0;font-size:0.83rem;">'+r.ico+' '+r.txt+'</div>';
+  }).join('');
+
+  // Overall Recommendation
+  var recC=score>=65?'#1a7a4a':score>=50?'#b07800':'#c0392b';
+  var recT=score>=75?'RECOMMEND SANCTION — Projected financials satisfactory. Subject to CGTMSE coverage and standard conditions.'
+    :score>=60?'RECOMMEND WITH CONDITIONS — Adequate projections. Additional security / enhanced monitoring required.'
+    :score>=45?'REFER TO HIGHER AUTHORITY — Marginal projections. Detailed scrutiny and strong collateral required.'
+    :'DECLINE — Projections do not support sanction at this stage. Promoter to revise project.';
+  document.getElementById('nuDashRec').innerHTML=
+    '<div style="background:'+recC+';color:#fff;border-radius:6px;padding:14px 18px;font-weight:700;font-size:0.88rem;">'+recT+'</div>';
+
+  // Charts
+  var yrs=C.data.map(function(_,i){return 'Y'+(i+1);});
+  function mkC(id,type,datasets){
+    var ctx=document.getElementById(id);if(!ctx)return;
+    if(nuCharts[id])nuCharts[id].destroy();
+    nuCharts[id]=new Chart(ctx,{type:type,data:{labels:yrs,datasets:datasets},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{font:{size:9}}}},
+        scales:{x:{ticks:{font:{size:9}}},y:{ticks:{font:{size:9}}}}}});
+  }
+  mkC('nuChartSales','bar',[
+    {label:'Sales',data:C.data.map(function(d){return d.sales;}),backgroundColor:'rgba(14,94,74,0.7)'},
+    {label:'PAT',data:C.data.map(function(d){return d.pat;}),backgroundColor:'rgba(240,165,0,0.8)'}
+  ]);
+  mkC('nuChartDSCR','line',[
+    {label:'DSCR',data:C.data.map(function(d){return d.dscr||null;}),borderColor:'#0e5e4a',tension:0.3},
+    {label:'Norm 1.5',data:C.data.map(function(){return 1.5;}),borderColor:'#c0392b',borderDash:[5,5],pointRadius:0}
+  ]);
+  mkC('nuChartMPBF','bar',[
+    {label:'MPBF',data:C.data.map(function(d){return d.mpbf||0;}),backgroundColor:'rgba(14,94,74,0.7)'},
+    {label:'CC Limit',data:C.data.map(function(d){return d.cc||d.mpbf||0;}),backgroundColor:'rgba(192,57,43,0.5)'}
+  ]);
+  mkC('nuChartCash','line',[
+    {label:'Cash Accrual',data:C.data.map(function(d){return d.cashAccrual||0;}),borderColor:'#1565C0',fill:true,backgroundColor:'rgba(21,101,192,0.08)',tension:0.3}
+  ]);
+}
+
+/* ── INDUSTRY TEMPLATES ── */
+var NU_TEMPLATES={
+  'Rice Mill':     {icon:'🌾',type:'manufacturing',cogsPct:72,adminPct:8,rmDays:30,fgDays:20,credDays:15,debtorDays:30,desc:'Paddy procurement, rice milling, bran/husk by-products'},
+  'Flour Mill':    {icon:'🌾',type:'manufacturing',cogsPct:78,adminPct:7,rmDays:25,fgDays:15,credDays:20,debtorDays:25,desc:'Wheat milling, atta/maida/suji production'},
+  'Dairy':         {icon:'🥛',type:'manufacturing',cogsPct:68,adminPct:12,rmDays:7,fgDays:5,credDays:10,debtorDays:20,desc:'Milk processing, curd/paneer/ghee production'},
+  'Medical Store': {icon:'💊',type:'trading',cogsPct:68,adminPct:12,rmDays:30,fgDays:0,credDays:30,debtorDays:30,desc:'Retail pharmacy, medicines, surgical items'},
+  'Grocery Shop':  {icon:'🛒',type:'trading',cogsPct:80,adminPct:8,rmDays:20,fgDays:5,credDays:15,debtorDays:10,desc:'Kirana / FMCG retail store'},
+  'Hotel':         {icon:'🏨',type:'service',cogsPct:40,adminPct:30,rmDays:10,fgDays:0,credDays:20,debtorDays:15,desc:'Hotel accommodation, F&B, banquet'},
+  'Restaurant':    {icon:'🍽',type:'service',cogsPct:45,adminPct:25,rmDays:7,fgDays:2,credDays:10,debtorDays:5,desc:'Restaurant, café, catering'},
+  'Petrol Pump':   {icon:'⛽',type:'trading',cogsPct:88,adminPct:5,rmDays:10,fgDays:5,credDays:15,debtorDays:20,desc:'Retail fuel outlet — petrol/diesel/CNG'},
+  'Transport':     {icon:'🚛',type:'service',cogsPct:55,adminPct:20,rmDays:15,fgDays:0,credDays:20,debtorDays:45,desc:'Goods transport, fleet operator, logistics'},
+  'Hospital':      {icon:'🏥',type:'service',cogsPct:35,adminPct:30,rmDays:20,fgDays:0,credDays:20,debtorDays:30,desc:'Clinic, nursing home, hospital'},
+  'Engineering':   {icon:'⚙️',type:'manufacturing',cogsPct:65,adminPct:12,rmDays:45,fgDays:30,credDays:40,debtorDays:60,desc:'Fabrication, machining, structural work'},
+  'Textile':       {icon:'🧵',type:'manufacturing',cogsPct:62,adminPct:13,rmDays:45,fgDays:30,credDays:35,debtorDays:60,desc:'Weaving, dyeing, garments'},
+  'Poultry':       {icon:'🐔',type:'manufacturing',cogsPct:70,adminPct:10,rmDays:15,fgDays:7,credDays:15,debtorDays:20,desc:'Broiler/layer poultry, egg production'},
+  'School':        {icon:'📚',type:'service',cogsPct:50,adminPct:30,rmDays:30,fgDays:0,credDays:30,debtorDays:60,desc:'School, college, coaching institute'},
+  'Automobile Dealer':{icon:'🚗',type:'trading',cogsPct:82,adminPct:8,rmDays:45,fgDays:20,credDays:30,debtorDays:30,desc:'Car/two-wheeler/commercial vehicle dealer'},
+  'Plastic':       {icon:'🏭',type:'manufacturing',cogsPct:67,adminPct:11,rmDays:40,fgDays:25,credDays:35,debtorDays:50,desc:'Moulding, extrusion, packaging'},
+  'Furniture':     {icon:'🪑',type:'manufacturing',cogsPct:58,adminPct:15,rmDays:45,fgDays:30,credDays:30,debtorDays:45,desc:'Wood/steel/modular furniture manufacturing'},
+  'Service Centre':{icon:'🔧',type:'service',cogsPct:42,adminPct:25,rmDays:20,fgDays:10,credDays:20,debtorDays:30,desc:'Repair, maintenance, after-sales service'},
+};
+
+function renderNUIndustryGrid(){
+  var g=document.getElementById('nuIndustryGrid'); if(!g)return;
+  g.innerHTML=Object.keys(NU_TEMPLATES).map(function(name){
+    var t=NU_TEMPLATES[name];
+    return '<div onclick="previewNUTemplate(\''+name+'\')" style="background:#fff;border:2px solid #ddd;border-radius:8px;padding:12px 8px;text-align:center;cursor:pointer;" onmouseover="this.style.borderColor=\'#0e5e4a\'" onmouseout="this.style.borderColor=\'#ddd\'">'
+      +'<div style="font-size:1.6rem;">'+t.icon+'</div>'
+      +'<div style="font-size:0.78rem;font-weight:700;color:var(--navy);margin-top:4px;">'+name+'</div>'
+      +'<div style="font-size:0.62rem;color:#888;text-transform:uppercase;">'+t.type+'</div></div>';
+  }).join('');
+}
+
+function previewNUTemplate(name){
+  var t=NU_TEMPLATES[name]; if(!t)return;
+  document.getElementById('nuIndustryPreview').style.display='block';
+  document.getElementById('nuIndustryPreviewTitle').textContent=t.icon+' '+name;
+  document.getElementById('nuIndustryPreviewDesc').textContent=t.desc;
+  document.getElementById('nuIndustryPreviewContent').innerHTML=
+    '<table style="width:100%;font-size:0.82rem;border-collapse:collapse;">'
+    +'<tr><th style="background:#0a1628;color:#fff;padding:5px;text-align:left;">Parameter</th><th style="background:#0a1628;color:#fff;padding:5px;">Value</th></tr>'
+    +'<tr><td style="padding:4px 6px;">Industry Type</td><td style="padding:4px 6px;font-weight:700;">'+t.type+'</td></tr>'
+    +'<tr style="background:#f5f5f5;"><td style="padding:4px 6px;">COGS / Direct Cost %</td><td style="padding:4px 6px;font-weight:700;">'+t.cogsPct+'%</td></tr>'
+    +'<tr><td style="padding:4px 6px;">Admin Expenses %</td><td style="padding:4px 6px;font-weight:700;">'+t.adminPct+'%</td></tr>'
+    +'<tr style="background:#f5f5f5;"><td style="padding:4px 6px;">Debtor Days</td><td style="padding:4px 6px;font-weight:700;">'+t.debtorDays+' days</td></tr>'
+    +'<tr><td style="padding:4px 6px;">Stock / RM Days</td><td style="padding:4px 6px;font-weight:700;">'+t.rmDays+' days</td></tr>'
+    +'<tr style="background:#f5f5f5;"><td style="padding:4px 6px;">Creditor Days</td><td style="padding:4px 6px;font-weight:700;">'+t.credDays+' days</td></tr>'
+    +'</table>';
+  document.getElementById('nuIndustryLoadBtn').onclick=function(){applyNUTemplate(name);};
+  document.getElementById('nuIndustryPreview').scrollIntoView({behavior:'smooth'});
+}
+
+function applyNUTemplate(name){
+  var t=NU_TEMPLATES[name]; if(!t) return;
+  // Set industry type
+  var itEl=document.getElementById('industryType');
+  if(itEl){itEl.value=t.type; onIndustryChange();}
+  // Set cost fields based on type
+  setTimeout(function(){
+    function setVal(id,v){var el=document.getElementById(id);if(el)el.value=v;}
+    if(t.type==='trading'){setVal('cogsPct',t.cogsPct);}
+    else if(t.type==='manufacturing'){
+      setVal('rmPct',Math.round(t.cogsPct*0.65));
+      setVal('labourPct',Math.round(t.cogsPct*0.20));
+      setVal('powerPct',Math.round(t.cogsPct*0.10));
+      setVal('mfgOthPct',t.cogsPct-Math.round(t.cogsPct*0.65)-Math.round(t.cogsPct*0.20)-Math.round(t.cogsPct*0.10));
+    } else {
+      setVal('directStaffPct',Math.round(t.cogsPct*0.60));
+      setVal('subcontractPct',Math.round(t.cogsPct*0.25));
+      setVal('otherDirectPct',t.cogsPct-Math.round(t.cogsPct*0.60)-Math.round(t.cogsPct*0.25));
+    }
+    setVal('adminPct',t.adminPct);
+    // Holding norms
+    setVal('debtorDays',t.debtorDays);
+    setVal('rmDays',t.rmDays);
+    setVal('fgDays',t.fgDays||t.rmDays);
+    setVal('creditorDays',t.credDays);
+    document.getElementById('nuIndustryPreview').style.display='none';
+    showOk(name+' template applied. Proceed to Steps 4 and 5 to verify cost ratios and holding norms.');
+    goStep(4);
+  },100);
+}
+
+/* ── SENSITIVITY ── */
+function initNUSensitivity(){
+  if(!C||!C.data||!C.data.length) return;
+  var d0=C.data[0];
+  document.getElementById('nuSensSalesBase').textContent='₹'+nuFmt(d0.sales)+'K';
+  document.getElementById('nuSensCogsBase').textContent=d0.sales>0?Math.round(d0.cogs/d0.sales*100)+'%':'—';
+  document.getElementById('nuSensIntBase').textContent='₹'+nuFmt(d0.interest||0)+'K';
+  document.getElementById('nuSensDebBase').textContent=d0.debtors>0&&d0.sales>0?Math.round(d0.debtors/d0.sales*365)+' days':'—';
+}
+function nuSensUpdate(type,val){
+  var labels={sales:'nuSensSalesVal',cogs:'nuSensCogsVal',int:'nuSensIntVal',deb:'nuSensDebVal'};
+  var el=document.getElementById(labels[type]);
+  if(el) el.textContent=type==='int'?(val>0?'+':'')+val+' bps':type==='deb'?(val>0?'+':'')+val+' days':(val>0?'+':'')+val+'%';
+  runNUSensitivity();
+}
+function resetNUSensitivity(){
+  ['nuSensSales','nuSensCogs','nuSensInt','nuSensDeb'].forEach(function(id){var e=document.getElementById(id);if(e)e.value=0;});
+  ['nuSensSalesVal','nuSensCogsVal','nuSensIntVal','nuSensDebVal'].forEach(function(id){var e=document.getElementById(id);if(e)e.textContent='0';});
+  runNUSensitivity();
+}
+function runNUSensitivity(){
+  if(!C||!C.data||!C.data.length){showErr('Generate CMA first.');return;}
+  var d0=C.data[0];
+  var sc=nuN(document.getElementById('nuSensSales').value)/100;
+  var cc=nuN(document.getElementById('nuSensCogs').value)/100;
+  var ic=nuN(document.getElementById('nuSensInt').value)/10000;
+  var dc=nuN(document.getElementById('nuSensDeb').value);
+
+  var newSales=Math.round(d0.sales*(1+sc));
+  var newCogs=Math.round(d0.cogs*(1+cc)*(1+sc));
+  var newGP=newSales-newCogs;
+  var newInt=Math.round((d0.interest||0)*(1+ic*12));
+  var newPBIT=newGP-(d0.adminExp||0)-(d0.dep||d0.depreciation||0);
+  var newPBT=newPBIT-newInt;
+  var taxRate=d0.pbt>0?d0.tax/d0.pbt:0.25;
+  var newPAT=newPBT*(1-taxRate);
+  var newCA=d0.currentAssets+(d0.debtors>0?Math.round(newSales/365*dc):0);
+  var otherCL=(d0.creditors||0)+(d0.otherCL||0);
+  var newMPBF=Math.max(0,Math.min(newCA-otherCL,newCA*0.75));
+  var newCashAcc=newPAT+(d0.dep||d0.depreciation||0);
+  var tlInt=d0.tlInt||0, tlPrin=d0.tlRepay||d0.tlPrincipal||0;
+  var newDSCR=(tlInt+tlPrin)>0?(newCashAcc+tlInt)/(tlInt+tlPrin):0;
+  var baseDSCR=d0.dscr||0;
+
+  var rows=[
+    ['Sales (₹\'000s)',nuFmt(d0.sales),nuFmt(newSales)],
+    ['Gross Profit (₹\'000s)',nuFmt(d0.grossProfit||d0.sales-d0.cogs),nuFmt(newGP)],
+    ['GP Margin %',nuPct(d0.sales>0?(d0.sales-d0.cogs)/d0.sales*100:0),nuPct(newSales>0?newGP/newSales*100:0)],
+    ['PAT (₹\'000s)',nuFmt(d0.pat),nuFmt(Math.round(newPAT))],
+    ['MPBF (₹\'000s)',nuFmt(d0.mpbf||0),nuFmt(newMPBF)],
+    ['DSCR',baseDSCR>0?baseDSCR.toFixed(2):'—',newDSCR>0?newDSCR.toFixed(2):'—'],
+  ];
+
+  var alerts=[];
+  if(newPAT<0) alerts.push('🔴 Unit turns loss-making under stress — PAT = ₹'+nuFmt(Math.round(newPAT))+'K');
+  if(newDSCR>0&&newDSCR<1.5) alerts.push('🔴 DSCR falls to '+newDSCR.toFixed(2)+' — below bank norm of 1.5');
+  if(newGP/Math.max(newSales,1)*100<10) alerts.push('🔴 Gross margin compressed to '+nuPct(newGP/Math.max(newSales,1)*100));
+  if(alerts.length===0) alerts.push('🟢 Unit remains financially viable under this stress scenario.');
+
+  var html='<div class="scrollx"><table><tr><th class="label" style="text-align:left;">Parameter</th><th>Base (Y1)</th><th>Stressed</th></tr>'
+    +rows.map(function(r){return '<tr><td class="label">'+r[0]+'</td><td>'+r[1]+'</td><td style="font-weight:700;">'+r[2]+'</td></tr>';}).join('')
+    +'</table></div>'
+    +'<div style="margin-top:8px;">'+alerts.map(function(a){
+      var c=a.startsWith('🔴')?'#fdecea':'#e8f5e9',b=a.startsWith('🔴')?'#c0392b':'#1a7a4a';
+      return '<div style="padding:8px 12px;margin-bottom:5px;border-left:4px solid '+b+';background:'+c+';border-radius:0 4px 4px 0;font-size:0.83rem;">'+a+'</div>';
+    }).join('')+'</div>';
+
+  document.getElementById('nuSensResult').style.display='block';
+  document.getElementById('nuSensContent').innerHTML=html;
+}
+
+/* ── COLLATERAL ── */
+if(!window.nuCollateral) window.nuCollateral=[];
+function addNUCollateral(){
+  if(!window.nuCollateral) window.nuCollateral=[];
+  window.nuCollateral.push({type:'Immovable Property',owner:'',location:'',marketValue:0,fsvPct:60,charge:'First Charge Mortgage',remarks:''});
+  renderNUCollateral();
+}
+function renderNUCollateral(){
+  if(!window.nuCollateral) window.nuCollateral=[];
+  var list=document.getElementById('nuCollateralList');
+  var sum=document.getElementById('nuCollateralSummary');
+  if(!window.nuCollateral.length){list.innerHTML='<div class="note">No security added yet.</div>';sum.innerHTML='';return;}
+  var totalMV=0,totalFSV=0;
+  window.nuCollateral.forEach(function(c){totalMV+=nuN(c.marketValue);totalFSV+=nuN(c.marketValue)*nuN(c.fsvPct)/100;});
+  var tl=nuN(document.getElementById('termLoan')?document.getElementById('termLoan').value:0);
+  var wc=nuN(document.getElementById('wcLimitProposed')?document.getElementById('wcLimitProposed').value:0)||C&&C.data&&C.data[0]&&C.data[0].mpbf||0;
+  var exp=tl+wc; var ltv=totalFSV>0?Math.round(exp/totalFSV*100):0;
+  list.innerHTML=window.nuCollateral.map(function(c,i){
+    return '<div class="card" style="border-left:4px solid var(--green);margin-bottom:8px;">'
+      +'<div style="display:flex;justify-content:space-between;"><b style="color:var(--green);">Security #'+(i+1)+'</b>'
+      +'<button onclick="removeNUColl('+i+')" style="background:#c0392b;color:#fff;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.72rem;">Remove</button></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;font-size:0.82rem;">'
+      +'<div><label style="font-size:0.75rem;font-weight:700;">Type</label>'
+      +'<select onchange="window.nuCollateral['+i+'].type=this.value" style="width:100%;padding:5px;border:1px solid #ddd;color:#000;">'
+      +['Immovable Property','Plant & Machinery','Vehicle','FD / LIC','Stock & Debtors','Other'].map(function(t){return '<option'+(c.type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
+      +'<div><label style="font-size:0.75rem;font-weight:700;">Owner</label>'
+      +'<input value="'+(c.owner||'')+'" onchange="window.nuCollateral['+i+'].owner=this.value" style="width:100%;padding:5px;border:1px solid #ddd;color:#000;font-weight:700;"></div>'
+      +'<div><label style="font-size:0.75rem;font-weight:700;">Location / Description</label>'
+      +'<input value="'+(c.location||'')+'" onchange="window.nuCollateral['+i+'].location=this.value" style="width:100%;padding:5px;border:1px solid #ddd;color:#000;"></div>'
+      +'<div><label style="font-size:0.75rem;font-weight:700;">Market Value (₹\'000s)</label>'
+      +'<input type="number" value="'+(c.marketValue||'')+'" onfocus="this.select()" onchange="window.nuCollateral['+i+'].marketValue=this.value;renderNUCollateral()" style="width:100%;padding:5px;border:1px solid #ddd;color:#000;font-weight:700;"></div>'
+      +'<div><label style="font-size:0.75rem;font-weight:700;">FSV %</label>'
+      +'<input type="number" value="'+(c.fsvPct||60)+'" onfocus="this.select()" onchange="window.nuCollateral['+i+'].fsvPct=this.value;renderNUCollateral()" style="width:100%;padding:5px;border:1px solid #ddd;color:#000;font-weight:700;"></div>'
+      +'<div><label style="font-size:0.75rem;font-weight:700;">Charge Type</label>'
+      +'<select onchange="window.nuCollateral['+i+'].charge=this.value" style="width:100%;padding:5px;border:1px solid #ddd;color:#000;">'
+      +['First Charge Mortgage','Second Charge','Hypothecation','Pledge','Assignment'].map(function(t){return '<option'+(c.charge===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
+      +'</div><div style="font-size:0.75rem;color:var(--green);font-weight:700;margin-top:6px;">FSV = ₹'+nuFmt(Math.round(nuN(c.marketValue)*nuN(c.fsvPct)/100))+'K | Distress Value ≈ ₹'+nuFmt(Math.round(nuN(c.marketValue)*0.40))+'K</div>'
+      +'</div>';
+  }).join('');
+  sum.innerHTML='<div class="card" style="border-top:3px solid var(--amber);"><h2>Security Summary</h2>'
+    +'<div class="scrollx"><table><tr><th class="label" style="text-align:left;">Item</th><th>₹\'000s</th></tr>'
+    +'<tr><td class="label">Total Market Value</td><td>'+nuFmt(Math.round(totalMV))+'</td></tr>'
+    +'<tr><td class="label">Total FSV</td><td>'+nuFmt(Math.round(totalFSV))+'</td></tr>'
+    +'<tr><td class="label">Distress Value (40%)</td><td>'+nuFmt(Math.round(totalMV*0.4))+'</td></tr>'
+    +'<tr><td class="label">Total Exposure (TL+WC)</td><td>'+nuFmt(exp)+'</td></tr>'
+    +'<tr class="tot"><td class="label">LTV Ratio</td><td style="color:'+(ltv<=75?'var(--good)':'var(--danger)')+';">'+ltv+'% '+(ltv<=75?'✓':'⚠ >75%')+'</td></tr>'
+    +'</table></div></div>';
+}
+function removeNUColl(i){window.nuCollateral.splice(i,1);renderNUCollateral();}
+
+/* ── STOCK STATEMENT ── */
+if(!window.nuStockData) window.nuStockData=[];
+function calcNUDP(){
+  var rm=nuN(document.getElementById('nuSSRM').value);
+  var wip=nuN(document.getElementById('nuSSWIP').value);
+  var fg=nuN(document.getElementById('nuSSFG').value);
+  var deb=nuN(document.getElementById('nuSSDebtors').value);
+  var cred=nuN(document.getElementById('nuSSCreditors').value);
+  var cc=nuN(document.getElementById('nuSSCC').value);
+  var m=nuN(document.getElementById('nuSSMargin').value)/100||0.25;
+  var totalCA=rm+wip+fg+deb;
+  var dp=Math.max(0,Math.round(totalCA*(1-m))-cred);
+  var ok=cc<=dp; var excess=ok?0:cc-dp; var surplus=ok?dp-cc:0;
+  document.getElementById('nuDPResult').innerHTML=
+    '<div class="scrollx"><table>'
+    +'<tr><th class="label" style="text-align:left;">Item</th><th>Value</th><th>Eligible ('+Math.round(m*100)+'% margin)</th></tr>'
+    +'<tr><td class="label">RM + WIP + FG Stock</td><td>'+nuFmt(rm+wip+fg)+'</td><td>'+nuFmt(Math.round((rm+wip+fg)*(1-m)))+'</td></tr>'
+    +'<tr><td class="label">Sundry Debtors</td><td>'+nuFmt(deb)+'</td><td>'+nuFmt(Math.round(deb*(1-m)))+'</td></tr>'
+    +'<tr class="sub-tot"><td class="label">Total CA</td><td>'+nuFmt(totalCA)+'</td><td>'+nuFmt(Math.round(totalCA*(1-m)))+'</td></tr>'
+    +'<tr><td class="label">Less: Creditors</td><td></td><td>('+nuFmt(cred)+')</td></tr>'
+    +'<tr class="tot"><td class="label">DRAWING POWER</td><td></td><td style="color:var(--good);font-size:1.05rem;">'+nuFmt(dp)+'</td></tr>'
+    +'<tr><td class="label">CC Outstanding</td><td>'+nuFmt(cc)+'</td><td></td></tr>'
+    +'<tr class="tot"><td class="label">'+(ok?'✓ Surplus':'⚠ EXCESS')+'</td><td></td>'
+    +'<td style="color:'+(ok?'var(--good)':'var(--danger)')+';">'+nuFmt(ok?surplus:excess)+(ok?' surplus':' excess')+'</td></tr>'
+    +'</table></div>'
+    +'<div class="note" style="border-color:'+(ok?'var(--good)':'var(--danger)');'">'+(ok?'✓ CC within Drawing Power.':'⚠ Excess drawing ₹'+nuFmt(excess)+'K — regularise immediately.')+'</div>';
+}
+function saveNUStock(){
+  if(!window.nuStockData) window.nuStockData=[];
+  var rm=nuN(document.getElementById('nuSSRM').value),wip=nuN(document.getElementById('nuSSWIP').value);
+  var fg=nuN(document.getElementById('nuSSFG').value),deb=nuN(document.getElementById('nuSSDebtors').value);
+  var cred=nuN(document.getElementById('nuSSCreditors').value),cc=nuN(document.getElementById('nuSSCC').value);
+  var m=nuN(document.getElementById('nuSSMargin').value)/100||0.25;
+  var dp=Math.max(0,Math.round((rm+wip+fg+deb)*(1-m))-cred);
+  window.nuStockData.push({month:document.getElementById('nuSSMonth').value,year:document.getElementById('nuSSYear').value||'',
+    rm:rm,wip:wip,fg:fg,deb:deb,cred:cred,cc:cc,dp:dp,excess:Math.max(0,cc-dp)});
+  renderNUStockHistory(); showOk('Stock statement saved.');
+}
+function renderNUStockHistory(){
+  var h=document.getElementById('nuStockHistory'); if(!h)return;
+  if(!window.nuStockData||!window.nuStockData.length){h.innerHTML='<div class="note">No saved stock statements yet.</div>';return;}
+  h.innerHTML='<h3 style="color:var(--green);margin-bottom:8px;">Saved Statements</h3>'
+    +'<div class="scrollx"><table><tr><th>Month</th><th>Total Stock</th><th>Debtors</th><th>DP</th><th>CC Outstg</th><th>Status</th></tr>'
+    +window.nuStockData.slice().reverse().map(function(s){
+      var ok=s.cc<=s.dp;
+      return '<tr><td class="label">'+s.month+' '+s.year+'</td><td>'+nuFmt(s.rm+s.wip+s.fg)+'</td><td>'+nuFmt(s.deb)+'</td>'
+        +'<td>'+nuFmt(s.dp)+'</td><td>'+nuFmt(s.cc)+'</td>'
+        +'<td style="font-weight:700;color:'+(ok?'var(--good)':'var(--danger)')+';">'+(ok?'✓ OK':'⚠ ₹'+nuFmt(s.excess)+'K excess')+'</td></tr>';
+    }).join('')+'</table></div>';
+}
+
+/* ── ERROR CHECKER ── */
+function runNUErrors(){
+  var errs=[],warns=[],ok=[];
+  function e(m){errs.push(m);} function w(m){warns.push(m);} function p(m){ok.push(m);}
+  if(!C||!C.data||!C.data.length){document.getElementById('nuErrorResults').innerHTML='<div class="note">Generate CMA first.</div>';return;}
+  var d=C.data, NY=d.length;
+
+  // 1. All years PAT check
+  d.forEach(function(yr,i){
+    if(yr.pat<0) e('Y'+(i+1)+': Net loss of ₹'+nuFmt(Math.abs(Math.round(yr.pat)))+'K — projections show losses.');
+    else p('Y'+(i+1)+': PAT positive = ₹'+nuFmt(Math.round(yr.pat))+'K ✓');
+  });
+
+  // 2. BS Tally (check totalAssets vs totalLiab)
+  d.forEach(function(yr,i){
+    var diff=Math.round(Math.abs((yr.totalAssets||0)-(yr.totalLiab||yr.netWorth||0)));
+    if(diff<=1) p('Y'+(i+1)+': Balance Sheet tallies ✓');
+    else w('Y'+(i+1)+': Balance Sheet difference = ₹'+nuFmt(diff)+'K — verify projections.');
+  });
+
+  // 3. DSCR
+  var dscrArr=d.map(function(yr){return yr.dscr||0;}).filter(function(v){return v>0;});
+  var avgD=dscrArr.length?dscrArr.reduce(function(s,v){return s+v;},0)/dscrArr.length:0;
+  if(avgD>=1.5) p('Average DSCR = '+avgD.toFixed(2)+' — meets bank norm (≥1.5) ✓');
+  else if(avgD>0) e('Average DSCR = '+avgD.toFixed(2)+' — below bank norm of 1.5. Revise tenure, margin or loan amount.');
+  d.forEach(function(yr,i){if(yr.dscr>0&&yr.dscr<1.5) w('Y'+(i+1)+': DSCR = '+yr.dscr.toFixed(2)+' — below 1.5 in this year.');});
+
+  // 4. IRR
+  if(C.irr>0){
+    if(C.irr>=0.14) p('IRR = '+nuPct(C.irr*100)+' — exceeds cost of capital (≥14%) ✓');
+    else w('IRR = '+nuPct(C.irr*100)+' — below 14% threshold. Project viability marginal.');
+  } else w('IRR not computed. Verify investment amount and cash flows.');
+
+  // 5. BEP
+  d.forEach(function(yr,i){
+    if(yr.bep>0&&yr.sales>0){
+      var bpct=yr.bep/yr.sales*100;
+      if(bpct<70) p('Y'+(i+1)+': BEP = '+Math.round(bpct)+'% of sales — adequate safety margin ✓');
+      else w('Y'+(i+1)+': BEP = '+Math.round(bpct)+'% of sales — high break-even, limited safety.');
+    }
+  });
+
+  // 6. Sales growth reasonable
+  if(NY>1){
+    var sg=(d[1].sales-d[0].sales)/Math.max(d[0].sales,1)*100;
+    if(sg>40) w('Projected sales growth of '+Math.round(sg)+'% in Y2 appears aggressive — verify market assessment.');
+    else if(sg>0) p('Projected sales growth of '+Math.round(sg)+'% in Y2 appears reasonable ✓');
+    else e('Sales declining in projections — review growth assumptions.');
+  }
+
+  // 7. MPBF vs CC
+  d.forEach(function(yr,i){
+    var mpbf=yr.mpbf||0; var cc=yr.cc||mpbf;
+    if(cc>mpbf*1.15) w('Y'+(i+1)+': CC (₹'+nuFmt(Math.round(cc))+'K) exceeds MPBF (₹'+nuFmt(Math.round(mpbf))+'K).');
+    else p('Y'+(i+1)+': CC within MPBF ✓');
+  });
+
+  // 8. Project cost vs means
+  var tl=nuN(document.getElementById('termLoan')?document.getElementById('termLoan').value:0);
+  var cap=nuN(document.getElementById('capital')?document.getElementById('capital').value:0);
+  var unsec=nuN(document.getElementById('unsecuredLoans')?document.getElementById('unsecuredLoans').value:0);
+  if(C.invest>0){
+    var diff2=Math.abs((tl+cap+unsec)-C.invest);
+    if(diff2<50) p('Project cost vs means of finance: balanced ✓ (₹'+nuFmt(Math.round(C.invest))+'K)');
+    else w('Project cost (₹'+nuFmt(Math.round(C.invest))+'K) vs means (₹'+nuFmt(tl+cap+unsec)+'K) — difference of ₹'+nuFmt(Math.round(diff2))+'K. Verify inputs.');
+  }
+
+  // 9. Negative values
+  d.forEach(function(yr,i){
+    if((yr.debtors||0)<0) e('Y'+(i+1)+': Negative debtors.');
+    if((yr.totalStock||yr.rawMaterial||0)<0) e('Y'+(i+1)+': Negative stock.');
+    if((yr.netWorth||0)<0) e('Y'+(i+1)+': Negative Net Worth.');
+    if((yr.currentAssets||0)<0) e('Y'+(i+1)+': Negative Current Assets.');
+  });
+
+  // 10. Depreciation check
+  d.forEach(function(yr,i){
+    if(yr.dep>0) p('Y'+(i+1)+': Depreciation = ₹'+nuFmt(Math.round(yr.dep))+'K ✓');
+    else w('Y'+(i+1)+': Depreciation is zero — verify Fixed Asset values and rates.');
+  });
+
+  var total=errs.length+warns.length+ok.length;
+  var html='';
+  if(!errs.length&&!warns.length){
+    html='<div style="background:#e8f5e9;border:2px solid #4caf50;border-radius:6px;padding:16px;text-align:center;font-size:1.05rem;font-weight:700;color:#1a7a4a;">✅ No errors detected — '+ok.length+' checks passed.</div>';
+  } else {
+    html='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+      +'<div style="flex:1;min-width:70px;background:#fdecea;border-radius:5px;padding:10px;text-align:center;"><div style="font-size:1.4rem;font-weight:800;color:#c0392b;">'+errs.length+'</div><div style="font-size:0.72rem;font-weight:700;">ERRORS</div></div>'
+      +'<div style="flex:1;min-width:70px;background:#fff8e1;border-radius:5px;padding:10px;text-align:center;"><div style="font-size:1.4rem;font-weight:800;color:#b07800;">'+warns.length+'</div><div style="font-size:0.72rem;font-weight:700;">WARNINGS</div></div>'
+      +'<div style="flex:1;min-width:70px;background:#e8f5e9;border-radius:5px;padding:10px;text-align:center;"><div style="font-size:1.4rem;font-weight:800;color:#1a7a4a;">'+ok.length+'</div><div style="font-size:0.72rem;font-weight:700;">PASSED</div></div>'
+      +'</div>';
+  }
+  if(errs.length) html+='<div style="margin-bottom:8px;"><b style="color:#c0392b;">🔴 ERRORS:</b><br>'
+    +errs.map(function(m){return '<div style="padding:7px 12px;margin-top:4px;background:#fdecea;border-left:4px solid #c0392b;border-radius:0 4px 4px 0;font-size:0.82rem;">✗ '+m+'</div>';}).join('')+'</div>';
+  if(warns.length) html+='<div style="margin-bottom:8px;"><b style="color:#b07800;">🟡 WARNINGS:</b><br>'
+    +warns.map(function(m){return '<div style="padding:7px 12px;margin-top:4px;background:#fff8e1;border-left:4px solid #f0a500;border-radius:0 4px 4px 0;font-size:0.82rem;">⚠ '+m+'</div>';}).join('')+'</div>';
+  if(ok.length) html+='<details><summary style="cursor:pointer;color:var(--good);font-size:0.82rem;font-weight:700;">🟢 '+ok.length+' passed</summary><div>'
+    +ok.map(function(m){return '<div style="padding:5px 12px;margin-top:3px;background:#e8f5e9;border-left:3px solid #4caf50;border-radius:0 4px 4px 0;font-size:0.78rem;">✓ '+m+'</div>';}).join('')+'</div></details>';
+  document.getElementById('nuErrorResults').innerHTML=html;
+}
+
+// Hook into generateCMA
+var _origGenerateCMA = typeof generateCMA === 'function' ? generateCMA : null;
+function generateCMAAndDash(){
+  if(_origGenerateCMA) _origGenerateCMA();
+  setTimeout(function(){
+    renderNUDashboard();
+    initNUSensitivity();
+    renderNUIndustryGrid();
+  },300);
 }
 
 // ─── INIT ─────────────────────────────────────────────────

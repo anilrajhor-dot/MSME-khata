@@ -279,6 +279,9 @@
       <button onclick="showHelpSection('nfb')" class="action" style="font-size:0.75rem; padding:5px 12px;">Non-Fund Limits</button>
       <button onclick="showHelpSection('loan')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">Loan / IRR</button>
       <button onclick="showHelpSection('data')" class="action" style="font-size:0.75rem; padding:5px 12px;">Data / Backup</button>
+      <button onclick="showHelpSection('backup')" class="action" style="font-size:0.75rem; padding:5px 12px;">💾 Save & Restore</button>
+      <button onclick="showHelpSection('menus')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📋 All Menus</button>
+      <button onclick="showHelpSection('import_export')" class="action" style="font-size:0.75rem; padding:5px 12px;">📁 Import/Export</button>
       <button onclick="showHelpSection('glossary')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📖 Glossary</button>
     </div>
     <div id="helpSectionContent" style="font-size:0.88rem; line-height:1.7; color:#222;"></div>
@@ -286,6 +289,7 @@
 </div>
 
 <nav id="navBar">
+  <button data-panel="dashboard" style="color:#f0a500;font-weight:900;">🏦 Dashboard</button>
   <button data-panel="setup" class="active">Setup</button>
   <button data-panel="assumptions">Assumptions</button>
   <button data-panel="tb">Trial Balance</button>
@@ -309,8 +313,28 @@
   <button data-panel="report">📄 Project Report</button>
   <button data-panel="export">⬇ Export</button>
   <button data-panel="monitor">📊 Monitoring</button>
+  <button data-panel="industry">🏭 Industry</button>
+  <button data-panel="sensitivity">📐 Sensitivity</button>
+  <button data-panel="collateral">🏠 Collateral</button>
+  <button data-panel="stockstmt">📦 Stock Stmt</button>
+  <button data-panel="errors">🔍 Errors</button>
   <button data-panel="help">Help / Manual</button>
 </nav>
+
+<!-- BACKUP REMINDER BANNER -->
+<div id="backupReminder" style="display:none; background:linear-gradient(135deg,#f0a500,#e09000); 
+  color:#0a1628; padding:10px 16px; font-size:0.82rem; font-weight:700; 
+  text-align:center; position:sticky; top:52px; z-index:199; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center;">
+  ⚠ You have unsaved changes — 
+  <button onclick="exportData(); hideBackupReminder();" 
+    style="background:#0a1628;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-weight:700;margin:0 4px;">
+    💾 Export JSON Backup
+  </button>
+  <button onclick="hideBackupReminder()" 
+    style="background:transparent;border:1px solid #0a1628;color:#0a1628;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:700;">
+    Dismiss
+  </button>
+</div>
 
 <main>
 
@@ -318,6 +342,163 @@
 <div class="okbox" id="globalOk"></div>
 
 <!-- ============ SETUP PANEL ============ -->
+<!-- ═══════════════════════════════════════════════════
+     BANKER'S DASHBOARD
+═══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-dashboard">
+<div class="card" id="dashUnitHdr" style="display:none;">
+  <div id="dashUnitTitle" style="font-size:1.1rem;font-weight:800;color:var(--navy);"></div>
+  <div id="dashUnitSub" style="font-size:0.78rem;color:var(--sub);margin-top:3px;"></div>
+</div>
+<div class="note" id="dashNoData">📂 Enter Trial Balance data first to see the Banker's Dashboard.</div>
+<div id="dashContent" style="display:none;">
+  <!-- KPI Grid -->
+  <div id="dashKPIGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;"></div>
+  <!-- Credit Rating Box -->
+  <div id="dashRatingBox" style="margin-bottom:14px;"></div>
+  <!-- Auto Remarks -->
+  <div class="card" id="dashRemarksCard">
+    <h2>🔍 Automatic Remarks <span class="tag">AI-STYLE ANALYSIS</span></h2>
+    <div id="dashRemarks"></div>
+  </div>
+  <!-- Trend Charts -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+    <div class="card" style="padding:10px;"><div style="font-size:0.75rem;font-weight:700;color:var(--green);text-align:center;margin-bottom:6px;">📈 SALES & PROFIT TREND</div><canvas id="dashChartSales" style="max-height:180px;"></canvas></div>
+    <div class="card" style="padding:10px;"><div style="font-size:0.75rem;font-weight:700;color:var(--green);text-align:center;margin-bottom:6px;">📊 CURRENT RATIO & DSCR</div><canvas id="dashChartRatios" style="max-height:180px;"></canvas></div>
+    <div class="card" style="padding:10px;"><div style="font-size:0.75rem;font-weight:700;color:var(--green);text-align:center;margin-bottom:6px;">🏦 MPBF vs CC LIMIT</div><canvas id="dashChartMPBF" style="max-height:180px;"></canvas></div>
+    <div class="card" style="padding:10px;"><div style="font-size:0.75rem;font-weight:700;color:var(--green);text-align:center;margin-bottom:6px;">💰 NET WORTH & DEBT</div><canvas id="dashChartNW" style="max-height:180px;"></canvas></div>
+  </div>
+  <!-- Overall Recommendation -->
+  <div id="dashRecommendation"></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     INDUSTRY TEMPLATES
+═══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-industry">
+<div class="card">
+  <h2>🏭 Industry Templates <span class="tag">ONE-CLICK SETUP</span></h2>
+  <div class="sub">Select your industry to auto-load the correct Chart of Accounts. This will reset your current Trial Balance — export a JSON backup first.</div>
+  <div class="note">⚠ Loading a template resets the Trial Balance. Go to Setup tab first and set your year columns.</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0;" id="industryTemplateGrid"></div>
+</div>
+<div class="card" id="industryPreviewCard" style="display:none;">
+  <h2>Preview — <span id="industryPreviewTitle"></span></h2>
+  <div class="sub" id="industryPreviewSub"></div>
+  <div class="btnbar">
+    <button class="action" id="industryLoadBtn">✓ Load This Template</button>
+    <button class="action secondary" onclick="document.getElementById('industryPreviewCard').style.display='none'">Cancel</button>
+  </div>
+  <div id="industryPreviewContent"></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     SENSITIVITY ANALYSIS
+═══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-sensitivity">
+<div class="card">
+  <h2>📐 Sensitivity Analysis <span class="tag">WHAT-IF SCENARIOS</span></h2>
+  <div class="sub">Adjust any parameter to instantly see the impact on DSCR, MPBF, IRR and Cash Flow. Base values auto-loaded from your CMA data.</div>
+  <div class="note">All changes here are for analysis only — they do NOT affect your actual CMA data.</div>
+  <h3>Select Year</h3>
+  <div class="row"><div class="field">
+    <select id="sensYearSel" onchange="runSensitivity()"></select>
+  </div></div>
+  <h3>Adjust Parameters</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div class="field"><label>Sales Change %<br><small style="color:var(--sub);">Base: <span id="sensSalesBase">—</span></small></label>
+      <input type="range" id="sensSales" min="-40" max="40" value="0" step="5" oninput="sensUpdate('sales',this.value)" style="width:100%">
+      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="sensSalesVal">0%</div>
+    </div>
+    <div class="field"><label>Raw Material Cost Change %<br><small style="color:var(--sub);">Base: <span id="sensRMBase">—</span></small></label>
+      <input type="range" id="sensRM" min="-20" max="30" value="0" step="2" oninput="sensUpdate('rm',this.value)" style="width:100%">
+      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="sensRMVal">0%</div>
+    </div>
+    <div class="field"><label>Interest Rate Change (bps)<br><small style="color:var(--sub);">Base: <span id="sensIntBase">—</span></small></label>
+      <input type="range" id="sensInt" min="-200" max="400" value="0" step="25" oninput="sensUpdate('int',this.value)" style="width:100%">
+      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="sensIntVal">0 bps</div>
+    </div>
+    <div class="field"><label>Debtor Days Change<br><small style="color:var(--sub);">Base: <span id="sensDebBase">—</span></small></label>
+      <input type="range" id="sensDeb" min="-30" max="60" value="0" step="5" oninput="sensUpdate('deb',this.value)" style="width:100%">
+      <div style="text-align:center;font-weight:700;color:var(--amber);font-family:'Courier New';" id="sensDebVal">0 days</div>
+    </div>
+  </div>
+  <div class="btnbar" style="margin-top:10px;">
+    <button class="action" onclick="runSensitivity()">⚡ Recalculate</button>
+    <button class="action secondary" onclick="resetSensitivity()">↺ Reset All</button>
+  </div>
+</div>
+<div class="card" id="sensResultCard" style="display:none;">
+  <h2>Sensitivity Results <span class="tag">IMPACT ANALYSIS</span></h2>
+  <div id="sensResults"></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     COLLATERAL MODULE
+═══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-collateral">
+<div class="card">
+  <h2>🏠 Collateral Module <span class="tag">SECURITY DETAILS</span></h2>
+  <div class="sub">Record details of all securities offered — primary and collateral. LTV and FSV auto-calculated.</div>
+  <div class="btnbar">
+    <button class="action" onclick="addCollateral()">+ Add Property / Security</button>
+    <button class="action secondary" onclick="renderCollateral()">↻ Refresh</button>
+  </div>
+  <div id="collateralList"></div>
+  <div id="collateralSummary" style="margin-top:12px;"></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     STOCK STATEMENT
+═══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-stockstmt">
+<div class="card">
+  <h2>📦 Monthly Stock Statement <span class="tag">DRAWING POWER</span></h2>
+  <div class="sub">Enter month-end stock, debtors and creditors to compute Drawing Power. Excess drawing flagged automatically.</div>
+  <div class="row">
+    <div class="field"><label>Month</label>
+      <select id="ssMonth">
+        <option>April</option><option>May</option><option>June</option><option>July</option>
+        <option>August</option><option>September</option><option>October</option><option>November</option>
+        <option>December</option><option>January</option><option>February</option><option>March</option>
+      </select>
+    </div>
+    <div class="field"><label>Year</label><input type="text" id="ssYear" placeholder="2025-26"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+    <div class="field"><label>Raw Material Stock (₹'000s)</label><input type="number" id="ssRM" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
+    <div class="field"><label>WIP (₹'000s)</label><input type="number" id="ssWIP" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
+    <div class="field"><label>Finished Goods (₹'000s)</label><input type="number" id="ssFG" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
+    <div class="field"><label>Stores & Spares (₹'000s)</label><input type="number" id="ssSS" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
+    <div class="field"><label>Sundry Debtors (₹'000s)</label><input type="number" id="ssDebtors" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
+    <div class="field"><label>Sundry Creditors (₹'000s)</label><input type="number" id="ssCreditors" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
+    <div class="field"><label>CC Outstanding (₹'000s)</label><input type="number" id="ssCCOut" placeholder="0" onfocus="this.select()" oninput="calcStockDP()"></div>
+    <div class="field"><label>Bank Margin % (default 25)</label><input type="number" id="ssMargin" value="25" onfocus="this.select()" oninput="calcStockDP()"></div>
+  </div>
+  <div id="stockDPResult" style="margin-top:8px;"></div>
+  <div class="btnbar"><button class="action secondary" onclick="saveStockStatement()">💾 Save Statement</button></div>
+  <div id="stockHistory" style="margin-top:14px;"></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     ERROR CHECKER
+═══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-errors">
+<div class="card">
+  <h2>🔍 CMA Error Checker <span class="tag">VALIDATION</span></h2>
+  <div class="sub">Runs 25+ checks on your CMA data — balance sheet tally, classification, negatives, depreciation, MPBF and more.</div>
+  <div class="btnbar">
+    <button class="action" onclick="runErrorChecker()">🔍 Run Full Check</button>
+  </div>
+  <div id="errorCheckerResults"></div>
+</div>
+</div>
+
 <div class="panel active" id="panel-setup">
   <div class="card">
     <h2>Start a New Unit <span class="tag">NEW</span></h2>
@@ -813,15 +994,27 @@
 <!-- ============ FILES PANEL ============ -->
 <div class="panel" id="panel-files">
 
+  <div class="card" style="border-top:4px solid #f0a500;">
+    <h2>📋 How to Import Data <span class="tag">QUICK GUIDE</span></h2>
+    <div style="font-size:0.82rem;line-height:1.9;color:var(--text);">
+      <b>Step 1:</b> Download a blank template below (Excel or CSV)<br>
+      <b>Step 2:</b> Fill your Actual year data in the coloured columns (grey columns = projected, leave blank)<br>
+      <b>Step 3:</b> Save the file and come back here → click <b>Import</b> button → select your file<br>
+      <b>Step 4:</b> All Trial Balance / P&L / BS items auto-populate. Projections auto-generate.<br>
+      <b>Step 5:</b> Review in Trial Balance tab → export JSON backup immediately.
+    </div>
+    <div class="note">⚠ All amounts must be in <b>₹'000s</b> (Rupees Thousands). Example: Rs.15 Lakh = enter 1500. Do NOT change item names in Column B — they must match exactly.</div>
+  </div>
+
   <div class="card">
-    <h2>Download Templates <span class="tag">BLANK TEMPLATES</span></h2>
-    <div class="sub">Download blank templates pre-shaped to your unit's industry type and year columns. Fill Actual year columns and re-import.</div>
+    <h2>⬇ Download Blank Templates <span class="tag">BLANK — FILL & IMPORT</span></h2>
+    <div class="sub">Templates shaped to your unit type and year columns. Fill Actual years only.</div>
     <div class="note"><b>Trial Balance format</b> — Group / Item Name / Category / Year columns.</div>
     <div class="btnbar">
       <button class="action secondary" onclick="downloadTBTemplate('xlsx')">⬇ TB Template — Excel (.xlsx)</button>
       <button class="action secondary" onclick="downloadTBTemplate('csv')">⬇ TB Template — CSV (.csv)</button>
     </div>
-    <div class="note"><b>Financial Statements format</b> — separate P&L and Balance Sheet sheets/sections.</div>
+    <div class="note"><b>Financial Statements format</b> — P&L and Balance Sheet in separate sheets.</div>
     <div class="btnbar">
       <button class="action secondary" onclick="downloadFSTemplate('xlsx')">⬇ P&amp;L + Balance Sheet — Excel (.xlsx)</button>
       <button class="action secondary" onclick="downloadFSTemplate('csv')">⬇ P&amp;L CSV + Balance Sheet CSV (2 files)</button>
@@ -908,7 +1101,7 @@
 <div class="panel" id="panel-risk">
   <div class="card">
     <h2>Risk Rating / Credit Scoring <span class="tag">RBI SCALE 1–8</span></h2>
-    <div class="sub">All parameters are fully editable — change weights, scoring bands, and override any score manually. Weights must total 100%.</div>
+    <div class="sub">Automated risk scoring based on financial ratios computed from CMA data. Scores are auto-populated from your data — adjust Industry Risk and override any score manually.</div>
     <div class="row">
       <div class="field">
         <label>Select Year for Rating</label>
@@ -923,26 +1116,6 @@
         </select>
       </div>
     </div>
-
-    <!-- EDITABLE PARAMETERS TABLE -->
-    <h3 style="font-size:0.88rem; color:var(--green); margin:12px 0 6px;">⚙ Edit Parameters, Weights & Scoring Bands</h3>
-    <div class="note">Change any weight or band value below — scoring recalculates instantly. Weights should total 100. Bands: enter threshold values at which score changes.</div>
-    <div class="scrollx">
-      <table id="riskParamEditTable" style="font-size:0.78rem; margin-bottom:12px;">
-        <tr>
-          <th class="label" style="text-align:left; min-width:160px;">Parameter</th>
-          <th style="min-width:70px;">Weight %</th>
-          <th style="min-width:280px; text-align:left; padding-left:10px;">Scoring Bands (threshold → score)</th>
-        </tr>
-      </table>
-    </div>
-    <div class="btnbar">
-      <button class="action btn-sm" onclick="resetRiskParams()">↺ Reset to Defaults</button>
-      <button class="action secondary btn-sm" onclick="computeRiskRating()">↻ Recalculate</button>
-    </div>
-
-    <!-- SCORECARD RESULTS -->
-    <h3 style="font-size:0.88rem; color:var(--green); margin:12px 0 6px;">📊 Scorecard Results</h3>
     <div class="scrollx"><table id="riskScorecardTable"></table></div>
     <div id="riskResultBox" style="margin-top:12px;"></div>
   </div>
@@ -1223,6 +1396,8 @@ function loadAll(){
     var parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') {
       STATE = Object.assign(STATE, parsed);
+      if(!STATE.collateral) STATE.collateral=[];
+      if(!STATE.stockStatements) STATE.stockStatements=[];
       return true;
     }
   } catch (e) {
@@ -2943,7 +3118,6 @@ function renderAllTables(){
   calcNFB();
   renderBGContracts();
   populateRiskYearSelect();
-  loadSavedRiskParams();
   computeRiskRating();
   generateSanction();
   generateProjectReport();
@@ -2951,6 +3125,11 @@ function renderAllTables(){
   renderRepaymentTracker();
   renderStockStatement();
   renderQIS();
+  renderDashboard();
+  initSensitivity();
+  renderStockHistory();
+  renderIndustryTemplateGrid();
+  renderCollateral();
 }
 
 /* ================= ASSUMPTIONS UI ================= */
@@ -4275,121 +4454,954 @@ function calcNFB(){
 }
 
 /* ================= MODULE 5: RISK RATING ================= */
-var DEFAULT_RISK_PARAMS = [
-  {id:'rr_cr',   label:'Current Ratio (CA÷CL)',    weight:15, key:'currentRatio',
-   bands:[{min:0,max:1,score:0},{min:1,max:1.2,score:3},{min:1.2,max:1.5,score:6},{min:1.5,max:999,score:10}]},
-  {id:'rr_dscr', label:'DSCR',                     weight:20, key:'dscr',
-   bands:[{min:0,max:1,score:0},{min:1,max:1.5,score:4},{min:1.5,max:2,score:7},{min:2,max:999,score:10}]},
-  {id:'rr_tol',  label:'TOL / TNW',                weight:15, key:'toltnw', invert:true,
-   bands:[{min:0,max:2,score:10},{min:2,max:3,score:6},{min:3,max:4,score:3},{min:4,max:999,score:0}]},
-  {id:'rr_npm',  label:'Net Profit Margin %',      weight:10, key:'npPct',
-   bands:[{min:0,max:3,score:2},{min:3,max:8,score:5},{min:8,max:15,score:8},{min:15,max:999,score:10}]},
-  {id:'rr_sg',   label:'Sales Growth %',           weight:10, key:'salesGrowthPct',
-   bands:[{min:-999,max:0,score:0},{min:0,max:10,score:5},{min:10,max:20,score:8},{min:20,max:999,score:10}]},
-  {id:'rr_der',  label:'Debt-Equity Ratio',        weight:10, key:'deRatio', invert:true,
-   bands:[{min:0,max:1,score:10},{min:1,max:2,score:7},{min:2,max:3,score:4},{min:3,max:999,score:0}]},
-  {id:'rr_mpbf', label:'CC Utilisation vs MPBF %', weight:10, key:'ccUtil', invert:true,
-   bands:[{min:0,max:70,score:10},{min:70,max:90,score:8},{min:90,max:100,score:5},{min:100,max:999,score:0}]},
-  {id:'rr_ind',  label:'Industry Risk',            weight:10, key:'industryRisk', manual:true}
-];
+/* ═══════════════════════════════════════════════════════
+   BANKER'S DASHBOARD
+═══════════════════════════════════════════════════════ */
+var dashCharts = {};
 
-var RISK_PARAMS = JSON.parse(JSON.stringify(DEFAULT_RISK_PARAMS));
+function renderDashboard(){
+  if(!CALC.data||!CALC.data.length){
+    document.getElementById('dashNoData').style.display='block';
+    document.getElementById('dashContent').style.display='none';
+    return;
+  }
+  document.getElementById('dashNoData').style.display='none';
+  document.getElementById('dashContent').style.display='block';
 
-function resetRiskParams(){
-  RISK_PARAMS = JSON.parse(JSON.stringify(DEFAULT_RISK_PARAMS));
-  if(STATE.riskParamCustom) delete STATE.riskParamCustom;
-  renderRiskParamEditor();
-  computeRiskRating();
-  showOk('Risk parameters reset to defaults.');
+  var u=STATE.unit||{};
+  var el=document.getElementById('dashUnitHdr');
+  if(el){el.style.display='block';}
+  document.getElementById('dashUnitTitle').textContent=(u.unitName||'Unit')+' — Banker\'s Dashboard';
+  document.getElementById('dashUnitSub').textContent=(u.unitConstitution||'')+(u.bankName?' | '+u.bankName:'')+(STATE.years?' | '+STATE.years.join(' | '):'');
+
+  // Get latest actual year data
+  var na=parseInt(STATE.unit.numActualYears)||2;
+  var da=CALC.data[Math.min(na-1,CALC.data.length-1)];
+  var d0=CALC.data[0];
+  var NY=CALC.data.length;
+
+  // MPBF / Ratios from ratios tab
+  function mpbfFor(d){
+    var otherCL=(d.creditors||0)+(d.advancesFromCustomers||0)+(d.statutoryLiab||0)+(d.otherCL||0);
+    var wcg=d.currentAssets-otherCL;
+    var abf=Math.round(d.currentAssets*0.75);
+    return Math.max(0,Math.min(wcg,abf));
+  }
+  function dscrFor(yi){
+    var d=CALC.data[yi];
+    var tlInt=num(STATE.dscr&&STATE.dscr.interest&&STATE.dscr.interest[yi]);
+    var tlPrin=num(STATE.dscr&&STATE.dscr.principal&&STATE.dscr.principal[yi]);
+    var ca=d.pat+d.depreciation+tlInt;
+    var ds=tlInt+tlPrin;
+    return ds>0?Math.round(ca/ds*100)/100:0;
+  }
+  function currentRatioFor(d){return d.currentLiabilities>0?Math.round(d.currentAssets/d.currentLiabilities*100)/100:0;}
+  function deRatioFor(d){return d.netWorth>0?Math.round(d.longTerm/d.netWorth*100)/100:0;}
+  function toltnwFor(d){return d.netWorth>0?Math.round((d.longTerm+d.currentLiabilities)/d.netWorth*100)/100:0;}
+  function iscr(d,yi){
+    var tlInt=num(STATE.dscr&&STATE.dscr.interest&&STATE.dscr.interest[yi]);
+    return tlInt>0?Math.round((d.pat+d.depreciation+d.interest)/d.interest*100)/100:0;
+  }
+  function bepFor(d){
+    var fc=d.adminExp+d.depreciation+d.interest;
+    var rev=d.totalRevenue||d.sales||1;
+    var cmr=(d.grossProfit)/(rev);
+    return cmr>0?Math.round(fc/cmr):0;
+  }
+  function wcCycle(d){
+    var rev=d.totalRevenue||d.sales||1;
+    var debDays=d.debtors>0?Math.round(d.debtors/(rev/365)):0;
+    var credDays=d.creditors>0?Math.round(d.creditors/(((d.purchases||0)+(d.cogs||0))/365)):0;
+    var stockDays=Math.round(((d.rawMaterial||0)+(d.wip||0)+(d.finishedGoods||0))/(Math.max(d.cogs,1)/365));
+    return debDays+stockDays-credDays;
+  }
+
+  var cr=currentRatioFor(da); var de=deRatioFor(da); var tol=toltnwFor(da);
+  var dscr=dscrFor(Math.min(na-1,CALC.data.length-1));
+  var mpbf=mpbfFor(da); var isc=iscr(da,Math.min(na-1,CALC.data.length-1));
+  var bep=bepFor(da); var wcc=wcCycle(da);
+  var gpPct=da.totalRevenue>0?Math.round(da.grossProfit/da.totalRevenue*1000)/10:0;
+  var npPct=da.totalRevenue>0?Math.round(da.pat/da.totalRevenue*1000)/10:0;
+
+  // RAG helper
+  function rag(v,greenMin,amberMin,invert){
+    if(!invert){return v>=greenMin?'#1a7a4a':v>=amberMin?'#b07800':'#c0392b';}
+    else{return v<=greenMin?'#1a7a4a':v<=amberMin?'#b07800':'#c0392b';}
+  }
+  function ragIco(v,greenMin,amberMin,invert){
+    if(!invert){return v>=greenMin?'🟢':v>=amberMin?'🟡':'🔴';}
+    else{return v<=greenMin?'🟢':v<=amberMin?'🟡':'🔴';}
+  }
+
+  // KPI GRID
+  var kpis=[
+    {l:'Current Ratio',v:cr.toFixed(2),color:rag(cr,1.33,1.25),ico:ragIco(cr,1.33,1.25),norm:'≥1.25'},
+    {l:'DSCR',v:dscr>0?dscr.toFixed(2):'—',color:rag(dscr,1.5,1.2),ico:ragIco(dscr,1.5,1.2),norm:'≥1.50'},
+    {l:'ISCR',v:isc>0?isc.toFixed(2):'—',color:rag(isc,2,1.5),ico:ragIco(isc,2,1.5),norm:'≥1.50'},
+    {l:'Debt-Equity',v:de.toFixed(2),color:rag(de,0,2,true),ico:ragIco(de,1,2,true),norm:'≤2:1'},
+    {l:'TOL/TNW',v:tol.toFixed(2),color:rag(tol,0,3,true),ico:ragIco(tol,2,3,true),norm:'≤3:1'},
+    {l:'GP Margin',v:gpPct+'%',color:rag(gpPct,25,15),ico:ragIco(gpPct,25,15),norm:'>15%'},
+    {l:'NP Margin',v:npPct+'%',color:rag(npPct,10,5),ico:ragIco(npPct,10,5),norm:'>5%'},
+    {l:'MPBF',v:'₹'+fmtN(mpbf)+'K',color:'#1565C0',ico:'🔵',norm:'Tandon I'},
+    {l:'CC Limit',v:'₹'+fmtN(da.cc)+'K',color:da.cc>mpbf?'#c0392b':'#1a7a4a',ico:da.cc>mpbf?'🔴':'🟢',norm:'Should ≤ MPBF'},
+    {l:'BEP Sales',v:'₹'+fmtN(bep)+'K',color:rag(bep/Math.max(da.totalRevenue,1),0,0.7,true),ico:ragIco(bep/Math.max(da.totalRevenue,1),0.5,0.7,true),norm:'<70% sales'},
+    {l:'WC Cycle',v:wcc+' days',color:rag(wcc,0,90,true),ico:ragIco(wcc,60,90,true),norm:'<90 days'},
+    {l:'Net Worth',v:'₹'+fmtN(da.netWorth)+'K',color:da.netWorth>0?'#1a7a4a':'#c0392b',ico:da.netWorth>0?'🟢':'🔴',norm:'Positive'},
+  ];
+
+  var kgrid=document.getElementById('dashKPIGrid');
+  kgrid.innerHTML=kpis.map(function(k){
+    return '<div style="background:var(--card-bg);border:1px solid var(--line);border-radius:6px;padding:10px;text-align:center;border-top:3px solid '+k.color+';">'
+      +'<div style="font-size:1.1rem;">'+k.ico+'</div>'
+      +'<div style="font-size:1rem;font-weight:800;color:'+k.color+';font-family:\'Courier New\',monospace;">'+k.v+'</div>'
+      +'<div style="font-size:0.7rem;font-weight:700;color:var(--text);margin-top:2px;">'+k.l+'</div>'
+      +'<div style="font-size:0.65rem;color:var(--sub);">Norm: '+k.norm+'</div>'
+      +'</div>';
+  }).join('');
+
+  // CREDIT RATING
+  var score=0,maxS=0;
+  [[cr,1.33,1.0,15],[dscr,1.5,1.0,20],[tol,2,3,15,true],
+   [npPct,10,5,10],[gpPct,25,10,10],[de,1,2,10,true],
+   [da.netWorth,0.001,0,10]].forEach(function(p){
+    var v=p[0],gn=p[1],an=p[2],w=p[3],inv=p[4];
+    maxS+=w;
+    if(!inv){score+=v>=gn?w:v>=an?w*0.6:w*0.2;}
+    else{score+=v<=gn?w:v<=an?w*0.6:w*0.2;}
+  });
+  var pct100=Math.round(score/maxS*100);
+  var rating=pct100>=85?'AAA':pct100>=75?'AA':pct100>=65?'A':pct100>=55?'BBB':pct100>=45?'BB':pct100>=35?'B':'High Risk';
+  var ratingColor=pct100>=75?'#1a7a4a':pct100>=55?'#b07800':'#c0392b';
+  var ratingDesc={'AAA':'Highest quality — negligible risk','AA':'Very high quality — very low risk','A':'High quality — low risk',
+    'BBB':'Good quality — moderate risk','BB':'Speculative — medium risk','B':'Speculative — high risk','High Risk':'Non-investment grade — very high risk'};
+
+  document.getElementById('dashRatingBox').innerHTML=
+    '<div style="background:'+ratingColor+';color:#fff;border-radius:8px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">'
+    +'<div><div style="font-size:0.78rem;font-weight:700;opacity:0.85;">AUTOMATIC CREDIT RATING</div>'
+    +'<div style="font-size:2rem;font-weight:900;letter-spacing:1px;">'+rating+'</div>'
+    +'<div style="font-size:0.82rem;opacity:0.9;">'+ratingDesc[rating]+'</div></div>'
+    +'<div style="text-align:right;">'
+    +'<div style="font-size:0.78rem;opacity:0.85;">CREDIT SCORE</div>'
+    +'<div style="font-size:2rem;font-weight:900;">'+pct100+'/100</div>'
+    +'<div style="font-size:0.75rem;opacity:0.85;">Based on 7 parameters</div></div>'
+    +'</div>';
+
+  // AUTO REMARKS
+  var remarks=[];
+  function rem(ico,text,sev){remarks.push({ico:ico,text:text,sev:sev});}
+
+  // Sales trend
+  if(CALC.data.length>1){
+    var sg=(CALC.data[Math.min(1,ny-1)].totalRevenue-CALC.data[0].totalRevenue)/Math.max(CALC.data[0].totalRevenue,1)*100;
+    if(sg>=15) rem('🟢','Sales showing strong growth of '+Math.round(sg)+'% — positive momentum.','good');
+    else if(sg>=5) rem('🟡','Sales growth of '+Math.round(sg)+'% is moderate — encourage expansion.','warn');
+    else if(sg>=0) rem('🟡','Sales growth is low at '+Math.round(sg)+'% — review market strategy.','warn');
+    else rem('🔴','Sales have declined by '+Math.round(Math.abs(sg))+'% — immediate review required.','bad');
+  }
+  // Current Ratio
+  if(cr>=1.33) rem('🟢','Current Ratio of '+cr.toFixed(2)+' is above the standard norm of 1.25 — liquidity is satisfactory.','good');
+  else if(cr>=1.0) rem('🟡','Current Ratio of '+cr.toFixed(2)+' is below the acceptable norm of 1.25 — liquidity needs improvement.','warn');
+  else rem('🔴','Current Ratio of '+cr.toFixed(2)+' is critically low (below 1.0) — unit may face immediate liquidity stress.','bad');
+
+  // Debtor trend
+  if(CALC.data.length>1){
+    var deb0=CALC.data[0].debtors,deb1=CALC.data[Math.min(1,CALC.data.length-1)].debtors;
+    var debGrowth=deb0>0?(deb1-deb0)/deb0*100:0;
+    var debDays0=Math.round(deb0/Math.max(CALC.data[0].totalRevenue,1)*365);
+    var debDays1=Math.round(deb1/Math.max(CALC.data[Math.min(1,CALC.data.length-1)].totalRevenue,1)*365);
+    if(debDays1>debDays0+15) rem('🔴','Debtor holding period has increased from '+debDays0+' to '+debDays1+' days — collections deteriorating.','bad');
+    else if(debDays1>90) rem('🟡','Debtor holding period of '+debDays1+' days is high — monitor collection efficiency.','warn');
+    else rem('🟢','Debtor collection period of '+debDays1+' days is within acceptable range.','good');
+  }
+  // DSCR
+  if(dscr>=2.0) rem('🟢','DSCR of '+dscr.toFixed(2)+' is excellent — very comfortable TL repayment capacity.','good');
+  else if(dscr>=1.5) rem('🟢','DSCR of '+dscr.toFixed(2)+' meets the bank norm of 1.50 — repayment capacity is satisfactory.','good');
+  else if(dscr>=1.0) rem('🟡','DSCR of '+dscr.toFixed(2)+' is below the norm of 1.50 — enhanced monitoring recommended.','warn');
+  else if(dscr>0) rem('🔴','DSCR of '+dscr.toFixed(2)+' is below 1.0 — unit cannot service debt from operations. Immediate action required.','bad');
+
+  // Profit trend
+  if(CALC.data.length>1){
+    var pat0=CALC.data[0].pat,pat1=CALC.data[Math.min(1,CALC.data.length-1)].pat;
+    if(pat1<pat0&&pat0>0) rem('🟡','Net profit margin declining — from ₹'+fmtN(pat0)+'K to ₹'+fmtN(pat1)+'K. Review cost structure.','warn');
+    else if(pat1<0) rem('🔴','Unit is incurring net losses of ₹'+fmtN(Math.abs(pat1))+'K — viability at risk.','bad');
+    else if(pat1>pat0) rem('🟢','Net profit improving — grew from ₹'+fmtN(pat0)+'K to ₹'+fmtN(pat1)+'K. Positive trend.','good');
+  }
+  // Inventory
+  var invDays=Math.round(((da.rawMaterial||0)+(da.wip||0)+(da.finishedGoods||0))/Math.max(da.cogs,1)*365);
+  if(invDays>90) rem('🔴','Inventory holding period of '+invDays+' days appears excessive — possible slow-moving or dead stock.','bad');
+  else if(invDays>60) rem('🟡','Inventory holding of '+invDays+' days is moderate — monitor for build-up.','warn');
+  else rem('🟢','Inventory levels appear reasonable at '+invDays+' days of COGS.','good');
+
+  // Leverage
+  if(tol<=2) rem('🟢','Leverage (TOL/TNW) of '+tol.toFixed(2)+' is conservative — strong balance sheet.','good');
+  else if(tol<=3) rem('🟡','Leverage (TOL/TNW) of '+tol.toFixed(2)+' is moderate — within acceptable range.','warn');
+  else rem('🔴','Leverage (TOL/TNW) of '+tol.toFixed(2)+' exceeds the norm of 3:1 — over-leveraged.','bad');
+
+  // Net Worth
+  if(da.netWorth<=0) rem('🔴','Negative Net Worth detected — unit is technically insolvent. Sanction not recommended without restructuring.','bad');
+  else if(CALC.data.length>1&&CALC.data[Math.min(1,CALC.data.length-1)].netWorth>CALC.data[0].netWorth)
+    rem('🟢','Net worth improving — growing from ₹'+fmtN(CALC.data[0].netWorth)+'K to ₹'+fmtN(CALC.data[Math.min(1,CALC.data.length-1)].netWorth)+'K.','good');
+
+  // CC vs MPBF
+  if(da.cc>mpbf*1.1) rem('🔴','CC outstanding exceeds MPBF by ₹'+fmtN(da.cc-mpbf)+'K — excess drawing of WC limit.','bad');
+  else rem('🟢','CC utilization within MPBF limits. Drawing Power satisfactory.','good');
+
+  var sevColor={good:'#e8f5e9',warn:'#fff8e1',bad:'#fdecea'};
+  var sevBorder={good:'#4caf50',warn:'#ff9800',bad:'#f44336'};
+  var rBox=document.getElementById('dashRemarks');
+  rBox.innerHTML=remarks.map(function(r){
+    return '<div style="padding:8px 12px;margin-bottom:6px;border-left:4px solid '+sevBorder[r.sev]+';background:'+sevColor[r.sev]+';border-radius:0 4px 4px 0;font-size:0.83rem;">'
+      +r.ico+' '+r.text+'</div>';
+  }).join('');
+
+  // OVERALL RECOMMENDATION
+  var recColor=pct100>=65?'#1a7a4a':pct100>=50?'#b07800':'#c0392b';
+  var recText=pct100>=75?'RECOMMEND SANCTION — Financial parameters satisfactory. Subject to standard conditions.'
+    :pct100>=60?'RECOMMEND WITH CONDITIONS — Some parameters below norm. Additional security / conditions recommended.'
+    :pct100>=45?'REFER TO HIGHER AUTHORITY — Significant weaknesses. Detailed appraisal and justification required.'
+    :'DECLINE / HOLD — Multiple critical parameters below norm. Sanction not recommended at this stage.';
+  document.getElementById('dashRecommendation').innerHTML=
+    '<div style="background:'+recColor+';color:#fff;border-radius:6px;padding:14px 18px;font-weight:700;font-size:0.88rem;">'
+    +'OVERALL RECOMMENDATION: '+recText+'</div>';
+
+  // CHARTS
+  var yrs=CALC.years.map(function(y){return y.replace(/\(.*?\)/,'').trim();});
+  var tc=DARK?'#aabbcc':'#444',gc=DARK?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.07)';
+  function mkChart(id,type,datasets,labels){
+    var ctx=document.getElementById(id); if(!ctx) return;
+    if(dashCharts[id]) dashCharts[id].destroy();
+    dashCharts[id]=new Chart(ctx,{type:type,
+      data:{labels:labels||yrs,datasets:datasets},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:tc,font:{size:9}}}},
+        scales:{x:{ticks:{color:tc,font:{size:9}},grid:{color:gc}},
+                y:{ticks:{color:tc,font:{size:9}},grid:{color:gc}}}}});
+  }
+  mkChart('dashChartSales','bar',[
+    {label:'Sales',data:CALC.data.map(function(d){return d.totalRevenue;}),backgroundColor:'rgba(14,94,74,0.7)'},
+    {label:'PAT',data:CALC.data.map(function(d){return d.pat;}),backgroundColor:'rgba(240,165,0,0.8)'}
+  ]);
+  mkChart('dashChartRatios','line',[
+    {label:'CR',data:CALC.data.map(function(d){return currentRatioFor(d);}),borderColor:'#0e5e4a',tension:0.3},
+    {label:'DSCR',data:CALC.data.map(function(_,yi){return dscrFor(yi);}),borderColor:'#f0a500',tension:0.3},
+    {label:'Norm 1.25',data:CALC.data.map(function(){return 1.25;}),borderColor:'#ccc',borderDash:[4,4],pointRadius:0}
+  ]);
+  mkChart('dashChartMPBF','bar',[
+    {label:'MPBF',data:CALC.data.map(function(d){return mpbfFor(d);}),backgroundColor:'rgba(14,94,74,0.7)'},
+    {label:'CC',data:CALC.data.map(function(d){return d.cc;}),backgroundColor:'rgba(192,57,43,0.6)'}
+  ]);
+  mkChart('dashChartNW','line',[
+    {label:'Net Worth',data:CALC.data.map(function(d){return d.netWorth;}),borderColor:'#0e5e4a',fill:true,backgroundColor:'rgba(14,94,74,0.08)',tension:0.3},
+    {label:'Total Debt',data:CALC.data.map(function(d){return d.longTerm+d.currentLiabilities;}),borderColor:'#c0392b',tension:0.3}
+  ]);
 }
 
-function renderRiskParamEditor(){
-  var tbl = document.getElementById('riskParamEditTable');
-  if(!tbl) return;
-  var html = '<tr>'
-    +'<th class="label" style="text-align:left;min-width:160px;">Parameter</th>'
-    +'<th style="min-width:70px;">Weight %</th>'
-    +'<th style="min-width:280px;text-align:left;padding-left:10px;">Scoring Bands (threshold → score)</th>'
-    +'</tr>';
+function fmtN(v){
+  if(!v&&v!==0) return '-';
+  var n=Math.abs(Math.round(v));
+  var s=String(n),l3=s.slice(-3),rest=s.slice(0,-3);
+  if(rest) l3=','+l3;
+  var f=rest.replace(/\B(?=(\d{2})+(?!\d))/g,',')+l3;
+  return v<0?'('+f+')':f;
+}
 
-  RISK_PARAMS.forEach(function(p, pi){
-    html += '<tr>';
-    html += '<td class="label" style="font-size:0.78rem;">'+p.label+'</td>';
-    // Editable weight
-    html += '<td><input type="number" min="0" max="100" value="'+p.weight+'" onfocus="this.select()" '
-      +'onchange="updateRiskWeight('+pi+',this.value)" '
-      +'style="width:55px;border:1px solid var(--line);padding:4px;color:#000;font-weight:700;font-family:\'Courier New\',monospace;"></td>';
-    // Bands or manual
-    if(p.manual){
-      html += '<td style="font-size:0.78rem;color:var(--sub);padding-left:10px;">Manual — set via Industry Risk selector above</td>';
-    } else {
-      html += '<td style="padding:4px 6px;">';
-      html += '<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">';
-      p.bands.forEach(function(b, bi){
-        var isLast = bi===p.bands.length-1;
-        html += '<span style="display:inline-flex;align-items:center;gap:2px;font-size:0.74rem;">';
-        if(!isLast){
-          html += '&lt;'
-            +'<input type="number" value="'+b.max+'" onfocus="this.select()" '
-            +'onchange="updateRiskBand('+pi+','+bi+',\'max\',this.value)" '
-            +'style="width:48px;border:1px solid #ccc;padding:2px 3px;color:#000;font-weight:700;font-family:\'Courier New\',monospace;font-size:0.74rem;">'
-            +'→';
-        } else {
-          html += '≥prev→';
-        }
-        html += '<input type="number" min="0" max="10" step="1" value="'+b.score+'" onfocus="this.select()" '
-          +'onchange="updateRiskBand('+pi+','+bi+',\'score\',this.value)" '
-          +'style="width:36px;border:1px solid #ccc;padding:2px 3px;font-weight:700;font-family:monospace;font-size:0.74rem;">';
-        html += '</span>';
-        if(!isLast && bi<p.bands.length-2) html += '<span style="color:var(--sub);">|</span>';
-      });
-      html += '</div></td>';
+/* ═══════════════════════════════════════════════════════
+   INDUSTRY TEMPLATES
+═══════════════════════════════════════════════════════ */
+var INDUSTRY_TEMPLATES = {
+  'Rice Mill':     {type:'manufacturing',icon:'🌾',desc:'Rice milling, paddy procurement, husk/bran by-products',
+    items:{income:['Sales — Rice','Sales — Rice Bran / Husk (By-product)','Other Income'],
+      cogs:['Paddy Purchased','Freight Inward on Paddy','Processing Charges'],
+      admin:['Staff Salaries','Power & Fuel','Repairs & Maintenance','Administrative Expenses'],
+      assets:['Raw Material Stock (Paddy)','Finished Goods (Rice)','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Sundry Creditors (Paddy Suppliers)','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Flour Mill':    {type:'manufacturing',icon:'🌾',desc:'Wheat/grain milling, atta/maida production',
+    items:{income:['Sales — Atta / Maida / Suji','Sales — Bran (By-product)','Other Income'],
+      cogs:['Wheat / Grain Purchased','Processing & Milling Charges','Packing Material'],
+      admin:['Staff Salaries','Power & Fuel','Repairs & Maintenance','Administrative Expenses'],
+      assets:['Raw Material Stock (Wheat)','Finished Goods','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Sundry Creditors','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Dairy':         {type:'manufacturing',icon:'🥛',desc:'Milk collection, processing, value-added dairy products',
+    items:{income:['Sales — Milk (Liquid)','Sales — Curd / Paneer / Ghee','Sales — Ice Cream / Other Products','Other Income'],
+      cogs:['Milk Procurement Cost','Processing & Packaging','Cold Storage & Transport'],
+      admin:['Staff Salaries','Power & Electricity','Vehicle Expenses','Administrative Expenses'],
+      assets:['Raw Material (Milk Stock)','Finished Goods Stock','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Creditors (Milk Suppliers)','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Medical Store': {type:'trading',icon:'💊',desc:'Retail pharmacy, medicines, surgical items',
+    items:{income:['Sales — Medicines / Pharma','Sales — Surgical & Medical Equipment','Other Income'],
+      cogs:['Purchases — Medicines','Purchases — Surgical Items','Freight & Handling'],
+      admin:['Staff Salaries','Rent','Shop Expenses','Administrative Expenses'],
+      assets:['Medicines Stock','Surgical Items Stock','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Creditors (Pharma Distributors)','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Hotel':         {type:'service',icon:'🏨',desc:'Hotel accommodation, F&B, banquet',
+    items:{income:['Revenue — Room Rent','Revenue — Food & Beverage','Revenue — Banquet / Events','Other Income'],
+      cogs:['Food & Beverage Cost','Housekeeping Consumables','Laundry & Linen Cost'],
+      admin:['Staff Salaries','Power & Utilities','Repairs & Maintenance','Marketing & Advertising','Administrative Expenses'],
+      assets:['Food & Beverage Stock','Sundry Debtors / Receivables','Advance to Suppliers','Cash in Hand','Cash at Bank'],
+      liab:['Sundry Creditors','Advance from Customers','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Restaurant':    {type:'service',icon:'🍽',desc:'Restaurant, café, catering services',
+    items:{income:['Sales — Food','Sales — Beverages','Catering / Home Delivery Income','Other Income'],
+      cogs:['Raw Material — Vegetables / Grains','Raw Material — Non-veg / Dairy','Packing & Delivery Charges'],
+      admin:['Staff Salaries','Rent','Power & Fuel','Repairs & Maintenance','Administrative Expenses'],
+      assets:['Food Stock','Cash in Hand','Cash at Bank','Sundry Debtors / Receivables'],
+      liab:['Sundry Creditors','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Petrol Pump':   {type:'trading',icon:'⛽',desc:'Retail fuel outlet, lubes, accessories',
+    items:{income:['Sales — Petrol','Sales — Diesel','Sales — CNG / LPG','Sales — Lubricants','Other Income'],
+      cogs:['Purchases — Fuel (HSD/MS)','Purchases — CNG / LPG','Purchases — Lubricants'],
+      admin:['Staff Salaries','Power & Electricity','Licence Fees & Taxes','Administrative Expenses'],
+      assets:['Fuel Stock','Lubricants Stock','Cash in Hand','Cash at Bank','Sundry Debtors / Receivables'],
+      liab:['Creditors (OMC)','Advance from Customers','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Textile':       {type:'manufacturing',icon:'🧵',desc:'Textile manufacturing, weaving, dyeing, garments',
+    items:{income:['Sales — Manufactured Goods','Sales — Export','Sales — Domestic','Other Income'],
+      cogs:['Raw Material — Yarn / Fabric','Dyeing & Processing Charges','Direct Labour','Power & Fuel','Other Mfg Expenses'],
+      admin:['Staff Salaries','Rent','Selling Expenses','Administrative Expenses'],
+      assets:['Raw Material Stock (Yarn)','WIP Stock','Finished Goods Stock','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Sundry Creditors','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Transport':     {type:'service',icon:'🚛',desc:'Goods transport, fleet operator, logistics',
+    items:{income:['Freight Revenue — Own Vehicles','Freight Revenue — Hired Vehicles','Other Transport Income','Other Income'],
+      cogs:['Diesel & Fuel Expenses','Driver & Helper Wages','Vehicle Maintenance & Repairs','Tyre & Parts Cost','Toll & Permit Charges'],
+      admin:['Staff Salaries','Insurance — Vehicles','Administrative Expenses'],
+      assets:['Fuel Stock','Sundry Debtors / Receivables','Advance to Drivers','Cash in Hand','Cash at Bank'],
+      liab:['Sundry Creditors','Cash Credit / Working Capital Limit','Vehicle Loan / Term Loan (incl. current maturities)']}},
+  'Hospital':      {type:'service',icon:'🏥',desc:'Clinic, nursing home, hospital services',
+    items:{income:['OPD Revenue','IPD / Ward Revenue','Surgery & Procedure Charges','Pharmacy Sales','Diagnostic / Lab Income','Other Income'],
+      cogs:['Medicines & Consumables','Lab Reagents & Supplies','Direct Medical Staff Cost'],
+      admin:['Staff Salaries (Non-medical)','Power & Utilities','Rent','Equipment Maintenance','Administrative Expenses'],
+      assets:['Medicines & Consumables Stock','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Sundry Creditors','Advance from Patients','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Engineering':   {type:'manufacturing',icon:'⚙️',desc:'Engineering fabrication, machining, structural work',
+    items:{income:['Sales — Engineering Products','Sales — Job Work','Export Sales','Other Income'],
+      cogs:['Raw Material — MS / SS / Alloy Steel','Consumables & Tools','Direct Labour / Contract Labour','Power & Fuel','Other Manufacturing Expenses'],
+      admin:['Staff Salaries','Rent','Selling Expenses','Administrative Expenses'],
+      assets:['Raw Material Stock','WIP Stock','Finished Goods Stock','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Sundry Creditors','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'School':        {type:'service',icon:'📚',desc:'School, college, coaching institute',
+    items:{income:['Tuition Fee Income','Admission Fee','Examination Fee','Transport Fee','Other Income'],
+      cogs:['Teaching Staff Salary','Examination & Books Cost','Transport Cost'],
+      admin:['Non-teaching Staff Salary','Rent / Building Maintenance','Power & Utilities','Administrative Expenses'],
+      assets:['Books & Stationery Stock','Sundry Debtors (Fee Receivable)','Cash in Hand','Cash at Bank'],
+      liab:['Advance Fees Received','Sundry Creditors','Term Loan (incl. current maturities)']}},
+  'Poultry':       {type:'manufacturing',icon:'🐔',desc:'Broiler / layer poultry, egg production',
+    items:{income:['Sales — Broiler Birds','Sales — Eggs','Sales — Manure (By-product)','Other Income'],
+      cogs:['Feed Cost','Day-old Chick Cost','Veterinary & Medicine Cost','Labour Cost'],
+      admin:['Staff Salaries','Power & Utilities','Transport','Administrative Expenses'],
+      assets:['Feed Stock','Biological Assets (Birds)','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Feed Supplier Creditors','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Grocery Shop':  {type:'trading',icon:'🛒',desc:'Kirana / grocery retail store',
+    items:{income:['Sales — Grocery & FMCG','Sales — Fresh Produce','Other Income'],
+      cogs:['Purchases — Grocery & FMCG','Purchases — Fresh Produce','Freight & Handling'],
+      admin:['Staff Wages','Rent','Power & Utilities','Shop Expenses'],
+      assets:['Stock — Grocery','Stock — Fresh Produce','Cash in Hand','Cash at Bank','Sundry Debtors / Receivables'],
+      liab:['Sundry Creditors (Distributors)','Cash Credit / Working Capital Limit']}},
+  'Automobile Dealer':{type:'trading',icon:'🚗',desc:'Car / two-wheeler / commercial vehicle dealer',
+    items:{income:['Sales — Vehicles','Service / Workshop Revenue','Spare Parts Sales','Finance Commission / Referral','Other Income'],
+      cogs:['Purchases — Vehicles','Purchases — Spare Parts','Workshop Direct Cost'],
+      admin:['Staff Salaries','Showroom Rent','Power & Utilities','Advertising & Marketing','Administrative Expenses'],
+      assets:['Vehicle Stock','Spare Parts Stock','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Floorplan / Vehicle Loan','Sundry Creditors','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Service Centre':{type:'service',icon:'🔧',desc:'Repair, maintenance, after-sales service',
+    items:{income:['Service Revenue — Labour','Spare Parts Sales','AMC / Contract Income','Other Income'],
+      cogs:['Spare Parts Cost','Direct Labour / Technician Cost','Consumables'],
+      admin:['Staff Salaries','Rent','Power','Administrative Expenses'],
+      assets:['Spare Parts Stock','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Sundry Creditors','Advance from Customers','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Plastic':       {type:'manufacturing',icon:'🏭',desc:'Plastic moulding, extrusion, packaging',
+    items:{income:['Sales — Plastic Products','Export Sales','Other Income'],
+      cogs:['Raw Material — Plastic Granules / Resin','Packing Material','Direct Labour','Power & Fuel','Other Mfg Expenses'],
+      admin:['Staff Salaries','Rent','Selling Expenses','Administrative Expenses'],
+      assets:['Raw Material Stock','WIP Stock','Finished Goods Stock','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Sundry Creditors','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+  'Furniture':     {type:'manufacturing',icon:'🪑',desc:'Furniture manufacturing — wood, steel, modular',
+    items:{income:['Sales — Furniture (Retail)','Sales — Furniture (Wholesale / Bulk)','Job Work Income','Other Income'],
+      cogs:['Raw Material — Wood / Plywood / MDF','Hardware & Fittings','Upholstery Material','Direct Labour','Power & Fuel'],
+      admin:['Staff Salaries','Showroom Rent','Delivery Expenses','Administrative Expenses'],
+      assets:['Raw Material Stock','WIP Stock','Finished Goods Stock','Sundry Debtors / Receivables','Cash in Hand','Cash at Bank'],
+      liab:['Sundry Creditors','Advance from Customers','Cash Credit / Working Capital Limit','Term Loan (incl. current maturities)']}},
+};
+
+function renderIndustryTemplateGrid(){
+  var grid=document.getElementById('industryTemplateGrid');
+  if(!grid) return;
+  grid.innerHTML=Object.keys(INDUSTRY_TEMPLATES).map(function(name){
+    var t=INDUSTRY_TEMPLATES[name];
+    return '<div onclick="previewIndustryTemplate(\''+name+'\')" '
+      +'style="background:var(--card-bg);border:2px solid var(--line);border-radius:8px;padding:14px 10px;text-align:center;cursor:pointer;transition:border-color 0.2s;" '
+      +'onmouseover="this.style.borderColor=\'#0e5e4a\'" onmouseout="this.style.borderColor=\'var(--line)\'">'
+      +'<div style="font-size:1.8rem;">'+t.icon+'</div>'
+      +'<div style="font-size:0.8rem;font-weight:700;color:var(--navy);margin-top:4px;">'+name+'</div>'
+      +'<div style="font-size:0.65rem;color:var(--sub);margin-top:2px;text-transform:uppercase;">'+t.type+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function previewIndustryTemplate(name){
+  var t=INDUSTRY_TEMPLATES[name];
+  if(!t) return;
+  document.getElementById('industryPreviewCard').style.display='block';
+  document.getElementById('industryPreviewTitle').textContent=t.icon+' '+name;
+  document.getElementById('industryPreviewSub').textContent=t.desc+' | Industry type: '+t.type;
+  document.getElementById('industryLoadBtn').onclick=function(){loadIndustryTemplate(name);};
+  var html='<div style="font-size:0.82rem;"><b>Chart of Accounts preview:</b>';
+  ['income','cogs','admin','assets','liab'].forEach(function(sec){
+    if(t.items[sec]&&t.items[sec].length){
+      html+='<div style="margin-top:6px;font-weight:700;color:var(--green);">'+sec.toUpperCase()+'</div>';
+      html+=t.items[sec].map(function(i){return '<div style="padding:2px 8px;">• '+i+'</div>';}).join('');
     }
-    html += '</tr>';
+  });
+  html+='</div>';
+  document.getElementById('industryPreviewContent').innerHTML=html;
+  document.getElementById('industryPreviewCard').scrollIntoView({behavior:'smooth'});
+}
+
+function loadIndustryTemplate(name){
+  if(!confirm('Load '+name+' template? This will reset your Trial Balance. Export a JSON backup first if you have existing data.')) return;
+  var t=INDUSTRY_TEMPLATES[name];
+  if(!t) return;
+
+  // Set industry type
+  STATE.unit.unitActivity=t.type;
+  var sel=document.getElementById('industryType');
+  if(sel) sel.value=t.type;
+
+  // Rebuild TB with template items
+  ensureTBInit();
+  STATE.tb={assets:[],liabilities:[],income:[],expenses:[]};
+
+  // Standard Fixed Assets always included
+  ['Land & Building','Plant & Machinery','Furniture & Fixtures','Other Fixed Assets'].forEach(function(n){
+    STATE.tb.assets.push({name:n,cat:'fixed',values:[]});
+  });
+  // Template-specific assets
+  (t.items.assets||[]).forEach(function(n){
+    if(!['Land & Building','Plant & Machinery','Furniture & Fixtures','Other Fixed Assets'].includes(n))
+      STATE.tb.assets.push({name:n,cat:'ca',values:[]});
+  });
+  STATE.tb.assets.push({name:'Investments / Other Assets',cat:'other',values:[]});
+
+  // Liabilities
+  ['Capital / Proprietor\'s Capital','Reserves & Surplus'].forEach(function(n){
+    STATE.tb.liabilities.push({name:n,cat:'networth',values:[]});
+  });
+  (t.items.liab||[]).forEach(function(n){
+    var cat=n.toLowerCase().includes('term loan')?'longterm':
+             n.toLowerCase().includes('long term')?'longterm':'cl';
+    STATE.tb.liabilities.push({name:n,cat:cat,values:[]});
+  });
+  ['Advances from Customers','Statutory Liabilities (GST/TDS/PF etc.)','Other Current Liabilities & Provisions'].forEach(function(n){
+    if(!(t.items.liab||[]).includes(n)) STATE.tb.liabilities.push({name:n,cat:'cl',values:[]});
   });
 
-  // Weight total row
-  var totalW = RISK_PARAMS.reduce(function(s,p){return s+p.weight;},0);
-  var wColor = totalW===100?'var(--good)':'var(--danger)';
-  html += '<tr><td class="label" style="font-weight:800;">TOTAL WEIGHT</td>'
-    +'<td style="font-weight:800;color:'+wColor+';">'+totalW+'%'+(totalW!==100?' ⚠':'✓')+'</td>'
-    +'<td style="font-size:0.75rem;color:var(--sub);padding-left:10px;">'+(totalW!==100?'Weights must total 100%':'✓ Weights balanced')+'</td></tr>';
+  // Income
+  (t.items.income||[]).forEach(function(n,i){
+    var cat=n.toLowerCase().includes('other income')?'other':i===0?'sales':'sales';
+    STATE.tb.income.push({name:n,cat:cat,values:[]});
+  });
 
-  tbl.innerHTML = html;
+  // Expenses
+  (t.items.cogs||[]).forEach(function(n){
+    STATE.tb.expenses.push({name:n,cat:'cogs',values:[]});
+  });
+  (t.items.admin||[]).forEach(function(n){
+    STATE.tb.expenses.push({name:n,cat:'admin',values:[]});
+  });
+  STATE.tb.expenses.push({name:'Depreciation',cat:'depreciation',values:[]});
+  STATE.tb.expenses.push({name:'Interest on Term Loan',cat:'interest',values:[]});
+  STATE.tb.expenses.push({name:'Interest on Working Capital',cat:'interest',values:[]});
+  STATE.tb.expenses.push({name:'Other Interest & Bank Charges',cat:'interest',values:[]});
+  STATE.tb.expenses.push({name:'Provision for Tax',cat:'tax',values:[]});
+
+  initBlankValues();
+  recalcAll();
+  showOk(name+' template loaded successfully. Go to Trial Balance tab to enter your data.');
+  showPanel('tb');
+  document.getElementById('industryPreviewCard').style.display='none';
 }
 
-function updateRiskWeight(pi, val){
-  RISK_PARAMS[pi].weight = parseInt(val)||0;
-  saveRiskParams();
-  renderRiskParamEditor();
-  computeRiskRating();
+/* ═══════════════════════════════════════════════════════
+   SENSITIVITY ANALYSIS
+═══════════════════════════════════════════════════════ */
+function initSensitivity(){
+  var sel=document.getElementById('sensYearSel');
+  if(!sel||!CALC.data||!CALC.data.length) return;
+  sel.innerHTML=CALC.years.map(function(y,i){return '<option value="'+i+'">'+y+'</option>';}).join('');
+  updateSensBaseValues();
 }
 
-function updateRiskBand(pi, bi, field, val){
-  var v = parseFloat(val);
-  if(isNaN(v)) return;
-  RISK_PARAMS[pi].bands[bi][field] = v;
-  // Sync min of next band to max of this band
-  if(field==='max' && bi+1 < RISK_PARAMS[pi].bands.length){
-    RISK_PARAMS[pi].bands[bi+1].min = v;
+function updateSensBaseValues(){
+  if(!CALC.data||!CALC.data.length) return;
+  var yi=parseInt(document.getElementById('sensYearSel').value)||0;
+  var d=CALC.data[yi];
+  document.getElementById('sensSalesBase').textContent='₹'+fmtN(d.totalRevenue)+'K';
+  document.getElementById('sensRMBase').textContent=d.cogs>0?Math.round(d.cogs/d.totalRevenue*100)+'% of sales':'—';
+  document.getElementById('sensIntBase').textContent=d.interest>0?'₹'+fmtN(d.interest)+'K':'—';
+  var debDays=d.debtors>0&&d.totalRevenue>0?Math.round(d.debtors/d.totalRevenue*365):0;
+  document.getElementById('sensDebBase').textContent=debDays+' days';
+}
+
+function sensUpdate(type,val){
+  document.getElementById('sens'+type.charAt(0).toUpperCase()+type.slice(1)+'Val').textContent=
+    type==='int'?val+' bps':val+'%'+(type==='deb'?' days change':'');
+  if(type==='deb') document.getElementById('sensDebVal').textContent=(val>0?'+':'')+val+' days';
+  runSensitivity();
+}
+
+function resetSensitivity(){
+  ['sensSales','sensRM','sensInt','sensDeb'].forEach(function(id){
+    document.getElementById(id).value=0;
+  });
+  document.getElementById('sensSalesVal').textContent='0%';
+  document.getElementById('sensRMVal').textContent='0%';
+  document.getElementById('sensIntVal').textContent='0 bps';
+  document.getElementById('sensDebVal').textContent='0 days';
+  runSensitivity();
+}
+
+function runSensitivity(){
+  if(!CALC.data||!CALC.data.length){showErr('Load CMA data first.');return;}
+  var yi=parseInt(document.getElementById('sensYearSel').value)||0;
+  updateSensBaseValues();
+  var d=CALC.data[yi];
+  var salesChg=parseInt(document.getElementById('sensSales').value)||0;
+  var rmChg=parseInt(document.getElementById('sensRM').value)||0;
+  var intChg=parseInt(document.getElementById('sensInt').value)||0;
+  var debChg=parseInt(document.getElementById('sensDeb').value)||0;
+
+  // Apply changes
+  var newSales=d.totalRevenue*(1+salesChg/100);
+  var newCOGS=d.cogs*(1+rmChg/100)*(newSales/Math.max(d.totalRevenue,1));
+  var newGP=newSales-newCOGS;
+  var newInterest=d.interest*(1+intChg/10000)*12; // bps
+  var newInterest2=d.interest+d.totalRevenue*intChg/10000;
+  var newPBIT=newGP-d.adminExp-d.depreciation;
+  var newPBT=newPBIT-newInterest2;
+  var newPAT=newPBT*(1-(d.tax/Math.max(d.pbt,1)));
+  var newCA=d.currentAssets+(d.debtors>0?d.debtors*debChg/Math.max(newSales/365,1):0);
+  var otherCL=(d.creditors||0)+(d.advancesFromCustomers||0)+(d.statutoryLiab||0)+(d.otherCL||0);
+  var newWCG=newCA-otherCL;
+  var newMPBF=Math.max(0,Math.min(newWCG,newCA*0.75));
+  var tlInt=num(STATE.dscr&&STATE.dscr.interest&&STATE.dscr.interest[yi]);
+  var tlPrin=num(STATE.dscr&&STATE.dscr.principal&&STATE.dscr.principal[yi]);
+  var newCashAcc=(newPAT||0)+d.depreciation;
+  var newDSCR=(tlInt+tlPrin)>0?(newCashAcc+tlInt)/(tlInt+tlPrin):0;
+  var newNPPct=newSales>0?newPAT/newSales*100:0;
+  var newGPPct=newSales>0?newGP/newSales*100:0;
+  var fc=d.adminExp+d.depreciation+newInterest2;
+  var newBEP=newSales>0&&newGP>0?fc/(newGP/newSales):0;
+
+  var base={sales:d.totalRevenue,cogs:d.cogs,gp:d.grossProfit,gpPct:d.totalRevenue>0?d.grossProfit/d.totalRevenue*100:0,
+    pat:d.pat,npPct:d.totalRevenue>0?d.pat/d.totalRevenue*100:0,mpbf:0,dscr:0,bep:0};
+  base.mpbf=Math.max(0,Math.min(d.currentAssets-otherCL,d.currentAssets*0.75));
+  base.dscr=(tlInt+tlPrin)>0?(d.pat+d.depreciation+tlInt)/(tlInt+tlPrin):0;
+  var bfc=d.adminExp+d.depreciation+d.interest;
+  base.bep=d.totalRevenue>0&&d.grossProfit>0?bfc/(d.grossProfit/d.totalRevenue):0;
+
+  function chgStr(n,o,pct){
+    var d=n-o; var p=o>0?d/o*100:0;
+    var c=d>=0?'#1a7a4a':'#c0392b'; var ico=d>=0?'▲':'▼';
+    return '<span style="color:'+c+';font-size:0.75rem;"> '+ico+' '+Math.abs(pct?Math.round(p*10)/10:Math.round(d))+( pct?'%':'K')+'</span>';
   }
-  saveRiskParams();
-  computeRiskRating();
+
+  var rows=[
+    ['Total Sales (₹\'000s)',fmtN(d.totalRevenue),fmtN(Math.round(newSales)),chgStr(newSales,d.totalRevenue)],
+    ['Gross Profit (₹\'000s)',fmtN(d.grossProfit),fmtN(Math.round(newGP)),chgStr(newGP,d.grossProfit)],
+    ['GP Margin %',Math.round(d.grossProfit/Math.max(d.totalRevenue,1)*100*10)/10+'%',Math.round(newGPPct*10)/10+'%',''],
+    ['PAT (₹\'000s)',fmtN(d.pat),fmtN(Math.round(newPAT)),chgStr(newPAT,d.pat)],
+    ['NP Margin %',Math.round(d.pat/Math.max(d.totalRevenue,1)*100*10)/10+'%',Math.round(newNPPct*10)/10+'%',''],
+    ['MPBF (₹\'000s)',fmtN(Math.round(base.mpbf)),fmtN(Math.round(newMPBF)),chgStr(newMPBF,base.mpbf)],
+    ['DSCR',base.dscr>0?Math.round(base.dscr*100)/100:'—',newDSCR>0?Math.round(newDSCR*100)/100:'—',
+      base.dscr>0&&newDSCR>0?chgStr(newDSCR,base.dscr):''],
+    ['BEP Sales (₹\'000s)',fmtN(Math.round(base.bep)),fmtN(Math.round(newBEP)),chgStr(newBEP,base.bep)],
+  ];
+
+  var html='<div class="scrollx"><table>';
+  html+='<tr><th class="label" style="text-align:left;">Parameter</th><th>Base ('+CALC.years[yi].replace(/\(.*?\)/,'').trim()+')</th><th>Stressed</th><th>Change</th></tr>';
+  rows.forEach(function(r){
+    var ok=true;
+    if(r[0].includes('DSCR')&&newDSCR>0&&newDSCR<1.5) ok=false;
+    if(r[0].includes('GP')&&newGPPct<10) ok=false;
+    if(r[0].includes('PAT')&&newPAT<0) ok=false;
+    html+='<tr style="'+(ok?'':'background:#fdecea;')+'"><td class="label">'+r[0]+'</td><td>'+r[1]+'</td><td style="font-weight:700;">'+r[2]+'</td><td>'+r[3]+'</td></tr>';
+  });
+  html+='</table></div>';
+
+  // Stress Alerts
+  var alerts=[];
+  if(newPAT<0) alerts.push('🔴 Unit turns loss-making under this scenario — PAT = ₹'+fmtN(Math.round(newPAT))+'K');
+  if(newDSCR>0&&newDSCR<1.5) alerts.push('🔴 DSCR falls below norm ('+Math.round(newDSCR*100)/100+') — TL repayment at risk');
+  if(newMPBF<base.mpbf*0.9) alerts.push('🟡 MPBF reduces by ₹'+fmtN(Math.round(base.mpbf-newMPBF))+'K — WC limit may need revision');
+  if(newGPPct<10) alerts.push('🔴 Gross margin compressed to '+Math.round(newGPPct*10)/10+'% — very thin margins');
+  if(alerts.length===0) alerts.push('🟢 Unit remains financially viable under this stress scenario.');
+
+  html+='<div style="margin-top:10px;">'+alerts.map(function(a){
+    return '<div style="padding:8px 12px;margin-bottom:6px;border-left:4px solid '+(a.startsWith('🔴')?'#c0392b':a.startsWith('🟡')?'#f0a500':'#1a7a4a')+
+      ';background:'+(a.startsWith('🔴')?'#fdecea':a.startsWith('🟡')?'#fff8e1':'#e8f5e9')+';border-radius:0 4px 4px 0;font-size:0.83rem;">'+a+'</div>';
+  }).join('')+'</div>';
+
+  document.getElementById('sensResultCard').style.display='block';
+  document.getElementById('sensResults').innerHTML=html;
 }
 
-function saveRiskParams(){
-  STATE.riskParamCustom = JSON.parse(JSON.stringify(RISK_PARAMS));
+/* ═══════════════════════════════════════════════════════
+   COLLATERAL MODULE
+═══════════════════════════════════════════════════════ */
+if(!STATE.collateral) STATE.collateral=[];
+
+function addCollateral(){
+  if(!STATE.collateral) STATE.collateral=[];
+  STATE.collateral.push({
+    type:'Immovable Property',owner:'',location:'',area:'',
+    marketValue:0,fsvPct:60,charge:'First Charge Mortgage',
+    insurance:false,insuranceAmt:0,insuranceExpiry:'',remarks:''
+  });
+  renderCollateral();
+}
+
+function renderCollateral(){
+  if(!STATE.collateral) STATE.collateral=[];
+  var list=document.getElementById('collateralList');
+  if(!STATE.collateral.length){list.innerHTML='<div class="note">No collateral added. Click + Add Property / Security.</div>';
+    document.getElementById('collateralSummary').innerHTML=''; return;}
+
+  var totalMV=0,totalFSV=0;
+  STATE.collateral.forEach(function(c,i){totalMV+=num(c.marketValue);totalFSV+=num(c.marketValue)*num(c.fsvPct)/100;});
+  var exposure=num(STATE.unit.proposedWC||0)+num(STATE.loan&&STATE.loan.amount||0);
+  var ltv=totalFSV>0&&exposure>0?Math.round(exposure/totalFSV*100):0;
+
+  list.innerHTML=STATE.collateral.map(function(c,i){
+    return '<div class="card" style="border-left:4px solid var(--green);margin-bottom:8px;">'
+    +'<div style="display:flex;justify-content:space-between;"><b style="color:var(--green);">Security #'+(i+1)+'</b>'
+    +'<button onclick="removeCollateral('+i+')" style="background:#c0392b;color:#fff;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.72rem;">Remove</button></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;font-size:0.82rem;">'
+    +'<div><label style="font-size:0.75rem;font-weight:700;">Type</label>'
+    +'<select onchange="updateColl('+i+',\'type\',this.value)" style="width:100%;padding:5px;border:1px solid var(--line);background:var(--card-bg);color:#000;">'
+    +['Immovable Property','Plant & Machinery','Vehicle','FD / LIC','Stock & Debtors (Primary)','Bank Guarantee','Other'].map(function(t){
+      return '<option'+(c.type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
+    +'<div><label style="font-size:0.75rem;font-weight:700;">Owner Name</label>'
+    +'<input value="'+esc(c.owner||'')+'" onchange="updateColl('+i+',\'owner\',this.value)" style="width:100%;padding:5px;border:1px solid var(--line);color:#000;font-weight:700;"></div>'
+    +'<div><label style="font-size:0.75rem;font-weight:700;">Location / Description</label>'
+    +'<input value="'+esc(c.location||'')+'" onchange="updateColl('+i+',\'location\',this.value)" style="width:100%;padding:5px;border:1px solid var(--line);color:#000;font-weight:700;"></div>'
+    +'<div><label style="font-size:0.75rem;font-weight:700;">Charge Type</label>'
+    +'<select onchange="updateColl('+i+',\'charge\',this.value)" style="width:100%;padding:5px;border:1px solid var(--line);background:var(--card-bg);color:#000;">'
+    +['First Charge Mortgage','Second Charge','Hypothecation','Pledge','Assignment','Lien'].map(function(t){
+      return '<option'+(c.charge===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
+    +'<div><label style="font-size:0.75rem;font-weight:700;">Market Value (₹\'000s)</label>'
+    +'<input type="number" value="'+(c.marketValue||'')+'" onfocus="this.select()" onchange="updateColl('+i+',\'marketValue\',this.value);renderCollateral();" style="width:100%;padding:5px;border:1px solid var(--line);color:#000;font-weight:700;"></div>'
+    +'<div><label style="font-size:0.75rem;font-weight:700;">FSV % (Forced Sale Value)</label>'
+    +'<input type="number" value="'+(c.fsvPct||60)+'" onfocus="this.select()" onchange="updateColl('+i+',\'fsvPct\',this.value);renderCollateral();" style="width:100%;padding:5px;border:1px solid var(--line);color:#000;font-weight:700;"></div>'
+    +'<div style="grid-column:1/-1;"><label style="font-size:0.75rem;font-weight:700;">Remarks</label>'
+    +'<input value="'+esc(c.remarks||'')+'" onchange="updateColl('+i+',\'remarks\',this.value)" style="width:100%;padding:5px;border:1px solid var(--line);color:#000;">'
+    +'<span style="font-size:0.75rem;color:var(--green);font-weight:700;">FSV = ₹'+fmtN(Math.round(num(c.marketValue)*num(c.fsvPct)/100))+'K | Distress Value = ₹'+fmtN(Math.round(num(c.marketValue)*0.40))+'K</span></div>'
+    +'</div></div>';
+  }).join('');
+
+  document.getElementById('collateralSummary').innerHTML=
+    '<div class="card" style="border-top:3px solid var(--amber);">'
+    +'<h2>Collateral Summary</h2>'
+    +'<div class="scrollx"><table><tr><th class="label" style="text-align:left;">Parameter</th><th>Amount (₹\'000s)</th></tr>'
+    +'<tr><td class="label">Total Market Value</td><td>'+fmtN(Math.round(totalMV))+'</td></tr>'
+    +'<tr><td class="label">Total FSV (Forced Sale Value)</td><td>'+fmtN(Math.round(totalFSV))+'</td></tr>'
+    +'<tr><td class="label">Distress Value (approx 40%)</td><td>'+fmtN(Math.round(totalMV*0.4))+'</td></tr>'
+    +'<tr><td class="label">Total Exposure (WC+TL)</td><td>'+fmtN(exposure)+'</td></tr>'
+    +'<tr class="tot"><td class="label">LTV Ratio (Exposure ÷ FSV)</td><td style="color:'+(ltv<=75?'var(--good)':'var(--danger)')+';">'+ltv+'% '+(ltv<=75?'✓ Within Norm':'⚠ Exceeds 75%')+'</td></tr>'
+    +'</table></div></div>';
   saveAll(true);
 }
+function updateColl(i,field,val){if(STATE.collateral&&STATE.collateral[i]){STATE.collateral[i][field]=val;saveAll(true);}}
+function removeCollateral(i){STATE.collateral.splice(i,1);renderCollateral();}
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-function loadSavedRiskParams(){
-  if(STATE.riskParamCustom){
-    RISK_PARAMS = JSON.parse(JSON.stringify(STATE.riskParamCustom));
-  } else {
-    RISK_PARAMS = JSON.parse(JSON.stringify(DEFAULT_RISK_PARAMS));
-  }
-  renderRiskParamEditor();
+/* ═══════════════════════════════════════════════════════
+   STOCK STATEMENT
+═══════════════════════════════════════════════════════ */
+if(!STATE.stockStatements) STATE.stockStatements=[];
+
+function calcStockDP(){
+  var rm=num(document.getElementById('ssRM').value);
+  var wip=num(document.getElementById('ssWIP').value);
+  var fg=num(document.getElementById('ssFG').value);
+  var ss=num(document.getElementById('ssSS').value);
+  var deb=num(document.getElementById('ssDebtors').value);
+  var cred=num(document.getElementById('ssCreditors').value);
+  var ccOut=num(document.getElementById('ssCCOut').value);
+  var margin=num(document.getElementById('ssMargin').value)/100||0.25;
+
+  var totalStock=rm+wip+fg+ss;
+  var totalCA=totalStock+deb;
+  var eligible=Math.round(totalCA*(1-margin));
+  var dp=Math.max(0,eligible-cred);
+  var excess=ccOut>dp?ccOut-dp:0;
+  var surplus=ccOut<=dp?dp-ccOut:0;
+  var ok=ccOut<=dp;
+
+  var resEl=document.getElementById('stockDPResult');
+  resEl.innerHTML='<div class="scrollx"><table>'
+    +'<tr><th class="label" style="text-align:left;">Item</th><th>Value (₹\'000s)</th><th>Eligible</th></tr>'
+    +'<tr><td class="label">Raw Material Stock</td><td>'+fmtN(rm)+'</td><td>'+fmtN(Math.round(rm*(1-margin)))+'</td></tr>'
+    +'<tr><td class="label">WIP</td><td>'+fmtN(wip)+'</td><td>'+fmtN(Math.round(wip*(1-margin)))+'</td></tr>'
+    +'<tr><td class="label">Finished Goods</td><td>'+fmtN(fg)+'</td><td>'+fmtN(Math.round(fg*(1-margin)))+'</td></tr>'
+    +'<tr><td class="label">Stores & Spares</td><td>'+fmtN(ss)+'</td><td>'+fmtN(Math.round(ss*(1-margin)))+'</td></tr>'
+    +'<tr><td class="label">Sundry Debtors</td><td>'+fmtN(deb)+'</td><td>'+fmtN(Math.round(deb*(1-margin)))+'</td></tr>'
+    +'<tr class="sub-tot"><td class="label">Total (Stock + Debtors)</td><td>'+fmtN(totalCA)+'</td><td>'+fmtN(eligible)+'</td></tr>'
+    +'<tr><td class="label">Less: Sundry Creditors</td><td>'+fmtN(cred)+'</td><td>('+fmtN(cred)+')</td></tr>'
+    +'<tr class="tot"><td class="label">DRAWING POWER</td><td></td><td style="font-size:1.1rem;color:var(--good);">'+fmtN(dp)+'</td></tr>'
+    +'<tr><td class="label">CC Outstanding</td><td>'+fmtN(ccOut)+'</td><td></td></tr>'
+    +'<tr class="tot"><td class="label">'+(ok?'✓ Surplus':'⚠ EXCESS DRAWING')+'</td><td></td>'
+    +'<td style="color:'+(ok?'var(--good)':'var(--danger)')+';">'+fmtN(ok?surplus:excess)+(ok?' Surplus':' Excess')+'</td></tr>'
+    +'</table></div>'
+    +'<div class="note" style="border-color:'+(ok?'var(--good)':'var(--danger)')+';">'
+    +(ok?'✓ CC Outstanding is within Drawing Power. No irregularity.':'⚠ Excess drawing of ₹'+fmtN(excess)+'K detected. Borrower to regularise by depositing funds or reducing CC outstanding immediately.')+'</div>';
 }
+
+function saveStockStatement(){
+  if(!STATE.stockStatements) STATE.stockStatements=[];
+  var month=document.getElementById('ssMonth').value;
+  var year=document.getElementById('ssYear').value||'';
+  var dp=0; // will show in history as computed
+  var entry={
+    month:month,year:year,date:new Date().toLocaleDateString('en-IN'),
+    rm:num(document.getElementById('ssRM').value),
+    wip:num(document.getElementById('ssWIP').value),
+    fg:num(document.getElementById('ssFG').value),
+    ss:num(document.getElementById('ssSS').value),
+    debtors:num(document.getElementById('ssDebtors').value),
+    creditors:num(document.getElementById('ssCreditors').value),
+    ccOut:num(document.getElementById('ssCCOut').value),
+    margin:num(document.getElementById('ssMargin').value)
+  };
+  var totalCA=entry.rm+entry.wip+entry.fg+entry.ss+entry.debtors;
+  entry.dp=Math.max(0,Math.round(totalCA*(1-entry.margin/100))-entry.creditors);
+  entry.excess=Math.max(0,entry.ccOut-entry.dp);
+  STATE.stockStatements.push(entry);
+  saveAll(true);
+  renderStockHistory();
+  showOk('Stock statement saved for '+month+' '+year+'.');
+}
+
+function renderStockHistory(){
+  var hist=document.getElementById('stockHistory');
+  if(!STATE.stockStatements||!STATE.stockStatements.length){
+    hist.innerHTML='<div class="note">No saved stock statements yet.</div>'; return;
+  }
+  hist.innerHTML='<h3 style="color:var(--green);margin-bottom:8px;">📋 Saved Stock Statements</h3>'
+    +'<div class="scrollx"><table><tr><th>Month</th><th>Total Stock</th><th>Debtors</th><th>Drawing Power</th><th>CC Outstg</th><th>Status</th></tr>'
+    +STATE.stockStatements.slice().reverse().map(function(s){
+      var ok=s.ccOut<=s.dp;
+      return '<tr><td class="label">'+s.month+' '+s.year+'</td>'
+        +'<td>'+fmtN(s.rm+s.wip+s.fg+s.ss)+'</td>'
+        +'<td>'+fmtN(s.debtors)+'</td>'
+        +'<td>'+fmtN(s.dp)+'</td>'
+        +'<td>'+fmtN(s.ccOut)+'</td>'
+        +'<td style="font-weight:700;color:'+(ok?'var(--good)':'var(--danger)')+';">'+(ok?'✓ OK':'⚠ EXCESS ₹'+fmtN(s.excess)+'K')+'</td></tr>';
+    }).join('')+'</table></div>';
+}
+
+/* ═══════════════════════════════════════════════════════
+   ERROR CHECKER (25+ CHECKS)
+═══════════════════════════════════════════════════════ */
+function runErrorChecker(){
+  var errors=[],warnings=[],ok=[];
+
+  function err(msg,link){errors.push({msg:msg,link:link||''});}
+  function warn(msg,link){warnings.push({msg:msg,link:link||''});}
+  function pass(msg){ok.push(msg);}
+
+  if(!CALC.data||!CALC.data.length){
+    document.getElementById('errorCheckerResults').innerHTML='<div class="note">Enter Trial Balance data first.</div>';
+    return;
+  }
+  var NY=CALC.data.length;
+  var na=parseInt(STATE.unit&&STATE.unit.numActualYears)||2;
+
+  CALC.data.forEach(function(d,yi){
+    var yr=CALC.years[yi]||('Y'+(yi+1));
+
+    // 1. Balance Sheet Tally
+    var tally=Math.round(Math.abs(d.tally));
+    if(tally===0) pass('Y'+(yi+1)+': Balance Sheet tallies — Assets = Liabilities = ₹'+fmtN(d.totalAssets)+'K');
+    else err('Y'+(yi+1)+' ('+yr+'): Balance Sheet does not tally. Difference = ₹'+fmtN(tally)+'K. Check asset/liability entries.','tb');
+
+    // 2. Negative Total Assets
+    if(d.totalAssets<0) err('Y'+(yi+1)+': Total Assets is negative ('+fmtN(d.totalAssets)+'K) — invalid data.','tb');
+
+    // 3. Negative Net Worth
+    if(d.netWorth<0) err('Y'+(yi+1)+': Negative Net Worth (₹'+fmtN(d.netWorth)+'K) — unit technically insolvent.','tb');
+
+    // 4. Negative Stock
+    if((d.rawMaterial||0)<0) err('Y'+(yi+1)+': Negative Raw Material Stock detected.','tb');
+    if((d.wip||0)<0) err('Y'+(yi+1)+': Negative WIP detected.','tb');
+    if((d.finishedGoods||0)<0) err('Y'+(yi+1)+': Negative Finished Goods detected.','tb');
+
+    // 5. Negative Debtors/Creditors
+    if((d.debtors||0)<0) err('Y'+(yi+1)+': Negative Sundry Debtors detected.','tb');
+    if((d.creditors||0)<0) err('Y'+(yi+1)+': Negative Sundry Creditors detected.','tb');
+
+    // 6. Zero sales with non-zero expenses
+    if(d.totalRevenue<=0&&(d.adminExp>0||d.cogs>0))
+      err('Y'+(yi+1)+': Sales is zero but expenses are non-zero. Check income entries.','tb');
+
+    // 7. Gross Profit negative
+    if(d.grossProfit<0)
+      warn('Y'+(yi+1)+': Gross Profit is negative (₹'+fmtN(d.grossProfit)+'K) — COGS exceeds Sales. Review cost structure.','tb');
+
+    // 8. Depreciation zero with fixed assets
+    if(d.netFixedAssets>0&&d.depreciation===0&&yi<na)
+      warn('Y'+(yi+1)+': Fixed Assets = ₹'+fmtN(d.netFixedAssets)+'K but Depreciation = 0. Check if depreciation is entered or auto-apply is on.','assumptions');
+
+    // 9. Depreciation rate sanity
+    if(d.depreciation>0&&d.netFixedAssets>0){
+      var impliedDepRate=d.depreciation/d.netFixedAssets*100;
+      if(impliedDepRate>40) warn('Y'+(yi+1)+': Implied depreciation rate of '+Math.round(impliedDepRate)+'% appears very high. Verify rates in Assumptions.','assumptions');
+    }
+
+    // 10. Interest zero with TL outstanding
+    if(d.termLoan>0&&d.interest===0)
+      warn('Y'+(yi+1)+': Term Loan of ₹'+fmtN(d.termLoan)+'K but Interest = 0. Verify interest entries.','loan');
+
+    // 11. Tax without profit
+    if(d.pat<0&&d.tax>0)
+      warn('Y'+(yi+1)+': Tax provision exists despite net loss — verify tax entry.','tb');
+
+    // 12. CC exceeds MPBF
+    var otherCL=(d.creditors||0)+(d.advancesFromCustomers||0)+(d.statutoryLiab||0)+(d.otherCL||0);
+    var mpbf=Math.max(0,Math.min(d.currentAssets-otherCL,d.currentAssets*0.75));
+    if(d.cc>mpbf*1.15)
+      warn('Y'+(yi+1)+': CC Limit (₹'+fmtN(d.cc)+'K) exceeds MPBF (₹'+fmtN(Math.round(mpbf))+'K) by more than 15%. Check WC limit.','cma5');
+
+    // 13. Current Ratio < 1
+    var cr=d.currentLiabilities>0?d.currentAssets/d.currentLiabilities:0;
+    if(cr>0&&cr<1.0) err('Y'+(yi+1)+': Current Ratio of '+cr.toFixed(2)+' is below 1.0 — unit may be unable to meet current obligations.','ratios');
+
+    // 14. Division by zero potential
+    if(d.totalRevenue===0&&yi<na) warn('Y'+(yi+1)+': Total Revenue is zero. Verify sales figures in Trial Balance.','tb');
+
+    // 15. Debtor days > 180
+    if(d.debtors>0&&d.totalRevenue>0){
+      var dd=Math.round(d.debtors/d.totalRevenue*365);
+      if(dd>180) warn('Y'+(yi+1)+': Debtor holding period is '+dd+' days — unusually high. Verify debtor figure.','dp');
+      else pass('Y'+(yi+1)+': Debtor days = '+dd+' days — within range.');
+    }
+
+    // 16. Stock days > 180
+    var totalStock=(d.rawMaterial||0)+(d.wip||0)+(d.finishedGoods||0);
+    if(totalStock>0&&d.cogs>0){
+      var sd=Math.round(totalStock/d.cogs*365);
+      if(sd>180) warn('Y'+(yi+1)+': Stock holding period of '+sd+' days is very high — possible excess/slow-moving stock.','dp');
+    }
+
+    // 17. Other assets > 25% of total
+    if(d.otherAssets>d.totalAssets*0.25&&d.totalAssets>0)
+      warn('Y'+(yi+1)+': Other Assets (₹'+fmtN(d.otherAssets)+'K) is '+Math.round(d.otherAssets/d.totalAssets*100)+'% of Total Assets — high. Verify nature.','tb');
+
+    // 18. Long term loan increase in later years without purpose
+    if(yi>0&&d.longTerm>CALC.data[yi-1].longTerm&&yi>=na)
+      pass('Y'+(yi+1)+': Long-term borrowings increasing in projected year — verify if additional TL assumed.');
+  });
+
+  // Cross-year checks
+  if(NY>1){
+    // 19. Sales declining in actual years
+    for(var i=1;i<Math.min(na,NY);i++){
+      if(CALC.data[i].totalRevenue<CALC.data[i-1].totalRevenue)
+        warn('Y'+(i+1)+': Sales have declined from ₹'+fmtN(CALC.data[i-1].totalRevenue)+'K to ₹'+fmtN(CALC.data[i].totalRevenue)+'K.','tb');
+    }
+    // 20. Reserves not growing with profits
+    for(var i=1;i<Math.min(na,NY);i++){
+      var expectedRes=CALC.data[i-1].reserves+Math.max(0,CALC.data[i].pat);
+      var actualRes=CALC.data[i].reserves;
+      if(actualRes<CALC.data[i-1].reserves&&CALC.data[i].pat>0)
+        warn('Y'+(i+1)+': Reserves (₹'+fmtN(actualRes)+'K) did not increase despite profit of ₹'+fmtN(CALC.data[i].pat)+'K. Verify dividend/drawing.','tb');
+    }
+  }
+
+  // 21. DSCR check if TL exists
+  var hasTL=STATE.dscr&&(STATE.dscr.principal||[]).some(function(v){return num(v)>0;});
+  if(hasTL){
+    var badDSCR=[];
+    CALC.data.forEach(function(d,yi){
+      var tlInt=num(STATE.dscr.interest&&STATE.dscr.interest[yi]);
+      var tlPrin=num(STATE.dscr.principal&&STATE.dscr.principal[yi]);
+      var ds=tlInt+tlPrin;
+      if(ds>0){var dscr=(d.pat+d.depreciation+tlInt)/ds; if(dscr<1.5) badDSCR.push('Y'+(yi+1)+'='+Math.round(dscr*100)/100);}
+    });
+    if(badDSCR.length) warn('DSCR below norm (1.5) in: '+badDSCR.join(', ')+' — TL repayment capacity inadequate.','loan');
+    else pass('DSCR meets bank norm (≥1.5) in all years with TL repayment.');
+  }
+
+  // 22. TB items with negative values in assets
+  STATE.tb&&STATE.tb.assets&&STATE.tb.assets.forEach(function(item){
+    if(item.values){
+      item.values.forEach(function(v,yi){
+        if(num(v)<0) err('Negative value in '+item.name+' for Y'+(yi+1)+' — assets cannot be negative.','tb');
+      });
+    }
+  });
+
+  // 23. No income items entered
+  var hasIncome=CALC.data.some(function(d){return d.totalRevenue>0;});
+  if(!hasIncome) err('No income/sales figures entered in Trial Balance.','tb');
+
+  // 24. Loan data check
+  if(STATE.loan&&STATE.loan.amount>0&&!STATE.loan.rate)
+    warn('Loan amount entered but interest rate is zero. Verify in Loan/EMI tab.','loan');
+
+  // 25. MPBF check for all years
+  CALC.data.forEach(function(d,yi){
+    var otherCL=(d.creditors||0)+(d.advancesFromCustomers||0)+(d.statutoryLiab||0)+(d.otherCL||0);
+    var mpbf=Math.max(0,Math.min(d.currentAssets-otherCL,d.currentAssets*0.75));
+    pass('Y'+(yi+1)+': MPBF computed = ₹'+fmtN(Math.round(mpbf))+'K (Method I, 25% margin)');
+  });
+
+  var total=errors.length+warnings.length+ok.length;
+  var html='';
+  if(errors.length===0&&warnings.length===0){
+    html='<div style="background:#e8f5e9;border:2px solid #4caf50;border-radius:6px;padding:16px;text-align:center;font-size:1.05rem;font-weight:700;color:#1a7a4a;">✅ No errors detected — '+ok.length+' checks passed. CMA data appears clean.</div>';
+  } else {
+    html='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+      +'<div style="flex:1;min-width:80px;background:#fdecea;border-radius:5px;padding:10px;text-align:center;"><div style="font-size:1.5rem;font-weight:800;color:#c0392b;">'+errors.length+'</div><div style="font-size:0.75rem;font-weight:700;">ERRORS</div></div>'
+      +'<div style="flex:1;min-width:80px;background:#fff8e1;border-radius:5px;padding:10px;text-align:center;"><div style="font-size:1.5rem;font-weight:800;color:#b07800;">'+warnings.length+'</div><div style="font-size:0.75rem;font-weight:700;">WARNINGS</div></div>'
+      +'<div style="flex:1;min-width:80px;background:#e8f5e9;border-radius:5px;padding:10px;text-align:center;"><div style="font-size:1.5rem;font-weight:800;color:#1a7a4a;">'+ok.length+'</div><div style="font-size:0.75rem;font-weight:700;">PASSED</div></div>'
+      +'</div>';
+  }
+
+  if(errors.length){
+    html+='<div style="margin-bottom:10px;"><div style="font-weight:800;color:#c0392b;margin-bottom:6px;">🔴 ERRORS (must fix before submitting):</div>';
+    html+=errors.map(function(e){
+      return '<div style="padding:8px 12px;margin-bottom:5px;background:#fdecea;border-left:4px solid #c0392b;border-radius:0 4px 4px 0;font-size:0.82rem;">'
+        +'✗ '+e.msg+(e.link?'  <button onclick="showPanel(\''+e.link+'\')" style="background:#c0392b;color:#fff;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.72rem;margin-left:8px;">Go to Tab →</button>':'')+'</div>';
+    }).join('')+'</div>';
+  }
+  if(warnings.length){
+    html+='<div style="margin-bottom:10px;"><div style="font-weight:800;color:#b07800;margin-bottom:6px;">🟡 WARNINGS (review recommended):</div>';
+    html+=warnings.map(function(w){
+      return '<div style="padding:8px 12px;margin-bottom:5px;background:#fff8e1;border-left:4px solid #f0a500;border-radius:0 4px 4px 0;font-size:0.82rem;">'
+        +'⚠ '+w.msg+(w.link?'  <button onclick="showPanel(\''+w.link+'\')" style="background:#b07800;color:#fff;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.72rem;margin-left:8px;">Go to Tab →</button>':'')+'</div>';
+    }).join('')+'</div>';
+  }
+  if(ok.length){
+    html+='<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:0.82rem;color:var(--good);font-weight:700;">🟢 '+ok.length+' checks passed (tap to expand)</summary>'
+      +'<div style="margin-top:6px;">'+ok.map(function(o){return '<div style="padding:5px 12px;margin-bottom:3px;background:#e8f5e9;border-left:3px solid #4caf50;border-radius:0 4px 4px 0;font-size:0.78rem;">✓ '+o+'</div>';}).join('')+'</div></details>';
+  }
+
+  document.getElementById('errorCheckerResults').innerHTML=html;
+}
+
+var RISK_PARAMS = [
+  {id:'rr_cr',    label:'Current Ratio (CA÷CL)',         weight:15, key:'currentRatio',
+   bands:[{min:0,max:1,score:0},{min:1,max:1.2,score:3},{min:1.2,max:1.5,score:6},{min:1.5,max:999,score:10}]},
+  {id:'rr_dscr',  label:'DSCR',                          weight:20, key:'dscr',
+   bands:[{min:0,max:1,score:0},{min:1,max:1.5,score:4},{min:1.5,max:2,score:7},{min:2,max:999,score:10}]},
+  {id:'rr_tol',   label:'TOL / TNW',                     weight:15, key:'toltnw', invert:true,
+   bands:[{min:0,max:2,score:10},{min:2,max:3,score:6},{min:3,max:4,score:3},{min:4,max:999,score:0}]},
+  {id:'rr_npm',   label:'Net Profit Margin %',           weight:10, key:'npPct',
+   bands:[{min:0,max:3,score:2},{min:3,max:8,score:5},{min:8,max:15,score:8},{min:15,max:999,score:10}]},
+  {id:'rr_sg',    label:'Sales Growth %',                weight:10, key:'salesGrowthPct',
+   bands:[{min:-999,max:0,score:0},{min:0,max:10,score:5},{min:10,max:20,score:8},{min:20,max:999,score:10}]},
+  {id:'rr_der',   label:'Debt-Equity Ratio',             weight:10, key:'deRatio', invert:true,
+   bands:[{min:0,max:1,score:10},{min:1,max:2,score:7},{min:2,max:3,score:4},{min:3,max:999,score:0}]},
+  {id:'rr_mpbf',  label:'CC Utilisation vs MPBF %',      weight:10, key:'ccUtil', invert:true,
+   bands:[{min:0,max:70,score:10},{min:70,max:90,score:8},{min:90,max:100,score:5},{min:100,max:999,score:0}]},
+  {id:'rr_ind',   label:'Industry Risk',                  weight:10, key:'industryRisk', manual:true}
+];
 
 var RBI_GRADES = [
   {min:90,max:100,grade:1,label:'Minimal Risk',color:'#1a7a4a'},
@@ -5040,6 +6052,57 @@ var HELP_SECTIONS = {
     + '<p><b>Types</b>: Performance Guarantee (to ensure contract completion), Financial Guarantee (to ensure payment), Bid Bond/Earnest Money Guarantee (for tenders).</p>'
     + '<p><b>Basis</b>: Enter each government/tender contract separately with its value and validity period. BG limit = Contract Value × Margin % (typically 5–10%).</p>'
     + '<p><b>Counter Guarantee</b>: Security provided by borrower to the bank as protection — typically 100% of BG value in the form of Fixed Deposits, cash margin, or property.</p>',
+
+
+  backup: '<h3 style="color:#0e5e4a;">💾 How to Save & Restore Data</h3>'
+    + '<h4>Method 1 — JSON Backup (Recommended)</h4>'
+    + '<p><b>Save:</b> Go to Setup tab → tap <b>Export / Share to Drive</b> → save the .json file to Google Drive, iCloud, or Downloads.</p>'
+    + '<p><b>Restore:</b> Go to Setup tab → tap <b>Import JSON</b> → select your .json file → all data loads instantly including Trial Balance, Assumptions, Loan, IRR.</p>'
+    + '<h4>Method 2 — Excel/CSV Export</h4>'
+    + '<p><b>Save:</b> Go to Files tab → tap Export Trial Balance or Export P&L+BS → choose Excel or CSV.</p>'
+    + '<p><b>Restore:</b> Go to Files tab → tap Import Trial Balance or Import P&L+BS → select file.</p>'
+    + '<h4>Method 3 — Auto-save (localStorage)</h4>'
+    + '<p>Data auto-saves in browser localStorage every 30 seconds. Persists as long as you use the same browser on the same device. <b>Warning:</b> Clearing browser history deletes this data permanently.</p>'
+    + '<h4>Best Practice</h4>'
+    + '<p>After every session → Export JSON → Save to Google Drive. This is your permanent cross-device backup.</p>',
+
+  menus: '<h3 style="color:#0e5e4a;">📋 All Menus — Quick Reference</h3>'
+    + '<table style="width:100%;font-size:0.82rem;border-collapse:collapse;">'
+    + '<tr style="background:#0a1628;color:#fff;"><th style="padding:6px;text-align:left;">Tab</th><th style="padding:6px;text-align:left;">What it does</th></tr>'
+    + '<tr style="background:#f0f8f5;"><td style="padding:5px 6px;font-weight:700;">Setup</td><td style="padding:5px 6px;">Unit name, industry type, bank, year columns, JSON import/export, backup</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">Assumptions</td><td style="padding:5px 6px;">Sales growth %, holding period days (auto or manual), depreciation method & rates</td></tr>'
+    + '<tr style="background:#f0f8f5;"><td style="padding:5px 6px;font-weight:700;">Trial Balance</td><td style="padding:5px 6px;">Enter all actual year figures. Auto-generates projected years.</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">Manage Items</td><td style="padding:5px 6px;">Add, rename, reorder, delete TB line items</td></tr>'
+    + '<tr style="background:#f0f8f5;"><td style="padding:5px 6px;font-weight:700;">P&L / BS</td><td style="padding:5px 6px;">Direct P&L and Balance Sheet entry (syncs to TB automatically)</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">CMA I–V</td><td style="padding:5px 6px;">All 5 RBI/IBA CMA forms auto-generated</td></tr>'
+    + '<tr style="background:#f0f8f5;"><td style="padding:5px 6px;font-weight:700;">Ratios</td><td style="padding:5px 6px;">Current Ratio, D/E, DSCR, BEP, Margin of Safety, IRR/NPV</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">Drawing Power</td><td style="padding:5px 6px;">Stock & debtor-wise DP calculation with margins</td></tr>'
+    + '<tr style="background:#f0f8f5;"><td style="padding:5px 6px;font-weight:700;">Sales Analysis</td><td style="padding:5px 6px;">Export/Cash/Credit split, Indigenous/Imported purchases, debtor velocity</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">Non-Fund Limits</td><td style="padding:5px 6px;">ILC, FLC, Bank Guarantee auto-calculated from TB data</td></tr>'
+    + '<tr style="background:#f0f8f5;"><td style="padding:5px 6px;font-weight:700;">Loan / EMI</td><td style="padding:5px 6px;">Term loan details, monthly EMI schedule with moratorium</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">IRR / NPV</td><td style="padding:5px 6px;">Project IRR and NPV at chosen discount rate</td></tr>'
+    + '<tr style="background:#f0f8f5;"><td style="padding:5px 6px;font-weight:700;">📁 Files</td><td style="padding:5px 6px;">Import TB/P&L/BS from Excel or CSV. Export all data. JSON backup.</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">⭐ Risk Rating</td><td style="padding:5px 6px;">8-parameter editable scorecard. RBI Grade 1–8. Editable weights & bands.</td></tr>'
+    + '<tr style="background:#f0f8f5;"><td style="padding:5px 6px;font-weight:700;">🤖 AI Appraisal</td><td style="padding:5px 6px;">Full Credit Appraisal Note generated by AI from CMA data</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">✅ Sanction</td><td style="padding:5px 6px;">Recommended limits, security, conditions, covenants</td></tr>'
+    + '<tr style="background:#f0f8f5;"><td style="padding:5px 6px;font-weight:700;">📄 Project Report</td><td style="padding:5px 6px;">Auto-narrative project report for bank submission</td></tr>'
+    + '<tr><td style="padding:5px 6px;font-weight:700;">⬇ Export</td><td style="padding:5px 6px;">PDF (print), Word (.txt), Excel (.xlsx) export of all reports</td></tr>'
+    + '<tr style="background:#f0f8f5;"><td style="padding:5px 6px;font-weight:700;">📊 Monitoring</td><td style="padding:5px 6px;">Post-sanction: Repayment tracker, Stock statement, QIS returns</td></tr>'
+    + '</table>',
+
+  import_export: '<h3 style="color:#0e5e4a;">📁 Import & Export — File Formats</h3>'
+    + '<h4>Trial Balance Format (Excel or CSV)</h4>'
+    + '<p>Columns: Group | Item Name | Category | Year1 | Year2 | ...</p>'
+    + '<p>Groups: assets / liabilities / income / expenses</p>'
+    + '<p>Download blank template from Files tab → fill Actual year columns → reimport.</p>'
+    + '<h4>P&L + Balance Sheet Format (Excel or CSV)</h4>'
+    + '<p>P&L Sections: INCOME / EXPENSES-COGS / EXPENSES-ADMIN / EXPENSES-DEP / EXPENSES-INT / EXPENSES-TAX</p>'
+    + '<p>BS Sections: ASSETS-FIXED / ASSETS-CA / ASSETS-OTHER / LIAB-NW / LIAB-LT / LIAB-CL</p>'
+    + '<p>Excel: Two sheets — ProfitAndLoss and BalanceSheet</p>'
+    + '<h4>JSON Backup Format</h4>'
+    + '<p>Contains complete app state — TB, Assumptions, Loan, IRR, Risk overrides. Import via Setup tab to restore everything.</p>'
+    + '<h4>Export Options</h4>'
+    + '<p>Trial Balance → Excel or CSV | P&L+BS → Excel (2 sheets) or CSV | Full backup → JSON</p>',
 
   glossary: '<h3 style="color:#0e5e4a;">📖 Glossary of Banking & CMA Terms</h3>'
     + '<div style="margin-bottom:10px; padding:8px; background:#e8f4f0; border-radius:4px;">'
