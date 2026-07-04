@@ -282,6 +282,12 @@
       <button onclick="showHelpSection('backup')" class="action" style="font-size:0.75rem; padding:5px 12px;">💾 Save & Restore</button>
       <button onclick="showHelpSection('menus')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📋 All Menus</button>
       <button onclick="showHelpSection('import_export')" class="action" style="font-size:0.75rem; padding:5px 12px;">📁 Import/Export</button>
+      <button onclick="showHelpSection('industry_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">🏭 Industry Templates</button>
+      <button onclick="showHelpSection('ai_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">🤖 AI Appraisal</button>
+      <button onclick="showHelpSection('project_report_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">📄 Project Report</button>
+      <button onclick="showHelpSection('sensitivity_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📐 Sensitivity</button>
+      <button onclick="showHelpSection('collateral_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">🏠 Collateral</button>
+      <button onclick="showHelpSection('dashboard_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">🏦 Dashboard</button>
       <button onclick="showHelpSection('glossary')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📖 Glossary</button>
     </div>
     <div id="helpSectionContent" style="font-size:0.88rem; line-height:1.7; color:#222;"></div>
@@ -401,10 +407,11 @@
 <div class="card">
   <h2>📐 Sensitivity Analysis <span class="tag">WHAT-IF SCENARIOS</span></h2>
   <div class="sub">Adjust any parameter to instantly see the impact on DSCR, MPBF, IRR and Cash Flow. Base values auto-loaded from your CMA data.</div>
+  <div class="note" id="sensNoData" style="display:none;">⚠ Enter Trial Balance data first, then return to this tab.</div>
   <div class="note">All changes here are for analysis only — they do NOT affect your actual CMA data.</div>
   <h3>Select Year</h3>
   <div class="row"><div class="field">
-    <select id="sensYearSel" onchange="runSensitivity()"></select>
+    <select id="sensYearSel" onchange="updateSensBaseValues();runSensitivity()"></select>
   </div></div>
   <h3>Adjust Parameters</h3>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -2731,6 +2738,33 @@ function applyProjections(){
       var projTax = itemVal('expenses','Provision for Tax',y);
       var projPAT = projPBT - projTax;
       setItemVal('liabilities','Reserves & Surplus', y, round2(prevReserves + projPAT));
+
+      // ── BALANCE SHEET BALANCING ──
+      // After all projected items are set, compute Cash at Bank as the residual
+      // so that Total Assets = Total Liabilities in every projected year.
+      // This mirrors standard CMA practice where cash accumulates from profits.
+      var projTotalFA = FA_CLASSES.reduce(function(s,n){return s+itemVal('assets',n,y);},0)
+                      + itemVal('assets','Investments / Other Assets',y)
+                      + itemVal('assets','Preliminary / Misc Expenses (not w/off)',y);
+      var projCAExCash = [
+        'Sundry Debtors / Receivables','Raw Material Stock','Stock-in-Process / WIP',
+        'Finished Goods Stock','Trading Goods Stock (if any)',
+        'Stores & Spares','Advances to Suppliers','Cash in Hand','Other Current Assets'
+      ].reduce(function(s,n){return s+itemVal('assets',n,y);},0);
+      var projTotalLiab = [
+        "Capital / Proprietor's Capital","Reserves & Surplus"
+      ].reduce(function(s,n){return s+itemVal('liabilities',n,y);},0)
+       + itemVal('liabilities','Term Loan (incl. current maturities)',y)
+       + itemVal('liabilities','Other Long Term Borrowings',y)
+       + itemVal('liabilities','Deferred Tax Liability',y)
+       + ['Cash Credit / Working Capital Limit','Sundry Creditors (Trade Payables)',
+          'Advances from Customers','Statutory Liabilities (GST/TDS/PF etc.)',
+          'Other Current Liabilities & Provisions']
+          .reduce(function(s,n){return s+itemVal('liabilities',n,y);},0);
+      // Cash at Bank = Total Liab - (FA + CA excluding Cash at Bank)
+      var balancingCash = round2(projTotalLiab - projTotalFA - projCAExCash);
+      if(balancingCash < 0) balancingCash = 0; // cash cannot be negative
+      setItemVal('assets','Cash at Bank', y, balancingCash);
     }
   } catch (e) {
     showErr('Projection error: ' + e.message);
@@ -5217,8 +5251,10 @@ function runErrorChecker(){
 
     // 1. Balance Sheet Tally
     var tally=Math.round(Math.abs(d.tally));
+    var isActual = yi < na;
     if(tally===0) pass('Y'+(yi+1)+': Balance Sheet tallies — Assets = Liabilities = ₹'+fmtN(d.totalAssets)+'K');
-    else err('Y'+(yi+1)+' ('+yr+'): Balance Sheet does not tally. Difference = ₹'+fmtN(tally)+'K. Check asset/liability entries.','tb');
+    else if(isActual) err('Y'+(yi+1)+' ('+yr+'): Balance Sheet does not tally. Difference = ₹'+fmtN(tally)+'K. Check asset/liability entries.','tb');
+    else err('Y'+(yi+1)+' ('+yr+'): Projected Balance Sheet does not tally. Difference = ₹'+fmtN(tally)+'K. Check assumptions and TB entries.','tb');
 
     // 2. Negative Total Assets
     if(d.totalAssets<0) err('Y'+(yi+1)+': Total Assets is negative ('+fmtN(d.totalAssets)+'K) — invalid data.','tb');
@@ -5926,6 +5962,14 @@ function setupNav(){
       var target = document.getElementById('panel-'+this.getAttribute('data-panel'));
       if (target) target.classList.add('active');
       window.scrollTo(0,0);
+      // Re-init tabs that need data to be loaded first
+      var panel = this.getAttribute('data-panel');
+      if(panel==='sensitivity'){ initSensitivity(); if(!CALC.data||!CALC.data.length) document.getElementById('sensNoData').style.display='block'; else document.getElementById('sensNoData').style.display='none';}
+      if(panel==='dashboard') renderDashboard();
+      if(panel==='errors') {}
+      if(panel==='industry') renderIndustryTemplateGrid();
+      if(panel==='collateral') renderCollateral();
+      if(panel==='stockstmt') renderStockHistory();
     });
   });
 }
@@ -6103,6 +6147,76 @@ var HELP_SECTIONS = {
     + '<p>Contains complete app state — TB, Assumptions, Loan, IRR, Risk overrides. Import via Setup tab to restore everything.</p>'
     + '<h4>Export Options</h4>'
     + '<p>Trial Balance → Excel or CSV | P&L+BS → Excel (2 sheets) or CSV | Full backup → JSON</p>',
+
+  industry_help: '<h3 style="color:#0e5e4a;">🏭 Industry Templates</h3>'
+    +'<p>One-tap selection of 18 industry types — Rice Mill, Flour Mill, Dairy, Medical Store, Grocery, Hotel, Restaurant, Petrol Pump, Textile, Transport, Hospital, Engineering, School, Poultry, Auto Dealer, Plastic, Furniture, Service Centre.</p>'
+    +'<p>Each template <b>resets the Trial Balance</b> and loads the correct Chart of Accounts with industry-specific income items, COGS items, and admin expenses.</p>'
+    +'<p><b>Before loading a template:</b> Export a JSON backup from Setup tab if you have existing data.</p>'
+    +'<p>After loading, go to Trial Balance tab → enter your actual figures for Y1 and Y2. The template gives the structure — you fill the numbers.</p>',
+
+  ai_help: '<h3 style="color:#0e5e4a;">🤖 AI Credit Appraisal</h3>'
+    +'<p>Generates a complete <b>Credit Appraisal Note (CAN)</b> as a bank officer would write it. Requires internet connection (uses Claude AI).</p>'
+    +'<p><b>Generated sections:</b> Unit Profile, Management, Industry Overview, Financial Performance Analysis, Balance Sheet Analysis, Working Capital Assessment (MPBF), TL Repayment Capacity, Risk Factors, Overall Assessment, Recommendation, Terms & Conditions.</p>'
+    +'<p><b>How to get best results:</b></p>'
+    +'<ol><li>Enter all Trial Balance data first (actual years)</li>'
+    +'<li>Enter Loan details in Loan/EMI tab</li>'
+    +'<li>Enter loan purpose in the AI tab</li>'
+    +'<li>Tap Generate (takes 30–60 seconds)</li>'
+    +'<li>Copy or print the generated CAN</li></ol>'
+    +'<p>The AI reads your actual CMA numbers and produces specific, data-driven analysis — not generic text.</p>',
+
+  project_report_help: '<h3 style="color:#0e5e4a;">📄 Project Report</h3>'
+    +'<p>Auto-generates a complete narrative Project Report suitable for bank submission:</p>'
+    +'<ul><li>Executive Summary with all key figures</li>'
+    +'<li>Unit/Project details and promoter information</li>'
+    +'<li>Industry analysis and market position</li>'
+    +'<li>Financial performance summary (all years)</li>'
+    +'<li>Working Capital assessment with MPBF</li>'
+    +'<li>Loan repayment analysis with DSCR</li>'
+    +'<li>Risk factors and mitigants</li>'
+    +'<li>Recommendation</li></ul>'
+    +'<p>Print directly from browser → Save as PDF for bank submission. Copy button copies plain text for pasting into Word or email.</p>',
+
+  sensitivity_help: '<h3 style="color:#0e5e4a;">📐 Sensitivity Analysis</h3>'
+    +'<p>Stress-tests CMA data by adjusting 4 key parameters. Changes do NOT affect actual CMA data.</p>'
+    +'<p><b>Parameters:</b></p>'
+    +'<ul><li><b>Sales Change %:</b> Simulate 10%, 20%, 30% drop in sales revenue</li>'
+    +'<li><b>Raw Material Cost Change %:</b> Simulate RM price increase</li>'
+    +'<li><b>Interest Rate Change (bps):</b> Simulate RBI rate hike (100 bps = 1%)</li>'
+    +'<li><b>Debtor Days Change:</b> Simulate slower collections (e.g. +30 days)</li></ul>'
+    +'<p><b>Results show:</b> New PAT, New GP Margin, New MPBF, New DSCR vs base values. Red alerts appear when DSCR falls below 1.5 or unit becomes loss-making.</p>'
+    +'<p>Select the year first, then move sliders. Results update instantly. Reset button restores all to base.</p>'
+    +'<p><b>Note:</b> Enter Trial Balance data and generate projections first — the year dropdown will be empty otherwise.</p>',
+
+  collateral_help: '<h3 style="color:#0e5e4a;">🏠 Collateral Module</h3>'
+    +'<p>Record all securities offered — primary and collateral. Data saved in JSON backup.</p>'
+    +'<p><b>For each security enter:</b></p>'
+    +'<ul><li>Type (Immovable Property / Plant & Machinery / Vehicle / FD / Stock & Debtors / Other)</li>'
+    +'<li>Owner name</li>'
+    +'<li>Location / description</li>'
+    +'<li>Charge Type (First Charge Mortgage / Hypothecation / Pledge / Assignment)</li>'
+    +'<li>Market Value (₹\'000s) — as per bank\'s approved valuer</li>'
+    +'<li>FSV % — Forced Sale Value (typically 60% for residential, 50% for commercial/industrial)</li></ul>'
+    +'<p><b>Auto-computed:</b></p>'
+    +'<ul><li>FSV = Market Value × FSV%</li>'
+    +'<li>Distress Value = Market Value × 40%</li>'
+    +'<li>LTV Ratio = Exposure ÷ Total FSV. Should be ≤ 75%</li></ul>'
+    +'<p>Collateral data is saved in JSON backup and preserved across sessions.</p>',
+
+  dashboard_help: '<h3 style="color:#0e5e4a;">🏦 Banker\'s Dashboard</h3>'
+    +'<p>Opens automatically after data entry. Shows all key parameters at a glance.</p>'
+    +'<p><b>KPI Grid (12 indicators with RAG colours):</b></p>'
+    +'<ul><li>Current Ratio (norm ≥ 1.25 — Green, ≥ 1.0 — Amber, below 1 — Red)</li>'
+    +'<li>DSCR (norm ≥ 1.5)</li><li>ISCR — Interest Service Coverage Ratio (norm ≥ 1.5)</li>'
+    +'<li>Debt-Equity Ratio (norm ≤ 2:1)</li><li>TOL/TNW (norm ≤ 3:1)</li>'
+    +'<li>GP Margin % (norm >15%)</li><li>NP Margin % (norm >5%)</li>'
+    +'<li>MPBF vs CC Limit</li><li>BEP (should be <70% of sales)</li>'
+    +'<li>Working Capital Cycle (debtor + stock days − creditor days)</li>'
+    +'<li>Net Worth (must be positive)</li></ul>'
+    +'<p><b>Automatic Credit Rating:</b> AAA to High Risk based on 7 parameters. Score out of 100.</p>'
+    +'<p><b>Auto Remarks:</b> 10 banker-style observations generated from your data — sales trend, debtor pattern, DSCR status, profit trend, leverage, inventory levels, CC vs MPBF, Net Worth movement.</p>'
+    +'<p><b>4 Trend Charts:</b> Sales & Profit, Current Ratio & DSCR, MPBF vs CC, Net Worth & Debt.</p>'
+    +'<p><b>Overall Recommendation:</b> Recommend / Recommend with Conditions / Refer / Decline — auto-generated from credit score.</p>',
 
   glossary: '<h3 style="color:#0e5e4a;">📖 Glossary of Banking & CMA Terms</h3>'
     + '<div style="margin-bottom:10px; padding:8px; background:#e8f4f0; border-radius:4px;">'
