@@ -528,7 +528,26 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
   </div>
 
   <div class="card">
-    <h2>CMA Form V — Working Capital Assessment (MPBF) <span class="tag">TANDON COMMITTEE</span></h2>
+    <h2>CMA Form V — Working Capital Assessment <span class="tag">3 METHODS</span></h2>
+    <div class="note" style="border-color:#1565C0;font-size:0.78rem;">
+      <b>RBI Method:</b> Turnover Method (limit ≤ ₹5 Cr) | MPBF Method I/II (limit > ₹5 Cr) | Cash Flow Method (seasonal industries)
+    </div>
+    <div class="row" style="margin-bottom:8px;">
+      <div class="field">
+        <label>Select Method</label>
+        <select id="nuWcMethod" onchange="renderNUCMA5()">
+          <option value="all">Show All Methods</option>
+          <option value="turnover">Turnover Method (≤ ₹5 Cr)</option>
+          <option value="mpbf1">MPBF Method I</option>
+          <option value="mpbf2">MPBF Method II</option>
+          <option value="cashflow">Cash Flow Method</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Turnover % (default 20%)</label>
+        <input type="number" id="nuTurnoverPct" value="20" min="10" max="33" onfocus="this.select()" onchange="renderNUCMA5()">
+      </div>
+    </div>
     <div class="scrollx"><table id="cma5Table"></table></div>
   </div>
 
@@ -1352,19 +1371,8 @@ function renderResults(){
   c3+=row('NET WORKING CAPITAL (CA - CL)',d.map(function(x){return x.totalCA-x.totalCL;}),'sub-tot');
   document.getElementById('cma3Table').innerHTML=c3;
 
-  // CMA V — MPBF
-  var c5=thRow();
-  c5+=secRow('METHOD I — 75% of CA less Other CL (Tandon Committee)');
-  c5+=row('1. Total Current Assets (CA)',d.map(function(x){return x.totalCA;}));
-  c5+=row('2. Other Current Liabilities (excl. CC)',d.map(function(x){return x.totalCLexCC;}));
-  c5+=row('3. Working Capital Gap (1-2)',d.map(function(x){return x.totalCA-x.totalCLexCC;}),'sub-tot');
-  c5+=row('4. 75% of Current Assets',d.map(function(x){return Math.round(x.totalCA*0.75);}));
-  c5+=row('5. MPBF = Min of (3) & (4)',d.map(function(x){return x.mpbf;}),'tot');
-  c5+=secRow('LIMIT ASSESSMENT');
-  c5+=row('Recommended CC / WC Limit (= MPBF)',d.map(function(x){return x.mpbf;}));
-  c5+=row('Borrower Margin (CA - CC - Other CL)',d.map(function(x){return x.totalCA-x.mpbf-x.totalCLexCC;}));
-  c5+=row('Margin % on CA',d.map(function(x){return x.totalCA>0?((x.totalCA-x.mpbf-x.totalCLexCC)/x.totalCA*100):0}));
-  document.getElementById('cma5Table').innerHTML=c5;
+  // CMA V — All 3 WC Methods
+  renderNUCMA5();
 
   // Ratios & DSCR
   var rt=thRow();
@@ -2901,6 +2909,99 @@ function showNUHelp(key){
   var el=document.getElementById('nuHelpContent');
   if(el) el.innerHTML=NU_HELP[key]||'<div class="note">Section not found.</div>';
   if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+/* ── CMA FORM V — ALL 3 WC METHODS (New Unit) ── */
+function renderNUCMA5(){
+  if(!C||!C.data||!C.data.length) return;
+  var d=C.data;
+  var abf=0.75;
+  var tPct=(parseFloat(document.getElementById('nuTurnoverPct')?document.getElementById('nuTurnoverPct').value:20)||20)/100;
+  var method=(document.getElementById('nuWcMethod')||{value:'all'}).value||'all';
+
+  function thRow(){
+    var h='<tr><th class="label" style="text-align:left;">Particulars</th>';
+    d.forEach(function(_,i){h+='<th>Y'+(i+1)+'</th>';});
+    return h+'</tr>';
+  }
+  function row(label,vals,cls){
+    var h='<tr'+(cls?' class="'+cls+'"':'')+'><td class="label">'+label+'</td>';
+    vals.forEach(function(v){
+      if(typeof v==='string'){h+='<td style="font-size:0.75rem;font-weight:700;color:'+(v.startsWith('YES')?'var(--good)':'var(--danger)')+';">'+v+'</td>';}
+      else{h+='<td>'+(Math.round(v*100)/100).toLocaleString('en-IN')+'</td>';}
+    });
+    return h+'</tr>';
+  }
+  function sec(label){return '<tr><td class="sec" colspan="'+(d.length+1)+'">'+label+'</td></tr>';}
+  function note(txt){return '<tr><td colspan="'+(d.length+1)+'" style="padding:6px 10px;background:#f0f8f5;font-size:0.75rem;color:#0e5e4a;">'+txt+'</td></tr>';}
+
+  var c5=thRow();
+
+  // Method A — Turnover
+  if(method==='all'||method==='turnover'){
+    c5+=sec('METHOD A: TURNOVER METHOD (RBI — WC Limit ≤ ₹5 Crore)');
+    c5+=note('RBI Guideline: 20% of projected annual turnover. Applicable when WC limit ≤ ₹5 Crore.');
+    c5+=row('A1. Projected Annual Turnover',d.map(function(x){return x.sales;}));
+    c5+=row('A2. WC Requirement ('+Math.round(tPct*100)+'% of Turnover)',d.map(function(x){return Math.round(x.sales*tPct);}));
+    c5+=row('A3. Less: Promoter Margin (min 5% of Turnover)',d.map(function(x){return -Math.round(x.sales*0.05);}));
+    c5+=row('A4. WC Limit (A2 − A3)',d.map(function(x){return Math.round(x.sales*tPct)-Math.round(x.sales*0.05);}),'tot');
+    c5+=row('A5. Method Applicable? (limit ≤ ₹5,00,000)',d.map(function(x){
+      var limit=Math.round(x.sales*tPct)-Math.round(x.sales*0.05);
+      return limit<=5000?'YES — Turnover Method Applicable':'NO — Use MPBF (limit > ₹5 Cr)';
+    }));
+  }
+
+  // Method B — MPBF I
+  if(method==='all'||method==='mpbf1'){
+    c5+=sec('METHOD B: MPBF METHOD I — TANDON COMMITTEE (WC Limit > ₹5 Crore)');
+    c5+=note('Tandon Committee: MPBF = 75% of CA less Current Liabilities (other than bank borrowings).');
+    c5+=row('B1. Total Current Assets (CA)',d.map(function(x){return x.totalCA;}));
+    c5+=row('B2. Other Current Liabilities (excl. CC)',d.map(function(x){return x.totalCLexCC;}));
+    c5+=row('B3. Working Capital Gap (B1 − B2)',d.map(function(x){return x.totalCA-x.totalCLexCC;}),'sub-tot');
+    c5+=row('B4. 75% of Current Assets',d.map(function(x){return Math.round(x.totalCA*abf);}));
+    c5+=row('B5. MPBF Method I = Min(B3, B4)',d.map(function(x){return x.mpbf;}),'tot');
+    c5+=row('B6. Borrower Margin on CA',d.map(function(x){return x.totalCA-x.mpbf-x.totalCLexCC;}));
+  }
+
+  // Method C — MPBF II
+  if(method==='all'||method==='mpbf2'){
+    c5+=sec('METHOD C: MPBF METHOD II');
+    c5+=note('Method II: 75% of CA less ALL Current Liabilities. Results in higher own margin requirement.');
+    c5+=row('C1. 75% of Current Assets',d.map(function(x){return Math.round(x.totalCA*abf);}));
+    c5+=row('C2. Less: Other Current Liabilities (excl. CC)',d.map(function(x){return x.totalCLexCC;}));
+    c5+=row('C3. MPBF Method II (C1 − C2)',d.map(function(x){return Math.max(0,Math.round(x.totalCA*abf)-x.totalCLexCC);}),'tot');
+    c5+=row('C4. NWC Required from Promoter',d.map(function(x){return Math.max(0,Math.round(x.totalCA*0.25)-x.totalCLexCC);}));
+  }
+
+  // Method D — Cash Flow
+  if(method==='all'||method==='cashflow'){
+    c5+=sec('METHOD D: CASH BUDGET / CASH FLOW METHOD');
+    c5+=note('RBI: For seasonal industries. WC limit = Peak monthly cash deficit. This shows annual proxy.');
+    c5+=row('D1. Cash Accrual (PAT + Dep)',d.map(function(x){return x.cashAccrual||0;}));
+    c5+=row('D2. Total Current Assets (peak)',d.map(function(x){return x.totalCA;}));
+    c5+=row('D3. Own Funds in WC (NW − Fixed Assets)',d.map(function(x){return Math.max(0,(x.netWorth||0)-(x.nfa||0));}));
+    c5+=row('D4. WC Gap = CA − Own funds − Other CL',d.map(function(x){return Math.max(0,x.totalCA-Math.max(0,(x.netWorth||0)-(x.nfa||0))-x.totalCLexCC);}),'sub-tot');
+    c5+=row('D5. WC Limit (75% of D4)',d.map(function(x){var g=Math.max(0,x.totalCA-Math.max(0,(x.netWorth||0)-(x.nfa||0))-x.totalCLexCC);return Math.round(g*abf);}),'tot');
+  }
+
+  // Comparison
+  c5+=sec('COMPARISON & RECOMMENDED LIMIT');
+  c5+=row('Turnover Method ('+Math.round(tPct*100)+'% of Sales)',d.map(function(x){return Math.round(x.sales*tPct)-Math.round(x.sales*0.05);}));
+  c5+=row('MPBF Method I (Tandon)',d.map(function(x){return x.mpbf;}));
+  c5+=row('MPBF Method II',d.map(function(x){return Math.max(0,Math.round(x.totalCA*abf)-x.totalCLexCC);}));
+  c5+=row('Cash Flow Method (proxy)',d.map(function(x){var g=Math.max(0,x.totalCA-Math.max(0,(x.netWorth||0)-(x.nfa||0))-x.totalCLexCC);return Math.round(g*abf);}));
+  c5+=row('✓ RECOMMENDED (Auto: Turnover if ≤5Cr, else MPBF I)',d.map(function(x){
+    var t2=Math.round(x.sales*tPct)-Math.round(x.sales*0.05);
+    return t2<=5000?t2:x.mpbf;
+  }),'tot');
+  c5+=row('Current Ratio with Recommended Limit',d.map(function(x){
+    var t2=Math.round(x.sales*tPct)-Math.round(x.sales*0.05);
+    var rec=t2<=5000?t2:x.mpbf;
+    var cl=x.totalCLexCC+rec;
+    return cl>0?Math.round(x.totalCA/cl*100)/100:0;
+  }));
+
+  document.getElementById('cma5Table').innerHTML=c5;
 }
 
 // ─── INIT ─────────────────────────────────────────────────

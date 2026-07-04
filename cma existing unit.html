@@ -807,8 +807,33 @@
 <!-- ============ CMA-V PANEL ============ -->
 <div class="panel" id="panel-cma5">
   <div class="card">
-    <h2>CMA Form V — Working Capital Assessment (MPBF) <span class="tag">AUTO</span></h2>
-    <div class="sub">MPBF computed under Method I (75% of CA less CL) and Method II (75% of CA less Core Margin), per Tandon Committee norms.</div>
+    <h2>CMA Form V — Working Capital Assessment <span class="tag">3 METHODS</span></h2>
+    <div class="sub">RBI guidelines prescribe different methods based on credit limit. All three methods computed automatically — select applicable method.</div>
+
+    <div class="note" style="border-color:#1565C0;">
+      <b>RBI Guidelines — Which method to apply:</b><br>
+      • <b>Turnover Method:</b> WC limit up to ₹5 Crore (₹500K in ₹'000s) — simpler computation based on 20% of projected annual turnover<br>
+      • <b>MPBF Method I:</b> WC limit above ₹5 Crore — Tandon Committee (75% CA less other CL)<br>
+      • <b>Cash Budget / Cash Flow:</b> Seasonal industries, construction, film finance — based on actual monthly cash flow gaps<br>
+      • <b>MPBF Method II:</b> Used by some banks as alternative to Method I — 75% CA less core CA margin
+    </div>
+
+    <div class="row" style="margin-bottom:10px;">
+      <div class="field">
+        <label>Select Applicable Method</label>
+        <select id="wcMethodSel" onchange="renderCMA5()">
+          <option value="all">Show All Methods</option>
+          <option value="turnover">Turnover Method (limit ≤ ₹5 Cr)</option>
+          <option value="mpbf1">MPBF Method I (limit > ₹5 Cr)</option>
+          <option value="mpbf2">MPBF Method II</option>
+          <option value="cashflow">Cash Budget / Cash Flow Method</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Turnover % for WC (default 20%)</label>
+        <input type="number" id="turnoverPct" value="20" min="10" max="33" onfocus="this.select()" onchange="renderCMA5()">
+      </div>
+    </div>
     <div class="scrollx"><table id="cma5Table"></table></div>
   </div>
 </div>
@@ -3032,7 +3057,11 @@ function dataRow(label, fn, opts){
     var v = fn(CALC.data[y], y);
     var cls = '';
     if (opts.diff){ cls = v < -0.5 ? ' class="bad"' : (v > 0.5 ? ' class="ok"' : ''); }
-    html += '<td'+cls+'>'+(opts.isPct ? pct(v) : fmt(v))+'</td>';
+    if(opts.text){
+      html += '<td style="font-size:0.75rem;font-weight:700;color:'+(typeof v==='string'&&v.startsWith('YES')?'var(--good)':'var(--danger)')+';">'+v+'</td>';
+    } else {
+      html += '<td'+cls+'>'+(opts.isPct ? pct(v) : fmt(v))+'</td>';
+    }
   }
   html += '</tr>';
   return html;
@@ -3701,49 +3730,155 @@ function renderCMA4(){
   document.getElementById('cma4Table').innerHTML = html;
 }
 
-/* ---- CMA Form V: MPBF ---- */
+/* ---- CMA Form V: WC Assessment — All 3 Methods ---- */
 function renderCMA5(){
-  var html = tableHeader('CMA-V: Working Capital Assessment & MPBF');
   var abf = (STATE.unit.abfPercent || 75) / 100;
   var margin = (STATE.unit.bankMargin || 25) / 100;
+  var turnoverPct = (parseFloat(document.getElementById('turnoverPct').value)||20) / 100;
+  var method = (document.getElementById('wcMethodSel')||{value:'all'}).value || 'all';
+  var html = '';
 
-  html += sectionRow('METHOD I (75% of Current Assets less Current Liabilities other than Bank Borrowings)');
-  html += dataRow('1. Total Current Assets', function(d){return d.currentAssets;});
-  html += dataRow('2. Other Current Liabilities (excl. Bank Borrowing)', function(d){return d.currentLiabilities - d.cc;});
-  html += dataRow('3. Working Capital Gap (1-2)', function(d){return d.currentAssets - (d.currentLiabilities - d.cc);}, {total:true});
-  html += dataRow('4. '+(abf*100).toFixed(0)+'% of Current Assets', function(d){return d.currentAssets * abf;});
-  html += dataRow('5. MPBF = Min of (3) and (4)', function(d){
+  // ── TURNOVER METHOD (RBI: WC limit ≤ ₹5 Crore = 5000 in ₹'000s) ──
+  if(method==='all' || method==='turnover'){
+    html += tableHeader('METHOD A: TURNOVER METHOD (RBI — WC Limit up to ₹5 Crore)');
+    html += '<tr><td class="label" colspan="2" style="background:#e3f2fd;color:#1565C0;font-size:0.78rem;">RBI Circular: For borrowers with WC requirement ≤ ₹5 Cr — 20% of Projected Annual Turnover (25% for non-seasonal). Min 5% own margin.</td></tr>';
+    html += dataRow('A1. Projected Annual Net Sales / Turnover', function(d){return d.totalRevenue;});
+    html += dataRow('A2. WC Requirement = '+Math.round(turnoverPct*100)+'% of Turnover', function(d){
+      return Math.round(d.totalRevenue * turnoverPct);
+    });
+    html += dataRow('A3. Less: Promoter Margin (min 5% of Turnover)', function(d){
+      return -Math.round(d.totalRevenue * 0.05);
+    });
+    html += dataRow('A4. WC Limit under Turnover Method (A2 − A3)', function(d){
+      return Math.round(d.totalRevenue * turnoverPct) - Math.round(d.totalRevenue * 0.05);
+    }, {total:true});
+    html += dataRow('A5. Eligible if WC Limit ≤ ₹5,00,000 (₹5 Crore)', function(d){
+      var limit = Math.round(d.totalRevenue * turnoverPct) - Math.round(d.totalRevenue * 0.05);
+      return limit <= 5000 ? 'YES — Turnover Method Applicable' : 'NO — Use MPBF Method (limit > ₹5 Cr)';
+    }, {text:true});
+    html += sectionRow('Current Ratio under Turnover Method');
+    html += dataRow('Total Current Assets', function(d){return d.currentAssets;});
+    html += dataRow('Total Current Liabilities (incl. WC Limit)', function(d){
+      var wcTurnover=Math.round(d.totalRevenue*turnoverPct)-Math.round(d.totalRevenue*0.05);
+      return (d.currentLiabilities-d.cc)+wcTurnover;
+    });
+    html += dataRow('Current Ratio (should be ≥ 1.25)', function(d){
+      var wcTurnover=Math.round(d.totalRevenue*turnoverPct)-Math.round(d.totalRevenue*0.05);
+      var cl=(d.currentLiabilities-d.cc)+wcTurnover;
+      return cl>0?Math.round(d.currentAssets/cl*100)/100:0;
+    });
+  }
+
+  // ── MPBF METHOD I ──
+  if(method==='all' || method==='mpbf1'){
+    html += tableHeader('METHOD B: MPBF METHOD I — TANDON COMMITTEE (WC Limit > ₹5 Crore)');
+    html += '<tr><td class="label" colspan="2" style="background:#e8f5e9;color:#0e5e4a;font-size:0.78rem;">Tandon Committee 2nd Sub-Committee: MPBF = 75% of CA less Current Liabilities (other than bank borrowings).</td></tr>';
+    html += sectionRow('METHOD I (75% of Current Assets less Other Current Liabilities)');
+    html += dataRow('B1. Total Current Assets', function(d){return d.currentAssets;});
+    html += dataRow('B2. Other Current Liabilities (excl. Bank CC)', function(d){return d.currentLiabilities - d.cc;});
+    html += dataRow('B3. Working Capital Gap (B1 − B2)', function(d){
+      return d.currentAssets - (d.currentLiabilities - d.cc);
+    }, {total:true});
+    html += dataRow('B4. '+(abf*100).toFixed(0)+'% of Current Assets (ABF)', function(d){
+      return Math.round(d.currentAssets * abf);
+    });
+    html += dataRow('B5. MPBF Method I = Min of (B3) and (B4)', function(d){
+      var wcg = d.currentAssets - (d.currentLiabilities - d.cc);
+      return Math.max(0, Math.min(wcg, Math.round(d.currentAssets * abf)));
+    }, {total:true});
+    html += dataRow('B6. Existing CC Limit', function(d){return d.cc;});
+    html += dataRow('B7. Excess / (Shortfall) vs MPBF', function(d){
+      var wcg = d.currentAssets - (d.currentLiabilities - d.cc);
+      var mpbf = Math.max(0, Math.min(wcg, Math.round(d.currentAssets * abf)));
+      return d.cc - mpbf;
+    }, {diff:true});
+  }
+
+  // ── MPBF METHOD II ──
+  if(method==='all' || method==='mpbf2'){
+    html += tableHeader('METHOD C: MPBF METHOD II (Alternative Tandon Method)');
+    html += '<tr><td class="label" colspan="2" style="background:#fff3e0;color:#e65100;font-size:0.78rem;">Method II: MPBF = 75% of CA less all Current Liabilities (incl. proposed CC). Results in higher NWC requirement from promoter.</td></tr>';
+    html += sectionRow('METHOD II');
+    html += dataRow('C1. '+(abf*100).toFixed(0)+'% of Total Current Assets', function(d){
+      return Math.round(d.currentAssets * abf);
+    });
+    html += dataRow('C2. Total Current Liabilities (excl. Bank Borrowing)', function(d){
+      return d.currentLiabilities - d.cc;
+    });
+    html += dataRow('C3. MPBF Method II = C1 − C2 (floor 0)', function(d){
+      var v = Math.round(d.currentAssets * abf) - (d.currentLiabilities - d.cc);
+      return Math.max(0, v);
+    }, {total:true});
+    html += dataRow('C4. NWC Required from Promoter (25% CA − Other CL)', function(d){
+      return Math.max(0, Math.round(d.currentAssets * (1-abf)) - (d.currentLiabilities - d.cc));
+    });
+  }
+
+  // ── CASH BUDGET / CASH FLOW METHOD ──
+  if(method==='all' || method==='cashflow'){
+    html += tableHeader('METHOD D: CASH BUDGET / CASH FLOW METHOD');
+    html += '<tr><td class="label" colspan="2" style="background:#f3e5f5;color:#6a1b9a;font-size:0.78rem;">RBI: Applicable for seasonal industries, construction, film finance, sugar, tea, etc. WC limit = Maximum monthly cash deficit from projected monthly cash budget.</td></tr>';
+    html += sectionRow('ANNUAL CASH FLOW BASED WC ASSESSMENT');
+    html += dataRow('D1. Net Cash from Operations = PAT + Dep − Change in WC', function(d){
+      var prev = CALC.data[Math.max(0, CALC.data.indexOf(d)-1)];
+      var wcChange = (d.currentAssets - d.currentLiabilities) - (prev.currentAssets - prev.currentLiabilities);
+      return Math.round(d.pat + d.depreciation - wcChange);
+    });
+    html += dataRow('D2. Total Current Assets (CA) — Peak Requirement', function(d){return d.currentAssets;});
+    html += dataRow('D3. Self-financed CA (Net Worth − Fixed Assets)', function(d){
+      return Math.max(0, d.netWorth - d.netFixedAssets);
+    });
+    html += dataRow('D4. WC Gap = CA − Self-financed portion', function(d){
+      var selfFin = Math.max(0, d.netWorth - d.netFixedAssets);
+      return Math.max(0, d.currentAssets - selfFin - (d.currentLiabilities - d.cc));
+    }, {total:true});
+    html += dataRow('D5. WC Limit (Cash Flow Basis) = D4 × 75%', function(d){
+      var selfFin = Math.max(0, d.netWorth - d.netFixedAssets);
+      var gap = Math.max(0, d.currentAssets - selfFin - (d.currentLiabilities - d.cc));
+      return Math.round(gap * abf);
+    }, {total:true});
+    html += '<tr><td class="label" colspan="'+(CALC.data.length+1)+'" style="background:#f3e5f5;padding:8px;font-size:0.78rem;color:#6a1b9a;">'
+      +'<b>Note:</b> For precise Cash Budget Method — prepare monthly cash inflow/outflow projection for 12 months. Maximum cumulative deficit in any month = WC limit required. '
+      +'Use the Monitoring tab → QIS-III for annual cash flow tracking. This computation uses annual proxy figures.</td></tr>';
+  }
+
+  // ── COMPARISON & RECOMMENDATION ──
+  html += tableHeader('COMPARISON — ALL METHODS & RECOMMENDED LIMIT');
+  html += '<tr><td class="label" colspan="2" style="background:#0a1628;color:#fff;font-size:0.78rem;padding:8px;">Bank selects method based on RBI guidelines. Apply Turnover Method if limit ≤ ₹5 Cr; MPBF Method I if limit > ₹5 Cr.</td></tr>';
+  html += dataRow('Turnover Method (20% of Sales)', function(d){
+    return Math.round(d.totalRevenue * turnoverPct) - Math.round(d.totalRevenue * 0.05);
+  });
+  html += dataRow('MPBF Method I (Tandon)', function(d){
     var wcg = d.currentAssets - (d.currentLiabilities - d.cc);
-    var abfval = d.currentAssets * abf;
-    return Math.min(wcg, abfval);
-  }, {total:true});
-  html += dataRow('6. Excess Borrowing (CC over MPBF, if any)', function(d){
-    var wcg = d.currentAssets - (d.currentLiabilities - d.cc);
-    var abfval = d.currentAssets * abf;
-    var mpbf = Math.min(wcg, abfval);
-    return Math.max(0, d.cc - mpbf);
-  }, {diff:true});
-
-  html += sectionRow('METHOD II (75% of Current Assets less Core Margin)');
-  html += dataRow('7. '+(abf*100).toFixed(0)+'% of Current Assets', function(d){return d.currentAssets * abf;});
-  html += dataRow('8. Less: Current Liabilities (excl. Bank Borrowing)', function(d){return -(d.currentLiabilities - d.cc);});
-  html += dataRow('9. MPBF under Method II (7-8, floor 0)', function(d){
-    var v = d.currentAssets*abf - (d.currentLiabilities - d.cc);
-    return Math.max(0, v);
-  }, {total:true});
-
-  html += sectionRow('LIMIT RECOMMENDATION');
+    return Math.max(0, Math.min(wcg, Math.round(d.currentAssets * abf)));
+  });
+  html += dataRow('MPBF Method II', function(d){
+    return Math.max(0, Math.round(d.currentAssets * abf) - (d.currentLiabilities - d.cc));
+  });
+  html += dataRow('Cash Flow Method (proxy)', function(d){
+    var selfFin = Math.max(0, d.netWorth - d.netFixedAssets);
+    var gap = Math.max(0, d.currentAssets - selfFin - (d.currentLiabilities - d.cc));
+    return Math.round(gap * abf);
+  });
   html += '<tr><td class="label">Existing WC Limit</td>';
-  for (var y=0;y<CALC.data.length;y++) html += '<td>'+fmt(STATE.unit.existingWC||0)+'</td>';
+  for(var y=0;y<CALC.data.length;y++) html += '<td>'+fmt(STATE.unit.existingWC||0)+'</td>';
   html += '</tr>';
   html += '<tr><td class="label">Proposed WC Limit</td>';
-  for (y=0;y<CALC.data.length;y++) html += '<td>'+fmt(STATE.unit.proposedWC||0)+'</td>';
+  for(y=0;y<CALC.data.length;y++) html += '<td>'+fmt(STATE.unit.proposedWC||0)+'</td>';
   html += '</tr>';
-  html += dataRow('Recommended Limit (= MPBF Method I)', function(d){
-    var wcg = d.currentAssets - (d.currentLiabilities - d.cc);
-    var abfval = d.currentAssets * abf;
-    return Math.min(wcg, abfval);
+  html += dataRow('✓ RECOMMENDED LIMIT (Applicable Method)', function(d){
+    var turnover = Math.round(d.totalRevenue * turnoverPct) - Math.round(d.totalRevenue * 0.05);
+    var mpbf1 = Math.max(0, Math.min(d.currentAssets-(d.currentLiabilities-d.cc), Math.round(d.currentAssets*abf)));
+    // Apply turnover method if limit ≤ 5000 (₹5 Cr), else MPBF I
+    return turnover <= 5000 ? turnover : mpbf1;
   }, {total:true});
+  html += dataRow('Norm: Current Ratio with Recommended Limit', function(d){
+    var turnover = Math.round(d.totalRevenue * turnoverPct) - Math.round(d.totalRevenue * 0.05);
+    var mpbf1 = Math.max(0, Math.min(d.currentAssets-(d.currentLiabilities-d.cc), Math.round(d.currentAssets*abf)));
+    var recLimit = turnover <= 5000 ? turnover : mpbf1;
+    var totalCL = (d.currentLiabilities - d.cc) + recLimit;
+    return totalCL > 0 ? Math.round(d.currentAssets/totalCL*100)/100 : 0;
+  });
 
   document.getElementById('cma5Table').innerHTML = html;
 }
