@@ -178,6 +178,8 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
   <button class="step-btn" data-step="sensitivity">📐 Sensitivity</button>
   <button class="step-btn" data-step="collateral">🏠 Collateral</button>
   <button class="step-btn" data-step="stockstmt">📦 Stock Stmt</button>
+  <button class="step-btn" data-step="swot">🔷 SWOT</button>
+  <button class="step-btn" data-step="repayment">📅 Repayment</button>
   <button class="step-btn" data-step="errors">🔍 Errors</button>
   <button class="step-btn" data-step="help">Help / Manual</button>
 </div>
@@ -873,7 +875,7 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
 <div class="card">
   <h2>Help & User Guide <span class="tag">ALL 19 MENUS</span></h2>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;" id="nuHelpBtns">
-    <button onclick="showNUHelp('overview')" class="btn btn-green btn-sm">Overview</button>
+    <button onclick="showNUHelp('overview')" class="btn btn-green btn-sm">📋 Overview</button>
     <button onclick="showNUHelp('step1')" class="btn btn-navy btn-sm">1. Unit Info</button>
     <button onclick="showNUHelp('step2')" class="btn btn-navy btn-sm">2. Capital & Loan</button>
     <button onclick="showNUHelp('step3')" class="btn btn-navy btn-sm">3. Fixed Assets</button>
@@ -886,6 +888,8 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
     <button onclick="showNUHelp('hai')" class="btn btn-green btn-sm">🤖 AI Appraisal</button>
     <button onclick="showNUHelp('hsanction')" class="btn btn-navy btn-sm">✅ Sanction</button>
     <button onclick="showNUHelp('hreport')" class="btn btn-navy btn-sm">📄 Project Report</button>
+    <button onclick="showNUHelp('hswot')" class="btn btn-navy btn-sm">🔷 SWOT</button>
+    <button onclick="showNUHelp('hrepayment')" class="btn btn-navy btn-sm">📅 Repayment</button>
     <button onclick="showNUHelp('hfiles')" class="btn btn-amber btn-sm">📁 Files</button>
     <button onclick="showNUHelp('hmonitor')" class="btn btn-navy btn-sm">📊 Monitoring</button>
     <button onclick="showNUHelp('hsens')" class="btn btn-navy btn-sm">📐 Sensitivity</button>
@@ -895,6 +899,62 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
     <button onclick="showNUHelp('glossary')" class="btn btn-amber btn-sm">📖 Glossary</button>
   </div>
   <div id="nuHelpContent" style="font-size:0.85rem;line-height:1.8;"></div>
+</div>
+</div>
+
+<!-- ── SWOT ── -->
+<div class="panel" id="panel-nu-swot">
+<div class="card">
+  <h2>🔷 SWOT Analysis <span class="tag">AUTO + EDITABLE</span></h2>
+  <div class="sub">Auto-generated from CMA projections. Edit any point to customise.</div>
+  <div class="btnbar" style="flex-wrap:wrap;gap:6px;">
+    <button class="btn btn-green" onclick="generateNUSWOT()">⚡ Generate from CMA</button>
+    <button class="btn btn-secondary btn-sm" onclick="addNUSwot('S')">+ Strength</button>
+    <button class="btn btn-secondary btn-sm" onclick="addNUSwot('W')">+ Weakness</button>
+    <button class="btn btn-secondary btn-sm" onclick="addNUSwot('O')">+ Opportunity</button>
+    <button class="btn btn-secondary btn-sm" onclick="addNUSwot('T')">+ Threat</button>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+  <div class="card" style="border-top:4px solid #1a7a4a;">
+    <h2 style="color:#1a7a4a;">💪 STRENGTHS</h2>
+    <div id="nuSwotS"></div>
+  </div>
+  <div class="card" style="border-top:4px solid #c0392b;">
+    <h2 style="color:#c0392b;">⚠ WEAKNESSES</h2>
+    <div id="nuSwotW"></div>
+  </div>
+  <div class="card" style="border-top:4px solid #1565C0;">
+    <h2 style="color:#1565C0;">🚀 OPPORTUNITIES</h2>
+    <div id="nuSwotO"></div>
+  </div>
+  <div class="card" style="border-top:4px solid #b07800;">
+    <h2 style="color:#b07800;">🌩 THREATS</h2>
+    <div id="nuSwotT"></div>
+  </div>
+</div>
+<div class="card" id="nuSwotSummaryCard" style="display:none;">
+  <h2>🏁 SWOT Summary & Credit Implications</h2>
+  <div id="nuSwotSummary"></div>
+</div>
+</div>
+
+<!-- ── REPAYMENT SCHEDULE ── -->
+<div class="panel" id="panel-nu-repayment">
+<div class="card">
+  <h2>📅 TL Repayment Schedule <span class="tag">FULL AMORTISATION</span></h2>
+  <div class="sub">Complete month-by-month schedule from disbursement to final payment. Enter loan details in Step 2 first.</div>
+  <div id="nuRepayNoData" class="note">⚠ Generate CMA first (Step 5 → Generate Full CMA).</div>
+  <div id="nuRepayContent" style="display:none;">
+    <div id="nuRepayHeader" style="margin-bottom:10px;"></div>
+    <div class="btnbar">
+      <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨 Print / PDF</button>
+    </div>
+    <div style="max-height:70vh;overflow-y:auto;" class="scrollx">
+      <table id="nuRepayTable" style="border-collapse:collapse;font-size:0.78rem;min-width:700px;width:100%;"></table>
+    </div>
+    <div id="nuRepaySummary" style="margin-top:10px;"></div>
+  </div>
 </div>
 </div>
 
@@ -981,6 +1041,8 @@ function goStep(s){
   if(s==='monitor'){populateNUMonitor();}
   if(s==='help'){showNUHelp('overview');}
   if(s==='industry'){renderNUIndustryGrid();}
+  if(s==='swot'){if(!NU_SWOT.S||!NU_SWOT.S.length){if(C&&C.data&&C.data.length)generateNUSWOT();else renderNUSWOT();}else renderNUSWOT();}
+  if(s==='repayment'){renderNURepaymentSchedule();}
 }
 document.querySelectorAll('.step-btn').forEach(function(b){
   b.addEventListener('click',function(){
@@ -2168,9 +2230,16 @@ function initNUSensitivity(){
   var debDays=d0.debtors>0&&d0.sales>0?Math.round(d0.debtors/d0.sales*365):60;
   function setB(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
   setB('nuSensBaseRev','₹'+nuFmt(d0.sales)+'K');
-  setB('nuSensBaseCogs','₹'+nuFmt(d0.cogs)+'K ('+Math.round(d0.cogs/Math.max(d0.sales,1)*100)+'%)');
+  setB('nuSensBaseCogs','₹'+nuFmt(d0.cogs)+'K ('+Math.round(d0.cogs/Math.max(d0.sales,1)*100)+'% sales)');
   setB('nuSensBaseInt','₹'+nuFmt(d0.interest||0)+'K');
   setB('nuSensBaseDeb',debDays+' days');
+  // Clear stressed column
+  ['nuSensStressRev','nuSensStressCogs','nuSensStressInt','nuSensStressDeb'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.textContent='—';
+  });
+  ['nuSensImpRev','nuSensImpCogs','nuSensImpInt','nuSensImpDeb'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.textContent='—';
+  });
   runNUSensitivity();
 }
 function nuSensUpdate(){}  // legacy stub
@@ -2219,7 +2288,7 @@ function runNUSensitivity(){
   var newDSCR=(tlInt+tlPrin)>0?(newCash+tlInt)/(tlInt+tlPrin):0;
   var newCR=(otherCL+newMPBF)>0?Math.round(newCA/(otherCL+newMPBF)*100)/100:0;
 
-  // Update stressed column
+  // Update stressed column in input table
   function setS(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
   function setImp(id,nv,bv,goodIfUp){
     var el=document.getElementById(id);if(!el)return;
@@ -2768,233 +2837,247 @@ function copyNUText(id){
 
 /* ── COMPLETE HELP SYSTEM ── */
 var NU_HELP={
-  overview:'<h3 style="color:var(--green);">📋 CMA New Unit Generator — Overview</h3>'
-    +'<p>This app generates complete CMA (Credit Monitoring Arrangement) data for <b>new business units with no financial history</b>. It follows RBI/IBA guidelines and Tandon Committee norms for Working Capital assessment.</p>'
-    +'<h4>How to use — complete workflow:</h4>'
-    +'<ol><li><b>Step 1 — Unit Info:</b> Enter name, industry, bank, base year.</li>'
-    +'<li><b>Step 2 — Capital & Loan:</b> Enter capital, TL amount, rate, tenure, moratorium.</li>'
-    +'<li><b>Step 3 — Fixed Assets:</b> Enter asset costs and depreciation rates. Project cost verified.</li>'
-    +'<li><b>Step 4 — Sales & Costs:</b> Year 1 sales, growth %, cost ratios.</li>'
-    +'<li><b>Step 5 — Holding Norms:</b> Debtor days, stock days, creditor days, NFB limits.</li>'
-    +'<li><b>6. CMA Results:</b> Click Generate CMA — all 5 years auto-projected.</li>'
-    +'<li>Review Dashboard, Risk Rating, AI Appraisal, Sanction, Project Report.</li>'
-    +'<li>Export to Excel/JSON/Word. Upload to GitHub Pages for sharing.</li></ol>',
+  overview:'<h3 style="color:var(--green);">📋 CMA New Unit Generator — Complete Guide</h3>'
+    +'<p>This app generates complete CMA (Credit Monitoring Arrangement) data for <b>new MSME units with no financial history</b>. Follows RBI/IBA guidelines and Tandon Committee norms.</p>'
+    +'<h4>Complete Workflow (21 tabs):</h4>'
+    +'<ol style="font-size:0.85rem;line-height:1.9;">'
+    +'<li><b>🏭 Industry Templates</b> — Select industry to auto-fill cost ratios and holding norms (do this first)</li>'
+    +'<li><b>Step 1 — Unit Info</b> — Name, constitution, industry type, bank, base year</li>'
+    +'<li><b>Step 2 — Capital & Loan</b> — Own capital, TL amount, rate, tenure, moratorium, WC rate</li>'
+    +'<li><b>Step 3 — Fixed Assets</b> — Asset costs, depreciation rates, project cost verification</li>'
+    +'<li><b>Step 4 — Sales & Costs</b> — Year 1 sales, growth rate, cost ratios, export %</li>'
+    +'<li><b>Step 5 — Holding Norms</b> — Debtor/stock/creditor days, NFB limits → Generate CMA</li>'
+    +'<li><b>Step 6 — CMA Results</b> — All CMA forms I–V, ratios, BEP, IRR, Sales Analysis, EMI</li>'
+    +'<li><b>🏦 Dashboard</b> — KPIs, Credit Rating, Auto Remarks, 4 charts</li>'
+    +'<li><b>⭐ Risk Rating</b> — Automatic credit scoring AAA→High Risk</li>'
+    +'<li><b>🤖 AI Appraisal</b> — Complete CAN auto-generated from projections</li>'
+    +'<li><b>✅ Sanction</b> — Limits, security, disbursement schedule, conditions</li>'
+    +'<li><b>📄 Project Report</b> — Narrative report for bank submission</li>'
+    +'<li><b>🔷 SWOT</b> — SWOT analysis auto-generated from CMA, fully editable</li>'
+    +'<li><b>📅 Repayment</b> — Full month-by-month TL amortisation schedule</li>'
+    +'<li><b>📁 Files</b> — JSON backup, Excel export, Word export, import</li>'
+    +'<li><b>📊 Monitoring</b> — Implementation milestones, disbursement tracker</li>'
+    +'<li><b>📐 Sensitivity</b> — What-if stress testing with editable % inputs</li>'
+    +'<li><b>🏠 Collateral</b> — Property details, FSV, LTV calculation</li>'
+    +'<li><b>📦 Stock Stmt</b> — Monthly Drawing Power for post-disbursement monitoring</li>'
+    +'<li><b>🔍 Errors</b> — 15+ automated validation checks on projections</li>'
+    +'<li><b>Help / Manual</b> — This guide</li></ol>',
 
-  step1:'<h3 style="color:var(--green);">1. Unit Info</h3>'
-    +'<p><b>Unit Name:</b> Full legal name of the proposed enterprise.</p>'
-    +'<p><b>Constitution:</b> Proprietorship / Partnership / LLP / Private Limited / Public Limited.</p>'
-    +'<p><b>Industry Type:</b> Manufacturing / Trading / Service. This determines which cost items appear in Steps 4 and 5.</p>'
-    +'<p><b>Bank / Branch:</b> Name of the financing bank and branch for the appraisal.</p>'
-    +'<p><b>Base Year:</b> The year from which projections start (e.g. 31-Mar-2026 = FY 2025-26).</p>'
-    +'<p><b>Number of Years:</b> How many years to project (default 5, can set 3 to 7).</p>'
-    +'<p>Use the 🏭 Industry Templates tab to auto-fill cost ratios and holding norms for 18 common industries.</p>',
+  step1:'<h3 style="color:var(--green);">Step 1 — Unit Info</h3>'
+    +'<p><b>Unit Name:</b> Full legal name of the proposed enterprise as per registration documents.</p>'
+    +'<p><b>Constitution:</b> Proprietorship (sole owner), Partnership, LLP (Limited Liability Partnership), Private Limited Company, Public Limited Company.</p>'
+    +'<p><b>Industry Type:</b> Manufacturing / Trading / Service. This determines which cost items appear in Step 4 and Step 5. Use 🏭 Industry Templates tab to auto-select.</p>'
+    +'<p><b>Nature of Business:</b> Brief description — e.g. "Steel fabrication and structural work" or "Retail pharmacy".</p>'
+    +'<p><b>Bank Name / Branch:</b> The financing bank and branch where loan application is being made.</p>'
+    +'<p><b>Base Year:</b> First projected year — e.g. 31-Mar-2026 means projections start from FY 2025-26.</p>'
+    +'<p><b>Number of Projection Years:</b> Typically 5 years. Can be 3 to 7 years. Should cover at least the full TL tenure.</p>'
+    +'<p><b>Tip:</b> Use 🏭 Industry Templates tab before Step 1 — it auto-fills cost benchmarks for 18 industries.</p>',
 
-  step2:'<h3 style="color:var(--green);">2. Capital & Loan</h3>'
-    +'<p><b>Own Capital:</b> Promoter\'s equity contribution. A higher capital % (≥30%) improves credit rating and reduces D/E ratio.</p>'
-    +'<p><b>Unsecured Loans:</b> Friends, family, or promoter loans that do not bear interest or have flexible repayment.</p>'
-    +'<p><b>Term Loan Amount:</b> Bank finance sought for fixed assets.</p>'
-    +'<p><b>Interest Rate:</b> Annual rate. Use current MCLR + spread for your bank.</p>'
-    +'<p><b>Tenure:</b> Total loan period in months including moratorium.</p>'
-    +'<p><b>Moratorium:</b> Grace period before EMI starts — typically 6 to 18 months for new projects.</p>'
-    +'<p><b>WC Interest Rate:</b> Rate on Cash Credit / Working Capital limit.</p>'
-    +'<p><b>Tax Rate:</b> Effective income tax rate on profits (default 25%).</p>',
+  step2:'<h3 style="color:var(--green);">Step 2 — Capital & Loan</h3>'
+    +'<p><b>Promoter Capital (Own Contribution):</b> Cash invested by promoter from own savings. Minimum 25% of project cost is norm. Higher equity = lower risk for bank.</p>'
+    +'<p><b>Unsecured Loans:</b> Loans from friends, family or promoter\'s other sources — interest-free or below market rate, with flexible repayment. Treated as quasi-equity.</p>'
+    +'<p><b>Term Loan Amount:</b> Bank finance for fixed assets. Should not exceed 75% of project cost (25% promoter margin).</p>'
+    +'<p><b>TL Interest Rate:</b> Annual rate (%). Use current MCLR + applicable spread. Typically 9–12% for MSME in 2025.</p>'
+    +'<p><b>TL Tenure:</b> Total loan period in months including moratorium. Typically 60–84 months (5–7 years).</p>'
+    +'<p><b>Moratorium:</b> Grace period before EMI starts. Typically 6–18 months — covers implementation period. Only interest payable during moratorium.</p>'
+    +'<p><b>WC Rate:</b> Interest rate on Cash Credit / Working Capital limit. Usually MCLR + spread, slightly higher than TL rate.</p>'
+    +'<p><b>Tax Rate:</b> Effective income tax rate on net profit. 25% for companies; lower for proprietorship/partnership based on slab.</p>'
+    +'<p><b>WC Bank Margin:</b> Promoter must fund minimum 25% of Current Assets from own sources (Tandon norm). Bank funds balance as CC limit.</p>',
 
-  step3:'<h3 style="color:var(--green);">3. Fixed Assets & Project Cost</h3>'
-    +'<p>Enter the cost of each asset class. Depreciation is calculated using WDV (Written Down Value) method at rates you specify.</p>'
-    +'<p><b>Land & Building:</b> Cost of land + construction. Depreciation rate typically 5% (SLM) or 10% (WDV).</p>'
-    +'<p><b>Plant & Machinery:</b> Cost of all production equipment. WDV rate typically 15%.</p>'
-    +'<p><b>Furniture & Fixtures:</b> Office furniture, computers, fittings. WDV 10%.</p>'
-    +'<p><b>Other Fixed Assets:</b> Vehicles, lab equipment, tools. WDV 15%.</p>'
-    +'<p><b>Project Cost verification:</b> Total Fixed Assets + WC Margin must equal Capital + Unsecured Loans + Term Loan. Any gap shown as Shortfall — revise loan amount.</p>',
+  step3:'<h3 style="color:var(--green);">Step 3 — Fixed Assets & Project Cost</h3>'
+    +'<p>Enter cost of each asset class. Depreciation computed using WDV (Written Down Value) method.</p>'
+    +'<table style="width:100%;font-size:0.82rem;border-collapse:collapse;margin-top:8px;">'
+    +'<tr style="background:#0a1628;color:#fff;"><th style="padding:5px;text-align:left;">Asset</th><th style="padding:5px;">Typical Cost</th><th style="padding:5px;">WDV Dep Rate</th></tr>'
+    +[['Land & Building','Site + civil construction cost','5% SLM or 10% WDV'],
+      ['Plant & Machinery','Machinery cost as per quotations','15% WDV (standard MSME)'],
+      ['Furniture & Fixtures','Office furniture, computers, fittings','10% WDV'],
+      ['Other Fixed Assets','Vehicles, lab equipment, tools','15% WDV'],
+      ['Preliminary Expenses','Registration, project report fees','20% (written off in 5 yrs)']]
+    .map(function(r,i){return '<tr style="background:'+(i%2===0?'#f0f8f5':'#fff')+'"><td style="padding:4px 6px;font-weight:700;">'+r[0]+'</td><td style="padding:4px 6px;">'+r[1]+'</td><td style="padding:4px 6px;font-family:\'Courier New\',monospace;">'+r[2]+'</td></tr>';}).join('')
+    +'</table>'
+    +'<p style="margin-top:8px;"><b>Project Cost Verification:</b> Total FA + WC Margin must equal Capital + Unsecured Loans + Term Loan. Shortfall must be funded — revise loan or capital. Surplus means loan can be reduced.</p>'
+    +'<p><b>WC Margin:</b> 25% of Year 1 Current Assets — promoter\'s own contribution to working capital (Tandon norm).</p>',
 
-  step4:'<h3 style="color:var(--green);">4. Sales & Costs</h3>'
-    +'<p><b>Year 1 Sales:</b> Realistic first-year revenue. Should be conservative — banks scrutinise this carefully.</p>'
-    +'<p><b>Sales Growth %:</b> Annual growth rate. Use industry benchmarks (use 🏭 Industry Templates for guidance).</p>'
-    +'<p><b>Cost ratios (% of Sales):</b></p>'
-    +'<ul><li>COGS / Raw Material: Main direct cost</li><li>Direct Labour: For manufacturing</li><li>Power & Fuel: Utility costs</li><li>Admin Expenses: Overheads</li></ul>'
-    +'<p><b>Export %:</b> Portion of sales that is exports (direct + deemed). Affects NFB limits.</p>'
-    +'<p><b>Imported RM %:</b> Portion of raw materials that are imported. Affects FLC limits.</p>'
-    +'<p>Use Benchmark chips (shown below each field) for industry-standard values.</p>',
+  step4:'<h3 style="color:var(--green);">Step 4 — Sales & Costs</h3>'
+    +'<p><b>Year 1 Sales:</b> First year projected revenue. Must be <b>conservative and justifiable</b> — banks scrutinise this carefully. Base on: installed capacity × utilisation (typically 60–70% in Y1), market survey, orders in hand, or comparable units.</p>'
+    +'<p><b>Sales Growth %:</b> Annual growth rate for Y2 onwards. Typical: 10–20% for manufacturing, 15–25% for trading, 10–15% for service. Use industry templates for benchmarks.</p>'
+    +'<h4>Cost Ratios (% of Sales):</h4>'
+    +'<ul style="font-size:0.85rem;line-height:1.8;">'
+    +'<li><b>Raw Material / Purchases:</b> Main input cost. Manufacturing: 45–65%. Trading: 70–85%. Service: 20–40%.</li>'
+    +'<li><b>Direct Labour:</b> Workers directly involved in production. Typically 8–15% for manufacturing.</li>'
+    +'<li><b>Power & Fuel:</b> Electricity, fuel for production. 3–10% depending on industry.</li>'
+    +'<li><b>Other Manufacturing Expenses:</b> Repairs, consumables, packing. 2–5%.</li>'
+    +'<li><b>Admin / Overheads:</b> Salaries (non-production), rent, communication, office expenses. 8–15%.</li></ul>'
+    +'<p><b>Other Income:</b> Non-operating income — interest on FD, scrap sales, rental income. Keep conservative (0.5–1% of sales).</p>'
+    +'<p><b>Export %:</b> Portion of sales that is exports. Affects NFB (FLC) limits calculation.</p>',
 
-  step5:'<h3 style="color:var(--green);">5. Holding Norms & NFB Limits</h3>'
-    +'<p><b>Debtor Days:</b> Average credit period given to customers. Controls Sundry Debtors in BS.</p>'
-    +'<p><b>RM / Stock Days:</b> Average inventory holding in days. Controls Raw Material Stock in BS.</p>'
-    +'<p><b>Creditor Days:</b> Average credit period received from suppliers. Controls Sundry Creditors.</p>'
-    +'<p><b>WC Bank Margin %:</b> Promoter\'s margin on Working Capital (default 25%). MPBF = 75% of CA − Other CL.</p>'
-    +'<p><b>ILC (Inland Letter of Credit):</b> Bank guarantee for domestic suppliers. Formula: Indigenous Purchases × Credit Days ÷ 365 × (1 − Margin%).</p>'
-    +'<p><b>FLC (Foreign LC):</b> Bank guarantee for imports. Formula: Imported Purchases × Usance Days ÷ 365 × (1 − Margin%).</p>'
-    +'<p><b>Bank Guarantee (BG):</b> For govt / tender contracts. Formula: Contract Value × BG Margin %.</p>',
+  step5:'<h3 style="color:var(--green);">Step 5 — Holding Norms & NFB Limits</h3>'
+    +'<p>Holding norms determine Current Assets and Current Liabilities, which determine MPBF (Working Capital limit).</p>'
+    +'<table style="width:100%;font-size:0.82rem;border-collapse:collapse;margin-top:8px;">'
+    +'<tr style="background:#0a1628;color:#fff;"><th style="padding:5px;text-align:left;">Norm</th><th style="padding:5px;">Formula</th><th style="padding:5px;">Typical Range</th></tr>'
+    +[['Debtor Days','Sundry Debtors = Sales × Days ÷ 365','30–90 days'],
+      ['RM Days','RM Stock = Purchases × Days ÷ 365','15–60 days'],
+      ['WIP Days','WIP = COGS × Days ÷ 365','7–30 days'],
+      ['FG Days','Finished Goods = COGS × Days ÷ 365','15–45 days'],
+      ['Creditor Days','Sundry Creditors = Purchases × Days ÷ 365','15–45 days'],
+      ['Cash in Hand','1–2% of annual sales','-']]
+    .map(function(r,i){return '<tr style="background:'+(i%2===0?'#f0f8f5':'#fff')+'"><td style="padding:4px 6px;font-weight:700;">'+r[0]+'</td><td style="padding:4px 6px;font-family:\'Courier New\',monospace;">'+r[1]+'</td><td style="padding:4px 6px;">'+r[2]+'</td></tr>';}).join('')
+    +'</table>'
+    +'<h4 style="margin-top:8px;">Non-Fund Based (NFB) Limits:</h4>'
+    +'<ul style="font-size:0.85rem;line-height:1.8;">'
+    +'<li><b>ILC (Inland LC):</b> For domestic purchases on credit. Formula: Indigenous Purchases × Credit Period ÷ 365 × (1 − Margin%)</li>'
+    +'<li><b>FLC (Foreign LC):</b> For imports. Formula: Imported Purchases × Usance Days ÷ 365 × (1 − Margin%)</li>'
+    +'<li><b>BG (Bank Guarantee):</b> For government/tender contracts. Formula: Contract Value × BG Margin%</li></ul>',
 
-  step6:'<h3 style="color:var(--green);">6. CMA Results — All Reports</h3>'
-    +'<p>After tapping <b>Generate Full CMA</b>, the following are auto-computed for all projected years:</p>'
-    +'<ul><li><b>CMA Form I:</b> Operating Statement — Sales, COGS, GP, Admin, Dep, Interest, PAT.</li>'
-    +'<li><b>CMA Form II:</b> Balance Sheet Analysis — NW, LT, CA/CL.</li>'
-    +'<li><b>CMA Form III:</b> Comparative CA & CL — MPBF computation.</li>'
-    +'<li><b>CMA Form V:</b> MPBF — Maximum Permissible Bank Finance (Tandon Method I).</li>'
-    +'<li><b>Ratio Analysis:</b> CR, D/E, TOL/TNW, DSCR, GP%, NP%.</li>'
-    +'<li><b>Break-Even:</b> BEP Sales, Margin of Safety, P/V Ratio, Cash BEP.</li>'
-    +'<li><b>IRR / NPV:</b> Project return on investment.</li>'
-    +'<li><b>Sales Analysis:</b> Export/Cash/Credit split, indigenous/imported purchases.</li>'
-    +'<li><b>NFB Limits:</b> ILC, FLC, BG auto-calculated.</li>'
-    +'<li><b>EMI Schedule:</b> Monthly TL amortization table with moratorium.</li>'
-    +'<li><b>Export Excel:</b> All CMA tables in formatted Excel workbook.</li></ul>',
+  step6:'<h3 style="color:var(--green);">Step 6 — CMA Results</h3>'
+    +'<p>After tapping <b>⚡ Generate Full CMA</b>, all the following are auto-computed for all projected years:</p>'
+    +'<div style="display:grid;gap:6px;margin-top:8px;">'
+    +[['CMA Form I — Operating Statement','Sales → COGS → Gross Profit → Admin → Depreciation → Interest → Tax → PAT'],
+      ['CMA Form II — Balance Sheet','NFA + CA vs Net Worth + LT Loans + CL — full BS for each year'],
+      ['CMA Form III — CA & CL Analysis','Current Assets and Current Liabilities broken down by component'],
+      ['CMA Form V — MPBF','4 methods: Turnover Method, MPBF I, MPBF II, Cash Budget Method'],
+      ['Ratio Analysis','Current Ratio, D/E, TOL/TNW, DSCR, GP%, NP%, ISCR — all years'],
+      ['Break-Even Analysis','BEP Sales, P/V Ratio, Margin of Safety, Cash BEP'],
+      ['IRR / NPV','Project return vs cost of capital; NPV at your discount rate'],
+      ['Sales Analysis','Export/Cash/Credit split; Indigenous/Imported purchase breakdown'],
+      ['NFB Limits','ILC, FLC, BG auto-calculated from holding norms'],
+      ['EMI Schedule','Month-by-month TL amortisation (full schedule in 📅 Repayment tab)'],
+      ['Export to Excel','All tables in formatted .xlsx workbook with multiple sheets']]
+    .map(function(r){return '<div style="padding:7px 10px;background:var(--light);border-left:3px solid var(--green);border-radius:0 4px 4px 0;font-size:0.82rem;"><b>'+r[0]+'</b> — '+r[1]+'</div>';}).join('')+'</div>',
 
-  hdash:'<h3 style="color:var(--green);">🏦 Banker\'s Dashboard</h3>'
-    +'<p>The Dashboard provides an instant overview of all key financial parameters with Green / Amber / Red (RAG) indicators. Generate CMA first, then open this tab.</p>'
-    +'<p><b>KPI Grid:</b> Y1 Sales, Y1 PAT, Current Ratio, Avg DSCR, MPBF, IRR, BEP, Margin of Safety, Investment, Term Loan — all shown with colour coding against bank norms.</p>'
-    +'<p><b>Credit Rating:</b> Auto-computed AAA / AA / A / BBB / BB / B / High Risk based on 7 financial parameters. Score shown out of 100.</p>'
-    +'<p><b>Automatic Remarks:</b> System generates banker-style remarks — "Unit profitable from Y1", "DSCR meets bank norm", "IRR exceeds cost of capital" etc.</p>'
-    +'<p><b>4 Trend Charts:</b> Sales & PAT trend, DSCR trend, MPBF vs CC, Cash Accrual.</p>'
-    +'<p><b>Recommendation:</b> Overall sanction / decline recommendation based on credit score.</p>',
+  hdash:'<h3 style="color:var(--green);">🏦 Dashboard</h3>'
+    +'<p>Opens after CMA generation. Shows all key financial parameters with 🟢🟡🔴 colour coding.</p>'
+    +'<p><b>10 KPI Indicators:</b> Y1 Sales, Y1 PAT, Current Ratio, Avg DSCR, MPBF, IRR, BEP, Margin of Safety, Project Investment, Term Loan — each colour-coded against bank norms.</p>'
+    +'<p><b>Credit Rating:</b> AAA / AA / A / BBB / BB / B / High Risk — computed from 7 weighted parameters.</p>'
+    +'<p><b>Automatic Remarks:</b> 7 banker-style observations — profitability, DSCR, IRR viability, BEP cushion, margin safety, IRR vs benchmark, new unit note.</p>'
+    +'<p><b>4 Trend Charts:</b> Sales & PAT, DSCR trend vs norm, MPBF vs CC, Cash Accrual trend.</p>'
+    +'<p><b>Recommendation:</b> Recommend / Recommend with Conditions / Refer / Decline — from credit score.</p>',
 
   hindustry:'<h3 style="color:var(--green);">🏭 Industry Templates</h3>'
-    +'<p>One-tap selection of 18 industry types. Each template auto-fills:</p>'
-    +'<ul><li>Industry type (Manufacturing / Trading / Service)</li>'
-    +'<li>COGS / Direct Cost % of Sales — industry benchmark</li>'
-    +'<li>Admin Expenses % of Sales</li>'
-    +'<li>Debtor Days, Stock / RM Days, Creditor Days — typical holding norms</li></ul>'
-    +'<p>Available industries: Rice Mill, Flour Mill, Dairy, Medical Store, Grocery Shop, Hotel, Restaurant, Petrol Pump, Transport, Hospital, Engineering, Textile, Poultry, School, Automobile Dealer, Plastic, Furniture, Service Centre.</p>'
-    +'<p>After applying a template, go to Steps 4 and 5 to review and adjust the pre-filled values if needed. The template values are benchmarks — your actual unit may differ.</p>',
+    +'<p>Select industry type to auto-fill all cost ratios and holding norms. Available: Rice Mill, Flour Mill, Dairy, Medical Store, Grocery, Hotel, Restaurant, Petrol Pump, Transport, Hospital, Engineering, Textile, Poultry, School, Auto Dealer, Plastic, Furniture, Service Centre.</p>'
+    +'<p>Each template sets: Industry type (Mfg/Trading/Service), COGS%, Admin%, Debtor Days, RM Days, FG Days, Creditor Days.</p>'
+    +'<p><b>Use before Step 4 and 5</b> — tap Apply, then review and adjust the pre-filled values for your specific unit. Templates are benchmarks, not fixed rules.</p>',
 
   hrisk:'<h3 style="color:var(--green);">⭐ Risk Rating</h3>'
-    +'<p>Automatic credit scoring based on projected financials. Generate CMA first.</p>'
-    +'<p><b>Parameters scored (0–10 each):</b></p>'
-    +'<ul><li>Current Ratio — Weight 15%</li>'
-    +'<li>Average DSCR — Weight 20%</li>'
-    +'<li>IRR vs Cost of Capital — Weight 15%</li>'
-    +'<li>Y1 Net Profit Margin — Weight 10%</li>'
-    +'<li>Promoter Equity % — Weight 15%</li>'
-    +'<li>Y1 Margin of Safety — Weight 10%</li>'
-    +'<li>Debt-Equity Ratio — Weight 10%</li>'
-    +'<li>Industry Risk — Weight 5%</li></ul>'
-    +'<p><b>Rating scale:</b> Score ≥ 85 = AAA | ≥ 75 = AA | ≥ 65 = A | ≥ 55 = BBB | ≥ 45 = BB | ≥ 35 = B | Below = High Risk.</p>'
-    +'<p>RBI Grade 1 (Minimal Risk) to Grade 8 (Default).</p>',
+    +'<p>Auto credit scoring — generate CMA first. Scores 8 parameters (0–10 each) with weights:</p>'
+    +'<ul style="font-size:0.85rem;line-height:1.9;">'
+    +'<li>Current Ratio — 15% weight | ≥1.33 = 10, ≥1.25 = 6, ≥1.0 = 3</li>'
+    +'<li>Average DSCR — 20% weight | ≥2.0 = 10, ≥1.5 = 7, ≥1.0 = 4</li>'
+    +'<li>IRR vs Cost of Capital — 15% weight | ≥18% = 10, ≥14% = 7, ≥12% = 4</li>'
+    +'<li>Y1 NP Margin — 10% weight | ≥15% = 10, ≥8% = 8, ≥3% = 5</li>'
+    +'<li>Promoter Equity % — 15% weight | ≥40% = 10, ≥30% = 8, ≥20% = 5</li>'
+    +'<li>Margin of Safety Y1 — 10% weight | ≥30% = 10, ≥20% = 7, ≥10% = 4</li>'
+    +'<li>D/E Ratio — 10% weight | ≤1 = 10, ≤2 = 7, ≤3 = 4</li>'
+    +'<li>Industry Risk — 5% weight</li></ul>'
+    +'<p>Rating: ≥85=AAA | ≥75=AA | ≥65=A | ≥55=BBB | ≥45=BB | ≥35=B | below=High Risk. RBI Grade 1–8.</p>',
 
   hai:'<h3 style="color:var(--green);">🤖 AI Credit Appraisal</h3>'
-    +'<p>The AI tab generates a complete <b>Credit Appraisal Note (CAN)</b> exactly as a bank officer writes it. This uses Claude AI (requires internet connection).</p>'
-    +'<p><b>What is generated:</b></p>'
-    +'<ol><li>Unit / Project Background</li>'
-    +'<li>Promoter Profile & Track Record</li>'
-    +'<li>Project Description & Technical Feasibility</li>'
-    +'<li>Market & Industry Analysis</li>'
-    +'<li>Financial Projections Analysis (with specific numbers)</li>'
-    +'<li>Project Cost & Means of Finance</li>'
-    +'<li>Working Capital Assessment (MPBF)</li>'
-    +'<li>DSCR & Repayment Capacity</li>'
-    +'<li>IRR & Project Viability</li>'
-    +'<li>Risk Assessment & Mitigants</li>'
-    +'<li>Security (CGTMSE recommended for MSME)</li>'
-    +'<li>Overall Assessment & Recommendation</li>'
-    +'<li>Proposed Terms & Conditions</li></ol>'
-    +'<p>Enter loan purpose and promoter background before generating for best results. Takes 30–60 seconds. Copy output for use in bank submission.</p>',
+    +'<p>Auto-generates a complete 10-section Credit Appraisal Note from your CMA projections. No API key or internet needed — works entirely offline.</p>'
+    +'<p><b>Sections generated:</b> Background, Promoter Profile, Project Description, Projected Financials (full table), Project Cost vs Means, MPBF (Tandon Method I), DSCR & TL Repayment, IRR & Viability, Risk Assessment (5 risks with mitigants), Recommendation with conditions.</p>'
+    +'<p>Enter <b>Loan Purpose</b> and <b>Promoter Background</b> for more personalised output.</p>'
+    +'<p>Copy output → paste in MS Word → format as bank CAN. Print directly for physical submission.</p>',
 
   hsanction:'<h3 style="color:var(--green);">✅ Sanction Recommendation</h3>'
     +'<p>Auto-generates complete sanction terms in bank format:</p>'
-    +'<ul><li><b>A. Recommended Limits:</b> TL and CC amounts, rates, tenors, CGTMSE cover.</li>'
-    +'<li><b>B. TL Repayment:</b> EMI schedule summary, average DSCR verification.</li>'
-    +'<li><b>C. Disbursement Schedule:</b> Phased disbursement — 25% / 50% / 25% linked to project milestones.</li>'
-    +'<li><b>D. Primary Security:</b> Hypothecation of stocks, debtors, movable assets, mortgage of land & building.</li>'
-    +'<li><b>E. Collateral Security:</b> CGTMSE guarantee, personal guarantee, FD margin.</li>'
-    +'<li><b>F. Conditions Precedent:</b> Documents and clearances required before first disbursement.</li>'
-    +'<li><b>G. Post-Sanction Conditions:</b> Stock statements, QIS, inspections, annual review.</li></ul>'
-    +'<p>Generate CMA first, then tap Generate on this tab. Copy or print for bank submission.</p>',
+    +'<ul style="font-size:0.85rem;line-height:1.9;">'
+    +'<li><b>A. Recommended Limits</b> — TL and CC amounts, rates, tenors, CGTMSE cover</li>'
+    +'<li><b>B. TL Repayment</b> — EMI, moratorium, average DSCR verification</li>'
+    +'<li><b>C. Disbursement Schedule</b> — 3 tranches (25%/50%/25%) linked to milestones</li>'
+    +'<li><b>D. Primary Security</b> — Hypothecation of stocks, debtors, movable assets, mortgage</li>'
+    +'<li><b>E. Collateral</b> — CGTMSE guarantee, personal guarantee, FD margin</li>'
+    +'<li><b>F. Conditions Precedent</b> — Documents before first disbursement</li>'
+    +'<li><b>G. Post-Sanction Conditions</b> — Stock statements, QIS, annual review</li></ul>',
 
   hreport:'<h3 style="color:var(--green);">📄 Project Report</h3>'
-    +'<p>A complete narrative Project Report is auto-generated covering:</p>'
-    +'<ul><li>Executive Summary with all key figures</li>'
-    +'<li>Project Details — cost, funding, EMI</li>'
-    +'<li>Financial Highlights table — all projected years</li>'
-    +'<li>Viability Summary — PAT, DSCR, IRR, Margin of Safety</li></ul>'
-    +'<p>Suitable for bank submission as a standalone document. Print directly from the browser (tap Print button) to save as PDF. Copy button copies plain text for pasting into Word.</p>',
+    +'<p>Generates a complete narrative Project Report covering: Executive Summary, Project Details, Financial Highlights (all years), Viability Assessment (PAT, DSCR, IRR, BEP, Margin of Safety).</p>'
+    +'<p><b>Print to PDF:</b> Tap Print → Save to Files as PDF (on iPhone). Share via email or WhatsApp for bank submission.</p>'
+    +'<p><b>Export Word:</b> Downloads as .txt → open in MS Word → Save As .docx.</p>',
+
+  hswot:'<h3 style="color:var(--green);">🔷 SWOT Analysis</h3>'
+    +'<p>Auto-generates SWOT from your CMA projections. Generate CMA first, then open this tab.</p>'
+    +'<p><b>What is auto-generated:</b></p>'
+    +'<ul style="font-size:0.85rem;line-height:1.9;">'
+    +'<li><b>Strengths:</b> Profitability, DSCR, IRR, equity %, gross margin, margin of safety, CR — all from projections</li>'
+    +'<li><b>Weaknesses:</b> Loss in Y1, DSCR below norm, low IRR, low equity, thin margins, high BEP</li>'
+    +'<li><b>Opportunities:</b> Govt schemes (CGTMSE, MUDRA, PLI), PSL targets, formalisation, e-commerce, exports</li>'
+    +'<li><b>Threats:</b> Implementation risk, market risk, interest rate, raw material cost, competition, compliance</li></ul>'
+    +'<p>Each point is <b>editable</b> (✏ icon) and <b>deletable</b> (✕ icon). Add custom points with + buttons.</p>'
+    +'<p>Summary card shows overall assessment for inclusion in credit proposal. Print or copy.</p>',
+
+  hrepayment:'<h3 style="color:var(--green);">📅 TL Repayment Schedule</h3>'
+    +'<p>Full month-by-month amortisation table from Month 1 to final payment. Generate CMA first (Step 2 must have TL amount, rate and tenure).</p>'
+    +'<p><b>Table shows for every month:</b> Month number, Calendar date, Opening Balance, Interest, Principal, EMI paid, Closing Balance, Type (Moratorium/EMI).</p>'
+    +'<p><b>Moratorium months</b> shown in yellow — only interest payable, no principal reduction.</p>'
+    +'<p><b>Annual subtotals</b> shown after every 12 months — useful for yearly interest cost tracking.</p>'
+    +'<p><b>Summary:</b> Total Principal repaid, Total Interest paid, Total Outflow, Monthly EMI, Effective interest cost % of principal.</p>'
+    +'<p>Print directly for bank submission or physical records.</p>',
 
   hfiles:'<h3 style="color:var(--green);">📁 Files — Export & Import</h3>'
+    +'<p><b>⚠ Important:</b> New Unit Generator does NOT auto-save between sessions. Always export JSON before closing browser.</p>'
     +'<h4>Export JSON Backup:</h4>'
-    +'<p>Saves all your input values (Steps 1–5) and computed projections as a .json file. Save to Google Drive or iCloud. This is your permanent backup.</p>'
-    +'<h4>Export Excel:</h4>'
-    +'<p>Exports all CMA tables (Forms I–V, Ratios, BEP, IRR, Sales Analysis, NFB, EMI) as a formatted Excel workbook with multiple sheets.</p>'
-    +'<h4>Export Word:</h4>'
-    +'<p>Exports projections, sanction terms, and project report as a .txt file — open in MS Word and save as .docx.</p>'
+    +'<p>Saves all inputs (Steps 1–5) and projections as .json file. Save to Google Drive or iCloud. This is your permanent record.</p>'
+    +'<h4>Export Excel (.xlsx):</h4>'
+    +'<p>All CMA tables (Forms I–V, Ratios, BEP, IRR, Sales Analysis, NFB, EMI) in formatted Excel workbook with multiple sheets.</p>'
+    +'<h4>Export Word (.txt → .docx):</h4>'
+    +'<p>Projections table, sanction terms, project report as text file. Open in MS Word → Save As .docx.</p>'
     +'<h4>Import JSON:</h4>'
-    +'<p>Restores key inputs (unit name, bank, capital, loan details) from a previously exported JSON backup. Re-enter Fixed Asset costs and cost ratios in Steps 3–4, then regenerate CMA.</p>'
-    +'<p><b>Important:</b> The New Unit Generator does not auto-save between sessions. Always export JSON before closing the browser.</p>',
+    +'<p>Restores key inputs from backup JSON. Re-enter Fixed Assets (Step 3) and Cost Ratios (Step 4) manually after import, then regenerate CMA.</p>',
 
   hmonitor:'<h3 style="color:var(--green);">📊 Monitoring — Post-Sanction</h3>'
-    +'<p>Track implementation progress after loan disbursement:</p>'
-    +'<h4>Implementation Milestones:</h4>'
-    +'<p>Record planned vs actual dates for: Land / Site, Civil Construction, Machinery Procurement, Machinery Erection & Trial Run, Commercial Production, First EMI. Status: Pending / In Progress / Completed / Delayed.</p>'
-    +'<h4>Disbursement Tracker:</h4>'
-    +'<p>Track the 3 tranches of TL disbursement: 1st tranche (25%) on civil work, 2nd tranche (50%) on machinery erection, 3rd tranche (25%) on commercial production. Dates and status recorded here.</p>'
-    +'<p>After commercial production begins, use the 📦 Stock Statement tab for monthly Drawing Power tracking.</p>',
+    +'<p><b>Implementation Milestones:</b> Record planned vs actual dates for: Land/Site, Civil Construction, Machinery Procurement, Erection & Trial Run, Commercial Production, First EMI. Status: Pending/In Progress/Completed/Delayed.</p>'
+    +'<p><b>Disbursement Tracker:</b> Track 3 TL tranches: 1st (25%) on civil work completion, 2nd (50%) on machinery erection, 3rd (25%) on commercial production start.</p>'
+    +'<p>After production starts, use 📦 Stock Statement tab for monthly Drawing Power tracking.</p>',
 
   hsens:'<h3 style="color:var(--green);">📐 Sensitivity Analysis</h3>'
-    +'<p>Stress-tests the financial projections. Generate CMA first, then use sliders.</p>'
-    +'<p><b>4 parameters can be stressed:</b></p>'
-    +'<ul><li><b>Sales Change %:</b> What if sales are lower/higher than projected?</li>'
-    +'<li><b>COGS % Change:</b> What if raw material costs increase?</li>'
-    +'<li><b>Interest Rate Change (bps):</b> What if RBI increases rates?</li>'
-    +'<li><b>Debtor Days Change:</b> What if collections slow down?</li></ul>'
-    +'<p>Results show the new PAT, Gross Margin, MPBF, and DSCR under stress. Red alerts appear if the unit becomes loss-making or DSCR falls below 1.5.</p>'
-    +'<p>This analysis helps the bank understand the resilience of the project and set appropriate covenants.</p>',
+    +'<p>Stress-tests projections using Y1 as base. Enter exact % change in each field.</p>'
+    +'<p><b>Parameters (all editable):</b></p>'
+    +'<ul style="font-size:0.85rem;line-height:1.9;">'
+    +'<li><b>Sales %:</b> Simulate revenue shortfall (e.g. −20 = sales 20% below projection)</li>'
+    +'<li><b>COGS %:</b> Simulate input cost increase (e.g. +10 = raw material 10% costlier)</li>'
+    +'<li><b>Interest Rate (bps):</b> Simulate rate hike (100 bps = 1% increase)</li>'
+    +'<li><b>Debtor Days:</b> Simulate slower collections (+30 = 30 more days to collect)</li></ul>'
+    +'<p><b>Quick Scenarios:</b> Base | Mild Stress (−10%/+5%) | Moderate (−20%/+10%) | Severe (−30%/+20%) | Optimistic (+15%/−5%)</p>'
+    +'<p><b>Results show:</b> Stressed vs Base for PAT, GP%, MPBF, DSCR, CR — with ✓/⚠ and red alerts.</p>',
 
   hcoll:'<h3 style="color:var(--green);">🏠 Collateral Module</h3>'
-    +'<p>Record all primary and collateral securities offered by the borrower.</p>'
-    +'<p><b>For each security:</b></p>'
-    +'<ul><li><b>Type:</b> Immovable Property / Plant & Machinery / Vehicle / FD / Stock & Debtors / Other</li>'
-    +'<li><b>Owner:</b> Name of property owner</li>'
-    +'<li><b>Market Value (₹\'000s):</b> Current market value as per valuation report</li>'
-    +'<li><b>FSV %:</b> Forced Sale Value % (typically 60% for property, 50% for machinery)</li>'
-    +'<li><b>Charge Type:</b> First Charge Mortgage / Hypothecation / Pledge / Assignment</li></ul>'
-    +'<p><b>Summary shows:</b> Total Market Value, FSV, Distress Value (40%), Total Exposure (TL + CC), and <b>LTV Ratio</b> (Loan to Value). Bank norm: LTV ≤ 75%.</p>'
-    +'<p>For MSME new units, CGTMSE guarantee is recommended as collateral substitute — avoids need for property mortgage up to ₹200 lakh.</p>',
+    +'<p>Record all securities offered. For each: Type, Owner, Location, Market Value, FSV%, Charge Type.</p>'
+    +'<p><b>FSV (Forced Sale Value):</b> Typically 60–65% for residential property, 50–55% for commercial, 40–50% for industrial.</p>'
+    +'<p><b>LTV Ratio:</b> (TL + CC) ÷ Total FSV. Should be ≤75%. Lower is safer for bank.</p>'
+    +'<p><b>CGTMSE:</b> For MSME new units — CGTMSE guarantee covers up to ₹200 lakh without any property collateral. Strongly recommended. Annual guarantee fee applicable.</p>',
 
   hstock:'<h3 style="color:var(--green);">📦 Monthly Stock Statement</h3>'
-    +'<p>For post-disbursement monthly monitoring of the Cash Credit limit.</p>'
-    +'<p><b>Drawing Power (DP) calculation:</b></p>'
-    +'<p>DP = (RM Stock + WIP + FG + Debtors) × (1 − Bank Margin%) − Sundry Creditors</p>'
-    +'<p>The CC outstanding must not exceed the Drawing Power. If CC > DP, it is called "Excess Drawing" — the borrower must immediately regularise by depositing funds.</p>'
-    +'<p><b>Bank Margin:</b> Default 25% (i.e. borrower must fund 25% of CA from own sources). Some banks use 10% for RM, 15% for FG etc.</p>'
-    +'<p><b>Saved statements</b> are stored in the app for trend tracking. Excess drawing history is visible in the table.</p>'
-    +'<p>Submit to bank by 10th of each month. Bank officer verifies against MPBF and previous month\'s statement.</p>',
+    +'<p>For post-disbursement monthly monitoring. Submit to bank by 10th of each month.</p>'
+    +'<p><b>Drawing Power = (RM + WIP + FG + Debtors) × (1 − Margin%) − Creditors</b></p>'
+    +'<p>CC outstanding must not exceed Drawing Power. If CC > DP → Excess Drawing → deposit funds immediately.</p>'
+    +'<p>History saved for trend analysis. Excess drawing pattern is early warning signal.</p>',
 
   herrors:'<h3 style="color:var(--green);">🔍 Error Checker</h3>'
-    +'<p>Runs automated validation checks on your CMA projections. Generate CMA first, then tap Run Full Check.</p>'
-    +'<p><b>Checks performed:</b></p>'
-    +'<ul><li>Y1 to Y5 PAT — positive or negative</li>'
-    +'<li>Balance Sheet tally — Assets = Liabilities</li>'
-    +'<li>Average DSCR vs bank norm (≥1.5)</li>'
-    +'<li>Individual year DSCR below 1.5</li>'
-    +'<li>IRR vs cost of capital (≥14%)</li>'
-    +'<li>BEP as % of sales (should be <70%)</li>'
-    +'<li>Sales growth reasonableness</li>'
-    +'<li>MPBF vs CC limit</li>'
-    +'<li>Project cost vs means of finance</li>'
-    +'<li>Negative values in assets / liabilities</li>'
-    +'<li>Depreciation computed for all years</li></ul>'
-    +'<p>Results shown as: 🔴 ERRORS (must fix), 🟡 WARNINGS (review), 🟢 PASSED (with count).</p>',
+    +'<p>Automated validation — generate CMA first, then tap Run Full Check.</p>'
+    +'<p><b>Checks: </b>Y1–Y5 PAT positive/negative | BS tally | Avg DSCR vs norm | Individual year DSCR | IRR vs 14% | BEP as % of sales | Sales growth reasonableness | MPBF vs CC | Project cost vs means | Negative values in assets | Depreciation computed.</p>'
+    +'<p>Results: 🔴 Errors (must fix) | 🟡 Warnings (review) | 🟢 Passed.</p>',
 
-  glossary:'<h3 style="color:var(--green);">📖 Key Terms & Glossary</h3>'
-    +'<div style="display:grid;gap:8px;">'
-    +['MPBF — Maximum Permissible Bank Finance. Working Capital limit per Tandon Committee. Method I = 75% CA − Other CL.',
-      'DSCR — Debt Service Coverage Ratio = (PAT + Dep + TL Interest) ÷ (TL Principal + TL Interest). Norm ≥ 1.5.',
-      'IRR — Internal Rate of Return. Expected annual return on project investment. Accept if IRR > cost of capital (≥14%).',
-      'BEP — Break-Even Point. Sales level at which profit = zero. BEP = Fixed Costs ÷ P/V Ratio.',
-      'Margin of Safety — (Actual Sales − BEP) ÷ Actual Sales. Higher = safer. Should be ≥ 30%.',
-      'WDV Depreciation — Fixed % on opening book value each year. Amount reduces annually as book value falls.',
-      'TOL/TNW — Total Outside Liabilities ÷ Tangible Net Worth. Leverage ratio. Norm ≤ 3:1.',
-      'ILC — Inland Letter of Credit. Bank guarantee for domestic purchases on credit.',
-      'FLC — Foreign Letter of Credit. Bank guarantee for imports. Usance = credit period from overseas supplier.',
-      'BG — Bank Guarantee. Bank commits to pay a third party on behalf of borrower if borrower defaults.',
-      'CGTMSE — Credit Guarantee Fund Trust for Micro & Small Enterprises. Provides collateral-free guarantee up to ₹200 lakh for MSME loans.',
-      'Moratorium — Grace period at start of TL during which only interest (and not principal) is payable.',
-      'Drawing Power — Maximum amount borrower can draw from CC on a given date = (Stock + Debtors) × (1 − Margin%) − Creditors.',
-      'QIS — Quarterly Information System. Quarterly statement of actuals vs projections submitted to bank for WC limits above ₹2 crore.',
-      'NWC — Net Working Capital = Current Assets − Current Liabilities. Positive NWC = liquidity buffer.',
-      'P/V Ratio — Profit Volume Ratio = Contribution ÷ Sales. Used for BEP calculation. Higher = better.',
-      'SMA — Special Mention Account. Early warning category before NPA. SMA-0 (0 days overdue), SMA-1 (1–30 days), SMA-2 (31–90 days).',
-      'NPA — Non-Performing Asset. Account where interest/principal overdue > 90 days.',
-      'LTV — Loan to Value. Ratio of loan amount to value of security (FSV). Bank norm typically ≤ 75%.']
-    .map(function(t){var p=t.indexOf(' — ');var key=p>-1?t.slice(0,p):t.slice(0,20);var rest=p>-1?t.slice(p+3):t;
-      return '<div style="padding:8px 10px;background:var(--light);border-left:3px solid var(--green);border-radius:0 4px 4px 0;font-size:0.82rem;"><b style="color:var(--navy);">'+key+'</b> — '+rest+'</div>';}).join('')
+  glossary:'<h3 style="color:var(--green);">📖 Key Banking & CMA Terms</h3>'
+    +'<div style="display:grid;gap:6px;">'
+    +[['MPBF','Maximum Permissible Bank Finance. WC limit per Tandon Committee. Method I = 75% CA − Other CL (Other CL excludes CC).'],
+      ['DSCR','Debt Service Coverage Ratio = (PAT + Dep + TL Interest) ÷ (TL Principal + TL Interest). Bank norm ≥ 1.5.'],
+      ['IRR','Internal Rate of Return. Expected annual % return on project investment. Should exceed 14% for MSME.'],
+      ['BEP','Break-Even Point. Sales level where profit = zero. Formula: Fixed Costs ÷ P/V Ratio.'],
+      ['Margin of Safety','(Projected Sales − BEP) ÷ Sales × 100. Should be ≥30%. Shows cushion above break-even.'],
+      ['Moratorium','Grace period at TL start where only interest is paid (no principal repayment). Typically 6–18 months.'],
+      ['CGTMSE','Credit Guarantee Fund Trust for MSEs. Provides collateral-free guarantee up to ₹200 lakh. Annual fee ~1.5%.'],
+      ['ILC','Inland Letter of Credit. Bank guarantee for domestic purchases on deferred payment basis.'],
+      ['FLC','Foreign Letter of Credit. Bank guarantee for import purchases. Usance = credit period from overseas supplier.'],
+      ['Drawing Power','Maximum CC withdrawal on given date = Eligible Stock/Debtors × (1−Margin%) − Creditors.'],
+      ['TOL/TNW','Total Outside Liabilities ÷ Tangible Net Worth. Leverage ratio. Norm ≤ 3:1.'],
+      ['Cash Accrual','PAT + Depreciation. Funds available for TL repayment and internal investment.'],
+      ['WDV Depreciation','Written Down Value method — fixed % on opening balance each year. Amount reduces annually.'],
+      ['NWC','Net Working Capital = CA − CL. Positive NWC = liquidity buffer. Norm: Promoter funds ≥25% of CA.'],
+      ['QIS','Quarterly Information System. Statement submitted by borrower to bank showing actuals vs projections.'],
+      ['SMA','Special Mention Account. Early warning: SMA-0 (due today), SMA-1 (1–30 days), SMA-2 (31–90 days).'],
+      ['NPA','Non-Performing Asset. Account overdue > 90 days. Substandard → Doubtful → Loss classification.'],
+      ['FSV','Forced Sale Value. Distress sale value of collateral = Market Value × FSV% (typically 50–65%).'],
+      ['LTV','Loan to Value = Loan Amount ÷ FSV. Bank norm typically ≤75%. Lower = better security coverage.']]
+    .map(function(t){return '<div style="padding:7px 10px;background:var(--light);border-left:3px solid var(--green);border-radius:0 4px 4px 0;font-size:0.82rem;"><b style="color:var(--navy);">'+t[0]+':</b> '+t[1]+'</div>';}).join('')
     +'</div>'
 };
 
@@ -3095,6 +3178,213 @@ function renderNUCMA5(){
   }));
 
   document.getElementById('cma5Table').innerHTML=c5;
+}
+
+/* ── NU SWOT ANALYSIS ── */
+var NU_SWOT = {S:[],W:[],O:[],T:[]};
+
+function generateNUSWOT(){
+  if(!C||!C.data||!C.data.length){showErr('Generate CMA first.');return;}
+  var d0=C.data[0], dL=C.data[C.data.length-1];
+  var tl=nuN(document.getElementById('termLoan')?document.getElementById('termLoan').value:0);
+  var cap=nuN(document.getElementById('capital')?document.getElementById('capital').value:0);
+  var dscrArr=C.data.map(function(d){return d.dscr||0;}).filter(function(v){return v>0;});
+  var avgDSCR=dscrArr.length?Math.round(dscrArr.reduce(function(a,b){return a+b;},0)/dscrArr.length*100)/100:0;
+  var irr=(C.irr||0)*100;
+  var equityPct=C.invest>0?Math.round(cap/C.invest*100):0;
+  NU_SWOT={S:[],W:[],O:[],T:[]};
+
+  // STRENGTHS
+  if(d0.pat>0) NU_SWOT.S.push('Unit projected profitable from Year 1 — PAT of ₹'+nuFmt(d0.pat)+'K with '+nuPct(d0.npPct||0)+' net margin.');
+  if(avgDSCR>=1.5) NU_SWOT.S.push('Strong debt service capacity — average DSCR of '+avgDSCR+' meets bank norm of 1.5.');
+  if(irr>=14) NU_SWOT.S.push('Attractive IRR of '+nuPct(irr)+' exceeds cost of capital — project is financially viable.');
+  if(equityPct>=30) NU_SWOT.S.push('Adequate promoter contribution of '+equityPct+'% of project cost — demonstrates financial commitment.');
+  if(d0.gpPct>20) NU_SWOT.S.push('Healthy projected gross margin of '+nuPct(d0.gpPct||0)+' — sound product/service pricing.');
+  if(d0.mos>0&&d0.sales>0&&d0.mos/d0.sales>0.3) NU_SWOT.S.push('Good Margin of Safety of '+Math.round(d0.mos/d0.sales*100)+'% — comfortable buffer above break-even.');
+  var cr=d0.currentRatio||0;
+  if(cr>=1.33) NU_SWOT.S.push('Projected Current Ratio of '+cr.toFixed(2)+' indicates healthy working capital management.');
+  if(C.data.length>1&&dL.pat>d0.pat) NU_SWOT.S.push('Improving profitability trend — PAT grows from ₹'+nuFmt(d0.pat)+'K to ₹'+nuFmt(dL.pat)+'K over project period.');
+  if(NU_SWOT.S.length===0) NU_SWOT.S.push('New unit with sound project structure and experienced promoter.');
+
+  // WEAKNESSES
+  if(d0.pat<=0) NU_SWOT.W.push('Unit projected at loss in Year 1 — PAT = ₹'+nuFmt(d0.pat)+'K. Review pricing and cost assumptions.');
+  if(avgDSCR>0&&avgDSCR<1.5) NU_SWOT.W.push('Average DSCR of '+avgDSCR+' below bank norm of 1.5 — TL repayment stressed. Consider revising tenure or amount.');
+  if(irr>0&&irr<12) NU_SWOT.W.push('IRR of '+nuPct(irr)+' is below minimum threshold — project viability is marginal.');
+  if(equityPct<25) NU_SWOT.W.push('Low promoter equity contribution of '+equityPct+'% — higher exposure for bank. Request additional margin.');
+  if(d0.gpPct<15) NU_SWOT.W.push('Thin gross margin of '+nuPct(d0.gpPct||0)+' — vulnerable to input cost increases.');
+  if(d0.bep>0&&d0.sales>0&&d0.bep/d0.sales>0.75) NU_SWOT.W.push('High break-even point at '+Math.round(d0.bep/d0.sales*100)+'% of projected sales — limited safety margin.');
+  NU_SWOT.W.push('No historical financial track record — projections carry implementation and ramp-up risk.');
+  NU_SWOT.W.push('Dependency on promoter\'s management capability — key-man risk during initial years.');
+  if(NU_SWOT.W.length===1) NU_SWOT.W.push('Initial gestation period — unit will require time to stabilise operations and build market.');
+
+  // OPPORTUNITIES
+  NU_SWOT.O.push('Government\'s Make in India and Aatmanirbhar Bharat thrust provides market opportunity for new manufacturing units.');
+  NU_SWOT.O.push('CGTMSE guarantee scheme enables collateral-free bank finance up to ₹200 lakh for MSME units.');
+  NU_SWOT.O.push('Priority Sector Lending targets create strong bank incentive to support MSME credit at competitive rates.');
+  NU_SWOT.O.push('Formalisation of MSME sector post-GST improves access to institutional credit and supply chain opportunities.');
+  NU_SWOT.O.push('Digital payment infrastructure and e-commerce platforms open new sales channels for MSME products.');
+  NU_SWOT.O.push('PM Vishwakarma, MUDRA and other government schemes provide subsidy and capacity building support.');
+  if(C.data.length>3) NU_SWOT.O.push('Projected revenue growth of ₹'+nuFmt(d0.sales)+'K to ₹'+nuFmt(dL.sales)+'K over '+C.data.length+' years — scaling opportunity.');
+  NU_SWOT.O.push('Technology upgradation loans and cluster development support available from NSIC, SIDBI, and state governments.');
+
+  // THREATS
+  NU_SWOT.T.push('Implementation risk — civil work delays, machinery delivery, trial run issues can disrupt projected timeline.');
+  NU_SWOT.T.push('Market risk — new unit must build customer base; initial sales targets may not be achieved.');
+  NU_SWOT.T.push('Interest rate risk — RBI rate hikes can increase borrowing costs and impact debt service capacity.');
+  NU_SWOT.T.push('Raw material price volatility — input cost increases can compress projected margins.');
+  NU_SWOT.T.push('Competition from established players with cost advantages, brand recognition and existing customer relationships.');
+  NU_SWOT.T.push('Regulatory and compliance requirements — factory licence, pollution NOC, fire NOC, GST registration must be in place.');
+  NU_SWOT.T.push('Working capital stress during ramp-up — collections slower than projected while costs are fixed from Day 1.');
+
+  renderNUSWOT();
+  showOk('SWOT Analysis generated from CMA projections.');
+}
+
+function renderNUSWOT(){
+  var colors={S:'#1a7a4a',W:'#c0392b',O:'#1565C0',T:'#b07800'};
+  var bg={S:'#e8f5e9',W:'#fdecea',O:'#e3f2fd',T:'#fff8e1'};
+  ['S','W','O','T'].forEach(function(k){
+    var el=document.getElementById('nuSwot'+k); if(!el) return;
+    if(!NU_SWOT[k]||!NU_SWOT[k].length){el.innerHTML='<div class="note" style="font-size:0.8rem;">No items. Tap Generate or + button.</div>';return;}
+    el.innerHTML=NU_SWOT[k].map(function(item,i){
+      return '<div style="display:flex;align-items:flex-start;gap:5px;padding:7px 8px;margin-bottom:4px;background:'+bg[k]+';border-radius:4px;border-left:3px solid '+colors[k]+';font-size:0.82rem;">'
+        +'<span style="color:'+colors[k]+';margin-top:1px;">●</span>'
+        +'<div style="flex:1;line-height:1.5;">'+item+'</div>'
+        +'<div style="display:flex;gap:3px;flex-shrink:0;">'
+        +'<button onclick="editNUSwot(\''+k+'\','+i+')" style="background:none;border:none;cursor:pointer;color:var(--sub);">✏</button>'
+        +'<button onclick="removeNUSwot(\''+k+'\','+i+')" style="background:none;border:none;cursor:pointer;color:var(--danger);">✕</button>'
+        +'</div></div>';
+    }).join('');
+  });
+  // Summary
+  var sc=document.getElementById('nuSwotSummaryCard');
+  var ss=document.getElementById('nuSwotSummary');
+  if(sc&&ss){
+    sc.style.display='block';
+    var overall=NU_SWOT.S.length>=NU_SWOT.W.length?'overall viable project with more strengths than weaknesses':'project with significant risk factors requiring careful appraisal';
+    ss.innerHTML='<p style="font-size:0.85rem;line-height:1.8;">The proposed project presents an <b>'+overall+'</b>. '
+      +'The '+NU_SWOT.S.length+' strength'+(NU_SWOT.S.length>1?'s':'')+' identified — particularly '+((NU_SWOT.S[0]||'').slice(0,60))+'... — support the credit case. '
+      +'The '+NU_SWOT.W.length+' weakness'+(NU_SWOT.W.length>1?'es':'')+' and '+NU_SWOT.T.length+' external threats should be addressed through '
+      +'phased disbursement, CGTMSE cover, enhanced monitoring and appropriate covenants.</p>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+      +[['STRENGTHS',NU_SWOT.S.length,'#1a7a4a','#e8f5e9'],['WEAKNESSES',NU_SWOT.W.length,'#c0392b','#fdecea'],
+        ['OPPORTUNITIES',NU_SWOT.O.length,'#1565C0','#e3f2fd'],['THREATS',NU_SWOT.T.length,'#b07800','#fff8e1']]
+      .map(function(r){return '<div style="background:'+r[3]+';padding:10px;border-radius:5px;text-align:center;">'
+        +'<div style="font-size:1.4rem;font-weight:900;color:'+r[2]+';">'+r[1]+'</div>'
+        +'<div style="font-size:0.72rem;font-weight:700;color:'+r[2]+';">'+r[0]+'</div></div>';}).join('')+'</div>';
+  }
+}
+function addNUSwot(key){var t=prompt('Enter '+{S:'Strength',W:'Weakness',O:'Opportunity',T:'Threat'}[key]+':');if(t&&t.trim()){NU_SWOT[key].push(t.trim());renderNUSWOT();}}
+function editNUSwot(key,idx){var t=prompt('Edit:',(NU_SWOT[key]||[])[idx]||'');if(t!==null&&t.trim()){NU_SWOT[key][idx]=t.trim();renderNUSWOT();}}
+function removeNUSwot(key,idx){if(NU_SWOT[key])NU_SWOT[key].splice(idx,1);renderNUSWOT();}
+
+/* ── NU REPAYMENT SCHEDULE ── */
+function renderNURepaymentSchedule(){
+  var noD=document.getElementById('nuRepayNoData');
+  var cont=document.getElementById('nuRepayContent');
+  if(!C||!C.data||!C.data.length){if(noD)noD.style.display='block';if(cont)cont.style.display='none';return;}
+  if(noD)noD.style.display='none';
+  if(cont)cont.style.display='block';
+
+  var principal=nuN(document.getElementById('termLoan')?document.getElementById('termLoan').value:0);
+  var annualRate=nuN(document.getElementById('tlRate')?document.getElementById('tlRate').value:0)/100;
+  var tenureMonths=parseInt(document.getElementById('tlTenure')?document.getElementById('tlTenure').value:60)||60;
+  var moratorium=parseInt(document.getElementById('tlMoratorium')?document.getElementById('tlMoratorium').value:6)||0;
+  var monthlyRate=annualRate/12;
+  var emiMonths=tenureMonths-moratorium;
+
+  if(principal<=0||annualRate<=0||tenureMonths<=0){
+    if(noD){noD.style.display='block';noD.textContent='⚠ Enter Term Loan amount, rate and tenure in Step 2.';}
+    if(cont)cont.style.display='none';
+    return;
+  }
+
+  var emi=0;
+  if(monthlyRate>0&&emiMonths>0){
+    emi=principal*monthlyRate*Math.pow(1+monthlyRate,emiMonths)/(Math.pow(1+monthlyRate,emiMonths)-1);
+  } else {emi=emiMonths>0?principal/emiMonths:0;}
+  emi=Math.round(emi*100)/100;
+
+  // Header
+  document.getElementById('nuRepayHeader').innerHTML=
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;">'
+    +[['TL Amount','₹'+nuFmt(Math.round(principal))+'K'],['Rate',annualRate*100+'% p.a.'],
+      ['Tenure',tenureMonths+' mths'],['Moratorium',moratorium+' mths'],
+      ['EMI Period',emiMonths+' mths'],['Monthly EMI','₹'+nuFmt(Math.round(emi))+'K']]
+    .map(function(r){return '<div style="background:var(--navy);color:#fff;padding:8px;border-radius:5px;text-align:center;">'
+      +'<div style="font-size:0.68rem;opacity:0.8;">'+r[0]+'</div>'
+      +'<div style="font-size:0.9rem;font-weight:800;font-family:\'Courier New\',monospace;">'+r[1]+'</div></div>';}).join('')+'</div>';
+
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var curMo=3,curYr=new Date().getFullYear(); // Default Apr current year
+  var balance=principal,rows=[],totInt=0,totPrin=0;
+
+  for(var m=1;m<=tenureMonths;m++){
+    var label=months[curMo]+'-'+curYr;
+    var intAmt=Math.round(balance*monthlyRate*100)/100;
+    var prinAmt=0,emiPaid=0;
+    if(m<=moratorium){emiPaid=intAmt;prinAmt=0;}
+    else{
+      emiPaid=Math.min(emi,balance+intAmt);
+      prinAmt=Math.round((emiPaid-intAmt)*100)/100;
+      if(prinAmt<0)prinAmt=0;
+      if(m===tenureMonths){prinAmt=balance;emiPaid=Math.round((prinAmt+intAmt)*100)/100;}
+    }
+    totInt+=intAmt;totPrin+=prinAmt;
+    balance=Math.round((balance-prinAmt)*100)/100;
+    if(balance<0)balance=0;
+    rows.push({m:m,label:label,int:intAmt,prin:prinAmt,emi:emiPaid,bal:balance,mora:m<=moratorium});
+    curMo++;if(curMo>=12){curMo=0;curYr++;}
+  }
+
+  var html='<table style="border-collapse:collapse;font-size:0.78rem;width:100%;min-width:680px;">';
+  html+='<tr style="background:var(--navy);color:#fff;">'
+    +'<th style="padding:5px 7px;">#</th><th style="padding:5px 7px;text-align:left;">Month</th>'
+    +'<th style="padding:5px 7px;text-align:right;">Opening (₹K)</th>'
+    +'<th style="padding:5px 7px;text-align:right;color:#ff9999;">Interest</th>'
+    +'<th style="padding:5px 7px;text-align:right;color:#99ccff;">Principal</th>'
+    +'<th style="padding:5px 7px;text-align:right;background:#0e5e4a;">EMI</th>'
+    +'<th style="padding:5px 7px;text-align:right;">Closing</th>'
+    +'<th style="padding:5px 7px;">Type</th></tr>';
+
+  var ytInt=0,ytPrin=0,ytEmi=0;
+  rows.forEach(function(r){
+    var bg=r.mora?'#fff8e1':r.m%2===0?'':'var(--light)';
+    html+='<tr style="background:'+bg+(r.bal<0.01?';border-bottom:3px solid var(--good)':'')+'">'
+      +'<td style="padding:4px 7px;text-align:center;color:var(--sub);font-size:0.72rem;">'+r.m+'</td>'
+      +'<td style="padding:4px 7px;font-weight:700;">'+r.label+'</td>'
+      +'<td style="padding:4px 7px;text-align:right;font-family:\'Courier New\',monospace;">'+nuFmt(Math.round(r.bal+r.prin))+'</td>'
+      +'<td style="padding:4px 7px;text-align:right;font-family:\'Courier New\',monospace;color:#c0392b;">'+nuFmt(Math.round(r.int))+'</td>'
+      +'<td style="padding:4px 7px;text-align:right;font-family:\'Courier New\',monospace;color:#1565C0;">'+nuFmt(Math.round(r.prin))+'</td>'
+      +'<td style="padding:4px 7px;text-align:right;font-family:\'Courier New\',monospace;font-weight:800;background:#f0f8f5;">'+nuFmt(Math.round(r.emi))+'</td>'
+      +'<td style="padding:4px 7px;text-align:right;font-family:\'Courier New\',monospace;color:'+(r.bal<0.01?'var(--good)':'inherit')+';">'+nuFmt(Math.round(r.bal))+'</td>'
+      +'<td style="padding:4px 7px;font-size:0.7rem;color:'+(r.mora?'#b07800':'var(--sub)')+';">'+(r.mora?'Moratorium':'EMI')+'</td></tr>';
+    ytInt+=r.int;ytPrin+=r.prin;ytEmi+=r.emi;
+    if(r.m%12===0||r.m===tenureMonths){
+      html+='<tr style="background:var(--navy);color:#fff;font-size:0.74rem;">'
+        +'<td colspan="2" style="padding:4px 8px;font-weight:800;">Year '+Math.ceil(r.m/12)+' Total</td>'
+        +'<td></td>'
+        +'<td style="padding:4px 7px;text-align:right;font-family:\'Courier New\',monospace;">'+nuFmt(Math.round(ytInt))+'</td>'
+        +'<td style="padding:4px 7px;text-align:right;font-family:\'Courier New\',monospace;">'+nuFmt(Math.round(ytPrin))+'</td>'
+        +'<td style="padding:4px 7px;text-align:right;font-family:\'Courier New\',monospace;font-weight:800;">'+nuFmt(Math.round(ytEmi))+'</td>'
+        +'<td colspan="2"></td></tr>';
+      ytInt=0;ytPrin=0;ytEmi=0;
+    }
+  });
+  html+='</table>';
+  document.getElementById('nuRepayTable').outerHTML=html;
+
+  document.getElementById('nuRepaySummary').innerHTML=
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:10px;">'
+    +[['Total Principal','₹'+nuFmt(Math.round(totPrin))+'K','#1565C0'],
+      ['Total Interest','₹'+nuFmt(Math.round(totInt))+'K','#c0392b'],
+      ['Total Outflow','₹'+nuFmt(Math.round(totPrin+totInt))+'K','#0a1628'],
+      ['Monthly EMI','₹'+nuFmt(Math.round(emi))+'K','#1a7a4a'],
+      ['Interest Cost',Math.round(totInt/Math.max(principal,1)*100)+'% of principal','#b07800'],
+      ['Moratorium',moratorium+' months','#555']]
+    .map(function(r){return '<div style="border:1px solid var(--line);border-top:3px solid '+r[2]+';padding:8px;border-radius:5px;text-align:center;">'
+      +'<div style="font-size:0.68rem;color:var(--sub);font-weight:700;">'+r[0]+'</div>'
+      +'<div style="font-size:0.9rem;font-weight:800;color:'+r[2]+';font-family:\'Courier New\',monospace;">'+r[1]+'</div></div>';}).join('')+'</div>';
 }
 
 // ─── INIT ─────────────────────────────────────────────────

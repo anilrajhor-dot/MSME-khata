@@ -292,6 +292,8 @@
       <button onclick="showHelpSection('sanction_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">✅ Sanction</button>
       <button onclick="showHelpSection('export_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">⬇ Export</button>
       <button onclick="showHelpSection('monitor_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">📊 Monitoring</button>
+      <button onclick="showHelpSection('swot_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">🔷 SWOT</button>
+      <button onclick="showHelpSection('repayment_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">📅 Repayment</button>
       <button onclick="showHelpSection('stockstmt_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">📦 Stock Stmt</button>
       <button onclick="showHelpSection('errors_help')" class="action" style="font-size:0.75rem; padding:5px 12px;">🔍 Errors</button>
       <button onclick="showHelpSection('industry_help')" class="action secondary" style="font-size:0.75rem; padding:5px 12px;">🏭 Industry</button>
@@ -329,6 +331,8 @@
   <button data-panel="ai">🤖 AI Appraisal</button>
   <button data-panel="sanction">✅ Sanction</button>
   <button data-panel="report">📄 Project Report</button>
+  <button data-panel="swot">🔷 SWOT</button>
+  <button data-panel="repayment">📅 Repayment</button>
   <button data-panel="export">⬇ Export</button>
   <button data-panel="monitor">📊 Monitoring</button>
   <button data-panel="industry">🏭 Industry</button>
@@ -363,6 +367,69 @@
 <!-- ═══════════════════════════════════════════════════
      BANKER'S DASHBOARD
 ═══════════════════════════════════════════════════ -->
+<!-- ═══════════════════ SWOT ANALYSIS ═══════════════════ -->
+<div class="panel" id="panel-swot">
+<div class="card">
+  <h2>🔷 SWOT Analysis <span class="tag">AUTO-GENERATED + EDITABLE</span></h2>
+  <div class="sub">System generates SWOT from CMA data. Edit any point to customise for your unit. Tap Generate to refresh from latest data.</div>
+  <div class="btnbar">
+    <button class="action" onclick="generateSWOT()">⚡ Generate from CMA Data</button>
+    <button class="action secondary" onclick="addSwotItem('S')">+ Strength</button>
+    <button class="action secondary" onclick="addSwotItem('W')">+ Weakness</button>
+    <button class="action secondary" onclick="addSwotItem('O')">+ Opportunity</button>
+    <button class="action secondary" onclick="addSwotItem('T')">+ Threat</button>
+    <button class="action secondary btn-sm" onclick="copyText('swotContent')">📋 Copy</button>
+    <button class="action secondary btn-sm" onclick="window.print()">🖨 Print</button>
+  </div>
+</div>
+<div id="swotContent">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+  <!-- STRENGTHS -->
+  <div class="card" style="border-top:4px solid #1a7a4a;">
+    <h2 style="color:#1a7a4a;">💪 STRENGTHS <span class="tag" style="background:#e8f5e9;color:#1a7a4a;">INTERNAL POSITIVE</span></h2>
+    <div id="swotS" style="min-height:80px;"></div>
+  </div>
+  <!-- WEAKNESSES -->
+  <div class="card" style="border-top:4px solid #c0392b;">
+    <h2 style="color:#c0392b;">⚠ WEAKNESSES <span class="tag" style="background:#fdecea;color:#c0392b;">INTERNAL NEGATIVE</span></h2>
+    <div id="swotW" style="min-height:80px;"></div>
+  </div>
+  <!-- OPPORTUNITIES -->
+  <div class="card" style="border-top:4px solid #1565C0;">
+    <h2 style="color:#1565C0;">🚀 OPPORTUNITIES <span class="tag" style="background:#e3f2fd;color:#1565C0;">EXTERNAL POSITIVE</span></h2>
+    <div id="swotO" style="min-height:80px;"></div>
+  </div>
+  <!-- THREATS -->
+  <div class="card" style="border-top:4px solid #b07800;">
+    <h2 style="color:#b07800;">🌩 THREATS <span class="tag" style="background:#fff8e1;color:#b07800;">EXTERNAL NEGATIVE</span></h2>
+    <div id="swotT" style="min-height:80px;"></div>
+  </div>
+</div>
+<div class="card" id="swotSummaryCard" style="display:none;">
+  <h2>🏁 SWOT Summary & Credit Implications</h2>
+  <div id="swotSummary"></div>
+</div>
+</div>
+</div>
+
+<!-- ═══════════════════ REPAYMENT SCHEDULE ═══════════════════ -->
+<div class="panel" id="panel-repayment">
+<div class="card">
+  <h2>📅 Term Loan Repayment Schedule <span class="tag">FULL AMORTISATION</span></h2>
+  <div class="sub">Complete month-by-month repayment schedule from disbursement to final payment. Enter loan details in Loan/EMI tab first.</div>
+  <div id="repayNoData" class="note">⚠ Enter loan amount, rate and tenure in the Loan/EMI tab first.</div>
+  <div id="repayContent" style="display:none;">
+    <div id="repayHeader" style="margin-bottom:12px;"></div>
+    <div class="btnbar">
+      <button class="action secondary btn-sm" onclick="copyText('repayTableWrap')">📋 Copy</button>
+      <button class="action secondary btn-sm" onclick="window.print()">🖨 Print</button>
+    </div>
+    <div class="scrollx" id="repayTableWrap"><table id="repayTable"></table></div>
+    <div id="repaySummary" style="margin-top:12px;"></div>
+  </div>
+</div>
+</div>
+
 <div class="panel" id="panel-dashboard">
 <div class="card" id="dashUnitHdr" style="display:none;">
   <div id="dashUnitTitle" style="font-size:1.1rem;font-weight:800;color:var(--navy);"></div>
@@ -1545,6 +1612,7 @@ function pct(v){
 function saveAll(silent){
   try {
     collectUnitFields();
+    STATE.swot = SWOT;  // persist SWOT
     var json = JSON.stringify(STATE);
     localStorage.setItem(STORAGE_KEY, json);
     document.getElementById('lastSaved').textContent = 'Last saved: ' + new Date().toLocaleString();
@@ -1566,6 +1634,7 @@ function loadAll(){
       STATE = Object.assign(STATE, parsed);
       if(!STATE.collateral) STATE.collateral=[];
       if(!STATE.stockStatements) STATE.stockStatements=[];
+      if(STATE.swot) SWOT=STATE.swot;
       return true;
     }
   } catch (e) {
@@ -3330,6 +3399,7 @@ function renderAllTables(){
   renderIndustryTemplateGrid();
   renderCollateral();
   initCashBudget();
+  renderRepaymentSchedule();
 }
 
 /* ================= ASSUMPTIONS UI ================= */
@@ -4927,6 +4997,276 @@ function calcNFB(){
 ═══════════════════════════════════════════════════════ */
 var dashCharts = {};
 
+/* ═══════════════════════════════════════════════════════
+   SWOT ANALYSIS
+═══════════════════════════════════════════════════════ */
+var SWOT = {S:[], W:[], O:[], T:[]};
+
+function generateSWOT(){
+  if(!CALC.data||!CALC.data.length){showErr('Enter CMA data first.');return;}
+  var na=parseInt(STATE.unit&&STATE.unit.numActualYears)||2;
+  var d0=CALC.data[0];
+  var da=CALC.data[Math.min(na-1,CALC.data.length-1)];
+  var u=STATE.unit||{};
+  SWOT={S:[],W:[],O:[],T:[]};
+
+  // ── STRENGTHS ──
+  if(da.pat>0) SWOT.S.push('Profitable unit — Net Profit of ₹'+fmtN(da.pat)+'K with NP Margin of '+Math.round(da.pat/Math.max(da.totalRevenue,1)*100*10)/10+'%.');
+  if(da.gpPct>20) SWOT.S.push('Healthy Gross Margin of '+Math.round(da.gpPct*10)/10+'% indicates efficient cost management.');
+  var cr=da.currentLiabilities>0?da.currentAssets/da.currentLiabilities:0;
+  if(cr>=1.33) SWOT.S.push('Strong liquidity — Current Ratio of '+Math.round(cr*100)/100+' (above bank norm of 1.25).');
+  if(da.netWorth>0&&CALC.data.length>1&&da.netWorth>CALC.data[0].netWorth)
+    SWOT.S.push('Net Worth growing — improved from ₹'+fmtN(d0.netWorth)+'K to ₹'+fmtN(da.netWorth)+'K — strengthening balance sheet.');
+  var tlInt=num(STATE.dscr&&STATE.dscr.interest&&STATE.dscr.interest[na-1]);
+  var tlPrin=num(STATE.dscr&&STATE.dscr.principal&&STATE.dscr.principal[na-1]);
+  var dscr=(tlInt+tlPrin)>0?(da.cashAccrual+tlInt)/(tlInt+tlPrin):0;
+  if(dscr>=1.5) SWOT.S.push('Adequate debt service capacity — DSCR of '+Math.round(dscr*100)/100+' meets bank norm of 1.5.');
+  if(da.totalRevenue>d0.totalRevenue)
+    SWOT.S.push('Growing revenue — Sales increased from ₹'+fmtN(d0.totalRevenue)+'K to ₹'+fmtN(da.totalRevenue)+'K ('+Math.round((da.totalRevenue-d0.totalRevenue)/Math.max(d0.totalRevenue,1)*100)+'% growth).');
+  var tol=da.netWorth>0?(da.longTerm+da.currentLiabilities)/da.netWorth:0;
+  if(tol<=2) SWOT.S.push('Conservative leverage — TOL/TNW of '+Math.round(tol*100)/100+' is well within bank norm of 3:1.');
+  if(da.cashAccrual>0) SWOT.S.push('Positive cash accrual of ₹'+fmtN(da.cashAccrual)+'K — internal fund generation supports capex and debt service.');
+  if(u.unitActivity&&u.unitActivity==='manufacturing') SWOT.S.push('Manufacturing unit with own infrastructure reduces operating cost vs outsourced production.');
+  if(SWOT.S.length===0) SWOT.S.push('Unit has banking relationship and established operations.');
+
+  // ── WEAKNESSES ──
+  if(da.pat<=0) SWOT.W.push('Unit is incurring net losses — PAT of ₹'+fmtN(da.pat)+'K. Profitability improvement required.');
+  if(cr<1.25) SWOT.W.push('Current Ratio of '+Math.round(cr*100)/100+' is below bank norm of 1.25 — liquidity position needs improvement.');
+  if(cr>=1.25&&cr<1.33) SWOT.W.push('Current Ratio of '+Math.round(cr*100)/100+' marginally above minimum norm — maintain adequate NWC.');
+  if(tol>3) SWOT.W.push('Over-leveraged — TOL/TNW of '+Math.round(tol*100)/100+' exceeds bank norm of 3:1. High debt burden.');
+  if(dscr>0&&dscr<1.5) SWOT.W.push('DSCR of '+Math.round(dscr*100)/100+' is below norm — TL repayment capacity is stressed.');
+  var debDays=da.debtors>0&&da.totalRevenue>0?Math.round(da.debtors/da.totalRevenue*365):0;
+  if(debDays>90) SWOT.W.push('High debtor holding period of '+debDays+' days — collection efficiency poor, funds locked in receivables.');
+  var invDays=(da.rawMaterial||0)>0&&da.cogs>0?Math.round(((da.rawMaterial||0)+(da.wip||0)+(da.finishedGoods||0))/da.cogs*365):0;
+  if(invDays>90) SWOT.W.push('Inventory holding period of '+invDays+' days is high — possible slow-moving stock or over-procurement.');
+  if(da.gpPct<15) SWOT.W.push('Thin Gross Margin of '+Math.round(da.gpPct*10)/10+'% — vulnerable to input cost increases.');
+  if(CALC.data.length>1&&CALC.data[na-1].totalRevenue<d0.totalRevenue)
+    SWOT.W.push('Declining sales trend — revenue fell from ₹'+fmtN(d0.totalRevenue)+'K to ₹'+fmtN(da.totalRevenue)+'K.');
+  if(SWOT.W.length===0) SWOT.W.push('No major financial weaknesses identified. Maintain current financial discipline.');
+
+  // ── OPPORTUNITIES ──
+  SWOT.O.push('Growing MSME sector in India with government thrust on Aatmanirbhar Bharat and PLI schemes — potential for capacity expansion.');
+  SWOT.O.push('Digital transformation opportunities — e-commerce, digital payments, GST compliance improving access to formal credit.');
+  if(u.unitActivity==='manufacturing'||u.unitActivity==='trading')
+    SWOT.O.push('Export potential — increasing global demand for Indian manufactured goods and competitive rupee exchange rate.');
+  SWOT.O.push('Formalisation of supply chain post-GST — better access to credit from organised financial institutions.');
+  SWOT.O.push('Priority Sector Lending targets create incentive for banks to actively support MSMEs at competitive rates.');
+  SWOT.O.push('Government schemes — CGTMSE guarantee (collateral-free credit up to ₹200 lakh), MUDRA, PM Vishwakarma Yojana.');
+  if(da.cc>0) SWOT.O.push('Enhanced WC limit of ₹'+fmtN(da.cc)+'K would enable higher sales volumes and better vendor relationships.');
+  SWOT.O.push('Technology upgradation through MSME clusters, NSIC schemes and technology development funds.');
+
+  // ── THREATS ──
+  SWOT.T.push('Rising interest rates — RBI monetary policy changes can increase borrowing costs and compress margins.');
+  SWOT.T.push('Raw material price volatility — input cost inflation can squeeze operating margins, especially for manufacturing units.');
+  SWOT.T.push('Competition from imports and large organised players with cost advantages and wider distribution networks.');
+  SWOT.T.push('Global economic slowdown and demand uncertainty can impact export orders and domestic consumption.');
+  SWOT.T.push('GST and compliance burden — increasing regulatory requirements demand time and resources from MSME owners.');
+  SWOT.T.push('Labour shortage and skilled manpower challenges in manufacturing and service sectors.');
+  if(debDays>60) SWOT.T.push('Customer concentration risk — high debtor days suggest dependence on few large buyers with extended credit terms.');
+  SWOT.T.push('Working capital cycle pressure — delays in government/PSU payments can create liquidity stress.');
+
+  renderSWOT();
+  saveAll(true);
+  showOk('SWOT Analysis generated from CMA data.');
+}
+
+function renderSWOT(){
+  var colors={S:'#1a7a4a',W:'#c0392b',O:'#1565C0',T:'#b07800'};
+  var bg={S:'#e8f5e9',W:'#fdecea',O:'#e3f2fd',T:'#fff8e1'};
+  ['S','W','O','T'].forEach(function(k){
+    var el=document.getElementById('swot'+k);
+    if(!el) return;
+    if(!SWOT[k]||!SWOT[k].length){el.innerHTML='<div class="note" style="font-size:0.8rem;">No items yet. Tap Generate or + button.</div>';return;}
+    el.innerHTML=SWOT[k].map(function(item,i){
+      return '<div style="display:flex;align-items:flex-start;gap:6px;padding:7px 8px;margin-bottom:5px;background:'+bg[k]+';border-radius:4px;border-left:3px solid '+colors[k]+';font-size:0.82rem;">'
+        +'<span style="color:'+colors[k]+';font-size:0.9rem;margin-top:1px;">●</span>'
+        +'<div style="flex:1;line-height:1.5;">'+item+'</div>'
+        +'<div style="display:flex;gap:4px;flex-shrink:0;">'
+        +'<button onclick="editSwot(\''+k+'\','+i+')" style="background:none;border:none;cursor:pointer;font-size:0.8rem;color:var(--sub);">✏</button>'
+        +'<button onclick="removeSwot(\''+k+'\','+i+')" style="background:none;border:none;cursor:pointer;font-size:0.8rem;color:var(--danger);">✕</button>'
+        +'</div></div>';
+    }).join('');
+  });
+  // Summary
+  var sumEl=document.getElementById('swotSummaryCard');
+  var sumContent=document.getElementById('swotSummary');
+  if(sumEl&&sumContent&&(SWOT.S.length||SWOT.W.length)){
+    sumEl.style.display='block';
+    var overall=SWOT.S.length>SWOT.W.length?'overall positive financial profile with more strengths than weaknesses':'mixed financial profile requiring close monitoring';
+    sumContent.innerHTML='<p style="font-size:0.85rem;line-height:1.8;">The unit presents an <b>'+overall+'</b>. '
+      +'The '+SWOT.S.length+' key strength'+(SWOT.S.length>1?'s':'')+'  identified — particularly '+(SWOT.S[0]||'operational track record')
+      +' — provide a solid foundation for credit sanction. '
+      +'However, the bank should address the '+SWOT.W.length+' weakness'+(SWOT.W.length>1?'es':'')
+      +' through appropriate covenants and monitoring. '
+      +'The '+SWOT.O.length+' opportunities in the external environment support the unit\'s growth potential, '
+      +'while the '+SWOT.T.length+' threats should be factored into the credit risk assessment and early warning system.'
+      +'</p>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+      +'<div style="background:#e8f5e9;padding:10px;border-radius:5px;text-align:center;"><div style="font-size:1.5rem;font-weight:800;color:#1a7a4a;">'+SWOT.S.length+'</div><div style="font-size:0.75rem;font-weight:700;">STRENGTHS</div></div>'
+      +'<div style="background:#fdecea;padding:10px;border-radius:5px;text-align:center;"><div style="font-size:1.5rem;font-weight:800;color:#c0392b;">'+SWOT.W.length+'</div><div style="font-size:0.75rem;font-weight:700;">WEAKNESSES</div></div>'
+      +'<div style="background:#e3f2fd;padding:10px;border-radius:5px;text-align:center;"><div style="font-size:1.5rem;font-weight:800;color:#1565C0;">'+SWOT.O.length+'</div><div style="font-size:0.75rem;font-weight:700;">OPPORTUNITIES</div></div>'
+      +'<div style="background:#fff8e1;padding:10px;border-radius:5px;text-align:center;"><div style="font-size:1.5rem;font-weight:800;color:#b07800;">'+SWOT.T.length+'</div><div style="font-size:0.75rem;font-weight:700;">THREATS</div></div>'
+      +'</div>';
+  }
+}
+
+function addSwotItem(key){
+  var txt=prompt('Enter '+{S:'Strength',W:'Weakness',O:'Opportunity',T:'Threat'}[key]+':');
+  if(txt&&txt.trim()){SWOT[key].push(txt.trim());renderSWOT();saveAll(true);}
+}
+function editSwot(key,idx){
+  var txt=prompt('Edit:',(SWOT[key]||[])[idx]||'');
+  if(txt!==null&&txt.trim()){SWOT[key][idx]=txt.trim();renderSWOT();saveAll(true);}
+}
+function removeSwot(key,idx){
+  if(SWOT[key]) SWOT[key].splice(idx,1);
+  renderSWOT();saveAll(true);
+}
+
+/* ═══════════════════════════════════════════════════════
+   FULL TL REPAYMENT SCHEDULE
+═══════════════════════════════════════════════════════ */
+function renderRepaymentSchedule(){
+  var noData=document.getElementById('repayNoData');
+  var content=document.getElementById('repayContent');
+  if(!STATE.loan||!STATE.loan.amount||!STATE.loan.rate||!STATE.loan.tenure){
+    if(noData)noData.style.display='block';
+    if(content)content.style.display='none';
+    return;
+  }
+  if(noData)noData.style.display='none';
+  if(content)content.style.display='block';
+
+  var principal=num(STATE.loan.amount);
+  var annualRate=num(STATE.loan.rate)/100;
+  var monthlyRate=annualRate/12;
+  var tenureMonths=parseInt(STATE.loan.tenure)||60;
+  var moratoriumMonths=parseInt(STATE.loan.moratorium)||0;
+  var emiMonths=tenureMonths-moratoriumMonths;
+
+  // Parse start date from STATE.loan.startDate (YYYY-MM)
+  var startYr=2025,startMo=3; // default Apr-2025
+  if(STATE.loan.startDate&&STATE.loan.startDate.length>=7){
+    var parts2=STATE.loan.startDate.split('-');
+    startYr=parseInt(parts2[0])||2025;
+    startMo=parseInt(parts2[1])-1; // 0-indexed
+  }
+
+  // Compute EMI
+  var emi=0;
+  if(monthlyRate>0&&emiMonths>0){
+    emi=principal*monthlyRate*Math.pow(1+monthlyRate,emiMonths)/(Math.pow(1+monthlyRate,emiMonths)-1);
+  } else {
+    emi=emiMonths>0?principal/emiMonths:0;
+  }
+  emi=Math.round(emi*100)/100;
+
+  // Header
+  document.getElementById('repayHeader').innerHTML=
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:8px;">'
+    +[['Principal',fmtN(Math.round(principal))+'K'],['Rate',STATE.loan.rate+'% p.a.'],
+      ['Tenure',tenureMonths+' months'],['Moratorium',moratoriumMonths+' months'],
+      ['EMI Period',emiMonths+' months'],['Monthly EMI','₹'+fmtN(Math.round(emi))+'K']]
+    .map(function(r){return '<div style="background:var(--navy);color:#fff;padding:8px;border-radius:5px;text-align:center;">'
+      +'<div style="font-size:0.68rem;opacity:0.8;">'+r[0]+'</div>'
+      +'<div style="font-size:0.95rem;font-weight:800;font-family:\'Courier New\',monospace;">'+r[1]+'</div></div>';}).join('')+'</div>';
+
+  // Generate schedule
+  var balance=principal;
+  var rows=[];
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var totalInterest=0,totalPrincipal=0;
+
+  var currentMonth=startMo;
+  var currentYear=startYr;
+
+  function nextMonth(){
+    currentMonth++;
+    if(currentMonth>=12){currentMonth=0;currentYear++;}
+  }
+
+  for(var m=1;m<=tenureMonths;m++){
+    var monthLabel=months[currentMonth]+'-'+currentYear;
+    var interestAmt=Math.round(balance*monthlyRate*100)/100;
+    var principalAmt=0,emiPaid=0,status='';
+    if(m<=moratoriumMonths){
+      emiPaid=interestAmt;
+      principalAmt=0;
+      status='Moratorium';
+    } else {
+      emiPaid=Math.min(emi,balance+interestAmt);
+      principalAmt=Math.round((emiPaid-interestAmt)*100)/100;
+      if(principalAmt<0)principalAmt=0;
+      if(m===tenureMonths){principalAmt=balance;emiPaid=principalAmt+interestAmt;}
+      status='EMI';
+    }
+    totalInterest+=interestAmt;
+    totalPrincipal+=principalAmt;
+    balance=Math.round((balance-principalAmt)*100)/100;
+    if(balance<0)balance=0;
+    rows.push({m:m,month:monthLabel,opening:balance+principalAmt,interest:interestAmt,
+      principal:principalAmt,emi:Math.round(emiPaid*100)/100,closing:balance,status:status});
+    nextMonth();
+  }
+
+  // Build table
+  var html='<table style="border-collapse:collapse;font-size:0.78rem;width:100%;min-width:700px;">';
+  html+='<tr style="background:var(--navy);color:#fff;position:sticky;top:0;">'
+    +'<th style="padding:6px 8px;text-align:center;">Month</th>'
+    +'<th style="padding:6px 8px;">Date</th>'
+    +'<th style="padding:6px 8px;text-align:right;">Opening (₹K)</th>'
+    +'<th style="padding:6px 8px;text-align:right;">Interest</th>'
+    +'<th style="padding:6px 8px;text-align:right;">Principal</th>'
+    +'<th style="padding:6px 8px;text-align:right;background:#0e5e4a;">EMI</th>'
+    +'<th style="padding:6px 8px;text-align:right;">Closing Balance</th>'
+    +'<th style="padding:6px 8px;text-align:center;">Type</th></tr>';
+
+  var yearTotInt=0,yearTotPrin=0,yearTotEmi=0,yearStart=1;
+  rows.forEach(function(r,idx){
+    var isMora=r.status==='Moratorium';
+    var isLast=r.closing<=0.01;
+    var bg=isMora?'#fff8e1':idx%2===0?'':'var(--light)';
+    html+='<tr style="background:'+bg+(isLast?';border-bottom:3px solid var(--good)':'')+'">'
+      +'<td style="padding:5px 8px;text-align:center;font-weight:700;color:var(--sub);">'+r.m+'</td>'
+      +'<td style="padding:5px 8px;font-weight:700;">'+r.month+'</td>'
+      +'<td style="padding:5px 8px;text-align:right;font-family:\'Courier New\',monospace;">'+fmtN(Math.round(r.opening))+'</td>'
+      +'<td style="padding:5px 8px;text-align:right;font-family:\'Courier New\',monospace;color:#c0392b;">'+fmtN(Math.round(r.interest))+'</td>'
+      +'<td style="padding:5px 8px;text-align:right;font-family:\'Courier New\',monospace;color:#1565C0;">'+fmtN(Math.round(r.principal))+'</td>'
+      +'<td style="padding:5px 8px;text-align:right;font-family:\'Courier New\',monospace;font-weight:800;background:#f0f8f5;">'+fmtN(Math.round(r.emi))+'</td>'
+      +'<td style="padding:5px 8px;text-align:right;font-family:\'Courier New\',monospace;font-weight:700;color:'+(r.closing<0.01?'var(--good)':'inherit')+';">'+fmtN(Math.round(r.closing))+'</td>'
+      +'<td style="padding:5px 8px;text-align:center;font-size:0.72rem;color:'+(isMora?'#b07800':'var(--sub)')+';">'+r.status+'</td></tr>';
+    yearTotInt+=r.interest;yearTotPrin+=r.principal;yearTotEmi+=r.emi;
+    // Annual subtotal
+    if(r.m%12===0||r.m===tenureMonths){
+      html+='<tr style="background:var(--navy);color:#fff;font-size:0.75rem;">'
+        +'<td colspan="2" style="padding:5px 8px;font-weight:800;">Year '+(Math.ceil(r.m/12))+' Total</td>'
+        +'<td style="padding:5px 8px;text-align:right;"></td>'
+        +'<td style="padding:5px 8px;text-align:right;font-family:\'Courier New\',monospace;">'+fmtN(Math.round(yearTotInt))+'</td>'
+        +'<td style="padding:5px 8px;text-align:right;font-family:\'Courier New\',monospace;">'+fmtN(Math.round(yearTotPrin))+'</td>'
+        +'<td style="padding:5px 8px;text-align:right;font-family:\'Courier New\',monospace;font-weight:800;">'+fmtN(Math.round(yearTotEmi))+'</td>'
+        +'<td colspan="2" style="padding:5px 8px;"></td></tr>';
+      yearTotInt=0;yearTotPrin=0;yearTotEmi=0;
+    }
+  });
+  html+='</table>';
+  document.getElementById('repayTable').outerHTML='<div id="repayTableWrap" class="scrollx" style="max-height:70vh;overflow-y:auto;">'+html+'</div>';
+
+  // Summary
+  var savings=Math.round(totalInterest);
+  document.getElementById('repaySummary').innerHTML=
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:10px;">'
+    +[['Total Principal',fmtN(Math.round(totalPrincipal))+'K','#1565C0'],
+      ['Total Interest',fmtN(Math.round(totalInterest))+'K','#c0392b'],
+      ['Total Outflow',fmtN(Math.round(totalPrincipal+totalInterest))+'K','#0a1628'],
+      ['Monthly EMI','₹'+fmtN(Math.round(emi))+'K','#1a7a4a'],
+      ['Effective Cost',Math.round(totalInterest/Math.max(principal,1)*100)+'% of Principal','#b07800'],
+      ['Moratorium',''+moratoriumMonths+' months (interest only)','#555']]
+    .map(function(r){return '<div style="background:var(--card-bg);border:1px solid var(--line);border-top:3px solid '+r[2]+';padding:10px;border-radius:5px;text-align:center;">'
+      +'<div style="font-size:0.7rem;color:var(--sub);font-weight:700;">'+r[0]+'</div>'
+      +'<div style="font-size:0.95rem;font-weight:800;color:'+r[2]+';font-family:\'Courier New\',monospace;">'+r[1]+'</div></div>';}).join('')
+    +'</div>';
+}
+
 function renderDashboard(){
   if(!CALC.data||!CALC.data.length){
     document.getElementById('dashNoData').style.display='block';
@@ -5389,27 +5729,47 @@ function loadIndustryTemplate(name){
    SENSITIVITY ANALYSIS
 ═══════════════════════════════════════════════════════ */
 function initSensitivity(){
+  var noData=document.getElementById('sensNoData');
+  if(!CALC.data||!CALC.data.length){
+    if(noData) noData.style.display='block';
+    return;
+  }
+  if(noData) noData.style.display='none';
   var sel=document.getElementById('sensYearSel');
-  if(!sel||!CALC.data||!CALC.data.length) return;
-  sel.innerHTML=CALC.years.map(function(y,i){return '<option value="'+i+'">'+y+'</option>';}).join('');
+  if(!sel) return;
+  var na=parseInt((STATE.unit&&STATE.unit.numActualYears)||2);
+  // Always rebuild dropdown
+  sel.innerHTML='';
+  CALC.years.forEach(function(y,i){
+    var opt=document.createElement('option');
+    opt.value=i; opt.text=y; sel.appendChild(opt);
+  });
+  // Default to last actual year
+  sel.selectedIndex=Math.min(na-1, CALC.data.length-1);
   updateSensBaseValues();
 }
 
 function updateSensBaseValues(){
   if(!CALC.data||!CALC.data.length) return;
   var yi=parseInt(document.getElementById('sensYearSel').value)||0;
-  var d=CALC.data[yi];
+  var d=CALC.data[Math.min(yi,CALC.data.length-1)];
   var debDays=d.debtors>0&&d.totalRevenue>0?Math.round(d.debtors/d.totalRevenue*365):0;
-  var stockDays=d.rawMaterial>0&&d.cogs>0?Math.round((d.rawMaterial+(d.wip||0)+(d.finishedGoods||0))/d.cogs*365):0;
-  // Update base column
-  function setBase(id,val){var el=document.getElementById(id);if(el)el.textContent=val;}
-  setBase('sensBaseRevenue','₹'+fmtN(d.totalRevenue)+'K');
-  setBase('sensBaseCOGS','₹'+fmtN(d.cogs)+'K ('+Math.round(d.cogs/Math.max(d.totalRevenue,1)*100)+'%)');
-  setBase('sensBaseAdmin','₹'+fmtN(d.adminExp)+'K');
-  setBase('sensBaseInt','₹'+fmtN(d.interest)+'K');
-  setBase('sensBaseDeb',debDays+' days');
-  setBase('sensBaseStock',stockDays+' days');
-  // Update stressed column
+  var stockDays=(d.rawMaterial||0)>0&&d.cogs>0?Math.round(((d.rawMaterial||0)+(d.wip||0)+(d.finishedGoods||0))/d.cogs*365):0;
+  // Fill base column
+  function sb(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
+  sb('sensBaseRevenue', '₹'+fmtN(d.totalRevenue)+'K');
+  sb('sensBaseCOGS',    '₹'+fmtN(d.cogs)+'K ('+Math.round(d.cogs/Math.max(d.totalRevenue,1)*100)+'% sales)');
+  sb('sensBaseAdmin',   '₹'+fmtN(d.adminExp)+'K');
+  sb('sensBaseInt',     '₹'+fmtN(d.interest)+'K');
+  sb('sensBaseDeb',     debDays+' days');
+  sb('sensBaseStock',   stockDays+' days');
+  // Clear stressed and impact columns (runSensitivity will fill)
+  ['sensStressRevenue','sensStressCOGS','sensStressAdmin','sensStressInt','sensStressDeb','sensStressStock'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.textContent='—';
+  });
+  ['sensImpactRevenue','sensImpactCOGS','sensImpactAdmin','sensImpactInt','sensImpactDeb','sensImpactStock'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.textContent='—';
+  });
   runSensitivity();
 }
 
@@ -5440,8 +5800,10 @@ function sensUpdate(){}  // legacy stub
 
 function runSensitivity(){
   if(!CALC.data||!CALC.data.length) return;
-  var yi=parseInt(document.getElementById('sensYearSel').value)||0;
+  var sel2=document.getElementById('sensYearSel');
+  var yi=sel2?Math.max(0,Math.min(parseInt(sel2.value)||sel2.selectedIndex||0,CALC.data.length-1)):0;
   var d=CALC.data[yi];
+  if(!d){return;}
 
   // Read inputs
   var salesChg=parseFloat(document.getElementById('sensSalesInp').value)||0;
@@ -5589,6 +5951,9 @@ function runSensitivity(){
 
   document.getElementById('sensResultCard').style.display='block';
   document.getElementById('sensResults').innerHTML=html;
+  // Scroll to results
+  var rc=document.getElementById('sensResultCard');
+  if(rc) rc.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -6737,8 +7102,15 @@ function setupNav(){
       window.scrollTo(0,0);
       // Re-init tabs that need data to be loaded first
       var panel = this.getAttribute('data-panel');
-      if(panel==='sensitivity'){ initSensitivity(); if(!CALC.data||!CALC.data.length) document.getElementById('sensNoData').style.display='block'; else document.getElementById('sensNoData').style.display='none';}
+      if(panel==='sensitivity'){
+        initSensitivity();
+        var nd=document.getElementById('sensNoData');
+        if(nd) nd.style.display=(!CALC.data||!CALC.data.length)?'block':'none';
+      }
+      if(panel==='cma5'){ initCashBudget(); }
       if(panel==='dashboard') renderDashboard();
+      if(panel==='swot'){ if(CALC.data&&CALC.data.length&&(!SWOT.S||!SWOT.S.length)) generateSWOT(); else renderSWOT(); }
+      if(panel==='repayment') renderRepaymentSchedule();
       if(panel==='errors') {}
       if(panel==='industry') renderIndustryTemplateGrid();
       if(panel==='collateral') renderCollateral();
@@ -7070,6 +7442,31 @@ var HELP_SECTIONS = {
     +'<li>MPBF computation for all years</li></ul>'
     +'<p><b>Results:</b> 🔴 ERRORS (must fix), 🟡 WARNINGS (review recommended), 🟢 PASSED. Each error has a "Go to Tab" button for direct navigation to the issue.</p>'
     +'<p>Fix all errors before submitting CMA to bank. Warnings should be reviewed and explained if leaving unchanged.</p>',
+
+  swot_help: '<h3 style="color:#0e5e4a;">🔷 SWOT Analysis</h3>'
+    +'<p>Auto-generates SWOT from your actual CMA data. Enter Trial Balance data first, then open this tab — SWOT generates automatically.</p>'
+    +'<p><b>Strengths auto-detected:</b> Profitability (PAT positive), healthy GP margin, strong Current Ratio, growing Net Worth, adequate DSCR, growing revenue, conservative leverage, positive cash accrual.</p>'
+    +'<p><b>Weaknesses auto-detected:</b> Net losses, CR below 1.25, over-leveraged (TOL/TNW > 3), DSCR below 1.5, high debtor days (>90), excessive inventory (>90 days), thin margins, declining sales.</p>'
+    +'<p><b>Opportunities auto-included:</b> MSME govt thrust, CGTMSE, PSL targets, GST formalisation, digital channels, PLI schemes, government support programmes.</p>'
+    +'<p><b>Threats auto-included:</b> Interest rate risk, RM price volatility, competition, global slowdown, compliance burden, labour shortage, customer concentration, payment delays.</p>'
+    +'<p><b>Edit and customise:</b> Each point has ✏ (edit) and ✕ (delete) buttons. Add custom points with + buttons. All edits saved in JSON backup.</p>'
+    +'<p><b>Credit Implications summary</b> at bottom — overall assessment, strength/weakness count, recommendation for banker.</p>',
+
+  repayment_help: '<h3 style="color:#0e5e4a;">📅 TL Repayment Schedule</h3>'
+    +'<p>Full month-by-month amortisation from first EMI to final payment. Enter loan details in Loan/EMI tab first.</p>'
+    +'<p><b>What each column shows:</b></p>'
+    +'<ul style="font-size:0.85rem;line-height:1.9;">'
+    +'<li><b>Month #:</b> Sequential month number from disbursement</li>'
+    +'<li><b>Date:</b> Calendar month (Apr-2025, May-2025 etc.) — uses your disbursement month from Loan tab</li>'
+    +'<li><b>Opening Balance:</b> TL outstanding at start of month</li>'
+    +'<li><b>Interest:</b> Monthly interest on opening balance (Annual Rate ÷ 12)</li>'
+    +'<li><b>Principal:</b> EMI minus interest = principal repaid that month</li>'
+    +'<li><b>EMI:</b> Total monthly payment (Interest + Principal). Fixed for all EMI months.</li>'
+    +'<li><b>Closing Balance:</b> Opening minus Principal repaid. Reaches zero in final month.</li>'
+    +'<li><b>Type:</b> Moratorium (yellow — interest only) or EMI (normal)</li></ul>'
+    +'<p><b>Annual subtotals</b> after every 12 rows — shows yearly interest and principal break-up for tax and accounting purposes.</p>'
+    +'<p><b>Summary card</b> shows: Total Principal, Total Interest Paid, Total Outflow, Monthly EMI, Effective interest cost % of principal, Moratorium period.</p>'
+    +'<p>Print to PDF for bank submission or physical record-keeping.</p>',
 
   industry_help: '<h3 style="color:#0e5e4a;">🏭 Industry Templates</h3>'
     +'<p>One-tap selection of 18 industry types that auto-loads the correct Chart of Accounts for your industry.</p>'
