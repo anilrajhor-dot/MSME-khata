@@ -6,6 +6,34 @@ var _BUILD="202407020002";
 try{ sessionStorage.setItem("mfm_build",_BUILD); }catch(e){}
 // Note: removed forced location.reload() — this caused blank screens in
 // standalone "Add to Home Screen" mode on iOS Safari (reload loop/race condition)
+var _FAQ_DATA=[
+{q:"App kaise use karein / How to start?",a:"Profile mein Business Name bharen → Save. Capital/Loans mein capital enter karen → Save. Ab Sales aur Purchases record karna shuru karen. / Fill Profile → Save. Enter capital in Capital/Loans → Save. Start recording Sales and Purchases.",tags:["start","shuru","begin","setup"]},
+{q:"Purchase entry kaise karen / How to add purchase?",a:"Purchase tab → Date, Supplier → Item select (ya + New Item) → Qty, Rate → Payment mode → Record Purchase tap karen.",tags:["purchase","khareed","buy"]},
+{q:"Sale kaise record karen / How to record sale?",a:"Sales tab → Date, Customer → Item select → Qty, Price → Payment mode → Record Sale tap karen.",tags:["sale","bikri","sell"]},
+{q:"Expense kaise add karen / How to add expense?",a:"Expenses tab → Category select (Rent/Salary/Electricity) → Amount → Payment mode → Save Expense.",tags:["expense","kharcha","cost"]},
+{q:"Balance Sheet tally nahi ho rahi / BS not tallying?",a:"1. Capital aur Loan sahi enter karen. 2. Opening Cash/Bank check karen. 3. Health Check run karen → 100% aana chahiye. / 1. Check capital and loan amounts. 2. Verify opening cash/bank. 3. Run Health Check → should show 100%.",tags:["balance sheet","tally","difference"]},
+{q:"Cash Flow difference kyun / Why Cash Flow difference?",a:"New business ke liye Opening Cash = 0 rakhein. Existing business ke liye Trial Balance se opening balance sahi enter karen. / For new business keep Opening = 0. For existing business enter opening balance from Trial Balance correctly.",tags:["cash flow","difference","opening"]},
+{q:"Inventory item kaise add karen / How to add inventory?",a:"Inventory tab → Add New Item → Name, Unit, Category, Rate → Save. Ya Purchase mein directly + New Item use karen. / Inventory tab → Add New Item → fill details → Save. Or use + New Item directly in Purchase.",tags:["inventory","stock","item"]},
+{q:"Data backup kaise karen / How to backup?",a:"Data tab → Download Backup → JSON file save hoti hai. Ise safely rakhen. / Data tab → Download Backup → JSON file saves to your phone. Keep it safely.",tags:["backup","save","data"]},
+{q:"Data restore kaise karen / How to restore?",a:"Data tab → Import Backup File → apni JSON file select karen → data restore ho jaata hai. / Data tab → Import Backup File → select your JSON file → data restores automatically.",tags:["restore","import"]},
+{q:"Loan kaise add karen / How to add loan?",a:"Capital/Loans → Loans → + Add Loan → Lender, Amount, Rate, Tenure → Save. / Capital/Loans → Loans → + Add Loan → fill Lender, Amount, Rate, Tenure → Save.",tags:["loan","karz","borrow"]},
+{q:"Fixed Asset kaise add karen / How to add fixed asset?",a:"Capital/Loans → Fixed Assets → + Add → Name, Date, Cost, Life → Save. Depreciation automatic hoti hai. / Capital/Loans → Fixed Assets → + Add → Name, Date, Cost, Life → Save. Depreciation calculates automatically.",tags:["fixed asset","machinery","FA"]},
+{q:"Report PDF mein kaise save karen / How to export PDF?",a:"Financials → koi bhi report kholen → Print This Report → iPhone: preview pinch out → Share → Save to Files. Ya Data tab → Export All Reports PDF button use karen. / Financials → open any report → Print This Report → iPhone: pinch preview → Share → Save to Files.",tags:["PDF","print","export","report"]},
+{q:"Health Check kya hai / What is Health Check?",a:"10 automatic checks jo aapki books verify karte hain — Balance Sheet, Stock, Cash balance etc. Run karo to errors milenge. / 10 automatic checks that verify your books — Balance Sheet, Stock, Cash etc. Run it to find errors.",tags:["health check","verify","accuracy"]},
+{q:"AI Advisor kya karta hai / What does AI Advisor do?",a:"Aapke actual data se 16 business questions ke jawab deta hai — internet ke bina bhi. Profit analysis, stock reorder, loan eligibility sab. / Answers 16 business questions from your actual data — works offline too. Profit analysis, stock reorder, loan eligibility and more.",tags:["AI","advisor","questions"]},
+{q:"Barcode scanner kaise use karen / How to use scanner?",a:"Purchase tab → green 📷 button tap karen → camera khulti hai → barcode scan karo → item auto select. Pehli baar iPhone camera permission maangega → Allow karo. / Purchase tab → tap green 📷 button → camera opens → scan barcode → item auto-selects. First time iPhone asks camera permission → Allow.",tags:["barcode","scanner","camera","scan"]},
+{q:"GST kaise enable karen / How to enable GST?",a:"Profile → GST section → Enable GST → GSTIN enter karen → default rate set karen. Sales entry mein GST automatic calculate hoga. / Profile → GST section → Enable GST → enter GSTIN → set default rate. GST calculates automatically in sales.",tags:["GST","tax","GSTIN"]},
+{q:"Drawings kaise record karen / How to record drawings?",a:"Capital/Loans → Drawings → + Add Drawing → Date, Amount → Save. Capital automatically kam ho jaata hai. / Capital/Loans → Drawings → + Add Drawing → Date, Amount → Save. Capital reduces automatically.",tags:["drawing","withdrawal","owner"]},
+{q:"Imported purchase kaise enter karen / How to record import?",a:"Purchase tab → Imported checkbox tick karen → details bharen → Save. Import purchases alag track hoti hain. / Purchase tab → tick Imported checkbox → fill details → Save. Import purchases track separately.",tags:["import","imported","foreign"]},
+{q:"App update kaise hoga / How to update app?",a:"Home Screen se app remove karen → Safari mein link kholen → Add to Home Screen. New version install ho jaata hai. / Remove app from Home Screen → open link in Safari → Add to Home Screen. New version installs.",tags:["update","new version","upgrade"]},
+{q:"Training Mode kya hai / What is Training Mode?",a:"6 demo businesses ka ready data hai seekhne ke liye. Practice Load karo aur sab features explore karo. / 6 demo businesses with ready data for learning. Practice Load and explore all features.",tags:["training","practice","demo","learn"]},
+{q:"Debtor kya hota hai / What is a debtor?",a:"Jo customer credit par maal leta hai aur payment baaki hai. Sales mein Credit select karne par automatically debtor ban jaata hai. / Customer who bought on credit and payment is pending. Selecting Credit in Sales automatically creates debtor.",tags:["debtor","credit","customer"]},
+{q:"Creditor kya hota hai / What is a creditor?",a:"Jo supplier se credit par maal liya aur payment baaki hai. Purchase mein Credit select karne par automatically creditor ban jaata hai. / Supplier from whom you bought on credit and payment is pending. Selecting Credit in Purchase automatically creates creditor.",tags:["creditor","supplier","credit"]},
+{q:"Data lost ho gaya / Data is gone?",a:"Ghabrao mat! Data → Import Backup File → latest backup select karen. Backup nahi hai to Training Mode se demo data load karo. / Don't worry! Data → Import Backup File → select latest backup. If no backup, load demo data from Training Mode.",tags:["data","lost","delete","gone"]},
+{q:"App slow hai / App is slow?",a:"1. Safari cache clear karen: Settings → Safari → Clear History. 2. App remove aur reinstall karo. 3. Data backup lo → Clear All Data → restore karo. / 1. Clear Safari cache: Settings → Safari → Clear History. 2. Remove and reinstall app. 3. Take backup → Clear All Data → restore.",tags:["slow","hang","problem","issue"]},
+{q:"Multiple units ya branches kaise manage karen?",a:"ME Multi Unit Khata use karo. Har unit ka alag data rakhta hai aur consolidated reports bhi dikhata hai. / Use ME Multi Unit Khata. Manages separate data for each unit and shows consolidated reports.",tags:["multi","unit","branch","multiple"]},
+{q:"Partnership business mein capital kaise enter karen?",a:"Profile → Constitution → Partnership select karo. Capital/Loans → Capital → har partner ka alag capital enter karo. / Profile → Constitution → select Partnership. Capital/Loans → Capital → enter separate capital for each partner.",tags:["partnership","partner","capital"]},
+];
 </script>
 
 <meta charset="UTF-8">
@@ -102,6 +130,30 @@ html, body { width:100%; margin:0; padding:0; overflow-x:hidden; }
 * { pointer-events:auto; }
 button, input, select, textarea, a { cursor:pointer !important; }
 input[type=text], input[type=number], input[type=date], textarea { cursor:text !important; }
+</style>
+<style id="faq-css">
+#faq-fab{position:fixed;bottom:80px;right:14px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;border:none;font-size:22px;cursor:pointer;z-index:8888;box-shadow:0 4px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;}
+#faq-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:8889;}
+#faq-overlay.open{display:block;}
+#faq-panel{display:none;position:fixed;bottom:0;left:0;right:0;height:78vh;background:#fff;border-radius:16px 16px 0 0;z-index:8890;flex-direction:column;overflow:hidden;}
+#faq-panel.open{display:flex;}
+#faq-hdr{background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+#faq-hdr h3{margin:0;font-size:15px;}
+#faq-x{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;}
+#faq-srch{padding:8px 12px;border-bottom:1px solid #E3E3E3;flex-shrink:0;}
+#faq-srch input{width:100%;padding:8px 14px;border:1.5px solid #BBDEFB;border-radius:20px;font-size:13px;outline:none;box-sizing:border-box;}
+#faq-cats{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;flex-shrink:0;border-bottom:1px solid #E3E3E3;}
+#faq-cats::-webkit-scrollbar{display:none;}
+.faq-cat{padding:4px 12px;border-radius:12px;font-size:11px;cursor:pointer;border:1px solid #BBDEFB;background:#EFF6FF;color:#1565C0;white-space:nowrap;flex-shrink:0;}
+.faq-cat.on{background:#1565C0;color:#fff;}
+#faq-list{flex:1;overflow-y:auto;padding:8px 12px;}
+.faq-item{background:#F8FAFC;border-radius:10px;margin-bottom:8px;border:1px solid #E8EEF4;overflow:hidden;}
+.faq-q{padding:10px 14px;font-size:12px;font-weight:600;color:#1565C0;cursor:pointer;display:flex;justify-content:space-between;gap:8px;}
+.faq-arr{font-size:10px;color:#90A4AE;flex-shrink:0;margin-top:2px;transition:transform .2s;}
+.faq-item.on .faq-arr{transform:rotate(180deg);}
+.faq-a{display:none;padding:8px 14px 12px;font-size:12px;color:#37474F;line-height:1.6;border-top:1px solid #DBEAFE;background:#EFF6FF;}
+.faq-item.on .faq-a{display:block;}
+.faq-nil{text-align:center;color:#90A4AE;padding:32px 16px;font-size:13px;}
 </style>
 </head>
 <body>
@@ -14521,6 +14573,162 @@ window.onerror = function(msg, url, line, col, err){
 
 <script>
 
+
+function exportAllReportsPDF(){
+  var f=getF();
+  var bizName=(D.profile&&D.profile.businessName)||'My Business';
+  var owner=(D.profile&&D.profile.ownerName)||'';
+  var addr=(D.profile&&D.profile.address)||'';
+  var today=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'});
+  var w=window.open('','_blank');
+  if(!w){toast('Please allow popups for PDF export','w');return;}
+  var fc2=function(n){return '\u20B9'+(+n||0).toLocaleString('en-IN',{minimumFractionDigits:2});};
+  var bs=getBS();
+  var bal=getBalances();
+  var bsOk=Math.abs((bs.totalAssets||0)-(bs.totalLiab||0))<10;
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+bizName+' Reports</title><style>';
+  html+='body{font-family:Arial,sans-serif;font-size:12px;color:#222;margin:0;padding:16px;}';
+  html+='.header{background:#1565C0;color:#fff;padding:16px;border-radius:8px;margin-bottom:16px;}';
+  html+='.header h1{margin:0;font-size:20px;}';
+  html+='.header p{margin:4px 0 0;font-size:11px;opacity:0.85;}';
+  html+='.section{margin-bottom:24px;page-break-inside:avoid;}';
+  html+='.section h2{font-size:14px;color:#1565C0;border-bottom:2px solid #1565C0;padding-bottom:4px;margin-bottom:8px;}';
+  html+='table{width:100%;border-collapse:collapse;font-size:11px;}';
+  html+='td,th{padding:5px 8px;border:1px solid #ddd;}';
+  html+='th{background:#E3F2FD;font-weight:700;text-align:left;}';
+  html+='.amt{text-align:right;}';
+  html+='.total{font-weight:700;background:#F5F5F5;}';
+  html+='.profit{color:green;font-weight:700;}';
+  html+='.loss{color:red;font-weight:700;}';
+  html+='.tally{color:green;}';
+  html+='.notally{color:red;}';
+  html+='.print-btn{text-align:center;margin:12px 0;}';
+  html+='@media print{.print-btn{display:none;}}';
+  html+='</style></head><body>';
+  html+='<div class="header"><h1>'+bizName+'</h1>';
+  html+='<p>'+owner+(addr?' | '+addr:'')+'</p>';
+  html+='<p>Financial Reports | Generated: '+today+'</p></div>';
+  html+='<div class="print-btn"><button onclick="window.print()" style="padding:10px 28px;background:#1565C0;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;margin-right:8px">\uD83D\uDDB8 Print / Save as PDF</button>';
+  html+='<button onclick="window.close()" style="padding:10px 20px;background:#E0E0E0;border:none;border-radius:6px;font-size:13px;cursor:pointer">Close</button></div>';
+  
+  // P&L
+  var npClass=f.np>=0?'profit':'loss';
+  html+='<div class="section"><h2>P&amp;L Statement (Profit &amp; Loss)</h2><table>';
+  html+='<tr><th>Particulars</th><th class="amt">Amount</th></tr>';
+  html+='<tr><td>Sales / Turnover</td><td class="amt">'+fc2(f.ts)+'</td></tr>';
+  html+='<tr><td>Less: Opening Stock</td><td class="amt">('+fc2(f.os||0)+')</td></tr>';
+  html+='<tr><td>Less: Purchases / COGS</td><td class="amt">('+fc2(f.tp||0)+')</td></tr>';
+  html+='<tr><td>Add: Closing Stock</td><td class="amt">'+fc2(f.cs||0)+'</td></tr>';
+  html+='<tr class="total"><td>Gross Profit</td><td class="amt">'+fc2(f.gp||0)+'</td></tr>';
+  if(f.expByCat){Object.keys(f.expByCat).forEach(function(k){if(f.expByCat[k]>0)html+='<tr><td>&nbsp;&nbsp;'+k+'</td><td class="amt">('+fc2(f.expByCat[k])+')</td></tr>';});}
+  html+='<tr class="total"><td>Total Expenses</td><td class="amt">('+fc2(f.te||0)+')</td></tr>';
+  html+='<tr class="total"><td>NET PROFIT / (LOSS)</td><td class="amt '+npClass+'">'+fc2(f.np||0)+'</td></tr>';
+  var npm=f.ts>0?Math.round((f.np||0)/f.ts*100):0;
+  html+='<tr><td>Net Profit Margin</td><td class="amt '+npClass+'">'+npm+'%</td></tr>';
+  html+='</table></div>';
+  
+  // Balance Sheet
+  var bsClass=bsOk?'tally':'notally';
+  var bsDiff=Math.abs((bs.totalAssets||0)-(bs.totalLiab||0));
+  html+='<div class="section"><h2>Balance Sheet <span class="'+bsClass+'">'+(bsOk?'\u2705 Tallied':'\u26A0 Diff: '+fc2(bsDiff))+'</span></h2><table>';
+  html+='<tr><th>LIABILITIES</th><th class="amt">Amount</th><th>ASSETS</th><th class="amt">Amount</th></tr>';
+  var p1=(D.capital.initialCapital||0)+(D.capital.additionalCapital||0);
+  var draw=D.drawings.reduce(function(s,d){return s+(d.amount||0);},0);
+  var loans=D.loans.reduce(function(s,l){return s+(l.outstandingBalance||0);},0);
+  var fa=D.fixedAssets.reduce(function(s,a){return s+(a.cost||0)-(a.accumDep||0);},0);
+  var cred=D.creditors.reduce(function(s,c){return s+(c.amount||0);},0);
+  html+='<tr><td>Owner Capital</td><td class="amt">'+fc2(p1)+'</td><td>Fixed Assets (Net)</td><td class="amt">'+fc2(fa)+'</td></tr>';
+  html+='<tr><td>Net Profit</td><td class="amt '+npClass+'">'+fc2(f.np||0)+'</td><td>Closing Stock</td><td class="amt">'+fc2(f.cs||0)+'</td></tr>';
+  html+='<tr><td>Less: Drawings</td><td class="amt">('+fc2(draw)+')</td><td>Debtors</td><td class="amt">'+fc2(f.dr||0)+'</td></tr>';
+  html+='<tr><td>Term Loans</td><td class="amt">'+fc2(loans)+'</td><td>Cash in Hand</td><td class="amt">'+fc2(bal.cb||0)+'</td></tr>';
+  html+='<tr><td>Creditors</td><td class="amt">'+fc2(cred)+'</td><td>Bank Balance</td><td class="amt">'+fc2(bal.bb||0)+'</td></tr>';
+  html+='<tr class="total"><td>TOTAL</td><td class="amt">'+fc2(bs.totalLiab||0)+'</td><td>TOTAL</td><td class="amt">'+fc2(bs.totalAssets||0)+'</td></tr>';
+  html+='</table></div>';
+  
+  // Business Summary
+  html+='<div class="section"><h2>Business Summary</h2><table>';
+  html+='<tr><th>Metric</th><th class="amt">Value</th></tr>';
+  html+='<tr><td>Total Sales</td><td class="amt">'+fc2(f.ts)+'</td></tr>';
+  html+='<tr><td>Total Purchases</td><td class="amt">'+fc2(f.tp||0)+'</td></tr>';
+  html+='<tr><td>Gross Profit Margin</td><td class="amt">'+(f.ts>0?Math.round((f.gp||0)/f.ts*100):0)+'%</td></tr>';
+  html+='<tr><td>Net Profit Margin</td><td class="amt '+npClass+'">'+npm+'%</td></tr>';
+  html+='<tr><td>Inventory Items</td><td class="amt">'+D.inventory.length+'</td></tr>';
+  html+='<tr><td>Outstanding Debtors</td><td class="amt">'+fc2(f.dr||0)+'</td></tr>';
+  html+='<tr><td>Outstanding Creditors</td><td class="amt">'+fc2(cred)+'</td></tr>';
+  html+='<tr><td>Cash in Hand</td><td class="amt">'+fc2(bal.cb||0)+'</td></tr>';
+  html+='<tr><td>Bank Balance</td><td class="amt">'+fc2(bal.bb||0)+'</td></tr>';
+  html+='<tr><td>Total Cash & Bank</td><td class="amt">'+fc2((bal.cb||0)+(bal.bb||0))+'</td></tr>';
+  html+='</table></div>';
+  
+  html+='<div style="margin-top:20px;text-align:center;font-size:10px;color:#999">Generated by ME Khata | Developed by Anil Sharma, Former GM, Central Bank of India | NRP DAY-NRLM</div>';
+  
+  w.document.write(html);
+  w.document.close();
+}
+
+
+var _faqFilter='';
+function _faqOpen(){
+  document.getElementById('faq-overlay').className='open';
+  document.getElementById('faq-panel').className='open';
+  _faqRender('','');
+}
+function _faqClose(){
+  document.getElementById('faq-overlay').className='';
+  document.getElementById('faq-panel').className='';
+}
+function _faqSearch(q){
+  document.querySelectorAll('.faq-cat').forEach(function(c){c.classList.remove('on');});
+  document.querySelector('.faq-cat').classList.add('on');
+  _faqFilter='';
+  _faqRender(q,'');
+}
+function _faqCat(tag){
+  _faqFilter=tag;
+  document.getElementById('faq-inp').value='';
+  document.querySelectorAll('.faq-cat').forEach(function(c){
+    c.classList.toggle('on',c.textContent.toLowerCase()===tag.toLowerCase()||(tag===''&&c.textContent==='All'));
+  });
+  _faqRender('',tag);
+}
+function _faqRender(q,tag){
+  var list=document.getElementById('faq-list');
+  if(!list)return;
+  var items=(_FAQ_DATA||[]).filter(function(x){
+    var mq=!q||x.q.toLowerCase().includes(q.toLowerCase())||x.a.toLowerCase().includes(q.toLowerCase())||(x.tags||[]).some(function(t){return t.toLowerCase().includes(q.toLowerCase());});
+    var mt=!tag||(x.tags||[]).some(function(t){return t.toLowerCase().includes(tag.toLowerCase());});
+    return mq&&mt;
+  });
+  if(!items.length){list.innerHTML='<div class="faq-nil">❓ No results / कोई परिणाम नहीं<br><small>Try different keywords</small></div>';return;}
+  list.innerHTML=items.map(function(x){
+    return '<div class="faq-item" onclick="this.classList.toggle(\'on\')"><div class="faq-q">'+x.q+'<span class="faq-arr">▼</span></div><div class="faq-a">'+x.a+'</div></div>';
+  }).join('');
+}
+
 </script>
+
+<button id="faq-fab" onclick="_faqOpen()">💬</button>
+<div id="faq-overlay" onclick="_faqClose()"></div>
+<div id="faq-panel">
+  <div id="faq-hdr">
+    <div><h3>💬 Help &amp; FAQ / सहायता</h3><div style="font-size:10px;opacity:.8">ME Khata Help Center</div></div>
+    <button id="faq-x" onclick="_faqClose()">&#x2715;</button>
+  </div>
+  <div id="faq-srch"><input type="text" placeholder="Search / खोजें..." id="faq-inp" oninput="_faqSearch(this.value)"></div>
+  <div id="faq-cats">
+    <span class="faq-cat on" onclick="_faqCat('')">All</span>
+    <span class="faq-cat" onclick="_faqCat('start')">Started</span>
+    <span class="faq-cat" onclick="_faqCat('purchase')">Purchase</span>
+    <span class="faq-cat" onclick="_faqCat('sale')">Sales</span>
+    <span class="faq-cat" onclick="_faqCat('balance sheet')">Balance Sheet</span>
+    <span class="faq-cat" onclick="_faqCat('cash flow')">Cash Flow</span>
+    <span class="faq-cat" onclick="_faqCat('inventory')">Inventory</span>
+    <span class="faq-cat" onclick="_faqCat('backup')">Backup</span>
+    <span class="faq-cat" onclick="_faqCat('loan')">Loans</span>
+    <span class="faq-cat" onclick="_faqCat('report')">PDF</span>
+    <span class="faq-cat" onclick="_faqCat('AI')">AI</span>
+  </div>
+  <div id="faq-list"></div>
+</div>
 </body>
 </html>
