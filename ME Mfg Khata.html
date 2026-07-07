@@ -11815,14 +11815,15 @@ function pgConsumption(){
     newFgFields = g2(inp('New Item Name','prod_newname','text',window._prodNewName||''),sl('Unit','prod_newunit',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'));
   }
 
-  // Items available to consume: Spares/Consumable with stock
+  // Items available to consume: ALL categories — resale/FG items can also be consumed
   var consOpts=[{v:'',l:'-- Select Item --'}];
   for(i=0;i<D.inventory.length;i++){
     var it=D.inventory[i];
-    if((it.category||'Resale')==='Consumable'){
+    {
       var inCart=0; cart.forEach(function(c){if(c.itemId===it.id)inCart+=c.qty;});
       var avail=(it.currentStock+(it.importedStock||0))-inCart;
-      consOpts.push({v:it.id,l:it.itemName+' ('+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'Out of stock')+')'});
+      var _cLbl=it.category||'Item';
+      consOpts.push({v:it.id,l:it.itemName+' ['+_cLbl+'] ('+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'Out of stock')+')'});
     }
   }
 
