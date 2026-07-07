@@ -13678,11 +13678,12 @@ function pgProduction(){
   var consOpts=[{v:'',l:'-- Select Item --'}];
   for(i=0;i<D.inventory.length;i++){
     var it=D.inventory[i];
-    var isRMorCons=(it.category==='RM'||it.category==='Raw Material'||it.category==='Consumable');
-    if(isRMorCons){
+    // Allow ALL item categories — a resale/FG item may also be used in production
+    {
       var inCart=0; cart.forEach(function(c){if(c.itemId===it.id)inCart+=c.qty;});
       var avail=(it.currentStock+(it.importedStock||0))-inCart;
-      consOpts.push({v:it.id,l:it.itemName+' ['+(it.category==='Consumable'?'Consumable':'Raw Material')+'] '+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'⚠ Out of stock')});
+      var catLabel=it.category||'Item';
+      consOpts.push({v:it.id,l:it.itemName+' ['+catLabel+'] '+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'⚠ Out of stock')});
     }
   }
 
