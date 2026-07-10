@@ -3390,5 +3390,189 @@ function renderNURepaymentSchedule(){
 // ─── INIT ─────────────────────────────────────────────────
 onIndustryChange();
 </script>
+
+<!-- ══════════ AI CREDIT ASSISTANT WIDGET ══════════ -->
+<button id="aiFabBtn" onclick="toggleAIChat()" title="AI Credit Assistant"
+  style="position:fixed;bottom:18px;right:18px;width:54px;height:54px;border-radius:50%;
+  background:var(--navy);color:#fff;border:none;font-size:1.4rem;
+  box-shadow:0 4px 14px rgba(0,0,0,0.35);cursor:pointer;z-index:600;">🤖</button>
+
+<div id="aiChatPanel" style="display:none;flex-direction:column;position:fixed;bottom:82px;right:16px;
+  width:370px;max-width:93vw;height:74vh;max-height:560px;background:#fff;border:2px solid var(--navy);
+  border-radius:10px;box-shadow:0 10px 34px rgba(0,0,0,0.4);z-index:601;overflow:hidden;">
+
+  <div style="background:var(--navy);color:#fff;padding:10px 12px;display:flex;justify-content:space-between;align-items:flex-start;">
+    <div>
+      <div style="font-weight:800;font-size:0.92rem;">🤖 AI Credit Assistant</div>
+      <div style="font-size:0.68rem;color:#ccc;">Reads your current CMA numbers — never recalculates them</div>
+    </div>
+    <button onclick="toggleAIChat()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;line-height:1;">×</button>
+  </div>
+
+  <div id="aiChatKeyBar" style="display:none;padding:8px 10px;border-bottom:1px solid #eee;font-size:0.74rem;background:#fffbf0;">
+    <input type="password" id="aiChatApiKey" placeholder="sk-ant-api03-..." oninput="saveApiKeyGlobal(this.value); document.getElementById('aiChatKeyBar').style.display = getApiKey() ? 'none':'block';"
+      style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-family:'Courier New',monospace;font-size:0.8rem;">
+    <div style="color:#777;margin-top:3px;">Stored only in this browser. Get a free key at console.anthropic.com</div>
+  </div>
+
+  <div id="aiChatQuick" style="padding:7px 9px;border-bottom:1px solid #eee;display:flex;gap:5px;flex-wrap:wrap;">
+    <button class="btn btn-secondary btn-sm" style="font-size:0.68rem;padding:5px 8px;" onclick="aiQuickAction('explain')">📖 Explain a term</button>
+    <button class="btn btn-secondary btn-sm" style="font-size:0.68rem;padding:5px 8px;" onclick="aiQuickAction('analyze')">🔍 Analyze application</button>
+    <button class="btn btn-secondary btn-sm" style="font-size:0.68rem;padding:5px 8px;" onclick="aiQuickAction('draft')">📝 Draft appraisal note</button>
+    <button class="btn btn-secondary btn-sm" style="font-size:0.68rem;padding:5px 8px;" onclick="aiQuickAction('sanction')">✅ Recommend &amp; sanction letter</button>
+  </div>
+
+  <div id="aiChatMessages" style="flex:1;overflow-y:auto;padding:10px;font-size:0.83rem;background:#faf9f6;"></div>
+
+  <div style="padding:7px;border-top:1px solid #eee;display:flex;gap:6px;background:#fff;">
+    <input id="aiChatInput" type="text" placeholder="Ask about this case, a ratio, a term..."
+      style="flex:1;padding:8px 9px;border:2px solid var(--line);border-radius:4px;font-size:0.83rem;"
+      onkeydown="if(event.key==='Enter'){sendAIChatMessage();}">
+    <button class="btn btn-primary" style="padding:8px 13px;" onclick="sendAIChatMessage()">➤</button>
+  </div>
+</div>
+
+<script>
+/* ══════════ AI CREDIT ASSISTANT — chat logic ══════════ */
+var aiChatHistory = [];
+
+var AI_SYSTEM_BASE =
+  "You are a credit appraisal assistant embedded inside a bank CMA (Credit Monitoring Arrangement) data " +
+  "preparation tool used by a credit officer or consultant in India, currently working on a NEW UNIT / project " +
+  "finance case. You help by explaining financial and banking concepts (MPBF, DSCR, TOL/TNW, IRR, BEP, Tandon " +
+  "Committee norms, CGTMSE, etc.), analyzing the loan application, and drafting appraisal text. " +
+  "CRITICAL RULE: Never recompute, restate from memory, or estimate any financial figure yourself. Only use the " +
+  "exact numbers provided in the CURRENT CASE DATA block below, which were computed by the app's own calculation " +
+  "engine and are ground truth. If a figure you need is not present in that block, say so explicitly instead of " +
+  "guessing. Be concise and use Indian banking terminology and RBI/Tandon norms where relevant. Flag any ratio " +
+  "that breaches a standard norm clearly, e.g. '🔴 DSCR 1.1 is below the 1.5 norm'. Whenever the user asks for " +
+  "an analysis, review, or comments on the application — not just via the quick-action button — treat it as a " +
+  "request to cover every ratio and metric present in yearlyData, not just the most notable ones.";
+
+function toggleAIChat(){
+  var p = document.getElementById('aiChatPanel');
+  var show = (p.style.display === 'none' || !p.style.display);
+  p.style.display = show ? 'flex' : 'none';
+  if(show){
+    document.getElementById('aiChatApiKey').value = getApiKey();
+    document.getElementById('aiChatKeyBar').style.display = getApiKey() ? 'none' : 'block';
+    if(!aiChatHistory.length){
+      aiChatAppend('assistant', "Hi — I can see your current CMA data as you work. Ask me to explain a term, analyze this application, or draft the appraisal note.");
+    }
+  }
+}
+
+function aiChatAppend(role, text){
+  var box = document.getElementById('aiChatMessages');
+  var row = document.createElement('div');
+  row.style.cssText = 'margin-bottom:10px;text-align:' + (role==='user' ? 'right' : 'left');
+  var bubble = document.createElement('span');
+  bubble.style.cssText = 'display:inline-block;padding:8px 11px;border-radius:10px;max-width:86%;' +
+    'white-space:pre-wrap;text-align:left;font-family:Georgia,serif;line-height:1.45;' +
+    (role==='user' ? 'background:var(--green);color:#fff;' : 'background:#eef1f4;color:#0a1628;');
+  bubble.textContent = text;
+  row.appendChild(bubble);
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+}
+
+function buildFinancialContext(){
+  if(!C || !C.data || !C.data.length){
+    return JSON.stringify({status:'No CMA has been generated yet in this session. Ask the user to complete the wizard and click Generate first — do not analyze without data.'});
+  }
+  var g = function(id){ var el = document.getElementById(id); return el ? el.value : ''; };
+  var ctx = {
+    caseType: 'New Unit / Project Finance (term loan + working capital)',
+    unitName: g('unitName'),
+    bankName: g('bankName'),
+    industryType: g('industryType'),
+    projectInvestment_Rs000: C.invest,
+    totalFixedAssets_Rs000: C.totalFA,
+    wcMargin_Rs000: C.wcMargin,
+    termLoan_Rs000: C.t && C.t.tl,
+    tlInterestRatePct: C.t && C.t.tlRate,
+    tlTenureMonths: C.t && C.t.tlTenure,
+    moratoriumMonths: C.t && C.t.tlMora,
+    monthlyEMI_Rs000: C.emi,
+    projectIRR: C.irr,
+    yearsProjected: C.data.length,
+    yearlyProjections: C.data
+  };
+  return JSON.stringify(ctx);
+}
+
+function aiQuickAction(kind){
+  var prompts = {
+    explain: "Ask me which banking/finance term I'd like explained, or if there's an obviously important one for this case, explain that one in 3-4 sentences.",
+    analyze: "Analyze the current loan application using the CURRENT CASE DATA below. First, produce a table with one row for EVERY ratio and computed financial metric present anywhere in yearlyData (do not skip any — include DSCR, current ratio, TOL/TNW, MPBF, BEP, GP%, NP%, margin of safety, IRR, and any others found in the data) with columns: Ratio | Value(s) by year | Applicable RBI/Tandon norm (or 'no standard norm' if none) | Compliant Y/N/borderline. Then add: (1) an overall viability narrative, (2) top 3 risks with mitigants, (3) a one-line bottom-line recommendation.",
+    draft: "Draft a concise Credit Appraisal Note (CAN) for this case using the CURRENT CASE DATA below, in standard bank format: Background, Financial Highlights, Working Capital Assessment (MPBF), Term Loan & DSCR, Risk Assessment, Recommendation.",
+    sanction: "Based on the CURRENT CASE DATA below: (1) Give an explicit recommendation — RECOMMEND SANCTION, RECOMMEND SANCTION WITH CONDITIONS, or DO NOT RECOMMEND — with a 3-4 sentence justification citing the specific ratios and norms (DSCR, IRR, current ratio, etc.) that drove the decision. (2) Then draft a formal Sanction Letter in standard Indian bank format covering: facility type(s) and amount(s), interest rate, tenure, moratorium, security/margin, key covenants and conditions (e.g. DSCR-linked conditions, insurance, CGTMSE if applicable), and validity period — using ONLY figures present in the case data. For any field a sanction letter normally needs but that isn't in the data (branch address, sanctioning authority name, account number, date, etc.), write '[TO BE FILLED BY BANK]' instead of inventing a value."
+  };
+  document.getElementById('aiChatInput').value = prompts[kind];
+  sendAIChatMessage();
+}
+
+async function callAnthropicChat(messages, system){
+  var apiKey = getApiKey();
+  if(!apiKey) throw new Error('No API key set.');
+  var resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      system: system,
+      messages: messages.map(function(m){ return {role: m.role, content: m.content}; })
+    })
+  });
+  if(!resp.ok){
+    var err = await resp.json().catch(function(){ return {}; });
+    if(resp.status === 401) throw new Error('Invalid API key. Check it at console.anthropic.com');
+    if(resp.status === 429) throw new Error('Rate limit reached. Wait a moment and try again.');
+    throw new Error('API error ' + resp.status + ': ' + (err.error && err.error.message || 'unknown error'));
+  }
+  var data = await resp.json();
+  return (data.content && data.content[0] && data.content[0].text) || '(empty response)';
+}
+
+async function sendAIChatMessage(){
+  var input = document.getElementById('aiChatInput');
+  var text = input.value.trim();
+  if(!text) return;
+  if(!getApiKey()){
+    document.getElementById('aiChatKeyBar').style.display = 'block';
+    aiChatAppend('assistant', 'Please enter your Anthropic API key above first — it is stored only in your browser and used only for calls made directly from this page.');
+    return;
+  }
+  input.value = '';
+  aiChatAppend('user', text);
+  aiChatHistory.push({role: 'user', content: text});
+
+  var box = document.getElementById('aiChatMessages');
+  var loadingEl = document.createElement('div');
+  loadingEl.style.cssText = 'color:#888;font-size:0.78rem;margin-bottom:8px;font-style:italic;';
+  loadingEl.textContent = 'Thinking…';
+  box.appendChild(loadingEl);
+  box.scrollTop = box.scrollHeight;
+
+  try{
+    var context = buildFinancialContext();
+    var system = AI_SYSTEM_BASE + '\n\nCURRENT CASE DATA (JSON, computed by the app — treat as ground truth):\n' + context;
+    var reply = await callAnthropicChat(aiChatHistory, system);
+    aiChatHistory.push({role: 'assistant', content: reply});
+    loadingEl.remove();
+    aiChatAppend('assistant', reply);
+  }catch(e){
+    loadingEl.remove();
+    aiChatAppend('assistant', '⚠ ' + e.message);
+  }
+}
+</script>
+
 </body>
 </html>
