@@ -7090,6 +7090,19 @@ function renderQIS(){
 }
 
 /* ================= NAVIGATION ================= */
+function copyText(id){
+  var el=document.getElementById(id); if(!el){showErr('Nothing to copy.');return;}
+  var text=el.innerText||el.textContent||'';
+  if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){showOk('Copied to clipboard.');});}
+  else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showOk('Copied.');}
+}
+function hideBackupReminder(){
+  var el=document.getElementById('backupReminder'); if(el) el.style.display='none';
+}
+function showPanel(id){
+  var btn=document.querySelector('#navBar button[data-panel="'+id+'"]');
+  if(btn) btn.click();
+}
 function setupNav(){
   var buttons = document.querySelectorAll('#navBar button');
   buttons.forEach(function(btn){

@@ -1,0 +1,280 @@
+{
+  "app": "CMA Existing Unit (Renewal / Enhancement)",
+  "source_file": "cma_existing_unit.html",
+  "audit_method": "Static extraction from source (regex over actual HTML/JS) + manual formula re-derivation. Not a full browser/DOM run (no headless browser available in this environment) \u2014 treat as a structural + formula-level audit, not a full end-to-end UI test.",
+  "menu_audit": {
+    "total_menu_items": 32,
+    "all_panels_found": true,
+    "items": [
+      {
+        "step_id": "dashboard",
+        "label": "\ud83c\udfe6 Dashboard",
+        "expected_panel_id": "panel-dashboard",
+        "panel_found": true
+      },
+      {
+        "step_id": "setup",
+        "label": "Setup",
+        "expected_panel_id": "panel-setup",
+        "panel_found": true
+      },
+      {
+        "step_id": "assumptions",
+        "label": "Assumptions",
+        "expected_panel_id": "panel-assumptions",
+        "panel_found": true
+      },
+      {
+        "step_id": "tb",
+        "label": "Trial Balance",
+        "expected_panel_id": "panel-tb",
+        "panel_found": true
+      },
+      {
+        "step_id": "manage",
+        "label": "Manage Items",
+        "expected_panel_id": "panel-manage",
+        "panel_found": true
+      },
+      {
+        "step_id": "statements",
+        "label": "P&amp;L / BS",
+        "expected_panel_id": "panel-statements",
+        "panel_found": true
+      },
+      {
+        "step_id": "cma1",
+        "label": "CMA-I Op.Stmt",
+        "expected_panel_id": "panel-cma1",
+        "panel_found": true
+      },
+      {
+        "step_id": "cma2",
+        "label": "CMA-II BS",
+        "expected_panel_id": "panel-cma2",
+        "panel_found": true
+      },
+      {
+        "step_id": "cma3",
+        "label": "CMA-III CA/CL",
+        "expected_panel_id": "panel-cma3",
+        "panel_found": true
+      },
+      {
+        "step_id": "cma4",
+        "label": "CMA-IV FundFlow",
+        "expected_panel_id": "panel-cma4",
+        "panel_found": true
+      },
+      {
+        "step_id": "cma5",
+        "label": "CMA-V MPBF",
+        "expected_panel_id": "panel-cma5",
+        "panel_found": true
+      },
+      {
+        "step_id": "ratios",
+        "label": "Ratios",
+        "expected_panel_id": "panel-ratios",
+        "panel_found": true
+      },
+      {
+        "step_id": "dp",
+        "label": "Drawing Power",
+        "expected_panel_id": "panel-dp",
+        "panel_found": true
+      },
+      {
+        "step_id": "sales",
+        "label": "Sales Analysis",
+        "expected_panel_id": "panel-sales",
+        "panel_found": true
+      },
+      {
+        "step_id": "nfb",
+        "label": "Non-Fund Limits",
+        "expected_panel_id": "panel-nfb",
+        "panel_found": true
+      },
+      {
+        "step_id": "loan",
+        "label": "Loan / EMI",
+        "expected_panel_id": "panel-loan",
+        "panel_found": true
+      },
+      {
+        "step_id": "irr",
+        "label": "IRR / NPV",
+        "expected_panel_id": "panel-irr",
+        "panel_found": true
+      },
+      {
+        "step_id": "files",
+        "label": "\ud83d\udcc1 Files",
+        "expected_panel_id": "panel-files",
+        "panel_found": true
+      },
+      {
+        "step_id": "risk",
+        "label": "\u2b50 Risk Rating",
+        "expected_panel_id": "panel-risk",
+        "panel_found": true
+      },
+      {
+        "step_id": "ai",
+        "label": "\ud83e\udd16 AI Appraisal",
+        "expected_panel_id": "panel-ai",
+        "panel_found": true
+      },
+      {
+        "step_id": "sanction",
+        "label": "\u2705 Sanction",
+        "expected_panel_id": "panel-sanction",
+        "panel_found": true
+      },
+      {
+        "step_id": "report",
+        "label": "\ud83d\udcc4 Project Report",
+        "expected_panel_id": "panel-report",
+        "panel_found": true
+      },
+      {
+        "step_id": "swot",
+        "label": "\ud83d\udd37 SWOT",
+        "expected_panel_id": "panel-swot",
+        "panel_found": true
+      },
+      {
+        "step_id": "repayment",
+        "label": "\ud83d\udcc5 Repayment",
+        "expected_panel_id": "panel-repayment",
+        "panel_found": true
+      },
+      {
+        "step_id": "export",
+        "label": "\u2b07 Export",
+        "expected_panel_id": "panel-export",
+        "panel_found": true
+      },
+      {
+        "step_id": "monitor",
+        "label": "\ud83d\udcca Monitoring",
+        "expected_panel_id": "panel-monitor",
+        "panel_found": true
+      },
+      {
+        "step_id": "industry",
+        "label": "\ud83c\udfed Industry",
+        "expected_panel_id": "panel-industry",
+        "panel_found": true
+      },
+      {
+        "step_id": "sensitivity",
+        "label": "\ud83d\udcd0 Sensitivity",
+        "expected_panel_id": "panel-sensitivity",
+        "panel_found": true
+      },
+      {
+        "step_id": "collateral",
+        "label": "\ud83c\udfe0 Collateral",
+        "expected_panel_id": "panel-collateral",
+        "panel_found": true
+      },
+      {
+        "step_id": "stockstmt",
+        "label": "\ud83d\udce6 Stock Stmt",
+        "expected_panel_id": "panel-stockstmt",
+        "panel_found": true
+      },
+      {
+        "step_id": "errors",
+        "label": "\ud83d\udd0d Errors",
+        "expected_panel_id": "panel-errors",
+        "panel_found": true
+      },
+      {
+        "step_id": "help",
+        "label": "Help / Manual",
+        "expected_panel_id": "panel-help",
+        "panel_found": true
+      }
+    ]
+  },
+  "onclick_function_audit": {
+    "description": "Every onclick=\"fn(...)\" handler in the file checked against defined `function fn(...)` declarations.",
+    "issues_found_and_fixed": [
+      {
+        "function": "copyText(id)",
+        "used_by": "Copy buttons on SWOT, Repayment schedule, and Sensitivity results panels",
+        "status": "was undefined \u2014 fixed, added generic clipboard-copy function"
+      },
+      {
+        "function": "hideBackupReminder()",
+        "used_by": "Dismiss button on the unsaved-changes banner",
+        "status": "was undefined \u2014 fixed, now hides #backupReminder"
+      },
+      {
+        "function": "showPanel(id)",
+        "used_by": "'Go to Tab \u2192' links generated by the Error Checker panel",
+        "status": "was undefined \u2014 fixed, now clicks the matching nav button"
+      }
+    ],
+    "missing_functions_remaining": []
+  },
+  "calculation_formulas": [
+    {
+      "ratio": "MPBF Method I (Tandon Committee)",
+      "formula": "min(75% x Current Assets, Current Assets - (Current Liabilities - CC))",
+      "code_ref": "renderCMA5(), line ~4127-4146",
+      "norm": "Working capital limit recommendation, WC limit > Rs.5 Cr"
+    },
+    {
+      "ratio": "MPBF Method II",
+      "formula": "75% x Current Assets - Total CL (incl. proposed CC)",
+      "code_ref": "renderCMA5(), line ~4151+",
+      "norm": "Alternative Tandon method, higher promoter margin"
+    },
+    {
+      "ratio": "Current Ratio",
+      "formula": "Current Assets / Current Liabilities",
+      "code_ref": "dataRow('Current Ratio', ...)",
+      "norm": ">= 1.25 (bank norm), >=1.33 ideal"
+    },
+    {
+      "ratio": "TOL/TNW",
+      "formula": "(Total Liabilities - Net Worth) / Tangible Net Worth",
+      "code_ref": "line ~4250, ~6421",
+      "norm": "<= 3:1 (some covenants allow up to 4:1)"
+    },
+    {
+      "ratio": "DSCR (Risk Rating module)",
+      "formula": "(Cash Accrual + TL Interest) / (TL Interest + TL Principal, user-entered per year)",
+      "code_ref": "computeRiskRating(), line ~6435-6442",
+      "norm": ">= 1.25-1.5 depending on covenant"
+    }
+  ],
+  "formula_level_test_vector": {
+    "description": "Hand-derived expected outputs using the exact formulas found in the code. Not a full data-entry walkthrough \u2014 use to sanity-check the formula logic itself, e.g. by pasting into a browser console against the same formulas, or as a reference when reviewing code changes.",
+    "case": {
+      "inputs": {
+        "currentAssets": 1000.0,
+        "currentLiabilities": 400.0,
+        "cc": 100.0,
+        "abf": 0.75,
+        "netWorth": 500.0,
+        "longTerm": 200.0,
+        "dscr_interest": 40.0,
+        "dscr_principal": 80.0,
+        "cashAccrual": 180.0
+      },
+      "expected_outputs": {
+        "mpbf_method1": 700.0,
+        "excess_or_shortfall_vs_existing_cc": -600.0,
+        "currentRatio": 2.5,
+        "totalLiabilities": 1100.0,
+        "tol_tnw": 1.2,
+        "dscr": 1.8333
+      }
+    }
+  }
+}
