@@ -1846,7 +1846,7 @@ function loadDemoData(filename){
 function clearAllData(){
   if(!confirm('This will delete ALL data and start fresh. Are you absolutely sure?\n\nसभी data delete हो जाएगा। क्या आप confirm करते हैं?')) return;
   var bt=BIZ_TYPE;
-  D=initD();
+  D=defD();
   D.profile.businessType=bt;
   sv();
   go('dashboard');

@@ -1669,7 +1669,7 @@ function loadDemoData(filename){
 function clearAllData(){
   if(!confirm('This will delete ALL data and start fresh. Are you absolutely sure?\n\nसभी data delete हो जाएगा। क्या आप confirm करते हैं?')) return;
   var bt=BIZ_TYPE;
-  D=initD();
+  D=defD();
   D.profile.businessType=bt;
   sv();
   go('dashboard');
@@ -4232,7 +4232,8 @@ function pgPur(){
   }
   var sel=window._purItem||'__new__';
   var h='<div class="card"><div class="ch">Total Purchases: '+fc(tot)+'</div></div>';
-  var itemBlock = sl('Item','pu_i',iOpts,sel)+' <div onchange="window._purItem=gv(\'pu_i\');renderPage()" style="display:none"></div>';
+  var _scanPurBtn = '<button onclick="openScanner(\'pu_item\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📷 Scan Barcode / QR Code to Select Item</button>';
+  var itemBlock = _scanPurBtn+sl('Item','pu_i',iOpts,sel)+' <div onchange="window._purItem=gv(\'pu_i\');renderPage()" style="display:none"></div>';
   var newItemFields='';
   if(sel==='__new__'){
     var catOpts=[{v:'Resale',l:'Resale'},{v:'Raw Material',l:'Raw Material'},{v:'FG',l:'Finished Goods'},{v:'Consumable',l:'Consumable'}];

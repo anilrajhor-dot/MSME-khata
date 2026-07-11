@@ -60,6 +60,31 @@ main{max-width:960px; margin:0 auto; padding:16px 12px 60px;}
 .info-box b{color:#1565C0;}
 footer{background:#1565C0;color:rgba(255,255,255,0.8);text-align:center;padding:16px;font-size:0.72rem;line-height:1.7;}
 footer b{color:#FFD54F;}
+
+/* ── Help Chat Assistant ── */
+#chat-fab{position:fixed;right:16px;bottom:16px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;border:none;font-size:26px;box-shadow:0 4px 14px rgba(13,71,161,0.45);cursor:pointer;z-index:200;display:flex;align-items:center;justify-content:center;}
+#chat-fab:active{transform:scale(0.94);}
+#chat-badge{position:absolute;top:-2px;right:-2px;background:#FFD54F;color:#0D47A1;font-size:9px;font-weight:800;border-radius:8px;padding:2px 5px;}
+#chat-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:199;}
+#chat-overlay.open{display:block;}
+#chat-panel{display:none;position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;height:82vh;max-height:640px;background:#f0f4f8;border-radius:18px 18px 0 0;z-index:201;flex-direction:column;overflow:hidden;box-shadow:0 -6px 24px rgba(0,0,0,0.25);}
+#chat-panel.open{display:flex;}
+#chat-hdr{background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;}
+#chat-hdr .t{font-size:0.95rem;font-weight:800;}
+#chat-hdr .s{font-size:0.68rem;opacity:0.85;margin-top:2px;}
+#chat-x{background:rgba(255,255,255,0.2);border:none;color:#fff;width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;}
+#chat-body{flex:1;overflow-y:auto;padding:12px 12px 6px;}
+.chat-msg{max-width:88%;margin-bottom:10px;padding:10px 13px;border-radius:12px;font-size:0.82rem;line-height:1.55;}
+.chat-msg.bot{background:#fff;border:1px solid #e0e8f0;color:#1a1a2e;border-bottom-left-radius:3px;}
+.chat-msg.user{background:#1565C0;color:#fff;margin-left:auto;border-bottom-right-radius:3px;}
+.chat-msg b{color:#1565C0;}
+.chat-msg.bot b{color:#0D47A1;}
+.chat-msg .app-tag{display:inline-block;margin-top:6px;font-size:0.66rem;background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-weight:700;}
+.chat-quick{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-top:1px solid #e0e8f0;background:#fff;}
+.chat-quick button{background:#E3F2FD;color:#1565C0;border:none;padding:6px 10px;border-radius:14px;font-size:0.68rem;font-weight:700;cursor:pointer;white-space:nowrap;}
+#chat-input-row{display:flex;gap:8px;padding:10px 12px;background:#fff;border-top:1px solid #e0e8f0;}
+#chat-input{flex:1;border:1px solid #d0dbe8;border-radius:20px;padding:10px 14px;font-size:0.82rem;outline:none;}
+#chat-send{background:#1565C0;color:#fff;border:none;width:40px;height:40px;border-radius:50%;font-size:16px;cursor:pointer;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -161,6 +186,257 @@ footer b{color:#FFD54F;}
 <br>
   All tools free to use · Data stored locally · Verify before bank submission
 </footer>
+
+<!-- ── Help Chat Assistant ── -->
+<button id="chat-fab" onclick="chatOpen()">💬<span id="chat-badge">?</span></button>
+<div id="chat-overlay" onclick="chatClose()"></div>
+<div id="chat-panel">
+  <div id="chat-hdr">
+    <div>
+      <div class="t">💬 ME Khata Assistant</div>
+      <div class="s">Ask how to do anything — bank account, purchase, balance sheet...</div>
+    </div>
+    <button id="chat-x" onclick="chatClose()">✕</button>
+  </div>
+  <div id="chat-body"></div>
+  <div class="chat-quick" id="chat-quick"></div>
+  <div id="chat-input-row">
+    <input type="text" id="chat-input" placeholder="Type your question..." onkeydown="if(event.key==='Enter')chatSend()">
+    <button id="chat-send" onclick="chatSend()">➤</button>
+  </div>
+</div>
+
+<script>
+// ── Knowledge base: guides user to the right app + menu for any task ──
+// Organised by category: (A) Difference/Mismatch diagnostics, (B) Daily data entry,
+// (C) Statements & reports, (D) Setup/Masters, (E) Data & security, (F) App/tool selection.
+var CHAT_KB = [
+
+/* ===== A. DIFFERENCE / MISMATCH DIAGNOSTICS ===== */
+{q:"Balance Sheet not tallying / Assets not equal to Liabilities", tags:["balance sheet not tallying","balance sheet difference","assets liabilities","bs difference","bs not matching","balance sheet mismatch"],
+ a:"Balance Sheet difference = Assets − Liabilities is not zero. Go to <b>Health Check</b> → Run Health Check → see the exact difference amount. Common causes:<br>1) <b>Loan disbursement</b> — did the loan amount actually get added to Cash/Bank?<br>2) <b>Additional capital</b> — entered correctly under Capital/Loans → Capital?<br>3) <b>Drawings</b> — are all owner withdrawals recorded?<br>4) Open <b>Financials → Balance Sheet</b> to see the detailed break-up of every head and spot the odd figure."},
+
+{q:"Trial Balance Debit not equal to Credit", tags:["trial balance","tb not matching","tb difference","debit credit not matching","opening trial balance difference"],
+ a:"Trial Balance difference = Total Debit − Total Credit ≠ 0. Go to <b>Data → Opening Trial Balance</b> and recheck each head:<br>• Debit side: Cash, Bank, Stock, Debtors, Fixed Assets<br>• Credit side: Capital, Loans, Creditors<br>Correct whichever entry is wrong or missing, then tap <b>Post to Books</b> again. Health Check will confirm once DR = CR."},
+
+{q:"Cash Flow statement showing a difference", tags:["cash flow difference","cash flow not matching","cash flow mismatch","cashflow"],
+ a:"For a <b>new business</b>, keep Opening Cash/Bank = 0. For an <b>existing business</b>, the Opening Cash and Opening Bank entered in Data → Opening Trial Balance must exactly match your real-life balance on the day you started using the app. If Cash Flow still looks off, check that every Sale, Purchase and Expense has the correct Payment Mode (Cash/Bank/UPI/Credit) — a wrong mode is the most common cause of a Cash Flow mismatch."},
+
+{q:"Cash or Bank balance looks wrong / negative", tags:["cash balance wrong","bank balance wrong","negative cash","negative bank","cash negative","bank negative"],
+ a:"A negative Cash or Bank balance usually means:<br>1) More cash expenses/purchases recorded than the cash actually received/available.<br>2) A purchase or expense was marked 'Cash' when it was really paid by Bank/UPI (or vice-versa).<br>3) Opening Cash/Bank wasn't entered for an existing business.<br>Go to <b>Cash/Bank</b> menu and review the Cash Book / Bank Book entry-by-entry to find the wrong entry, or run <b>Health Check</b> — 'Cash & Bank Position' will flag it."},
+
+{q:"Stock / Inventory value doesn't match", tags:["stock mismatch","inventory mismatch","stock value wrong","closing stock difference","stock not matching"],
+ a:"If Inventory value ≠ the stock value shown in Financials, check:<br>1) Opening Stock — was it entered in Data → Opening Trial Balance (stockitem head) for an existing business?<br>2) Every Purchase — is it linked to an actual Inventory item (not skipped)?<br>3) Negative stock — go to <b>Inventory</b> tab and check no item shows negative quantity (means you sold more than you had — add a missing Purchase or correct the Sale qty).<br>Health Check → 'Closing Stock Consistent' and 'No Negative Stock' will show the exact item and amount."},
+
+{q:"Debtors total looks too high / wrong", tags:["debtors mismatch","debtors wrong","debtors high","debtors reconcile","sundry debtors difference"],
+ a:"Debtors should roughly equal your Credit Sales (plus any Opening Debtors from Trial Balance). If Debtors look too high:<br>1) A customer payment may have been received but not recorded against that debtor.<br>2) A debtor entry may be duplicated.<br>Go to <b>Capital/Loans → Debtors</b> and verify each entry one by one, or check Health Check → 'Debtors Reconcile'."},
+
+{q:"Creditors total looks too high / wrong", tags:["creditors mismatch","creditors wrong","creditors high","creditors reconcile","sundry creditors difference"],
+ a:"Creditors should roughly equal your Credit Purchases (plus Opening Creditors from Trial Balance). If Creditors look too high:<br>1) A supplier payment may have been made but not recorded.<br>2) A creditor entry may be duplicated.<br>Go to <b>Capital/Loans → Creditors</b> and verify each entry, or check Health Check → 'Creditors Reconcile'."},
+
+{q:"Loan outstanding balance is wrong", tags:["loan balance wrong","loan mismatch","loan outstanding wrong","loan difference"],
+ a:"Two common issues: (1) Outstanding balance is negative, or (2) Outstanding is more than the Sanctioned Amount. Go to <b>Capital/Loans → Loans</b> and correct the entry for that lender. Health Check → 'Loan Balances Correct' will name the exact lender and the issue."},
+
+{q:"My bank statement doesn't match my app entries", tags:["bank statement mismatch","bank reconciliation","recon difference","statement vs app","unmatched transactions"],
+ a:"Use the <b>Bank Recon</b> (Bank Reconciliation) menu → upload your bank statement as CSV or Excel → the app automatically matches it against your recorded entries and lists any <b>unmatched bank transactions</b> (in the statement but not in your app) and <b>unmatched app entries</b> (recorded but not on the statement, e.g. cheques not yet cleared). It also compares bank-charged interest with the interest you've recorded, so you can add any missing entries."},
+
+{q:"Duplicate bill or voucher numbers found", tags:["duplicate bill","duplicate voucher","duplicate invoice number"],
+ a:"Go to <b>Reports → Bills</b> and edit the duplicate bill number so every bill has a unique number (needed for a clean audit trail). Health Check → 'No Duplicate Voucher Nos.' lists the exact duplicate numbers."},
+
+{q:"Stock items are expiring or already expired", tags:["expired stock","near expiry","expiry date stock"],
+ a:"Go to <b>Inventory</b> and check items with an Expiry Date set. Health Check → 'No Expired Stock' lists any item already expired or expiring within 30 days, so you can plan to sell or write it off."},
+
+{q:"How does Health Check find differences?", tags:["what is health check","health check explained","10 checks","accuracy score"],
+ a:"Health Check runs 10 automatic checks on your books: Trial Balance tally, Balance Sheet tally, Cash & Bank position, Negative Stock, Closing Stock consistency, Debtors reconciliation, Creditors reconciliation, Loan balances, Duplicate vouchers, and Expired stock. Go to the <b>Health Check</b> menu → tap <b>Run Health Check</b> — each check shows Pass/Warning/Fail with the exact figures and a suggested fix, so you don't have to search line by line."},
+
+{q:"I found a difference somewhere but I'm not sure which statement", tags:["difference","not matching","mismatch","discrepancy","gap in accounts","numbers dont match","figures dont match","something wrong in accounts"],
+ a:"No problem — let's narrow it down. Which one has the difference?<br>• <b>Balance Sheet</b> (Assets ≠ Liabilities)<br>• <b>Trial Balance</b> (Debit ≠ Credit)<br>• <b>Cash Flow</b> statement<br>• <b>Cash or Bank balance</b><br>• <b>Stock/Inventory</b> value<br>• <b>Debtors or Creditors</b> total<br>• <b>Loan outstanding</b><br>• <b>Bank statement</b> vs app entries<br><br>Just ask me about any one of these by name — e.g. \"balance sheet not tallying\". Or go straight to <b>Health Check</b> → tap <b>Run Health Check</b> — it checks all of these at once and tells you exactly which figure is off, by how much, and how to fix it."},
+
+/* ===== B. DAILY DATA ENTRY ===== */
+{q:"How to add / edit a bank account?", tags:["bank account","add bank account","account number","edit bank account","new bank account"],
+ a:"Open any Khata app → go to <b>Capital/Loans</b> or <b>Cash/Bank</b> menu → tap <b>+ Add Another Bank Account</b> → enter Bank Name and Account Number → Save. You can add multiple bank accounts and pick any one while recording payments."},
+{q:"How to enter a purchase?", tags:["purchase","enter purchase","buy","khareed","add purchase","record purchase"],
+ a:"Open your Khata app → go to the <b>Purchase</b> tab → enter Date, Supplier → select an Item (or tap + New Item) → enter Qty and Rate → choose Payment Mode (Cash/Bank/UPI/Credit) → tap <b>Record Purchase</b>."},
+{q:"How to record a sale / raise a bill?", tags:["sale","sales","sell","bikri","invoice","bill","record sale"],
+ a:"Go to the <b>Sales</b> tab → enter Date, Customer → select Item → enter Qty and Price → choose Payment Mode → tap <b>Record Sale</b>. A bill/invoice is generated automatically and can be printed or shared as PDF."},
+{q:"How to add an expense?", tags:["expense","add expense","kharcha","cost","record expense"],
+ a:"Go to the <b>Expenses</b> tab → select a Category (Rent/Salary/Electricity etc.) → enter Amount → choose Payment Mode → tap <b>Save Expense</b>."},
+{q:"How to add inventory / stock items?", tags:["inventory","stock","add item","product","new item"],
+ a:"Go to the <b>Inventory</b> tab → tap <b>Add New Item</b> → enter Name, Unit, Category, Rate → Save. You can also add a new item directly from the Purchase screen using + New Item."},
+{q:"How to add a loan?", tags:["add loan","new loan entry","borrow money","karz"],
+ a:"Go to <b>Capital/Loans → Loans</b> → tap <b>+ Add Loan</b> → enter Lender, Amount, Interest Rate, Tenure → Save. EMI and interest accrue automatically."},
+{q:"How to add capital?", tags:["capital","add capital","owner investment","initial capital"],
+ a:"Go to <b>Capital/Loans → Capital</b> → enter Initial (or Additional) Capital as Cash or Bank → Save."},
+{q:"How to record drawings / owner withdrawal?", tags:["drawings","withdrawal","owner takes money"],
+ a:"Go to <b>Capital/Loans → Drawings</b> → tap <b>+ Add Drawing</b> → enter Date and Amount → Save. This reduces Capital automatically."},
+{q:"How to add a fixed asset?", tags:["fixed asset","machinery","asset","add asset"],
+ a:"Go to <b>Capital/Loans → Fixed Assets</b> → tap <b>+ Add</b> → enter Name, Purchase Date, Cost and Useful Life → Save. Depreciation calculates automatically every year."},
+{q:"How to record a customer's credit sale as a debtor?", tags:["debtor entry","credit sale debtor","customer credit"],
+ a:"In <b>Sales</b>, select Payment Mode = <b>Credit</b> — the customer automatically becomes a Debtor. To view/manage debtors, go to <b>Capital/Loans → Debtors</b>."},
+{q:"How to record a supplier's credit purchase as a creditor?", tags:["creditor entry","credit purchase creditor","supplier credit"],
+ a:"In <b>Purchase</b>, select Payment Mode = <b>Credit</b> — the supplier automatically becomes a Creditor. To view/manage creditors, go to <b>Capital/Loans → Creditors</b>."},
+{q:"How to record a debtor's payment / collection received?", tags:["debtor payment","collection received","receive payment from customer"],
+ a:"Go to <b>Capital/Loans → Debtors</b> → select the customer → tap <b>Record Payment / Collection</b> → enter Amount and Payment Mode → Save. This reduces the debtor balance and increases Cash/Bank."},
+{q:"How to record a payment made to a supplier / creditor?", tags:["creditor payment","pay supplier","payment to supplier"],
+ a:"Go to <b>Capital/Loans → Creditors</b> → select the supplier → tap <b>Record Payment</b> → enter Amount and Payment Mode → Save. This reduces the creditor balance and reduces Cash/Bank."},
+{q:"How to use the barcode scanner?", tags:["barcode","scanner","scan item","camera scan"],
+ a:"In the <b>Purchase</b> tab, tap the green 📷 button → allow camera access (first time only) → scan the barcode → the matching item auto-selects."},
+{q:"How to record an imported purchase?", tags:["import purchase","imported goods","foreign purchase"],
+ a:"In the <b>Purchase</b> tab, tick the <b>Imported</b> checkbox before saving → fill in the import details. Imported stock is tracked separately from local stock."},
+
+/* ===== C. STATEMENTS & REPORTS ===== */
+{q:"How to view the Balance Sheet?", tags:["balance sheet","view balance sheet","statement","bs view"],
+ a:"Go to <b>Financials</b> → open <b>Balance Sheet</b>. It's auto-generated from all your entries. You'll also find P&L Statement and Cash Flow there. Use <b>Reports</b> for item-wise / monthly breakdowns."},
+{q:"How to view Profit & Loss (P&L)?", tags:["p&l","profit and loss","view p&l","pnl"],
+ a:"Go to <b>Financials → P&L Statement</b>. It shows Sales, Cost of Goods Sold, Gross Profit, Expenses and Net Profit for the period."},
+{q:"How to view Cash Flow statement?", tags:["cash flow view","cash flow statement"],
+ a:"Go to <b>Financials → Cash Flow</b>. It shows cash inflows and outflows across operating, investing and financing activities."},
+{q:"How to view reports (monthly, item-wise, stock)?", tags:["reports","view reports","monthly report","item wise report","stock report"],
+ a:"Go to the <b>Reports</b> menu for detailed item-wise sales/purchase reports, monthly P&L trend and stock reports."},
+{q:"How to export a report as PDF?", tags:["export pdf","print report","save as pdf","report pdf"],
+ a:"Open any report in <b>Financials</b> or <b>Reports</b> → tap <b>Print This Report</b> → on iPhone: pinch out on the preview → Share → Save to Files. Or go to <b>Data → Export All Reports PDF</b>."},
+{q:"How to calculate EMI?", tags:["emi","emi calculator","loan installment"],
+ a:"Go to the <b>EMI Calc</b> menu → enter Loan Amount, Interest Rate and Tenure → it instantly shows your monthly EMI and full amortization schedule."},
+{q:"How to see financial projections?", tags:["projections","projected p&l","future years","projection"],
+ a:"Go to the <b>Projections</b> menu → it auto-generates projected P&L, Balance Sheet and Cash Flow for future years based on your growth assumptions, which you can adjust."},
+{q:"How to see business analytics / trends?", tags:["analytics","trends","business analysis","dashboard analytics"],
+ a:"Go to the <b>Analytics</b> menu for visual trends — sales growth, expense breakdown, margins and more, based on your recorded data."},
+{q:"What does the AI Advisor do and how do I use it?", tags:["ai advisor","ai questions","business advice"],
+ a:"Go to the <b>AI Advisor</b> menu — it answers 16 common business questions (profit analysis, stock reorder points, loan eligibility etc.) directly from your own data, and works even without internet."},
+{q:"How to assess loan eligibility / bank credit limit?", tags:["loan assessment","bank loan eligibility","credit limit","mpbf","cc limit"],
+ a:"Go to the <b>Bank Loan Assessment</b> menu — enter/verify your Cash Credit and Term Loan details, Sales growth and holding norms; it calculates MPBF (Maximum Permissible Bank Finance), DSCR and more, following RBI/Tandon Committee norms."},
+
+/* ===== D. SETUP / MASTERS / SETTINGS ===== */
+{q:"How to set up my business profile?", tags:["profile","business name","setup profile","new business setup"],
+ a:"Go to the <b>Profile</b> menu → fill Business Name, Owner Name, Mobile, Address, Business Type/Constitution, GST/PAN if applicable → Save. Do this first when starting a new business."},
+{q:"How to start for a brand-new business with no prior data?", tags:["new business start","how to start","first time setup","begin"],
+ a:"1) <b>Profile</b> → fill details → Save.<br>2) <b>Capital/Loans → Capital</b> → enter Initial Capital.<br>3) Add <b>Inventory</b> items.<br>4) Start recording daily <b>Sales, Purchase, Expenses</b>."},
+{q:"How to enter opening balances for an existing business?", tags:["opening balance","existing business","trial balance entry","opening trial balance","existing data entry"],
+ a:"Go to <b>Data → Opening Trial Balance</b> → add each head one by one: Cash, Bank, Stock items, Debtors, Fixed Assets, Creditors, Loans, Capital (balancing figure). When Debit = Credit, tap <b>Post to Books</b>. Alternatively, use <b>Data → Full Data Template (.xlsx)</b> to fill everything in Excel and upload it in one go."},
+{q:"How to enable GST?", tags:["gst","gstin","tax enable"],
+ a:"Go to <b>Profile → GST section</b> → tap Enable GST → enter your GSTIN → set the default GST rate. GST now calculates automatically on Sales entries."},
+{q:"How to set up HSN/SAC codes?", tags:["hsn","sac","hsn code","sac code"],
+ a:"Go to the <b>HSN/SAC Master</b> menu → add or edit HSN (goods) / SAC (services) codes for your items, used for GST-compliant invoicing."},
+{q:"How to save shortcut codes for regular customers/suppliers?", tags:["party code","customer code","supplier code"],
+ a:"Go to the <b>Party Codes</b> menu → assign a short code to frequent customers/suppliers for faster entry in Sales/Purchase."},
+{q:"How to set a default profit margin?", tags:["margin","default margin","profit margin setting"],
+ a:"Go to the <b>Margin Settings</b> menu → set a default margin % over cost → it auto-fills the selling price for every item in Sales (you can still override it per sale)."},
+{q:"How to set payment reminders?", tags:["reminder","payment reminder","due date alert"],
+ a:"Go to the <b>Payment Reminders</b> menu to set/view reminders for debtor collections and creditor payments that are due."},
+{q:"How to compute income tax?", tags:["income tax","tax calculation","tax liability"],
+ a:"Go to the <b>Income Tax</b> menu → select Assessment Year and Taxpayer type → it estimates tax liability based on your business's net profit."},
+{q:"How to explore the app with sample/demo data?", tags:["training mode","demo data","practice","sample data"],
+ a:"Go to the <b>Training Mode</b> menu → load one of 6 ready demo businesses to practice every feature without affecting your real data."},
+
+/* ===== E. DATA, BACKUP & TROUBLESHOOTING ===== */
+{q:"How to backup my data?", tags:["backup","save data","export data","download backup"],
+ a:"Go to the <b>Data</b> tab → tap <b>Download Backup</b> — a JSON file is saved to your phone. Keep it safe, e.g. in Google Drive. Do this regularly."},
+{q:"How to restore data / my data is lost?", tags:["restore","import backup","recover data","data lost","data gone","data missing"],
+ a:"Don't worry — go to the <b>Data</b> tab → tap <b>Import Backup File</b> → select your saved JSON backup → data restores instantly. If you don't have a backup, load demo data from <b>Training Mode</b> to explore while you re-enter real data."},
+{q:"How to use the Excel data template for bulk entry?", tags:["excel template","bulk upload","data template","xlsx upload"],
+ a:"Go to <b>Data → Full Data Template (.xlsx)</b> → download it → fill Trial Balance, Inventory, Fixed Assets, Loans, Partners sheets in Excel → go back to <b>Data → Upload Full Data File</b> to import everything at once."},
+{q:"The app is running slow", tags:["app slow","hang","lagging","performance issue"],
+ a:"1) Clear Safari cache: Settings → Safari → Clear History.<br>2) Remove the app from Home Screen and reinstall from the link.<br>3) Take a backup → Clear All Data → then restore the backup."},
+{q:"How to update the app to the latest version?", tags:["update app","new version","upgrade app"],
+ a:"Remove the app icon from your Home Screen → open the app link again in Safari/Chrome → tap Add to Home Screen. This installs the latest version while keeping your saved data (which lives in browser storage, not the icon)."},
+
+/* ===== F. APP / TOOL SELECTION ===== */
+{q:"Which app should I use for my business?", tags:["which app","choose app","trading vs manufacturing","which khata"],
+ a:"• Buying & reselling goods → <b>Trading Khata</b><br>• Making/producing goods → <b>Manufacturing Khata</b><br>• Providing services (no stock) → <b>Service Khata</b><br>• A mix of all three → <b>All In One Khata</b><br>• Multiple branches/units → <b>Multi Unit Khata</b>"},
+{q:"How to manage multiple branches or units?", tags:["multi unit","branch","multiple units"],
+ a:"Use the <b>Multi Unit Khata</b> app from the main menu. It keeps separate books for each branch/unit and also shows consolidated reports across all of them."},
+{q:"How to prepare a CMA report for a bank loan?", tags:["cma","bank loan","credit appraisal","mpbf","dscr report"],
+ a:"From the main menu, use <b>CMA Existing Unit Generator</b> if you have 1–2 years of actual data (Trial Balance/P&L), or <b>CMA New Unit Generator</b> if it's a new business. Both auto-generate the full 5-year CMA (CMA I–V, DSCR, MPBF, IRR/NPV, Break-Even) for bank submission."},
+{q:"Is my data safe / where is it stored?", tags:["data safe","data privacy","where stored","local storage"],
+ a:"All apps run fully in your browser — your data is stored locally on your own device, not on any server. Nobody else can see it. Just remember to take regular backups since clearing browser data will remove it."},
+{q:"Each Khata app also has its own help chat", tags:["help inside app","faq inside app","in app help"],
+ a:"Once you open any Khata app, look for the <b>💬 button</b> at the bottom-right — it has a searchable Help/FAQ chat specific to that app's screens."}
+];
+
+var CHAT_QUICK = ["Find a difference in statement","Add bank account","Enter a purchase","View Balance Sheet","Backup my data","Which app should I use?"];
+
+var CHAT_STOPWORDS = {"how":1,"to":1,"a":1,"an":1,"the":1,"is":1,"are":1,"my":1,"i":1,"in":1,"on":1,"of":1,"and":1,"or":1,"do":1,"does":1,"what":1,"for":1,"with":1,"it":1,"me":1,"can":1,"you":1,"please":1,"want":1,"find":1,"out":1};
+
+function chatWords(s){
+  return s.toLowerCase().replace(/[^a-z0-9&\s]/g,' ').split(/\s+/).filter(function(w){return w.length>1 && !CHAT_STOPWORDS[w];});
+}
+
+function chatAnswerFor(text){
+  var raw = text.toLowerCase().trim().replace(/[^a-z\s]/g,'');
+  if(/^(hi|hello|hey|namaste)$/.test(raw)) return "Hello! 👋 Ask me anything about using ME Khata — e.g. adding a bank account, entering a purchase, or finding a difference in your Balance Sheet.";
+  if(/^(thanks|thank you|thanx|ok|okay|great)$/.test(raw)) return "You're welcome! 🙂 Ask me anytime you're stuck on any screen.";
+  var q = ' ' + text.toLowerCase() + ' ';
+  var qWords = chatWords(text);
+  var qSet = {}; qWords.forEach(function(w){ qSet[w]=true; });
+  var best=null, bestScore=0;
+  CHAT_KB.forEach(function(item){
+    var matched = {}; var phraseBonus = 0;
+    (item.tags||[]).forEach(function(t){
+      var tWordCount = t.split(' ').length;
+      if(tWordCount>=2 && (q.indexOf(' '+t+' ')>-1 || q.indexOf(t)>-1)){
+        if(tWordCount>phraseBonus) phraseBonus = tWordCount;
+      }
+      chatWords(t).forEach(function(w){ if(qSet[w]) matched[w]=true; });
+    });
+    var uniqueMatches = Object.keys(matched).length;
+    var score = uniqueMatches + phraseBonus*2;
+    if(score>bestScore){ bestScore=score; best=item; }
+  });
+  if(best && bestScore>=1) return best.a;
+  return "I couldn't find an exact match for that. Try asking about: a difference in your Balance Sheet/Trial Balance/Cash Flow/Stock/Debtors/Creditors, adding a bank account, entering a purchase or sale, viewing the Balance Sheet, backup/restore, GST, loans, or which app to use. You can also open any Khata app and tap the 💬 button inside it for a full searchable FAQ.";
+}
+
+function chatAddMsg(text, who){
+  var body = document.getElementById('chat-body');
+  var div = document.createElement('div');
+  div.className = 'chat-msg ' + who;
+  div.innerHTML = text;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+
+function chatSend(){
+  var inp = document.getElementById('chat-input');
+  var text = inp.value.trim();
+  if(!text) return;
+  chatAddMsg(text.replace(/</g,'&lt;'), 'user');
+  inp.value='';
+  setTimeout(function(){
+    chatAddMsg(chatAnswerFor(text), 'bot');
+  }, 250);
+}
+
+function chatQuick(q){
+  document.getElementById('chat-input').value = q;
+  chatSend();
+}
+
+function chatBuildQuick(){
+  var qc = document.getElementById('chat-quick');
+  qc.innerHTML = CHAT_QUICK.map(function(q){
+    return '<button onclick="chatQuick(\''+q.replace(/'/g,"\\'")+'\')">'+q+'</button>';
+  }).join('');
+}
+
+function chatOpen(){
+  document.getElementById('chat-overlay').classList.add('open');
+  document.getElementById('chat-panel').classList.add('open');
+  var badge = document.getElementById('chat-badge');
+  if(badge) badge.style.display='none';
+  var body = document.getElementById('chat-body');
+  if(!body.dataset.greeted){
+    chatAddMsg("👋 Hi! I'm the ME Khata Assistant. Ask me how to do anything — e.g. <i>\"how to add bank account\"</i>, <i>\"how to enter purchase\"</i>, <i>\"how to view balance sheet\"</i> — and I'll guide you to the right app and menu.", 'bot');
+    body.dataset.greeted = '1';
+    chatBuildQuick();
+  }
+  document.getElementById('chat-input').focus();
+}
+
+function chatClose(){
+  document.getElementById('chat-overlay').classList.remove('open');
+  document.getElementById('chat-panel').classList.remove('open');
+}
+</script>
 
 </body>
 </html>
