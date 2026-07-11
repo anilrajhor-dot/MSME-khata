@@ -213,43 +213,43 @@ footer b{color:#FFD54F;}
 var CHAT_KB = [
 
 /* ===== A. DIFFERENCE / MISMATCH DIAGNOSTICS ===== */
-{q:"Balance Sheet not tallying / Assets not equal to Liabilities", tags:["balance sheet not tallying","balance sheet difference","assets liabilities","bs difference","bs not matching","balance sheet mismatch"],
+{q:"Balance Sheet not tallying / Assets not equal to Liabilities", tags:["balance sheet not tallying","balance sheet difference","assets liabilities","bs difference","bs not matching","balance sheet mismatch"], diag:true,
  a:"Balance Sheet difference = Assets − Liabilities is not zero. Go to <b>Health Check</b> → Run Health Check → see the exact difference amount. Common causes:<br>1) <b>Loan disbursement</b> — did the loan amount actually get added to Cash/Bank?<br>2) <b>Additional capital</b> — entered correctly under Capital/Loans → Capital?<br>3) <b>Drawings</b> — are all owner withdrawals recorded?<br>4) Open <b>Financials → Balance Sheet</b> to see the detailed break-up of every head and spot the odd figure."},
 
-{q:"Trial Balance Debit not equal to Credit", tags:["trial balance","tb not matching","tb difference","debit credit not matching","opening trial balance difference"],
+{q:"Trial Balance Debit not equal to Credit", tags:["trial balance","tb not matching","tb difference","debit credit not matching","opening trial balance difference"], diag:true,
  a:"Trial Balance difference = Total Debit − Total Credit ≠ 0. Go to <b>Data → Opening Trial Balance</b> and recheck each head:<br>• Debit side: Cash, Bank, Stock, Debtors, Fixed Assets<br>• Credit side: Capital, Loans, Creditors<br>Correct whichever entry is wrong or missing, then tap <b>Post to Books</b> again. Health Check will confirm once DR = CR."},
 
-{q:"Cash Flow statement showing a difference", tags:["cash flow difference","cash flow not matching","cash flow mismatch","cashflow"],
+{q:"Cash Flow statement showing a difference", tags:["cash flow difference","cash flow not matching","cash flow mismatch","cashflow"], diag:true,
  a:"For a <b>new business</b>, keep Opening Cash/Bank = 0. For an <b>existing business</b>, the Opening Cash and Opening Bank entered in Data → Opening Trial Balance must exactly match your real-life balance on the day you started using the app. If Cash Flow still looks off, check that every Sale, Purchase and Expense has the correct Payment Mode (Cash/Bank/UPI/Credit) — a wrong mode is the most common cause of a Cash Flow mismatch."},
 
-{q:"Cash or Bank balance looks wrong / negative", tags:["cash balance wrong","bank balance wrong","negative cash","negative bank","cash negative","bank negative"],
+{q:"Cash or Bank balance looks wrong / negative", tags:["cash balance wrong","bank balance wrong","negative cash","negative bank","cash negative","bank negative"], diag:true,
  a:"A negative Cash or Bank balance usually means:<br>1) More cash expenses/purchases recorded than the cash actually received/available.<br>2) A purchase or expense was marked 'Cash' when it was really paid by Bank/UPI (or vice-versa).<br>3) Opening Cash/Bank wasn't entered for an existing business.<br>Go to <b>Cash/Bank</b> menu and review the Cash Book / Bank Book entry-by-entry to find the wrong entry, or run <b>Health Check</b> — 'Cash & Bank Position' will flag it."},
 
-{q:"Stock / Inventory value doesn't match", tags:["stock mismatch","inventory mismatch","stock value wrong","closing stock difference","stock not matching"],
+{q:"Stock / Inventory value doesn't match", tags:["stock mismatch","inventory mismatch","stock value wrong","closing stock difference","stock not matching"], diag:true,
  a:"If Inventory value ≠ the stock value shown in Financials, check:<br>1) Opening Stock — was it entered in Data → Opening Trial Balance (stockitem head) for an existing business?<br>2) Every Purchase — is it linked to an actual Inventory item (not skipped)?<br>3) Negative stock — go to <b>Inventory</b> tab and check no item shows negative quantity (means you sold more than you had — add a missing Purchase or correct the Sale qty).<br>Health Check → 'Closing Stock Consistent' and 'No Negative Stock' will show the exact item and amount."},
 
-{q:"Debtors total looks too high / wrong", tags:["debtors mismatch","debtors wrong","debtors high","debtors reconcile","sundry debtors difference"],
+{q:"Debtors total looks too high / wrong", tags:["debtors mismatch","debtors wrong","debtors high","debtors reconcile","sundry debtors difference"], diag:true,
  a:"Debtors should roughly equal your Credit Sales (plus any Opening Debtors from Trial Balance). If Debtors look too high:<br>1) A customer payment may have been received but not recorded against that debtor.<br>2) A debtor entry may be duplicated.<br>Go to <b>Capital/Loans → Debtors</b> and verify each entry one by one, or check Health Check → 'Debtors Reconcile'."},
 
-{q:"Creditors total looks too high / wrong", tags:["creditors mismatch","creditors wrong","creditors high","creditors reconcile","sundry creditors difference"],
+{q:"Creditors total looks too high / wrong", tags:["creditors mismatch","creditors wrong","creditors high","creditors reconcile","sundry creditors difference"], diag:true,
  a:"Creditors should roughly equal your Credit Purchases (plus Opening Creditors from Trial Balance). If Creditors look too high:<br>1) A supplier payment may have been made but not recorded.<br>2) A creditor entry may be duplicated.<br>Go to <b>Capital/Loans → Creditors</b> and verify each entry, or check Health Check → 'Creditors Reconcile'."},
 
-{q:"Loan outstanding balance is wrong", tags:["loan balance wrong","loan mismatch","loan outstanding wrong","loan difference"],
+{q:"Loan outstanding balance is wrong", tags:["loan balance wrong","loan mismatch","loan outstanding wrong","loan difference"], diag:true,
  a:"Two common issues: (1) Outstanding balance is negative, or (2) Outstanding is more than the Sanctioned Amount. Go to <b>Capital/Loans → Loans</b> and correct the entry for that lender. Health Check → 'Loan Balances Correct' will name the exact lender and the issue."},
 
-{q:"My bank statement doesn't match my app entries", tags:["bank statement mismatch","bank reconciliation","recon difference","statement vs app","unmatched transactions"],
+{q:"My bank statement doesn't match my app entries", tags:["bank statement mismatch","bank reconciliation","recon difference","statement vs app","unmatched transactions"], diag:true,
  a:"Use the <b>Bank Recon</b> (Bank Reconciliation) menu → upload your bank statement as CSV or Excel → the app automatically matches it against your recorded entries and lists any <b>unmatched bank transactions</b> (in the statement but not in your app) and <b>unmatched app entries</b> (recorded but not on the statement, e.g. cheques not yet cleared). It also compares bank-charged interest with the interest you've recorded, so you can add any missing entries."},
 
-{q:"Duplicate bill or voucher numbers found", tags:["duplicate bill","duplicate voucher","duplicate invoice number"],
+{q:"Duplicate bill or voucher numbers found", tags:["duplicate bill","duplicate voucher","duplicate invoice number"], diag:true,
  a:"Go to <b>Reports → Bills</b> and edit the duplicate bill number so every bill has a unique number (needed for a clean audit trail). Health Check → 'No Duplicate Voucher Nos.' lists the exact duplicate numbers."},
 
-{q:"Stock items are expiring or already expired", tags:["expired stock","near expiry","expiry date stock"],
+{q:"Stock items are expiring or already expired", tags:["expired stock","near expiry","expiry date stock"], diag:true,
  a:"Go to <b>Inventory</b> and check items with an Expiry Date set. Health Check → 'No Expired Stock' lists any item already expired or expiring within 30 days, so you can plan to sell or write it off."},
 
-{q:"How does Health Check find differences?", tags:["what is health check","health check explained","10 checks","accuracy score"],
+{q:"How does Health Check find differences?", tags:["what is health check","health check explained","10 checks","accuracy score"], diag:true,
  a:"Health Check runs 10 automatic checks on your books: Trial Balance tally, Balance Sheet tally, Cash & Bank position, Negative Stock, Closing Stock consistency, Debtors reconciliation, Creditors reconciliation, Loan balances, Duplicate vouchers, and Expired stock. Go to the <b>Health Check</b> menu → tap <b>Run Health Check</b> — each check shows Pass/Warning/Fail with the exact figures and a suggested fix, so you don't have to search line by line."},
 
-{q:"I found a difference somewhere but I'm not sure which statement", tags:["difference","not matching","mismatch","discrepancy","gap in accounts","numbers dont match","figures dont match","something wrong in accounts"],
+{q:"I found a difference somewhere but I'm not sure which statement", tags:["difference","mismatch","discrepancy","gap in accounts","numbers dont match","figures dont match","something wrong in accounts"], diag:true,
  a:"No problem — let's narrow it down. Which one has the difference?<br>• <b>Balance Sheet</b> (Assets ≠ Liabilities)<br>• <b>Trial Balance</b> (Debit ≠ Credit)<br>• <b>Cash Flow</b> statement<br>• <b>Cash or Bank balance</b><br>• <b>Stock/Inventory</b> value<br>• <b>Debtors or Creditors</b> total<br>• <b>Loan outstanding</b><br>• <b>Bank statement</b> vs app entries<br><br>Just ask me about any one of these by name — e.g. \"balance sheet not tallying\". Or go straight to <b>Health Check</b> → tap <b>Run Health Check</b> — it checks all of these at once and tells you exactly which figure is off, by how much, and how to fix it."},
 
 /* ===== B. DAILY DATA ENTRY ===== */
@@ -314,7 +314,9 @@ var CHAT_KB = [
 {q:"How to enter opening balances for an existing business?", tags:["opening balance","existing business","trial balance entry","opening trial balance","existing data entry"],
  a:"Go to <b>Data → Opening Trial Balance</b> → add each head one by one: Cash, Bank, Stock items, Debtors, Fixed Assets, Creditors, Loans, Capital (balancing figure). When Debit = Credit, tap <b>Post to Books</b>. Alternatively, use <b>Data → Full Data Template (.xlsx)</b> to fill everything in Excel and upload it in one go."},
 {q:"How to enable GST?", tags:["gst","gstin","tax enable"],
- a:"Go to <b>Profile → GST section</b> → tap Enable GST → enter your GSTIN → set the default GST rate. GST now calculates automatically on Sales entries."},
+ a:"Go to <b>Profile → GST section</b> (or <b>GST Module</b>) → tap Enable GST → enter your GSTIN → set the default GST rate/Supply Type. Then assign a GST rate to each item in <b>Inventory</b> (or it uses your default rate) — this is what GST calculations are based on."},
+{q:"How does GST work while entering a purchase or sale — is it added separately?", tags:["gst on purchase","gst on sale","gst entry purchase sale","how gst calculated","gst added on top","gst separate field"],
+ a:"In the plain <b>Purchase</b> and <b>Sales</b> tabs you just enter Qty and Rate/Price as one amount — there's no separate GST field there, and it doesn't get added into your Cash/Bank/Debtor/Creditor entry automatically. GST is worked out in the background using the <b>GST rate assigned to that item</b> (Inventory → Edit Item, or your default rate) and shown in <b>GST Module → Summary</b> as Output GST (on Sales), Input Tax Credit/ITC (on Purchases) and Net GST Payable — useful for return filing.<br><br>If you use the <b>Bill/Invoice</b> (multi-item billing) screen instead, GST is shown added on top of the item price on the printed invoice, e.g. Item ₹1,000 + 18% GST = ₹1,180.<br><br>Either way, GST does <b>not</b> automatically show up as a 'GST Payable' liability on your Balance Sheet — once you check the Net GST Payable in GST Module → Summary, record it yourself via <b>Capital/Loans → Other Liabilities</b> so it reflects correctly."},
 {q:"How to set up HSN/SAC codes?", tags:["hsn","sac","hsn code","sac code"],
  a:"Go to the <b>HSN/SAC Master</b> menu → add or edit HSN (goods) / SAC (services) codes for your items, used for GST-compliant invoicing."},
 {q:"How to save shortcut codes for regular customers/suppliers?", tags:["party code","customer code","supplier code"],
@@ -361,6 +363,8 @@ function chatWords(s){
   return s.toLowerCase().replace(/[^a-z0-9&\s]/g,' ').split(/\s+/).filter(function(w){return w.length>1 && !CHAT_STOPWORDS[w];});
 }
 
+var CHAT_DIAG_INTENT = /difference|mismatch|discrepanc|tally|tallying|not match|doesn.?t match|dont match|not equal|not correct|not right|incorrect|imbalance|not adding up|not add up|not reconcil|out of balance|not balanc/i;
+
 function chatAnswerFor(text){
   var raw = text.toLowerCase().trim().replace(/[^a-z\s]/g,'');
   if(/^(hi|hello|hey|namaste)$/.test(raw)) return "Hello! 👋 Ask me anything about using ME Khata — e.g. adding a bank account, entering a purchase, or finding a difference in your Balance Sheet.";
@@ -368,7 +372,9 @@ function chatAnswerFor(text){
   var q = ' ' + text.toLowerCase() + ' ';
   var qWords = chatWords(text);
   var qSet = {}; qWords.forEach(function(w){ qSet[w]=true; });
+  var diagIntent = CHAT_DIAG_INTENT.test(text);
   var best=null, bestScore=0;
+  var CHAT_FILLER = {"not":1,"matching":1,"match":1,"matches":1,"mismatch":1,"difference":1,"tally":1,"tallying":1,"wrong":1,"correct":1,"incorrect":1,"discrepancy":1,"gap":1,"equal":1,"reconcile":1,"reconciliation":1,"statement":1,"amount":1,"value":1,"balance":1,"looks":1,"seems":1,"showing":1,"show":1,"differ":1,"balancing":1,"add":1,"enter":1,"record":1,"new":1,"edit":1,"view":1,"see":1,"kaise":1,"karen":1,"karna":1};
   CHAT_KB.forEach(function(item){
     var matched = {}; var phraseBonus = 0;
     (item.tags||[]).forEach(function(t){
@@ -378,8 +384,11 @@ function chatAnswerFor(text){
       }
       chatWords(t).forEach(function(w){ if(qSet[w]) matched[w]=true; });
     });
-    var uniqueMatches = Object.keys(matched).length;
-    var score = uniqueMatches + phraseBonus*2;
+    var weighted = 0;
+    Object.keys(matched).forEach(function(w){ weighted += CHAT_FILLER[w] ? 0.4 : 1; });
+    var score = weighted + phraseBonus*2;
+    if(diagIntent && item.diag) score += 6;
+    if(diagIntent && !item.diag) score -= 2;
     if(score>bestScore){ bestScore=score; best=item; }
   });
   if(best && bestScore>=1) return best.a;

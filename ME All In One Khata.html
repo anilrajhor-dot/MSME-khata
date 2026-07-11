@@ -8,9 +8,9 @@ try{ sessionStorage.setItem("mfm_build",_BUILD); }catch(e){}
 // standalone "Add to Home Screen" mode on iOS Safari (reload loop/race condition)
 var _FAQ_DATA=[
 {q:"App kaise use karein / How to start?",a:"Profile mein Business Name bharen → Save. Capital/Loans mein capital enter karen → Save. Ab Sales aur Purchases record karna shuru karen. / Fill Profile → Save. Enter capital in Capital/Loans → Save. Start recording Sales and Purchases.",tags:["start","shuru","begin","setup"]},
-{q:"Purchase entry kaise karen / How to add purchase?",a:"Purchase tab → Date, Supplier → Item select (ya + New Item) → Qty, Rate → Payment mode → Record Purchase tap karen.",tags:["purchase","khareed","buy"]},
-{q:"Sale kaise record karen / How to record sale?",a:"Sales tab → Date, Customer → Item select → Qty, Price → Payment mode → Record Sale tap karen.",tags:["sale","bikri","sell"]},
-{q:"Expense kaise add karen / How to add expense?",a:"Expenses tab → Category select (Rent/Salary/Electricity) → Amount → Payment mode → Save Expense.",tags:["expense","kharcha","cost"]},
+{q:"Purchase entry kaise karen / How to add purchase?",a:"Purchase tab → Date, Supplier → Item select (ya + New Item) → Qty, Rate → Payment mode → Record Purchase tap karen.",tags:["purchase","khareed","buy","enter purchase","record purchase","add purchase"]},
+{q:"Sale kaise record karen / How to record sale?",a:"Sales tab → Date, Customer → Item select → Qty, Price → Payment mode → Record Sale tap karen.",tags:["sale","bikri","sell","enter sale","record sale","add sale"]},
+{q:"Expense kaise add karen / How to add expense?",a:"Expenses tab → Category select (Rent/Salary/Electricity) → Amount → Payment mode → Save Expense.",tags:["expense","kharcha","cost","enter expense","record expense","add expense"]},
 {q:"Balance Sheet tally nahi ho rahi / BS not tallying?",a:"1. Capital aur Loan sahi enter karen. 2. Opening Cash/Bank check karen. 3. Health Check run karen → 100% aana chahiye. / 1. Check capital and loan amounts. 2. Verify opening cash/bank. 3. Run Health Check → should show 100%.",tags:["balance sheet","tally","difference"]},
 {q:"Cash Flow difference kyun / Why Cash Flow difference?",a:"New business ke liye Opening Cash = 0 rakhein. Existing business ke liye Trial Balance se opening balance sahi enter karen. / For new business keep Opening = 0. For existing business enter opening balance from Trial Balance correctly.",tags:["cash flow","difference","opening"]},
 {q:"Inventory item kaise add karen / How to add inventory?",a:"Inventory tab → Add New Item → Name, Unit, Category, Rate → Save. Ya Purchase mein directly + New Item use karen. / Inventory tab → Add New Item → fill details → Save. Or use + New Item directly in Purchase.",tags:["inventory","stock","item"]},
@@ -15773,26 +15773,31 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"How to add capital?", a:"Go to <b>Capital/Loans &rarr; Capital</b> &rarr; enter your Initial (or Additional) Capital as Cash or Bank &rarr; Save. For a partnership, go to Profile &rarr; Constitution &rarr; select Partnership, then enter a separate capital amount for each partner.",tags:["add capital","initial capital","owner capital","capital kaise add karen"]},
+{q:"How to view the Balance Sheet, P&L or Cash Flow?", a:"Go to <b>Financials</b> menu &rarr; open <b>Balance Sheet</b>, <b>P&amp;L Statement</b> or <b>Cash Flow</b>. All are auto-generated from your Sales, Purchase, Expense, Capital and Loan entries. Use <b>Reports</b> for item-wise and monthly breakdowns.",tags:["view balance sheet","view p&l","view cash flow","see balance sheet","show balance sheet","balance sheet kaise dekhen"]},
+{q:"How does GST work while entering a purchase or sale?", a:"In the plain <b>Purchase</b> and <b>Sales</b> tabs you just enter Qty and Rate/Price as one amount &mdash; there is no separate GST field there, and it does not get added into your Cash/Bank/Debtor/Creditor entry automatically. GST is worked out in the background using the <b>GST rate assigned to that item</b> (Inventory &rarr; Edit Item, or your default rate) and shown in <b>GST Module &rarr; Summary</b> as Output GST (Sales), Input Tax Credit/ITC (Purchases) and Net GST Payable &mdash; useful for return filing. If you use the <b>Bill/Invoice</b> screen instead, GST is shown added on top of the item price on the printed invoice. Either way, GST does not automatically appear as a 'GST Payable' liability on your Balance Sheet &mdash; record it yourself via Capital/Loans &rarr; Other Liabilities once you check GST Module &rarr; Summary.",tags:["gst on purchase","gst on sale","gst entry purchase sale","how gst calculated","gst added on top","gst separate field","is gst automatic"]},
 {q:"How to add or edit a bank account?", a:"Go to <b>Capital/Loans</b> or <b>Cash/Bank</b> menu → tap <b>+ Add Another Bank Account</b> → enter Bank Name and Account Number → Save. You can add multiple bank accounts and pick any one while recording payments.",tags:["bank account","add bank account","account number","edit bank account","new bank account"]},
 {q:"Which app should I use for my business?", a:"Buying & reselling goods → Trading Khata. Making/producing goods → Manufacturing Khata. Providing services (no stock) → Service Khata. A mix of all three → All In One Khata. Multiple branches/units → Multi Unit Khata.",tags:["which app","choose app","which khata"]},
 
-{q:"I found a difference in my statement", a:"Tell me which one: Balance Sheet, Trial Balance, Cash Flow, Cash/Bank balance, Stock value, Debtors, Creditors, Loan outstanding, or Bank statement vs app entries. Or go straight to <b>Health Check</b> and tap <b>Run Health Check</b> — it checks all of these at once and shows exactly which figure is off and how to fix it.",tags:["difference","not matching","mismatch","discrepancy","not tallying"]},
-{q:"Balance Sheet not tallying", a:"Go to <b>Health Check</b> → Run Health Check to see the exact difference amount. Common causes: 1) Loan disbursement not added to Cash/Bank. 2) Additional capital not entered under Capital/Loans. 3) Drawings not recorded. Check <b>Financials → Balance Sheet</b> for the detailed break-up.",tags:["balance sheet not tallying","balance sheet difference","assets liabilities","bs difference"]},
-{q:"Trial Balance Debit not equal Credit", a:"Go to <b>Data → Opening Trial Balance</b> and recheck each head: Debit side (Cash, Bank, Stock, Debtors, Fixed Assets) vs Credit side (Capital, Loans, Creditors). Fix the wrong entry, then tap <b>Post to Books</b> again.",tags:["trial balance","tb not matching","debit credit not matching"]},
-{q:"Cash Flow showing a difference", a:"For a new business keep Opening Cash/Bank = 0. For an existing business, Opening Cash/Bank in Data → Opening Trial Balance must match your real balance on the day you started. Also check every Sale/Purchase/Expense has the correct Payment Mode.",tags:["cash flow difference","cash flow mismatch","cashflow"]},
-{q:"Cash or Bank balance looks wrong or negative", a:"Usually means: 1) More cash expenses/purchases recorded than cash available. 2) A transaction marked Cash was really Bank/UPI (or vice-versa). 3) Opening Cash/Bank missing for an existing business. Check <b>Cash/Bank</b> menu entry-by-entry, or run Health Check.",tags:["cash balance wrong","bank balance wrong","negative cash","negative bank"]},
-{q:"Stock or Inventory value doesn't match", a:"Check: 1) Opening Stock entered in Data → Opening Trial Balance for an existing business. 2) Every Purchase is linked to an Inventory item. 3) No item shows negative stock in <b>Inventory</b>. Health Check → 'Closing Stock Consistent' and 'No Negative Stock' will show the exact item.",tags:["stock mismatch","inventory mismatch","stock value wrong","closing stock difference"]},
-{q:"Debtors total looks wrong", a:"Debtors should roughly equal Credit Sales plus Opening Debtors. Check for a payment received but not recorded, or a duplicated entry, in <b>Capital/Loans → Debtors</b>.",tags:["debtors mismatch","debtors wrong","debtors high"]},
-{q:"Creditors total looks wrong", a:"Creditors should roughly equal Credit Purchases plus Opening Creditors. Check for a payment made but not recorded, or a duplicated entry, in <b>Capital/Loans → Creditors</b>.",tags:["creditors mismatch","creditors wrong","creditors high"]},
-{q:"Loan outstanding balance is wrong", a:"Check for a negative outstanding balance, or an outstanding amount greater than the sanctioned amount, in <b>Capital/Loans → Loans</b>. Health Check → 'Loan Balances Correct' names the exact lender and issue.",tags:["loan balance wrong","loan mismatch","loan outstanding wrong"]},
-{q:"Bank statement doesn't match my app entries", a:"Use <b>Bank Recon</b> → upload your bank statement (CSV/Excel) → it auto-matches against your recorded entries and lists unmatched bank transactions and unmatched app entries (e.g. cheques not yet cleared).",tags:["bank statement mismatch","bank reconciliation","recon difference"]},
-{q:"Duplicate bill or voucher numbers found", a:"Go to <b>Reports → Bills</b> and edit the duplicate bill number. Health Check → 'No Duplicate Voucher Nos.' lists the exact duplicates.",tags:["duplicate bill","duplicate voucher"]},
-{q:"How does Health Check find differences?", a:"It runs 10 checks: Trial Balance tally, Balance Sheet tally, Cash & Bank position, Negative Stock, Closing Stock consistency, Debtors/Creditors reconciliation, Loan balances, Duplicate vouchers, Expired stock. Go to <b>Health Check</b> → tap <b>Run Health Check</b>.",tags:["what is health check","10 checks","accuracy score"]}
+{q:"I found a difference in my statement", a:"Tell me which one: Balance Sheet, Trial Balance, Cash Flow, Cash/Bank balance, Stock value, Debtors, Creditors, Loan outstanding, or Bank statement vs app entries. Or go straight to <b>Health Check</b> and tap <b>Run Health Check</b> — it checks all of these at once and shows exactly which figure is off and how to fix it.",tags:["difference","mismatch","discrepancy"],diag:true},
+{q:"Balance Sheet not tallying", a:"Go to <b>Health Check</b> → Run Health Check to see the exact difference amount. Common causes: 1) Loan disbursement not added to Cash/Bank. 2) Additional capital not entered under Capital/Loans. 3) Drawings not recorded. Check <b>Financials → Balance Sheet</b> for the detailed break-up.",tags:["balance sheet not tallying","balance sheet difference","assets liabilities","bs difference"],diag:true},
+{q:"Trial Balance Debit not equal Credit", a:"Go to <b>Data → Opening Trial Balance</b> and recheck each head: Debit side (Cash, Bank, Stock, Debtors, Fixed Assets) vs Credit side (Capital, Loans, Creditors). Fix the wrong entry, then tap <b>Post to Books</b> again.",tags:["trial balance","tb not matching","debit credit not matching"],diag:true},
+{q:"Cash Flow showing a difference", a:"For a new business keep Opening Cash/Bank = 0. For an existing business, Opening Cash/Bank in Data → Opening Trial Balance must match your real balance on the day you started. Also check every Sale/Purchase/Expense has the correct Payment Mode.",tags:["cash flow difference","cash flow mismatch","cashflow"],diag:true},
+{q:"Cash or Bank balance looks wrong or negative", a:"Usually means: 1) More cash expenses/purchases recorded than cash available. 2) A transaction marked Cash was really Bank/UPI (or vice-versa). 3) Opening Cash/Bank missing for an existing business. Check <b>Cash/Bank</b> menu entry-by-entry, or run Health Check.",tags:["cash balance wrong","bank balance wrong","negative cash","negative bank"],diag:true},
+{q:"Stock or Inventory value doesn't match", a:"Check: 1) Opening Stock entered in Data → Opening Trial Balance for an existing business. 2) Every Purchase is linked to an Inventory item. 3) No item shows negative stock in <b>Inventory</b>. Health Check → 'Closing Stock Consistent' and 'No Negative Stock' will show the exact item.",tags:["stock mismatch","inventory mismatch","stock value wrong","closing stock difference"],diag:true},
+{q:"Debtors total looks wrong", a:"Debtors should roughly equal Credit Sales plus Opening Debtors. Check for a payment received but not recorded, or a duplicated entry, in <b>Capital/Loans → Debtors</b>.",tags:["debtors mismatch","debtors wrong","debtors high"],diag:true},
+{q:"Creditors total looks wrong", a:"Creditors should roughly equal Credit Purchases plus Opening Creditors. Check for a payment made but not recorded, or a duplicated entry, in <b>Capital/Loans → Creditors</b>.",tags:["creditors mismatch","creditors wrong","creditors high"],diag:true},
+{q:"Loan outstanding balance is wrong", a:"Check for a negative outstanding balance, or an outstanding amount greater than the sanctioned amount, in <b>Capital/Loans → Loans</b>. Health Check → 'Loan Balances Correct' names the exact lender and issue.",tags:["loan balance wrong","loan mismatch","loan outstanding wrong"],diag:true},
+{q:"Bank statement doesn't match my app entries", a:"Use <b>Bank Recon</b> → upload your bank statement (CSV/Excel) → it auto-matches against your recorded entries and lists unmatched bank transactions and unmatched app entries (e.g. cheques not yet cleared).",tags:["bank statement mismatch","bank reconciliation","recon difference"],diag:true},
+{q:"Duplicate bill or voucher numbers found", a:"Go to <b>Reports → Bills</b> and edit the duplicate bill number. Health Check → 'No Duplicate Voucher Nos.' lists the exact duplicates.",tags:["duplicate bill","duplicate voucher"],diag:true},
+{q:"How does Health Check find differences?", a:"It runs 10 checks: Trial Balance tally, Balance Sheet tally, Cash & Bank position, Negative Stock, Closing Stock consistency, Debtors/Creditors reconciliation, Loan balances, Duplicate vouchers, Expired stock. Go to <b>Health Check</b> → tap <b>Run Health Check</b>.",tags:["what is health check","10 checks","accuracy score"],diag:true}
 ];
 
 var _FAQ_STOP={"how":1,"to":1,"a":1,"an":1,"the":1,"is":1,"are":1,"my":1,"i":1,"in":1,"on":1,"of":1,"and":1,"or":1,"do":1,"does":1,"what":1,"for":1,"with":1,"it":1,"me":1,"can":1,"you":1,"please":1,"want":1,"find":1,"out":1};
 function _faqWords(s){ return (s||'').toLowerCase().replace(/[^a-z0-9&\s]/g,' ').split(/\s+/).filter(function(w){return w.length>1 && !_FAQ_STOP[w];}); }
 function _faqAllData(){ return (_FAQ_DATA||[]).concat(_EXTRA_FAQ_DATA||[]); }
+
+var _FAQ_DIAG_INTENT = /difference|mismatch|discrepanc|tally|tallying|not match|doesn.?t match|dont match|not equal|not correct|not right|incorrect|imbalance|not adding up|not add up|not reconcil|out of balance|not balanc/i;
 
 function _faqAnswerFor(text){
   var raw=(text||'').toLowerCase().trim().replace(/[^a-z\s]/g,'');
@@ -15801,10 +15806,12 @@ function _faqAnswerFor(text){
   var q=' '+(text||'').toLowerCase()+' ';
   var qWords=_faqWords(text);
   var qSet={}; qWords.forEach(function(w){qSet[w]=true;});
+  var diagIntent=_FAQ_DIAG_INTENT.test(text);
   var best=null,bestScore=0;
+  var _FAQ_FILLER = {"not":1,"matching":1,"match":1,"matches":1,"mismatch":1,"difference":1,"tally":1,"tallying":1,"wrong":1,"correct":1,"incorrect":1,"discrepancy":1,"gap":1,"equal":1,"reconcile":1,"reconciliation":1,"statement":1,"amount":1,"value":1,"balance":1,"looks":1,"seems":1,"showing":1,"show":1,"differ":1,"balancing":1,"add":1,"enter":1,"record":1,"new":1,"edit":1,"view":1,"see":1,"kaise":1,"karen":1,"karna":1};
   _faqAllData().forEach(function(item){
     var matched={},phraseBonus=0;
-    var tags=(item.tags||[]).concat([item.q]);
+    var tags=(item.tags||[]);
     tags.forEach(function(t){
       var tl=t.toLowerCase();
       var tWordCount=tl.split(' ').length;
@@ -15813,7 +15820,11 @@ function _faqAnswerFor(text){
       }
       _faqWords(tl).forEach(function(w){ if(qSet[w]) matched[w]=true; });
     });
-    var score=Object.keys(matched).length+phraseBonus*2;
+    var weighted=0;
+    Object.keys(matched).forEach(function(w){ weighted += _FAQ_FILLER[w] ? 0.4 : 1; });
+    var score=weighted+phraseBonus*2;
+    if(diagIntent && item.diag) score+=6;
+    if(diagIntent && !item.diag) score-=2;
     if(score>bestScore){bestScore=score;best=item;}
   });
   if(best && bestScore>=1) return best.a;
