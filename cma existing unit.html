@@ -7902,5 +7902,236 @@ async function sendAIChatMessage(){
 }
 </script>
 
+
+<!-- ══════════ APP GUIDE & DIFF ASSISTANT WIDGET ══════════ -->
+<button id="cmaGuideFab" onclick="toggleCmaGuide()" title="App Guide & Difference Checker"
+  style="position:fixed;bottom:18px;left:18px;width:54px;height:54px;border-radius:50%;
+  background:#0e5e4a;color:#fff;border:none;font-size:1.3rem;
+  box-shadow:0 4px 14px rgba(0,0,0,0.35);cursor:pointer;z-index:600;">💡</button>
+
+<div id="cmaGuidePanel" style="display:none;flex-direction:column;position:fixed;bottom:82px;left:16px;
+  width:370px;max-width:93vw;height:74vh;max-height:560px;background:#fff;border:2px solid #0e5e4a;
+  border-radius:10px;box-shadow:0 10px 34px rgba(0,0,0,0.4);z-index:601;overflow:hidden;">
+
+  <div style="background:#0e5e4a;color:#fff;padding:10px 12px;display:flex;justify-content:space-between;align-items:flex-start;">
+    <div>
+      <div style="font-weight:800;font-size:0.92rem;">💡 App Guide & Diff Checker</div>
+      <div style="font-size:0.68rem;color:#cfe8de;">How-to help, no API key needed</div>
+    </div>
+    <button onclick="toggleCmaGuide()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;line-height:1;">×</button>
+  </div>
+
+  <div style="padding:7px 9px;border-bottom:1px solid #eee;display:flex;gap:5px;">
+    <button class="btn btn-secondary btn-sm" style="font-size:0.7rem;padding:5px 8px;flex:1;" onclick="cmaGuideSetMode('ask')">❓ Ask</button>
+    <button class="btn btn-secondary btn-sm" style="font-size:0.7rem;padding:5px 8px;flex:1;" onclick="cmaGuideSetMode('topics')">⚡ Quick Topics</button>
+    <button class="btn btn-secondary btn-sm" style="font-size:0.7rem;padding:5px 8px;flex:1;" onclick="cmaGuideSetMode('issues')">🔍 Check Issues</button>
+  </div>
+
+  <div id="cmaGuideChips" style="padding:0 9px;display:flex;flex-wrap:wrap;gap:2px;max-height:110px;overflow-y:auto;"></div>
+
+  <div id="cmaGuideMessages" style="flex:1;overflow-y:auto;padding:10px;font-size:0.85rem;background:#faf9f6;"></div>
+
+  <div style="padding:7px;border-top:1px solid #eee;display:flex;gap:6px;background:#fff;">
+    <input id="cmaGuideInput" type="text" placeholder="Ask e.g. 'how does drawing power work'"
+      style="flex:1;padding:8px 9px;border:2px solid var(--line, #ccc);border-radius:4px;font-size:0.83rem;"
+      onkeydown="if(event.key==='Enter'){cmaGuideAsk();}">
+    <button class="btn btn-primary" style="padding:8px 13px;" onclick="cmaGuideAsk()">➤</button>
+  </div>
+</div>
+
+<script>
+/* ============ CMA GUIDE & DIFF ASSISTANT (Existing Unit) ============ */
+var CMA_GUIDE_APP = 'existing';
+
+var CMA_GUIDE_KB = [
+  {kw:['start','begin','setup','new case','how do i start','first step'], a:"Start on the Setup tab: enter Unit Name, Bank, Industry Type, and how many Actual years you have (1 or 2), then tap 'Generate Year Columns'. After that, go to Trial Balance to enter historical figures.", jump:'workflow', label:'Step-by-Step Workflow'},
+  {kw:['trial balance','tb','import tb','upload tb','tb template'], a:"On the Trial Balance tab, enter figures for Actual years only (white cells) — projected years auto-fill from your Assumptions. All amounts are in ₹'000s. You can also import a TB file instead of typing.", jump:'tb', label:'Trial Balance Guidelines'},
+  {kw:['p&l','pl','balance sheet','bs','statements','editable cell'], a:"The P&L / BS tab is an alternative entry point — its white cells sync automatically with the Trial Balance, so you can use whichever entry screen you prefer.", jump:'statements_help', label:'P&L / BS'},
+  {kw:['assumption','holding period','sales growth','projection'], a:"Assumptions auto-calculates holding periods (debtor/stock/creditor days) from your TB entries. Set Sales Growth % here to drive projected years — you can override any auto-computed figure.", jump:'projections', label:'Assumptions & Projections'},
+  {kw:['manage items','custom line','add row','rename item'], a:"Manage Items lets you add, rename, or remove custom P&L/Balance Sheet line items beyond the standard ones, so unusual accounts still get captured correctly.", jump:'manage_items', label:'Manage Items'},
+  {kw:['cma form','cma1','cma2','cma3','cma-i','cma-ii','cma-iii','operating statement'], a:"CMA-I to CMA-V are the five standard bank CMA forms and are auto-generated from your Trial Balance + Assumptions — you don't fill these directly, just review them.", jump:'cma', label:'CMA Forms'},
+  {kw:['fund flow','cma4','cma-iv','sources and uses'], a:"CMA-IV (Fund Flow) shows Sources vs Uses of funds year-on-year, with a net-change check that should come close to zero. It needs at least 2 years of data.", jump:'cma4_help', label:'CMA-IV Fund Flow'},
+  {kw:['ratio','current ratio','tol','tnw','break even','breakeven'], a:"The Ratios tab auto-computes Current Ratio, TOL/TNW, DSCR, Break-Even and other key metrics for every year, flagging any that breach standard bank norms.", jump:'ratios_help', label:'Ratios'},
+  {kw:['drawing power','dp','margin','stock statement margin'], a:"Drawing Power is computed from your latest Stock Statement figures (RM+WIP+FG+Debtors) minus Creditors, less the Bank's stipulated margin %.", jump:'dp_help', label:'Drawing Power'},
+  {kw:['sales analysis','export sales','cash sales','credit sales'], a:"Sales Analysis breaks total projected sales into Export / Cash / Credit categories based on the mix ratios you enter in Assumptions.", jump:'sales', label:'Sales Analysis'},
+  {kw:['non fund','nfb','lc','letter of credit','bg','bank guarantee','ilc','flc'], a:"Non-Fund Limits covers Inland LC, Foreign LC and Bank Guarantee requirements — each computed from purchase/contract values, credit period, and margin %.", jump:'nfb', label:'Non-Fund Based Limits'},
+  {kw:['loan','emi','amorti','irr','npv','term loan'], a:"Loan/EMI generates a full month-wise amortisation schedule once you enter loan amount, rate, tenure and moratorium. IRR/NPV computes project and loan IRR from your cash flows.", jump:'loan', label:'Loan / EMI / IRR'},
+  {kw:['risk rating','scorecard','risk score'], a:"Risk Rating scores the case against a standard scorecard by year and industry type. You can override any individual score if your judgement differs from the auto-score.", jump:'risk_help', label:'Risk Rating'},
+  {kw:['ai appraisal','ai assistant','api key','chatbot','claude'], a:"The 🤖 AI Credit Assistant (bottom-right button) reads your calculated CMA numbers and can explain terms, analyze the case, or draft an appraisal note — it needs a free Anthropic API key, stored only in your browser.", jump:'ai_help', label:'AI Appraisal'},
+  {kw:['sanction','recommend sanction','sanction letter'], a:"Sanction gives a recommendation (Sanction / Sanction with conditions / Do not recommend) with justification, and can draft a formal sanction letter using your case data.", jump:'sanction_help', label:'Sanction'},
+  {kw:['export','pdf','word','excel','download report','backup file'], a:"Export lets you download an Excel workbook (all CMA tables), a text-based report labelled Word (open and Save-As .docx for full formatting), and a JSON backup you should save after every session.", jump:'export_help', label:'Export'},
+  {kw:['monitor','qis','quarterly'], a:"Monitoring tracks Quarterly Information System (QIS) data against your projections after sanction, so you can compare actual vs projected performance.", jump:'monitor_help', label:'Monitoring'},
+  {kw:['swot'], a:"SWOT lets you note Strengths, Weaknesses, Opportunities and Threats for the unit; a summary is compiled automatically for the appraisal note.", jump:'swot_help', label:'SWOT'},
+  {kw:['repayment','tracker','installment'], a:"Repayment Tracker shows the loan repayment schedule and lets you log actual repayments against the schedule.", jump:'repayment_help', label:'Repayment'},
+  {kw:['stock statement','rm','wip','finished goods','sundry debtor'], a:"Stock Statement records month-wise RM/WIP/FG/Debtors/Creditors — this feeds Drawing Power and can be tracked over multiple months.", jump:'stockstmt_help', label:'Stock Statement'},
+  {kw:['error','check my data','validate','mistake','something wrong'], a:"The Errors tab runs an automatic check across your whole case — balance sheet tally, negative figures, ratio breaches, missing entries — and lists Errors, Warnings and Passes.", jump:'errors_help', label:'Error Checker'},
+  {kw:['industry template','benchmark'], a:"Industry Templates pre-fill typical cost ratios and holding norms for 18+ industries — use before entering Assumptions, then adjust for the specific unit.", jump:'industry_help', label:'Industry Templates'},
+  {kw:['dashboard','kpi','summary view'], a:"Dashboard gives a one-screen KPI summary — sales trend, MPBF trend, net worth trend, key ratios, risk rating and recommendation — once CMA is calculated.", jump:'dashboard_help', label:'Dashboard'},
+  {kw:['lost data','restore','recover','backup','save my work'], a:"Everything is saved automatically to this browser's storage. Still, export a JSON backup regularly (Export tab) — if you clear browser data or switch devices, only the JSON backup can restore your case.", jump:'backup', label:'Save & Restore'},
+  {kw:['menu','navigation','tabs','all sections'], a:"Every section is listed in Help → 📋 All Menus, with a one-line description of what each tab does.", jump:'menus', label:'All Menus'}
+];
+
+var CMA_GUIDE_DIFF = [
+  {sev:'gap', title:'CMA-IV Fund Flow Statement missing in New Unit Generator',
+   detail:"Existing Unit has a full CMA-IV (Fund Flow / Sources & Uses) tab with a net-change tie-out. New Unit Generator has no Fund Flow statement anywhere.",
+   fix:"Add a Fund Flow computation to New Unit's Step 6 results: Sources = Net Profit + Depreciation + Capital introduced + Term Loan drawn; Uses = Fixed Asset purchase + Loan repayment + increase in working-capital gap. Mirror the existing cma4 tie-out logic."},
+  {sev:'gap', title:'Sensitivity Analysis covers fewer variables in New Unit Generator',
+   detail:"Existing Unit stress-tests 6 variables (Sales, RM/COGS, Stock days, Debtor days, Interest rate, Admin cost). New Unit Generator only tests 4 (Sales, COGS, Debtor days, Interest rate) — Stock days and Admin cost are not covered.",
+   fix:"Add nuSensStockInp and nuSensAdminInp fields, and extend runNUSensitivity() to include them, matching the Existing Unit's coverage."},
+  {sev:'enhancement', title:'Risk Scorecard cannot be manually overridden in New Unit Generator',
+   detail:"Existing Unit lets the credit officer override individual scorecard line-items (overrideRiskScore) when their judgement differs from the auto-score. New Unit Generator's scorecard is auto-only, with no override inputs.",
+   fix:"Port the override input fields and overrideRiskScore()-style logic into New Unit's risk panel so officer judgement can be recorded there too."},
+  {sev:'cosmetic', title:'PDF export handled differently between the two tools',
+   detail:"Existing Unit has an Export tab with an explicit 'PDF' option (in practice both tools generate a text file, not true PDF/Word). New Unit Generator relies only on the browser's Print → Save as PDF.",
+   fix:"Align labelling in both tools so the export button text matches what's actually produced, avoiding confusion about file format."},
+  {sev:'by-design', title:'Trial Balance import only in Existing Unit',
+   detail:"Existing Unit can import historical Trial Balance data because it is handling a running business with past books. New Unit Generator has no TB import.",
+   fix:"No fix needed — a brand-new unit has no historical books to import, so this is correct as-is."},
+  {sev:'by-design', title:'Assumptions & Manage Items tabs only in Existing Unit',
+   detail:"Existing Unit needs a free-form Assumptions/Manage-Items layer to reconcile with imported historical TB data. New Unit Generator builds its P&L/BS directly from Step 4's cost-ratio inputs, so no reconciliation layer is needed.",
+   fix:"No fix needed — this reflects the different data sources of each tool."},
+  {sev:'by-design', title:'New Unit Generator has no Actual-vs-Projected year split',
+   detail:"Existing Unit supports 1–2 Actual years plus Projected years. New Unit Generator is projection-only (Year 1 onward), since a new unit has no actual trading history yet.",
+   fix:"No fix needed — expected given the tool's purpose (greenfield project appraisal)."}
+];
+
+/* ============ CMA GUIDE & DIFF ASSISTANT — UI logic ============ */
+var cmaGuideMode = 'ask';
+var cmaGuideGreeted = false;
+
+function toggleCmaGuide(){
+  var p = document.getElementById('cmaGuidePanel');
+  var show = (p.style.display === 'none' || !p.style.display);
+  p.style.display = show ? 'flex' : 'none';
+  if(show && !cmaGuideGreeted){
+    cmaGuideGreeted = true;
+    cmaGuideAppend('assistant', "Hi! I'm the App Guide. Ask me how to use any tab in plain words (e.g. \"how does drawing power work\"), or use the buttons below to check your data for issues or compare this tool with the New Unit Generator.");
+  }
+}
+
+function cmaGuideAppend(role, html, isHtml){
+  var box = document.getElementById('cmaGuideMessages');
+  var row = document.createElement('div');
+  row.style.cssText = 'margin-bottom:10px;text-align:' + (role==='user' ? 'right' : 'left');
+  var bubble = document.createElement('span');
+  bubble.style.cssText = 'display:inline-block;padding:8px 11px;border-radius:10px;max-width:88%;' +
+    'white-space:pre-wrap;text-align:left;line-height:1.45;font-size:0.85rem;' +
+    (role==='user' ? 'background:#0e5e4a;color:#fff;' : 'background:#eef1f4;color:#0a1628;');
+  if(isHtml){ bubble.innerHTML = html; } else { bubble.textContent = html; }
+  row.appendChild(bubble);
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+}
+
+function cmaGuideSetMode(mode){
+  cmaGuideMode = mode;
+  var chipBar = document.getElementById('cmaGuideChips');
+  chipBar.innerHTML = '';
+  if(mode === 'topics'){
+    var topics = CMA_GUIDE_KB.slice(0, 10);
+    topics.forEach(function(t){
+      var b = document.createElement('button');
+      b.className = 'btn btn-secondary btn-sm';
+      b.style.cssText = 'font-size:0.68rem;padding:5px 8px;margin:2px;';
+      b.textContent = t.label;
+      b.onclick = function(){ cmaGuideAnswerTopic(t); };
+      chipBar.appendChild(b);
+    });
+  } else if(mode === 'issues'){
+    var b1 = document.createElement('button');
+    b1.className = 'btn btn-primary btn-sm';
+    b1.style.cssText = 'font-size:0.7rem;padding:6px 9px;margin:2px;';
+    b1.textContent = '🔍 Check my data for errors';
+    b1.onclick = cmaGuideRunChecks;
+    var b2 = document.createElement('button');
+    b2.className = 'btn btn-secondary btn-sm';
+    b2.style.cssText = 'font-size:0.7rem;padding:6px 9px;margin:2px;';
+    b2.textContent = '🔄 Compare with New Unit Generator';
+    b2.onclick = cmaGuideShowDiff;
+    chipBar.appendChild(b1);
+    chipBar.appendChild(b2);
+  }
+}
+
+function cmaGuideAnswerTopic(t){
+  cmaGuideAppend('user', t.label);
+  var html = t.a + ' <button onclick="cmaGuideJump(\'' + t.jump + '\')" style="margin-top:6px;display:block;background:#0e5e4a;color:#fff;border:none;padding:4px 9px;border-radius:4px;font-size:0.72rem;cursor:pointer;">📖 See full guidance</button>';
+  cmaGuideAppend('assistant', html, true);
+}
+
+function cmaGuideJump(key){
+  document.getElementById('helpModal').style.display = 'block';
+  showHelpSection(key);
+}
+
+function cmaGuideMatch(text){
+  var words = text.toLowerCase();
+  var best = null, bestScore = 0;
+  CMA_GUIDE_KB.forEach(function(item){
+    var score = 0;
+    item.kw.forEach(function(k){
+      if(words.indexOf(k) !== -1) score += k.split(' ').length;
+    });
+    if(score > bestScore){ bestScore = score; best = item; }
+  });
+  return bestScore > 0 ? best : null;
+}
+
+function cmaGuideAsk(){
+  var input = document.getElementById('cmaGuideInput');
+  var text = input.value.trim();
+  if(!text) return;
+  input.value = '';
+  cmaGuideAppend('user', text);
+  var match = cmaGuideMatch(text);
+  if(match){
+    var html = match.a + ' <button onclick="cmaGuideJump(\'' + match.jump + '\')" style="margin-top:6px;display:block;background:#0e5e4a;color:#fff;border:none;padding:4px 9px;border-radius:4px;font-size:0.72rem;cursor:pointer;">📖 See full guidance</button>';
+    cmaGuideAppend('assistant', html, true);
+  } else {
+    cmaGuideAppend('assistant', "I couldn't match that to a specific tab. Try mentioning a feature name (e.g. \"trial balance\", \"drawing power\", \"sanction letter\"), or open Help → 📋 All Menus for the full list. You can also tap 'Quick Topics' below.");
+  }
+}
+
+function cmaGuideRunChecks(){
+  cmaGuideAppend('user', 'Check my data for errors');
+  try{
+    runErrorChecker();
+    var el = document.getElementById('errorCheckerResults');
+    var raw = el ? el.innerText || el.textContent : '';
+    if(!raw || !raw.trim()){
+      cmaGuideAppend('assistant', 'No data to check yet — complete Trial Balance entry and recalculate first.');
+      return;
+    }
+    var lines = raw.split('\n').map(function(l){return l.trim();}).filter(Boolean);
+    var summary = lines.slice(0, 12).join('\n');
+    if(lines.length > 12) summary += '\n… and ' + (lines.length - 12) + ' more line(s).';
+    var html = '<div style="font-weight:700;margin-bottom:4px;">Results from the built-in Error Checker:</div>' +
+      '<div style="white-space:pre-wrap;">' + summary.replace(/</g,'&lt;') + '</div>' +
+      '<button onclick="showPanel(\'errors\')" style="margin-top:6px;display:block;background:#0e5e4a;color:#fff;border:none;padding:4px 9px;border-radius:4px;font-size:0.72rem;cursor:pointer;">Open full Errors tab</button>';
+    cmaGuideAppend('assistant', html, true);
+  }catch(e){
+    cmaGuideAppend('assistant', '⚠ Could not run the checker: ' + e.message);
+  }
+}
+
+function cmaGuideSevBadge(sev){
+  var map = {gap:['🔴 Real gap','#e74c3c'], enhancement:['🟡 Suggested improvement','#f0a500'], cosmetic:['🔵 Cosmetic','#3498db'], 'by-design':['🟢 By design (not a bug)','#2ecc71']};
+  var m = map[sev] || ['ℹ️','#888'];
+  return '<span style="background:'+m[1]+';color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:8px;font-weight:700;">'+m[0]+'</span>';
+}
+
+function cmaGuideShowDiff(){
+  cmaGuideAppend('user', 'Compare with New Unit Generator');
+  var html = '<div style="font-weight:700;margin-bottom:6px;">Differences vs. New Unit Generator:</div>';
+  CMA_GUIDE_DIFF.forEach(function(d){
+    html += '<div style="margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid #ddd;">' +
+      cmaGuideSevBadge(d.sev) + '<div style="font-weight:700;margin-top:3px;">' + d.title + '</div>' +
+      '<div style="margin-top:2px;">' + d.detail + '</div>' +
+      '<div style="margin-top:2px;color:#0e5e4a;"><b>Suggested fix:</b> ' + d.fix + '</div></div>';
+  });
+  cmaGuideAppend('assistant', html, true);
+}
+</script>
+
 </body>
 </html>
