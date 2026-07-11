@@ -7724,7 +7724,7 @@ document.addEventListener('focusin', function(e){
 </script>
 
 <!-- ══════════ AI CREDIT ASSISTANT WIDGET ══════════ -->
-<button id="aiFabBtn" onclick="toggleAIChat()" title="AI Credit Assistant"
+<button id="aiFabBtn" onclick="toggleAIChat()" title="CMA Assistant"
   style="position:fixed;bottom:18px;right:18px;width:54px;height:54px;border-radius:50%;
   background:var(--navy);color:#fff;border:none;font-size:1.4rem;
   box-shadow:0 4px 14px rgba(0,0,0,0.35);cursor:pointer;z-index:600;">🤖</button>
@@ -7735,29 +7735,22 @@ document.addEventListener('focusin', function(e){
 
   <div style="background:var(--navy);color:#fff;padding:10px 12px;display:flex;justify-content:space-between;align-items:flex-start;">
     <div>
-      <div style="font-weight:800;font-size:0.92rem;">🤖 AI Credit Assistant</div>
-      <div style="font-size:0.68rem;color:#ccc;">Reads your current CMA numbers — never recalculates them</div>
+      <div style="font-weight:800;font-size:0.92rem;">🤖 CMA Assistant</div>
+      <div style="font-size:0.68rem;color:#ccc;">Works offline — no API key needed. Answers only from your own data & built-in help.</div>
     </div>
     <button onclick="toggleAIChat()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;line-height:1;">×</button>
   </div>
 
-  <div id="aiChatKeyBar" style="display:none;padding:8px 10px;border-bottom:1px solid #eee;font-size:0.74rem;background:#fffbf0;">
-    <input type="password" id="aiChatApiKey" placeholder="sk-ant-api03-..." oninput="saveApiKeyGlobal(this.value); document.getElementById('aiChatKeyBar').style.display = getApiKey() ? 'none':'block';"
-      style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-family:'Courier New',monospace;font-size:0.8rem;">
-    <div style="color:#777;margin-top:3px;">Stored only in this browser. Get a free key at console.anthropic.com</div>
-  </div>
-
   <div id="aiChatQuick" style="padding:7px 9px;border-bottom:1px solid #eee;display:flex;gap:5px;flex-wrap:wrap;">
-    <button class="btn btn-secondary btn-sm" style="font-size:0.68rem;padding:5px 8px;" onclick="aiQuickAction('explain')">📖 Explain a term</button>
-    <button class="btn btn-secondary btn-sm" style="font-size:0.68rem;padding:5px 8px;" onclick="aiQuickAction('analyze')">🔍 Analyze application</button>
-    <button class="btn btn-secondary btn-sm" style="font-size:0.68rem;padding:5px 8px;" onclick="aiQuickAction('draft')">📝 Draft appraisal note</button>
-    <button class="btn btn-secondary btn-sm" style="font-size:0.68rem;padding:5px 8px;" onclick="aiQuickAction('sanction')">✅ Recommend &amp; sanction letter</button>
+    <button class="btn btn-secondary btn-sm" style="font-size:0.68rem;padding:5px 8px;" onclick="aiQuickAction('howto')">🧭 How to use</button>
+    <button class="btn btn-secondary btn-sm" style="font-size:0.68rem;padding:5px 8px;" onclick="aiQuickAction('diff')">📊 Find differences</button>
+    <button class="btn btn-secondary btn-sm" style="font-size:0.68rem;padding:5px 8px;" onclick="aiQuickAction('solutions')">💡 Give solutions</button>
   </div>
 
   <div id="aiChatMessages" style="flex:1;overflow-y:auto;padding:10px;font-size:0.83rem;background:#faf9f6;"></div>
 
   <div style="padding:7px;border-top:1px solid #eee;display:flex;gap:6px;background:#fff;">
-    <input id="aiChatInput" type="text" placeholder="Ask about this case, a ratio, a term..."
+    <input id="aiChatInput" type="text" placeholder="Ask: how do I use Ratios tab? / compare year 1 vs 2 / what are the issues?"
       style="flex:1;padding:8px 9px;border:2px solid var(--line);border-radius:4px;font-size:0.83rem;"
       onkeydown="if(event.key==='Enter'){sendAIChatMessage();}">
     <button class="btn btn-primary" style="padding:8px 13px;" onclick="sendAIChatMessage()">➤</button>
@@ -7765,32 +7758,20 @@ document.addEventListener('focusin', function(e){
 </div>
 
 <script>
-/* ══════════ AI CREDIT ASSISTANT — chat logic ══════════ */
-var aiChatHistory = [];
-
-var AI_SYSTEM_BASE =
-  "You are a credit appraisal assistant embedded inside a bank CMA (Credit Monitoring Arrangement) data " +
-  "preparation tool used by a credit officer or consultant in India, currently working on an EXISTING UNIT " +
-  "renewal / enhancement case. You help by explaining financial and banking concepts (MPBF, DSCR, TOL/TNW, " +
-  "Current Ratio, Net Working Capital, Tandon Committee norms, CGTMSE, etc.), analyzing the loan application, " +
-  "and drafting appraisal text. " +
-  "CRITICAL RULE: Never recompute, restate from memory, or estimate any financial figure yourself. Only use the " +
-  "exact numbers provided in the CURRENT CASE DATA block below, which were computed by the app's own calculation " +
-  "engine and are ground truth. If a figure you need is not present in that block, say so explicitly instead of " +
-  "guessing. Be concise and use Indian banking terminology and RBI/Tandon norms where relevant. Flag any ratio " +
-  "that breaches a standard norm clearly, e.g. '🔴 Current Ratio 1.1 is below the 1.33 norm'. Whenever the user " +
-  "asks for an analysis, review, or comments on the application — not just via the quick-action button — treat " +
-  "it as a request to cover every ratio and metric present in yearlyData, not just the most notable ones.";
+/* ══════════ CMA ASSISTANT — local, offline, no API key ══════════
+   Answers are generated entirely from: (a) this app's own built-in help
+   content, and (b) the CMA data (historical/projected figures) already
+   computed by the app in this session. No external API call is made. */
 
 function toggleAIChat(){
   var p = document.getElementById('aiChatPanel');
   var show = (p.style.display === 'none' || !p.style.display);
   p.style.display = show ? 'flex' : 'none';
   if(show){
-    document.getElementById('aiChatApiKey').value = getApiKey();
-    document.getElementById('aiChatKeyBar').style.display = getApiKey() ? 'none' : 'block';
-    if(!aiChatHistory.length){
-      aiChatAppend('assistant', "Hi — I can see your current CMA data as you work. Ask me to explain a term, analyze this application, or draft the appraisal note.");
+    var box = document.getElementById('aiChatMessages');
+    if(!box.dataset.greeted){
+      box.dataset.greeted = '1';
+      aiChatAppend('assistant', "Hi — I can answer three kinds of questions using only your own CMA data and this app's built-in guide:\n\n🧭 How to use a tab (e.g. \"how do I use the Ratios tab?\")\n📊 Differences between years (e.g. \"compare year 1 and year 3\")\n💡 Issues & solutions for the current case\n\nNo API key needed — I don't call any external AI service.");
     }
   }
 }
@@ -7800,7 +7781,7 @@ function aiChatAppend(role, text){
   var row = document.createElement('div');
   row.style.cssText = 'margin-bottom:10px;text-align:' + (role==='user' ? 'right' : 'left');
   var bubble = document.createElement('span');
-  bubble.style.cssText = 'display:inline-block;padding:8px 11px;border-radius:10px;max-width:86%;' +
+  bubble.style.cssText = 'display:inline-block;padding:8px 11px;border-radius:10px;max-width:88%;' +
     'white-space:pre-wrap;text-align:left;font-family:Georgia,serif;line-height:1.45;' +
     (role==='user' ? 'background:var(--green);color:#fff;' : 'background:#eef1f4;color:#0a1628;');
   bubble.textContent = text;
@@ -7809,327 +7790,125 @@ function aiChatAppend(role, text){
   box.scrollTop = box.scrollHeight;
 }
 
-function buildFinancialContext(){
-  if(!CALC || !CALC.data || !CALC.data.length){
-    return JSON.stringify({status:'No CMA has been calculated yet in this session. Ask the user to complete data entry and recalculate first — do not analyze without data.'});
-  }
-  var u = (STATE && STATE.unit) || {};
-  var ctx = {
-    caseType: 'Existing Unit / Renewal-Enhancement',
-    unitName: u.unitName,
-    bankName: u.bankName,
-    constitution: u.unitConstitution,
-    activity: u.unitActivity,
-    businessNature: u.businessNature,
-    existingWC_Rs000: u.existingWC,
-    loan: STATE.loan,
-    years: CALC.years,
-    yearlyData: CALC.data
+function stripHtml(html){
+  var tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return (tmp.textContent || tmp.innerText || '').replace(/\n{3,}/g,'\n\n').trim();
+}
+
+/* ---------- 1. HOW TO USE ---------- */
+function findHelpAnswer(q){
+  var topics = (typeof HELP_SECTIONS !== 'undefined') ? HELP_SECTIONS : {};
+  var keywordMap = {
+    'trial balance':'tb','tb':'tb','industry':'industry','projection':'projections',
+    'cma form':'cma','cma-i':'cma','cma-ii':'cma','cma-iii':'cma','cma-iv':'cma','cma-v':'cma',
+    'loan':'loan','emi':'loan','irr':'irr_help','npv':'irr_help','backup':'backup','restore':'backup',
+    'sales analysis':'sales','non-fund':'nfb','nfb':'nfb','import':'import_export','export':'import_export',
+    'manage item':'manage_items','p&l':'statements_help','balance sheet':'statements_help',
+    'ratio':'ratios_help','drawing power':'dp_help','risk rating':'risk_help','sanction':'sanction_help',
+    'monitor':'monitor_help','stock statement':'stockstmt_help','error check':'errors_help',
+    'swot':'swot_help','repayment':'repayment_help','ai appraisal':'ai_help','project report':'project_report_help',
+    'sensitivity':'sensitivity_help','collateral':'collateral_help','dashboard':'dashboard_help',
+    'glossary':'glossary','term means':'glossary'
   };
-  return JSON.stringify(ctx);
+  for(var k in keywordMap){
+    if(q.indexOf(k)!==-1 && topics[keywordMap[k]]) return stripHtml(topics[keywordMap[k]]);
+  }
+  if(/step|workflow|getting started|how (do|to) (i )?(start|use|begin)/.test(q) && topics.workflow) return stripHtml(topics.workflow);
+  if(topics.workflow) return stripHtml(topics.workflow);
+  return "I don't have a specific help section matching that — try naming a tab (e.g. \"ratios\", \"risk rating\", \"sanction\", \"SWOT\", \"drawing power\").";
+}
+
+/* ---------- 2. FIND DIFFERENCES ---------- */
+function computeDifferences(q){
+  if(!CALC || !CALC.data || !CALC.data.length) return 'No CMA data has been calculated yet — enter your Trial Balance / P&L data and recalculate first, then ask me again.';
+  var n = CALC.data.length;
+  if(n < 2) return 'Only one year of data is available — add more years of Trial Balance/projection data to compare.';
+  var nums = (q.match(/\d+/g) || []).map(Number).filter(function(x){ return x>=1 && x<=n; });
+  var yi = n-2, yj = n-1;
+  if(nums.length >= 2){ yi = Math.min(nums[0],nums[1])-1; yj = Math.max(nums[0],nums[1])-1; }
+  if(yi === yj) yj = Math.min(n-1, yi+1);
+  var a = CALC.data[yi], b = CALC.data[yj];
+  var abf = ((STATE.unit && STATE.unit.abfPercent) || 75) / 100;
+  function crOf(d){ return d.currentLiabilities>0 ? d.currentAssets/d.currentLiabilities : 0; }
+  function tolOf(d){ return d.tnw>0 ? (d.totalLiabilities-d.netWorth)/d.tnw : 0; }
+  function mpbfOf(d){
+    var otherCL = d.currentLiabilities - d.cc;
+    var wcg = d.currentAssets - otherCL;
+    var abfVal = Math.round(d.currentAssets*abf);
+    return Math.max(0, Math.min(wcg, abfVal));
+  }
+  function chg(av,bv){ if(!av) return 'n/a'; var d=((bv-av)/Math.abs(av)*100); return (d>=0?'+':'')+d.toFixed(1)+'%'; }
+  var yearsArr = CALC.years || [];
+  var lines = [];
+  lines.push('Comparing ' + (yearsArr[yi]||('Year '+(yi+1))) + '  →  ' + (yearsArr[yj]||('Year '+(yj+1))) + ':');
+  lines.push('');
+  lines.push('Sales/Revenue:  ' + a.totalRevenue + ' → ' + b.totalRevenue + '   (' + chg(a.totalRevenue,b.totalRevenue) + ')');
+  lines.push('PAT:            ' + a.pat + ' → ' + b.pat + '   (' + chg(a.pat,b.pat) + ')');
+  lines.push('Current Ratio:  ' + crOf(a).toFixed(2) + ' → ' + crOf(b).toFixed(2));
+  lines.push('TOL/TNW:        ' + tolOf(a).toFixed(2) + ' → ' + tolOf(b).toFixed(2));
+  lines.push('MPBF (Method I):' + mpbfOf(a) + ' → ' + mpbfOf(b) + '   (' + chg(mpbfOf(a),mpbfOf(b)) + ')');
+  lines.push('Existing CC:    ' + a.cc + ' → ' + b.cc);
+  return lines.join('\n');
+}
+
+/* ---------- 3. GIVE SOLUTIONS ---------- */
+function computeSolutions(q){
+  if(!CALC || !CALC.data || !CALC.data.length) return 'No CMA data has been calculated yet — enter your Trial Balance / P&L data and recalculate first, then ask me again.';
+  var n = CALC.data.length;
+  var nums = (q.match(/\d+/g) || []).map(Number).filter(function(x){ return x>=1 && x<=n; });
+  var yi = nums.length ? (nums[0]-1) : (n-1);
+  var d = CALC.data[yi];
+  var yearsArr = CALC.years || [];
+  var label = yearsArr[yi] || ('Year '+(yi+1));
+  var abf = ((STATE.unit && STATE.unit.abfPercent) || 75) / 100;
+  var currentRatio = d.currentLiabilities>0 ? d.currentAssets/d.currentLiabilities : 0;
+  var tol = d.tnw>0 ? (d.totalLiabilities-d.netWorth)/d.tnw : 0;
+  var otherCL = d.currentLiabilities - d.cc;
+  var wcg = d.currentAssets - otherCL;
+  var mpbf = Math.max(0, Math.min(wcg, Math.round(d.currentAssets*abf)));
+  var npPct = d.totalRevenue>0 ? (d.pat/d.totalRevenue*100) : 0;
+
+  var issues = [];
+  if(currentRatio < 1.33) issues.push({m:'Current Ratio of ' + currentRatio.toFixed(2) + ' is below the 1.33 bank norm.', s:'Reduce debtor/stock holding days, or bring in additional long-term funds / promoter capital to strengthen net working capital.'});
+  if(tol > 3) issues.push({m:'TOL/TNW of ' + tol.toFixed(2) + ' exceeds the 3:1 norm — the unit is over-leveraged.', s:'Avoid fresh borrowings, consider promoter capital infusion, and review whether any current liabilities can be converted to longer-term funding.'});
+  if(d.cc > mpbf) issues.push({m:'Existing/proposed CC of ' + d.cc + ' exceeds the assessed MPBF of ' + mpbf + '.', s:'Either scale back the CC request to the assessed MPBF, or improve current ratio / reduce other current liabilities to raise the eligible limit.'});
+  if(npPct < 3) issues.push({m:'Net Profit margin of ' + npPct.toFixed(1) + '% is thin.', s:'Review cost structure — interest cost and overheads are usually the biggest levers to improve margins.'});
+  if(!issues.length){
+    return 'Based on ' + label + ' data: no norm breaches found. Current Ratio, TOL/TNW, and CC vs MPBF all look within standard bank norms.';
+  }
+  var out = ['Based on ' + label + ' data, here are the issues I found and suggested actions:', ''];
+  issues.forEach(function(x,i){ out.push((i+1) + '. ' + x.m); out.push('   → ' + x.s); out.push(''); });
+  return out.join('\n').trim();
+}
+
+/* ---------- router ---------- */
+function localAnswerQuestion(text){
+  var q = text.toLowerCase();
+  if(/differen|compare|vs\.?|variance|change between|trend/.test(q)) return computeDifferences(q);
+  if(/solution|recommend|improve|fix|problem|issue|risk|weak|wrong/.test(q)) return computeSolutions(q);
+  if(/how (do|to|can)|step by step|help|guide|what is|explain|where/.test(q)) return findHelpAnswer(q);
+  return "I can help with: 🧭 how to use any tab, 📊 differences between years, or 💡 issues & solutions for this case. Try e.g. \"how do I use the Ratios tab?\", \"compare year 1 and year 2\", or \"what are the problems with this application?\"";
 }
 
 function aiQuickAction(kind){
   var prompts = {
-    explain: "Ask me which banking/finance term I'd like explained, or if there's an obviously important one for this case, explain that one in 3-4 sentences.",
-    analyze: "Analyze the current loan application using the CURRENT CASE DATA below. First, produce a table with one row for EVERY ratio and computed financial metric present anywhere in yearlyData (do not skip any — include DSCR, current ratio, TOL/TNW, MPBF, net working capital, GP%, NP%, and any others found in the data) with columns: Ratio | Value(s) by year | Applicable RBI/Tandon norm (or 'no standard norm' if none) | Compliant Y/N/borderline. Then add: (1) an overall viability narrative, (2) top 3 risks with mitigants, (3) a one-line bottom-line recommendation.",
-    draft: "Draft a concise Credit Appraisal Note (CAN) for this case using the CURRENT CASE DATA below, in standard bank format: Background, Financial Highlights, Working Capital Assessment (MPBF), Term Loan & DSCR, Risk Assessment, Recommendation.",
-    sanction: "Based on the CURRENT CASE DATA below: (1) Give an explicit recommendation — RECOMMEND SANCTION, RECOMMEND SANCTION WITH CONDITIONS, or DO NOT RECOMMEND — with a 3-4 sentence justification citing the specific ratios and norms (current ratio, TOL/TNW, DSCR if applicable, etc.) that drove the decision. (2) Then draft a formal Sanction Letter in standard Indian bank format covering: facility type(s) and amount(s) (renewal/enhancement), interest rate, tenure/limit period, security/margin, key covenants and conditions, and validity period — using ONLY figures present in the case data. For any field a sanction letter normally needs but that isn't in the data (branch address, sanctioning authority name, account number, date, etc.), write '[TO BE FILLED BY BANK]' instead of inventing a value."
+    howto: 'How do I use this app — give me the step-by-step workflow.',
+    diff: 'What are the differences between the years in this CMA?',
+    solutions: 'What are the issues and recommended solutions for this application?'
   };
   document.getElementById('aiChatInput').value = prompts[kind];
   sendAIChatMessage();
 }
 
-async function callAnthropicChat(messages, system){
-  var apiKey = getApiKey();
-  if(!apiKey) throw new Error('No API key set.');
-  var resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
-      system: system,
-      messages: messages.map(function(m){ return {role: m.role, content: m.content}; })
-    })
-  });
-  if(!resp.ok){
-    var err = await resp.json().catch(function(){ return {}; });
-    if(resp.status === 401) throw new Error('Invalid API key. Check it at console.anthropic.com');
-    if(resp.status === 429) throw new Error('Rate limit reached. Wait a moment and try again.');
-    throw new Error('API error ' + resp.status + ': ' + (err.error && err.error.message || 'unknown error'));
-  }
-  var data = await resp.json();
-  return (data.content && data.content[0] && data.content[0].text) || '(empty response)';
-}
-
-async function sendAIChatMessage(){
+function sendAIChatMessage(){
   var input = document.getElementById('aiChatInput');
   var text = input.value.trim();
   if(!text) return;
-  if(!getApiKey()){
-    document.getElementById('aiChatKeyBar').style.display = 'block';
-    aiChatAppend('assistant', 'Please enter your Anthropic API key above first — it is stored only in your browser and used only for calls made directly from this page.');
-    return;
-  }
   input.value = '';
   aiChatAppend('user', text);
-  aiChatHistory.push({role: 'user', content: text});
-
-  var box = document.getElementById('aiChatMessages');
-  var loadingEl = document.createElement('div');
-  loadingEl.style.cssText = 'color:#888;font-size:0.78rem;margin-bottom:8px;font-style:italic;';
-  loadingEl.textContent = 'Thinking…';
-  box.appendChild(loadingEl);
-  box.scrollTop = box.scrollHeight;
-
-  try{
-    var context = buildFinancialContext();
-    var system = AI_SYSTEM_BASE + '\n\nCURRENT CASE DATA (JSON, computed by the app — treat as ground truth):\n' + context;
-    var reply = await callAnthropicChat(aiChatHistory, system);
-    aiChatHistory.push({role: 'assistant', content: reply});
-    loadingEl.remove();
-    aiChatAppend('assistant', reply);
-  }catch(e){
-    loadingEl.remove();
-    aiChatAppend('assistant', '⚠ ' + e.message);
-  }
-}
-</script>
-
-
-<!-- ══════════ APP GUIDE & DIFF ASSISTANT WIDGET ══════════ -->
-<button id="cmaGuideFab" onclick="toggleCmaGuide()" title="App Guide & Difference Checker"
-  style="position:fixed;bottom:18px;left:18px;width:54px;height:54px;border-radius:50%;
-  background:#0e5e4a;color:#fff;border:none;font-size:1.3rem;
-  box-shadow:0 4px 14px rgba(0,0,0,0.35);cursor:pointer;z-index:600;">💡</button>
-
-<div id="cmaGuidePanel" style="display:none;flex-direction:column;position:fixed;bottom:82px;left:16px;
-  width:370px;max-width:93vw;height:74vh;max-height:560px;background:#fff;border:2px solid #0e5e4a;
-  border-radius:10px;box-shadow:0 10px 34px rgba(0,0,0,0.4);z-index:601;overflow:hidden;">
-
-  <div style="background:#0e5e4a;color:#fff;padding:10px 12px;display:flex;justify-content:space-between;align-items:flex-start;">
-    <div>
-      <div style="font-weight:800;font-size:0.92rem;">💡 App Guide & Diff Checker</div>
-      <div style="font-size:0.68rem;color:#cfe8de;">How-to help, no API key needed</div>
-    </div>
-    <button onclick="toggleCmaGuide()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;line-height:1;">×</button>
-  </div>
-
-  <div style="padding:7px 9px;border-bottom:1px solid #eee;display:flex;gap:5px;">
-    <button class="btn btn-secondary btn-sm" style="font-size:0.7rem;padding:5px 8px;flex:1;" onclick="cmaGuideSetMode('ask')">❓ Ask</button>
-    <button class="btn btn-secondary btn-sm" style="font-size:0.7rem;padding:5px 8px;flex:1;" onclick="cmaGuideSetMode('topics')">⚡ Quick Topics</button>
-    <button class="btn btn-secondary btn-sm" style="font-size:0.7rem;padding:5px 8px;flex:1;" onclick="cmaGuideSetMode('issues')">🔍 Check Issues</button>
-  </div>
-
-  <div id="cmaGuideChips" style="padding:0 9px;display:flex;flex-wrap:wrap;gap:2px;max-height:110px;overflow-y:auto;"></div>
-
-  <div id="cmaGuideMessages" style="flex:1;overflow-y:auto;padding:10px;font-size:0.85rem;background:#faf9f6;"></div>
-
-  <div style="padding:7px;border-top:1px solid #eee;display:flex;gap:6px;background:#fff;">
-    <input id="cmaGuideInput" type="text" placeholder="Ask e.g. 'how does drawing power work'"
-      style="flex:1;padding:8px 9px;border:2px solid var(--line, #ccc);border-radius:4px;font-size:0.83rem;"
-      onkeydown="if(event.key==='Enter'){cmaGuideAsk();}">
-    <button class="btn btn-primary" style="padding:8px 13px;" onclick="cmaGuideAsk()">➤</button>
-  </div>
-</div>
-
-<script>
-/* ============ CMA GUIDE & DIFF ASSISTANT (Existing Unit) ============ */
-var CMA_GUIDE_APP = 'existing';
-
-var CMA_GUIDE_KB = [
-  {kw:['start','begin','setup','new case','how do i start','first step'], a:"Start on the Setup tab: enter Unit Name, Bank, Industry Type, and how many Actual years you have (1 or 2), then tap 'Generate Year Columns'. After that, go to Trial Balance to enter historical figures.", jump:'workflow', label:'Step-by-Step Workflow'},
-  {kw:['trial balance','tb','import tb','upload tb','tb template'], a:"On the Trial Balance tab, enter figures for Actual years only (white cells) — projected years auto-fill from your Assumptions. All amounts are in ₹'000s. You can also import a TB file instead of typing.", jump:'tb', label:'Trial Balance Guidelines'},
-  {kw:['p&l','pl','balance sheet','bs','statements','editable cell'], a:"The P&L / BS tab is an alternative entry point — its white cells sync automatically with the Trial Balance, so you can use whichever entry screen you prefer.", jump:'statements_help', label:'P&L / BS'},
-  {kw:['assumption','holding period','sales growth','projection'], a:"Assumptions auto-calculates holding periods (debtor/stock/creditor days) from your TB entries. Set Sales Growth % here to drive projected years — you can override any auto-computed figure.", jump:'projections', label:'Assumptions & Projections'},
-  {kw:['manage items','custom line','add row','rename item'], a:"Manage Items lets you add, rename, or remove custom P&L/Balance Sheet line items beyond the standard ones, so unusual accounts still get captured correctly.", jump:'manage_items', label:'Manage Items'},
-  {kw:['cma form','cma1','cma2','cma3','cma-i','cma-ii','cma-iii','operating statement'], a:"CMA-I to CMA-V are the five standard bank CMA forms and are auto-generated from your Trial Balance + Assumptions — you don't fill these directly, just review them.", jump:'cma', label:'CMA Forms'},
-  {kw:['fund flow','cma4','cma-iv','sources and uses'], a:"CMA-IV (Fund Flow) shows Sources vs Uses of funds year-on-year, with a net-change check that should come close to zero. It needs at least 2 years of data.", jump:'cma4_help', label:'CMA-IV Fund Flow'},
-  {kw:['ratio','current ratio','tol','tnw','break even','breakeven'], a:"The Ratios tab auto-computes Current Ratio, TOL/TNW, DSCR, Break-Even and other key metrics for every year, flagging any that breach standard bank norms.", jump:'ratios_help', label:'Ratios'},
-  {kw:['drawing power','dp','margin','stock statement margin'], a:"Drawing Power is computed from your latest Stock Statement figures (RM+WIP+FG+Debtors) minus Creditors, less the Bank's stipulated margin %.", jump:'dp_help', label:'Drawing Power'},
-  {kw:['sales analysis','export sales','cash sales','credit sales'], a:"Sales Analysis breaks total projected sales into Export / Cash / Credit categories based on the mix ratios you enter in Assumptions.", jump:'sales', label:'Sales Analysis'},
-  {kw:['non fund','nfb','lc','letter of credit','bg','bank guarantee','ilc','flc'], a:"Non-Fund Limits covers Inland LC, Foreign LC and Bank Guarantee requirements — each computed from purchase/contract values, credit period, and margin %.", jump:'nfb', label:'Non-Fund Based Limits'},
-  {kw:['loan','emi','amorti','irr','npv','term loan'], a:"Loan/EMI generates a full month-wise amortisation schedule once you enter loan amount, rate, tenure and moratorium. IRR/NPV computes project and loan IRR from your cash flows.", jump:'loan', label:'Loan / EMI / IRR'},
-  {kw:['risk rating','scorecard','risk score'], a:"Risk Rating scores the case against a standard scorecard by year and industry type. You can override any individual score if your judgement differs from the auto-score.", jump:'risk_help', label:'Risk Rating'},
-  {kw:['ai appraisal','ai assistant','api key','chatbot','claude'], a:"The 🤖 AI Credit Assistant (bottom-right button) reads your calculated CMA numbers and can explain terms, analyze the case, or draft an appraisal note — it needs a free Anthropic API key, stored only in your browser.", jump:'ai_help', label:'AI Appraisal'},
-  {kw:['sanction','recommend sanction','sanction letter'], a:"Sanction gives a recommendation (Sanction / Sanction with conditions / Do not recommend) with justification, and can draft a formal sanction letter using your case data.", jump:'sanction_help', label:'Sanction'},
-  {kw:['export','pdf','word','excel','download report','backup file'], a:"Export lets you download an Excel workbook (all CMA tables), a text-based report labelled Word (open and Save-As .docx for full formatting), and a JSON backup you should save after every session.", jump:'export_help', label:'Export'},
-  {kw:['monitor','qis','quarterly'], a:"Monitoring tracks Quarterly Information System (QIS) data against your projections after sanction, so you can compare actual vs projected performance.", jump:'monitor_help', label:'Monitoring'},
-  {kw:['swot'], a:"SWOT lets you note Strengths, Weaknesses, Opportunities and Threats for the unit; a summary is compiled automatically for the appraisal note.", jump:'swot_help', label:'SWOT'},
-  {kw:['repayment','tracker','installment'], a:"Repayment Tracker shows the loan repayment schedule and lets you log actual repayments against the schedule.", jump:'repayment_help', label:'Repayment'},
-  {kw:['stock statement','rm','wip','finished goods','sundry debtor'], a:"Stock Statement records month-wise RM/WIP/FG/Debtors/Creditors — this feeds Drawing Power and can be tracked over multiple months.", jump:'stockstmt_help', label:'Stock Statement'},
-  {kw:['error','check my data','validate','mistake','something wrong'], a:"The Errors tab runs an automatic check across your whole case — balance sheet tally, negative figures, ratio breaches, missing entries — and lists Errors, Warnings and Passes.", jump:'errors_help', label:'Error Checker'},
-  {kw:['industry template','benchmark'], a:"Industry Templates pre-fill typical cost ratios and holding norms for 18+ industries — use before entering Assumptions, then adjust for the specific unit.", jump:'industry_help', label:'Industry Templates'},
-  {kw:['dashboard','kpi','summary view'], a:"Dashboard gives a one-screen KPI summary — sales trend, MPBF trend, net worth trend, key ratios, risk rating and recommendation — once CMA is calculated.", jump:'dashboard_help', label:'Dashboard'},
-  {kw:['lost data','restore','recover','backup','save my work'], a:"Everything is saved automatically to this browser's storage. Still, export a JSON backup regularly (Export tab) — if you clear browser data or switch devices, only the JSON backup can restore your case.", jump:'backup', label:'Save & Restore'},
-  {kw:['menu','navigation','tabs','all sections'], a:"Every section is listed in Help → 📋 All Menus, with a one-line description of what each tab does.", jump:'menus', label:'All Menus'}
-];
-
-var CMA_GUIDE_DIFF = [
-  {sev:'gap', title:'CMA-IV Fund Flow Statement missing in New Unit Generator',
-   detail:"Existing Unit has a full CMA-IV (Fund Flow / Sources & Uses) tab with a net-change tie-out. New Unit Generator has no Fund Flow statement anywhere.",
-   fix:"Add a Fund Flow computation to New Unit's Step 6 results: Sources = Net Profit + Depreciation + Capital introduced + Term Loan drawn; Uses = Fixed Asset purchase + Loan repayment + increase in working-capital gap. Mirror the existing cma4 tie-out logic."},
-  {sev:'gap', title:'Sensitivity Analysis covers fewer variables in New Unit Generator',
-   detail:"Existing Unit stress-tests 6 variables (Sales, RM/COGS, Stock days, Debtor days, Interest rate, Admin cost). New Unit Generator only tests 4 (Sales, COGS, Debtor days, Interest rate) — Stock days and Admin cost are not covered.",
-   fix:"Add nuSensStockInp and nuSensAdminInp fields, and extend runNUSensitivity() to include them, matching the Existing Unit's coverage."},
-  {sev:'enhancement', title:'Risk Scorecard cannot be manually overridden in New Unit Generator',
-   detail:"Existing Unit lets the credit officer override individual scorecard line-items (overrideRiskScore) when their judgement differs from the auto-score. New Unit Generator's scorecard is auto-only, with no override inputs.",
-   fix:"Port the override input fields and overrideRiskScore()-style logic into New Unit's risk panel so officer judgement can be recorded there too."},
-  {sev:'cosmetic', title:'PDF export handled differently between the two tools',
-   detail:"Existing Unit has an Export tab with an explicit 'PDF' option (in practice both tools generate a text file, not true PDF/Word). New Unit Generator relies only on the browser's Print → Save as PDF.",
-   fix:"Align labelling in both tools so the export button text matches what's actually produced, avoiding confusion about file format."},
-  {sev:'by-design', title:'Trial Balance import only in Existing Unit',
-   detail:"Existing Unit can import historical Trial Balance data because it is handling a running business with past books. New Unit Generator has no TB import.",
-   fix:"No fix needed — a brand-new unit has no historical books to import, so this is correct as-is."},
-  {sev:'by-design', title:'Assumptions & Manage Items tabs only in Existing Unit',
-   detail:"Existing Unit needs a free-form Assumptions/Manage-Items layer to reconcile with imported historical TB data. New Unit Generator builds its P&L/BS directly from Step 4's cost-ratio inputs, so no reconciliation layer is needed.",
-   fix:"No fix needed — this reflects the different data sources of each tool."},
-  {sev:'by-design', title:'New Unit Generator has no Actual-vs-Projected year split',
-   detail:"Existing Unit supports 1–2 Actual years plus Projected years. New Unit Generator is projection-only (Year 1 onward), since a new unit has no actual trading history yet.",
-   fix:"No fix needed — expected given the tool's purpose (greenfield project appraisal)."}
-];
-
-/* ============ CMA GUIDE & DIFF ASSISTANT — UI logic ============ */
-var cmaGuideMode = 'ask';
-var cmaGuideGreeted = false;
-
-function toggleCmaGuide(){
-  var p = document.getElementById('cmaGuidePanel');
-  var show = (p.style.display === 'none' || !p.style.display);
-  p.style.display = show ? 'flex' : 'none';
-  if(show && !cmaGuideGreeted){
-    cmaGuideGreeted = true;
-    cmaGuideAppend('assistant', "Hi! I'm the App Guide. Ask me how to use any tab in plain words (e.g. \"how does drawing power work\"), or use the buttons below to check your data for issues or compare this tool with the New Unit Generator.");
-  }
-}
-
-function cmaGuideAppend(role, html, isHtml){
-  var box = document.getElementById('cmaGuideMessages');
-  var row = document.createElement('div');
-  row.style.cssText = 'margin-bottom:10px;text-align:' + (role==='user' ? 'right' : 'left');
-  var bubble = document.createElement('span');
-  bubble.style.cssText = 'display:inline-block;padding:8px 11px;border-radius:10px;max-width:88%;' +
-    'white-space:pre-wrap;text-align:left;line-height:1.45;font-size:0.85rem;' +
-    (role==='user' ? 'background:#0e5e4a;color:#fff;' : 'background:#eef1f4;color:#0a1628;');
-  if(isHtml){ bubble.innerHTML = html; } else { bubble.textContent = html; }
-  row.appendChild(bubble);
-  box.appendChild(row);
-  box.scrollTop = box.scrollHeight;
-}
-
-function cmaGuideSetMode(mode){
-  cmaGuideMode = mode;
-  var chipBar = document.getElementById('cmaGuideChips');
-  chipBar.innerHTML = '';
-  if(mode === 'topics'){
-    var topics = CMA_GUIDE_KB.slice(0, 10);
-    topics.forEach(function(t){
-      var b = document.createElement('button');
-      b.className = 'btn btn-secondary btn-sm';
-      b.style.cssText = 'font-size:0.68rem;padding:5px 8px;margin:2px;';
-      b.textContent = t.label;
-      b.onclick = function(){ cmaGuideAnswerTopic(t); };
-      chipBar.appendChild(b);
-    });
-  } else if(mode === 'issues'){
-    var b1 = document.createElement('button');
-    b1.className = 'btn btn-primary btn-sm';
-    b1.style.cssText = 'font-size:0.7rem;padding:6px 9px;margin:2px;';
-    b1.textContent = '🔍 Check my data for errors';
-    b1.onclick = cmaGuideRunChecks;
-    var b2 = document.createElement('button');
-    b2.className = 'btn btn-secondary btn-sm';
-    b2.style.cssText = 'font-size:0.7rem;padding:6px 9px;margin:2px;';
-    b2.textContent = '🔄 Compare with New Unit Generator';
-    b2.onclick = cmaGuideShowDiff;
-    chipBar.appendChild(b1);
-    chipBar.appendChild(b2);
-  }
-}
-
-function cmaGuideAnswerTopic(t){
-  cmaGuideAppend('user', t.label);
-  var html = t.a + ' <button onclick="cmaGuideJump(\'' + t.jump + '\')" style="margin-top:6px;display:block;background:#0e5e4a;color:#fff;border:none;padding:4px 9px;border-radius:4px;font-size:0.72rem;cursor:pointer;">📖 See full guidance</button>';
-  cmaGuideAppend('assistant', html, true);
-}
-
-function cmaGuideJump(key){
-  document.getElementById('helpModal').style.display = 'block';
-  showHelpSection(key);
-}
-
-function cmaGuideMatch(text){
-  var words = text.toLowerCase();
-  var best = null, bestScore = 0;
-  CMA_GUIDE_KB.forEach(function(item){
-    var score = 0;
-    item.kw.forEach(function(k){
-      if(words.indexOf(k) !== -1) score += k.split(' ').length;
-    });
-    if(score > bestScore){ bestScore = score; best = item; }
-  });
-  return bestScore > 0 ? best : null;
-}
-
-function cmaGuideAsk(){
-  var input = document.getElementById('cmaGuideInput');
-  var text = input.value.trim();
-  if(!text) return;
-  input.value = '';
-  cmaGuideAppend('user', text);
-  var match = cmaGuideMatch(text);
-  if(match){
-    var html = match.a + ' <button onclick="cmaGuideJump(\'' + match.jump + '\')" style="margin-top:6px;display:block;background:#0e5e4a;color:#fff;border:none;padding:4px 9px;border-radius:4px;font-size:0.72rem;cursor:pointer;">📖 See full guidance</button>';
-    cmaGuideAppend('assistant', html, true);
-  } else {
-    cmaGuideAppend('assistant', "I couldn't match that to a specific tab. Try mentioning a feature name (e.g. \"trial balance\", \"drawing power\", \"sanction letter\"), or open Help → 📋 All Menus for the full list. You can also tap 'Quick Topics' below.");
-  }
-}
-
-function cmaGuideRunChecks(){
-  cmaGuideAppend('user', 'Check my data for errors');
-  try{
-    runErrorChecker();
-    var el = document.getElementById('errorCheckerResults');
-    var raw = el ? el.innerText || el.textContent : '';
-    if(!raw || !raw.trim()){
-      cmaGuideAppend('assistant', 'No data to check yet — complete Trial Balance entry and recalculate first.');
-      return;
-    }
-    var lines = raw.split('\n').map(function(l){return l.trim();}).filter(Boolean);
-    var summary = lines.slice(0, 12).join('\n');
-    if(lines.length > 12) summary += '\n… and ' + (lines.length - 12) + ' more line(s).';
-    var html = '<div style="font-weight:700;margin-bottom:4px;">Results from the built-in Error Checker:</div>' +
-      '<div style="white-space:pre-wrap;">' + summary.replace(/</g,'&lt;') + '</div>' +
-      '<button onclick="showPanel(\'errors\')" style="margin-top:6px;display:block;background:#0e5e4a;color:#fff;border:none;padding:4px 9px;border-radius:4px;font-size:0.72rem;cursor:pointer;">Open full Errors tab</button>';
-    cmaGuideAppend('assistant', html, true);
-  }catch(e){
-    cmaGuideAppend('assistant', '⚠ Could not run the checker: ' + e.message);
-  }
-}
-
-function cmaGuideSevBadge(sev){
-  var map = {gap:['🔴 Real gap','#e74c3c'], enhancement:['🟡 Suggested improvement','#f0a500'], cosmetic:['🔵 Cosmetic','#3498db'], 'by-design':['🟢 By design (not a bug)','#2ecc71']};
-  var m = map[sev] || ['ℹ️','#888'];
-  return '<span style="background:'+m[1]+';color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:8px;font-weight:700;">'+m[0]+'</span>';
-}
-
-function cmaGuideShowDiff(){
-  cmaGuideAppend('user', 'Compare with New Unit Generator');
-  var html = '<div style="font-weight:700;margin-bottom:6px;">Differences vs. New Unit Generator:</div>';
-  CMA_GUIDE_DIFF.forEach(function(d){
-    html += '<div style="margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid #ddd;">' +
-      cmaGuideSevBadge(d.sev) + '<div style="font-weight:700;margin-top:3px;">' + d.title + '</div>' +
-      '<div style="margin-top:2px;">' + d.detail + '</div>' +
-      '<div style="margin-top:2px;color:#0e5e4a;"><b>Suggested fix:</b> ' + d.fix + '</div></div>';
-  });
-  cmaGuideAppend('assistant', html, true);
+  var reply = localAnswerQuestion(text);
+  aiChatAppend('assistant', reply);
 }
 </script>
 

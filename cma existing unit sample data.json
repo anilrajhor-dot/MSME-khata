@@ -1,0 +1,539 @@
+{
+  "unit": {
+    "unitName": "Sample Trading Enterprises",
+    "unitConstitution": "Proprietorship",
+    "unitActivity": "trading",
+    "bankName": "Test Bank, Main Branch",
+    "numYears": 5,
+    "baseYear": "31-Mar-2022",
+    "existingWC": 5000,
+    "proposedWC": 6500,
+    "bankMargin": 25,
+    "abfPercent": 75
+  },
+  "years": [
+    "31-Mar-2022 +0 (A)",
+    "31-Mar-2022 +1 (A)",
+    "31-Mar-2022 +2 (E)",
+    "31-Mar-2022 +3 (P)",
+    "31-Mar-2022 +4 (P)"
+  ],
+  "tb": {
+    "assets": [
+      {
+        "name": "Land & Building",
+        "cat": "fixed",
+        "values": [
+          3000,
+          3000,
+          2850,
+          2707.5,
+          2572.12
+        ]
+      },
+      {
+        "name": "Plant & Machinery",
+        "cat": "fixed",
+        "values": [
+          500,
+          450,
+          382.5,
+          325.12,
+          276.35
+        ]
+      },
+      {
+        "name": "Furniture & Fixtures",
+        "cat": "fixed",
+        "values": [
+          150,
+          140,
+          126,
+          113.4,
+          102.06
+        ]
+      },
+      {
+        "name": "Other Fixed Assets",
+        "cat": "fixed",
+        "values": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Cash in Hand",
+        "cat": "ca",
+        "values": [
+          50,
+          60,
+          85.92,
+          96.23,
+          107.78
+        ]
+      },
+      {
+        "name": "Cash at Bank",
+        "cat": "ca",
+        "values": [
+          300,
+          350,
+          15187.02,
+          30656.49,
+          48066.3
+        ]
+      },
+      {
+        "name": "Sundry Debtors / Receivables",
+        "cat": "ca",
+        "values": [
+          1200,
+          1400,
+          1589.48,
+          1780.22,
+          1993.84
+        ]
+      },
+      {
+        "name": "Advances to Suppliers",
+        "cat": "ca",
+        "values": [
+          100,
+          120,
+          128.88,
+          144.34,
+          161.66
+        ]
+      },
+      {
+        "name": "Other Current Assets",
+        "cat": "ca",
+        "values": [
+          50,
+          50,
+          42.96,
+          48.11,
+          53.89
+        ]
+      },
+      {
+        "name": "Investments / Other Assets",
+        "cat": "other",
+        "values": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Preliminary / Misc Expenses (not w/off)",
+        "cat": "other",
+        "values": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Opening Stock (Trading Goods)",
+        "cat": "ca",
+        "values": [
+          800,
+          900
+        ]
+      },
+      {
+        "name": "Closing Stock (Trading Goods)",
+        "cat": "ca",
+        "values": [
+          900,
+          1000
+        ]
+      }
+    ],
+    "liabilities": [
+      {
+        "name": "Capital / Proprietor's Capital",
+        "cat": "networth",
+        "values": [
+          2000,
+          2000,
+          2000,
+          2000,
+          2000
+        ]
+      },
+      {
+        "name": "Reserves & Surplus",
+        "cat": "networth",
+        "values": [
+          1450,
+          1740,
+          15245.52,
+          30502.51,
+          47716.83
+        ]
+      },
+      {
+        "name": "Term Loan (incl. current maturities)",
+        "cat": "longterm",
+        "values": [
+          1500,
+          1300,
+          1300,
+          1300,
+          1300
+        ]
+      },
+      {
+        "name": "Other Long Term Borrowings",
+        "cat": "longterm",
+        "values": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Deferred Tax Liability",
+        "cat": "longterm",
+        "values": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Cash Credit / Working Capital Limit",
+        "cat": "cl",
+        "values": [
+          1200,
+          1400,
+          1589.48,
+          1780.22,
+          1993.84
+        ]
+      },
+      {
+        "name": "Sundry Creditors (Trade Payables)",
+        "cat": "cl",
+        "values": [
+          700,
+          800,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Advances from Customers",
+        "cat": "cl",
+        "values": [
+          100,
+          120,
+          128.88,
+          144.34,
+          161.66
+        ]
+      },
+      {
+        "name": "Statutory Liabilities (GST/TDS/PF etc.)",
+        "cat": "cl",
+        "values": [
+          50,
+          60,
+          85.92,
+          96.23,
+          107.78
+        ]
+      },
+      {
+        "name": "Other Current Liabilities & Provisions",
+        "cat": "cl",
+        "values": [
+          50,
+          50,
+          42.96,
+          48.11,
+          53.89
+        ]
+      }
+    ],
+    "income": [
+      {
+        "name": "Sales / Gross Revenue",
+        "cat": "sales",
+        "values": [
+          12000,
+          14000,
+          15680,
+          17561.6,
+          19668.99
+        ]
+      },
+      {
+        "name": "Other Income",
+        "cat": "other",
+        "values": [
+          50,
+          60,
+          67.42,
+          75.51,
+          84.58
+        ]
+      }
+    ],
+    "expenses": [
+      {
+        "name": "Opening Stock (Trading Goods)",
+        "cat": "cogs",
+        "values": [
+          800,
+          900
+        ]
+      },
+      {
+        "name": "Purchases (Trading Goods)",
+        "cat": "cogs",
+        "values": [
+          9000,
+          10500,
+          11760,
+          13171.2,
+          14751.74
+        ]
+      },
+      {
+        "name": "Freight & Handling Inward",
+        "cat": "cogs",
+        "values": [
+          150,
+          180,
+          201.6,
+          225.79,
+          252.89
+        ]
+      },
+      {
+        "name": "Closing Stock (Trading Goods)",
+        "cat": "cogs_neg",
+        "values": [
+          900,
+          1000
+        ]
+      },
+      {
+        "name": "Salaries & Staff Costs",
+        "cat": "admin",
+        "values": [
+          600,
+          700,
+          784,
+          878.08,
+          983.45
+        ]
+      },
+      {
+        "name": "Rent, Rates & Taxes",
+        "cat": "admin",
+        "values": [
+          120,
+          130,
+          145.6,
+          163.07,
+          182.64
+        ]
+      },
+      {
+        "name": "Office & General Expenses",
+        "cat": "admin",
+        "values": [
+          100,
+          110,
+          123.2,
+          137.98,
+          154.54
+        ]
+      },
+      {
+        "name": "Selling & Distribution Expenses",
+        "cat": "admin",
+        "values": [
+          150,
+          170,
+          190.4,
+          213.25,
+          238.84
+        ]
+      },
+      {
+        "name": "Repairs & Maintenance",
+        "cat": "admin",
+        "values": [
+          50,
+          60,
+          67.2,
+          75.26,
+          84.3
+        ]
+      },
+      {
+        "name": "Depreciation",
+        "cat": "depreciation",
+        "values": [
+          90,
+          85,
+          231.5,
+          212.48,
+          195.48
+        ]
+      },
+      {
+        "name": "Interest on Term Loan",
+        "cat": "interest",
+        "values": [
+          150,
+          130,
+          130,
+          130,
+          130
+        ]
+      },
+      {
+        "name": "Interest on Working Capital",
+        "cat": "interest",
+        "values": [
+          130,
+          150,
+          150,
+          150,
+          150
+        ]
+      },
+      {
+        "name": "Other Interest & Bank Charges",
+        "cat": "interest",
+        "values": [
+          20,
+          20,
+          20,
+          20,
+          20
+        ]
+      },
+      {
+        "name": "Provision for Tax",
+        "cat": "tax",
+        "values": [
+          300,
+          400,
+          400,
+          400,
+          400
+        ]
+      }
+    ]
+  },
+  "dscr": {
+    "interest": [],
+    "principal": []
+  },
+  "dp": {
+    "4": {
+      "rawMaterial": 25,
+      "wip": 25,
+      "finishedGoods": 25,
+      "debtors": 25,
+      "storesSpares": 25
+    }
+  },
+  "loan": {
+    "amount": 2000,
+    "rate": 10.5,
+    "tenure": 60,
+    "moratorium": 6,
+    "moratoriumType": "interest",
+    "startDate": "2022-04"
+  },
+  "irr": {
+    "discountRate": 12,
+    "initialInvestment": 0
+  },
+  "assumptions": {
+    "salesGrowth": 12,
+    "otherIncomePctSales": 0.43,
+    "ca": {
+      "Sundry Debtors / Receivables": 37,
+      "Advances to Suppliers": 3,
+      "Cash in Hand": 2,
+      "Cash at Bank": 9,
+      "Other Current Assets": 1
+    },
+    "cl": {
+      "Advances from Customers": 3,
+      "Statutory Liabilities (GST/TDS/PF etc.)": 2,
+      "Other Current Liabilities & Provisions": 1,
+      "Cash Credit / Working Capital Limit": 37,
+      "Sundry Creditors (Trade Payables)": 28
+    },
+    "other": {},
+    "userOverride": {
+      "ca": {},
+      "cl": {}
+    }
+  },
+  "depreciation": {
+    "method": "wdv",
+    "rates": {
+      "Land & Building": 5,
+      "Plant & Machinery": 15,
+      "Furniture & Fixtures": 10,
+      "Other Fixed Assets": 15
+    },
+    "autoApply": false
+  },
+  "collateral": [],
+  "stockStatements": [],
+  "swot": {
+    "S": [
+      "Profitable unit — Net Profit of ₹1,525K with NP Margin of 10.9%.",
+      "Strong liquidity — Current Ratio of 1.6 (above bank norm of 1.25).",
+      "Net Worth growing — improved from ₹3,450K to ₹3,740K — strengthening balance sheet.",
+      "Growing revenue — Sales increased from ₹12,000K to ₹14,000K (17% growth).",
+      "Conservative leverage — TOL/TNW of 1 is well within bank norm of 3:1."
+    ],
+    "W": [
+      "No major financial weaknesses identified. Maintain current financial discipline."
+    ],
+    "O": [
+      "Growing MSME sector in India with government thrust on Aatmanirbhar Bharat and PLI schemes — potential for capacity expansion.",
+      "Digital transformation opportunities — e-commerce, digital payments, GST compliance improving access to formal credit.",
+      "Export potential — increasing global demand for Indian manufactured goods and competitive rupee exchange rate.",
+      "Formalisation of supply chain post-GST — better access to credit from organised financial institutions.",
+      "Priority Sector Lending targets create incentive for banks to actively support MSMEs at competitive rates.",
+      "Government schemes — CGTMSE guarantee (collateral-free credit up to ₹200 lakh), MUDRA, PM Vishwakarma Yojana.",
+      "Enhanced WC limit of ₹1,400K would enable higher sales volumes and better vendor relationships.",
+      "Technology upgradation through MSME clusters, NSIC schemes and technology development funds."
+    ],
+    "T": [
+      "Rising interest rates — RBI monetary policy changes can increase borrowing costs and compress margins.",
+      "Raw material price volatility — input cost inflation can squeeze operating margins, especially for manufacturing units.",
+      "Competition from imports and large organised players with cost advantages and wider distribution networks.",
+      "Global economic slowdown and demand uncertainty can impact export orders and domestic consumption.",
+      "GST and compliance burden — increasing regulatory requirements demand time and resources from MSME owners.",
+      "Labour shortage and skilled manpower challenges in manufacturing and service sectors.",
+      "Working capital cycle pressure — delays in government/PSU payments can create liquidity stress."
+    ]
+  }
+}
