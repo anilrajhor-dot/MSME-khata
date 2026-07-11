@@ -972,17 +972,23 @@ footer{text-align:center; font-size:0.72rem; color:#999; padding:16px;}
 <footer>CMA New Unit Wizard · All amounts ₹'000s · Data stays on this device · Developed by Anil Sharma, Former General Manager, Central Bank of India</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js" defer></script>
 <script>
 
 /* ── BACKUP REMINDER & EXPORT ── */
 function exportBackup(){
+  var inputs = {};
+  document.querySelectorAll('input[id], select[id]').forEach(function(el){
+    inputs[el.id] = el.value;
+  });
+  var faInputs = {}, faRates = {};
+  document.querySelectorAll('.fa-input').forEach(function(el){ faInputs[el.dataset.fa] = el.value; });
+  document.querySelectorAll('.fa-rate').forEach(function(el){ faRates[el.dataset.fa] = el.value; });
   var u = {
-    unitName: document.getElementById('unitName')?document.getElementById('unitName').value:'',
-    industry: document.getElementById('industryType')?document.getElementById('industryType').value:'',
-    bank: document.getElementById('bankName')?document.getElementById('bankName').value:'',
-    capital: document.getElementById('capital')?document.getElementById('capital').value:'',
-    termLoan: document.getElementById('termLoan')?document.getElementById('termLoan').value:'',
-    sales1: document.getElementById('sales1')?document.getElementById('sales1').value:'',
+    unitName: inputs.unitName || '',
+    inputs: inputs,
+    faInputs: faInputs,
+    faRates: faRates,
     data: C && C.data ? C : null
   };
   var blob = new Blob([JSON.stringify(u, null, 2)], {type:'application/json'});
@@ -990,7 +996,7 @@ function exportBackup(){
   a.href = URL.createObjectURL(blob);
   a.download = (u.unitName||'NewUnit').replace(/[^a-z0-9]/gi,'_')+'_backup.json';
   a.click();
-  showOk('Backup exported successfully.');
+  showOk('Backup exported successfully — includes every input field and can fully restore this case.');
 }
 function showBackupReminder(){
   var el=document.getElementById('backupReminder');
@@ -1589,6 +1595,7 @@ function renderBEP(){
     var cmr=cmrArr[i]/100;
     var bepSales=cmr>0?Math.round(fcArr[i]/cmr):null;
     bepArr.push(bepSales);
+    x.bep=bepSales||0;
     bep+='<td>'+(bepSales!==null?fmt(bepSales):'N/A')+'</td>';
   });
   bep+='</tr>';
@@ -1607,6 +1614,7 @@ function renderBEP(){
     var b=bepArr[i];
     var mos=b!==null?x.sales-b:null;
     mosArr.push(mos);
+    x.mos=mos||0;
     var cls=mos!==null&&mos<0?' style="color:var(--danger);"':mos!==null&&mos>0?' style="color:var(--good);"':'';
     bep+='<td'+cls+'>'+(mos!==null?fmt(mos):'N/A')+'</td>';
   });
@@ -1673,6 +1681,8 @@ function calcIRRNPV(){
 
     var irr=irrBisect(cf);
     var npvVal=Math.round(npvCalc(disc,cf));
+    C.irr=irr||0;
+    C.invest=invest;
 
     // Build table
     var tbl='<tr><th class="lbl" style="text-align:left;">Particulars</th><th>Year 0</th>';
@@ -1873,13 +1883,13 @@ var NEW_UNIT_HELP = {
 
   backup: '<h3 style="color:#0e5e4a;">💾 How to Save & Restore Data</h3>'
     + '<h4 style="margin:10px 0 4px;">Save your data:</h4>'
-    + '<ol><li>After generating CMA, tap <b>Export JSON Backup</b> button (appears automatically)</li>'
+    + '<ol><li>Tap <b>Export JSON Backup</b> in Files (works any time, even before generating CMA)</li>'
     + '<li>Or tap <b>Export Excel</b> to save all tables as Excel file</li>'
     + '<li>Save the file to Google Drive, iCloud, or Downloads</li></ol>'
     + '<h4 style="margin:10px 0 4px;">Restore your data:</h4>'
-    + '<ol><li>The New Unit Generator uses entered inputs — simply re-enter Step 1–5 values</li>'
-    + '<li>Keep a note of your input values (sales, cost %, holding norms etc.)</li>'
-    + '<li>Or use the Credit Appraisal Suite → Load CMA JSON to restore full projections</li></ol>'
+    + '<ol><li>Go to Files → Import JSON Backup and choose your saved file</li>'
+    + '<li>All Step 1–5 inputs (including Fixed Assets and industry-specific fields) are restored automatically</li>'
+    + '<li>Tap "⚡ Generate Full CMA" in Step 5 to recompute the results</li></ol>'
     + '<h4 style="margin:10px 0 4px;">⚠ Important:</h4>'
     + '<p>New Unit Generator does NOT store data in browser localStorage between sessions. Always export before closing. The JSON backup contains all inputs and computed projections.</p>',
 
@@ -2117,6 +2127,10 @@ function renderNUDashboard(){
   var yrs=C.data.map(function(_,i){return 'Y'+(i+1);});
   function mkC(id,type,datasets){
     var ctx=document.getElementById(id);if(!ctx)return;
+    if(typeof Chart==='undefined'){
+      ctx.replaceWith(Object.assign(document.createElement('div'),{className:'note',textContent:'📈 Chart library still loading — needs internet on first use. Reopen this tab in a moment.'}));
+      return;
+    }
     if(nuCharts[id])nuCharts[id].destroy();
     nuCharts[id]=new Chart(ctx,{type:type,data:{labels:yrs,datasets:datasets},
       options:{responsive:true,maintainAspectRatio:false,
@@ -2806,13 +2820,38 @@ function importNUJSON(evt){
     try{
       var d=JSON.parse(e.target.result);
       var inputs=d.inputs||d;
-      function setV(id,val){var el=document.getElementById(id);if(el&&val!==undefined)el.value=val;}
-      setV('unitName',inputs.unitName); setV('bankName',inputs.bankName);
-      setV('capital',inputs.capital); setV('termLoan',inputs.termLoan||inputs.tl);
-      setV('tlRate',inputs.tlRate); setV('tlTenure',inputs.tlTenure||inputs.tenure);
-      setV('tlMoratorium',inputs.tlMoratorium||inputs.moratorium);
-      setV('wcRate',inputs.wcRate); setV('numYears',inputs.numYears||5);
-      showOk('Inputs restored from JSON. Re-enter Fixed Assets (Step 3) and Sales & Costs (Step 4) manually, then regenerate CMA.');
+      function setV(id,val){var el=document.getElementById(id);if(el&&val!==undefined&&val!==''){el.value=val;}}
+
+      // Set industry type first (if present) and render its dynamic fields before restoring their values
+      var industryVal = inputs.industryType || inputs.industry;
+      if(industryVal){ setV('industryType', industryVal); onIndustryChange(); }
+
+      // Restore every plain input/select field generically
+      Object.keys(inputs).forEach(function(id){ setV(id, inputs[id]); });
+
+      // Backward-compatible aliases from the older export format
+      setV('bankName', inputs.bankName || inputs.bank);
+      setV('termLoan', inputs.termLoan || inputs.tl);
+      setV('tlTenure', inputs.tlTenure || inputs.tenure);
+      setV('tlMoratorium', inputs.tlMoratorium || inputs.moratorium);
+      setV('numYears', inputs.numYears || 5);
+
+      // Fixed Assets (data-fa attributes, not ids)
+      if(d.faInputs){
+        Object.keys(d.faInputs).forEach(function(k){
+          var el=document.querySelector('.fa-input[data-fa="'+k+'"]');
+          if(el && d.faInputs[k]!=='') el.value=d.faInputs[k];
+        });
+      }
+      if(d.faRates){
+        Object.keys(d.faRates).forEach(function(k){
+          var el=document.querySelector('.fa-rate[data-fa="'+k+'"]');
+          if(el && d.faRates[k]!=='') el.value=d.faRates[k];
+        });
+      }
+      if(typeof calcFASummary==='function') calcFASummary();
+
+      showOk('All inputs restored from JSON. Review Steps 1–5, then tap "⚡ Generate Full CMA" in Step 5 to recompute.');
     }catch(err){showErr('Import failed: '+err.message);}
   };
   r.readAsText(file); evt.target.value='';
@@ -3021,7 +3060,7 @@ var NU_HELP={
     +'<h4>Export Word (.txt → .docx):</h4>'
     +'<p>Projections table, sanction terms, project report as text file. Open in MS Word → Save As .docx.</p>'
     +'<h4>Import JSON:</h4>'
-    +'<p>Restores key inputs from backup JSON. Re-enter Fixed Assets (Step 3) and Cost Ratios (Step 4) manually after import, then regenerate CMA.</p>',
+    +'<p>Restores every input (Steps 1–5, including Fixed Assets and industry-specific fields) from a backup JSON. Tap "⚡ Generate Full CMA" in Step 5 afterward to recompute.</p>',
 
   hmonitor:'<h3 style="color:var(--green);">📊 Monitoring — Post-Sanction</h3>'
     +'<p><b>Implementation Milestones:</b> Record planned vs actual dates for: Land/Site, Civil Construction, Machinery Procurement, Erection & Trial Run, Commercial Production, First EMI. Status: Pending/In Progress/Completed/Delayed.</p>'
@@ -3576,10 +3615,19 @@ async function sendAIChatMessage(){
 
 
 <!-- ══════════ APP GUIDE & DIFF ASSISTANT WIDGET ══════════ -->
+<style>
+@keyframes cmaGuidePulse {
+  0%   { box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 0 0 0 rgba(14,94,74,0.55); }
+  70%  { box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 0 0 14px rgba(14,94,74,0); }
+  100% { box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 0 0 0 rgba(14,94,74,0); }
+}
+#cmaGuideFab { animation: cmaGuidePulse 1.6s ease-out 3; }
+</style>
 <button id="cmaGuideFab" onclick="toggleCmaGuide()" title="App Guide & Difference Checker"
-  style="position:fixed;bottom:18px;left:18px;width:54px;height:54px;border-radius:50%;
-  background:#0e5e4a;color:#fff;border:none;font-size:1.3rem;
-  box-shadow:0 4px 14px rgba(0,0,0,0.35);cursor:pointer;z-index:600;">💡</button>
+  style="position:fixed;bottom:18px;left:18px;height:46px;border-radius:23px;padding:0 16px 0 12px;
+  background:#0e5e4a;color:#fff;border:none;font-size:0.95rem;font-weight:700;
+  display:flex;align-items:center;gap:6px;white-space:nowrap;
+  box-shadow:0 4px 14px rgba(0,0,0,0.35);cursor:pointer;z-index:600;">💡 Guide</button>
 
 <div id="cmaGuidePanel" style="display:none;flex-direction:column;position:fixed;bottom:82px;left:16px;
   width:370px;max-width:93vw;height:74vh;max-height:560px;background:#fff;border:2px solid #0e5e4a;
@@ -3637,7 +3685,7 @@ var CMA_GUIDE_KB = [
   {kw:['collateral','security'], a:"Collateral records the security being offered against the proposed facilities (property, FDs, third-party guarantee, etc).", jump:'hcoll', label:'Collateral'},
   {kw:['stock statement','drawing power','dp','rm','wip','finished goods'], a:"Stock Statement / Drawing Power lets you enter RM/WIP/FG/Debtors/Creditors and computes Drawing Power after the bank's margin.", jump:'hstock', label:'Stock Statement & DP'},
   {kw:['error','check my data','validate','mistake','something wrong'], a:"Errors runs an automatic check on your generated CMA — PAT, balance sheet tally, DSCR, IRR and Break-Even — flagging anything below standard bank norms.", jump:'herrors', label:'Error Checker'},
-  {kw:['glossary','term','meaning','definition','what is'], a:"Glossary explains banking/finance terms like DSCR, MPBF, ILC, FLC and BG in plain language.", jump:'glossary', label:'Glossary'}
+  {kw:['glossary','term','meaning','mean','definition','dscr','mpbf','irr','wdv','ilc','flc','bg','tol tnw'], a:"Glossary explains banking/finance terms like DSCR, MPBF, ILC, FLC and BG in plain language.", jump:'glossary', label:'Glossary'}
 ];
 
 var CMA_GUIDE_DIFF = [
@@ -3729,19 +3777,31 @@ function cmaGuideAnswerTopic(t){
 }
 
 function cmaGuideJump(key){
-  document.getElementById('helpModal').style.display = 'block';
+  goStep('help');
   showNUHelp(key);
 }
 
 function cmaGuideMatch(text){
-  var words = text.toLowerCase();
-  var best = null, bestScore = 0;
+  function stem(w){ return (w.length>3 && w.slice(-1)==='s') ? w.slice(0,-1) : w; }
+  var qWordsRaw = (' '+text.toLowerCase().replace(/[^a-z0-9]+/g,' ')+' ').trim().split(/\s+/);
+  var qWords = qWordsRaw.map(stem);
+  function firstIndex(w){ return qWords.indexOf(stem(w)); }
+  var best = null, bestScore = 0, bestPos = Infinity;
   CMA_GUIDE_KB.forEach(function(item){
-    var score = 0;
+    var score = 0, minPos = Infinity;
     item.kw.forEach(function(k){
-      if(words.indexOf(k) !== -1) score += k.split(' ').length;
+      var kwWords = k.toLowerCase().replace(/[^a-z0-9\s]+/g,' ').trim().split(/\s+/);
+      var positions = kwWords.map(firstIndex);
+      var allPresent = positions.every(function(p){ return p !== -1; });
+      if(allPresent){
+        score += kwWords.length;
+        var earliest = Math.min.apply(null, positions);
+        if(earliest < minPos) minPos = earliest;
+      }
     });
-    if(score > bestScore){ bestScore = score; best = item; }
+    if(score > bestScore || (score === bestScore && score > 0 && minPos < bestPos)){
+      bestScore = score; best = item; bestPos = minPos;
+    }
   });
   return bestScore > 0 ? best : null;
 }
@@ -3776,7 +3836,7 @@ function cmaGuideRunChecks(){
     if(lines.length > 12) summary += '\n… and ' + (lines.length - 12) + ' more line(s).';
     var html = '<div style="font-weight:700;margin-bottom:4px;">Results from the built-in Error Checker:</div>' +
       '<div style="white-space:pre-wrap;">' + summary.replace(/</g,'&lt;') + '</div>' +
-      '<button onclick="showNUHelp(\'herrors\');document.getElementById(\'helpModal\').style.display=\'none\';goStep(6);" style="margin-top:6px;display:block;background:#0e5e4a;color:#fff;border:none;padding:4px 9px;border-radius:4px;font-size:0.72rem;cursor:pointer;">Open full Errors section</button>';
+      '<button onclick="goStep(\'errors\')" style="margin-top:6px;display:block;background:#0e5e4a;color:#fff;border:none;padding:4px 9px;border-radius:4px;font-size:0.72rem;cursor:pointer;">Open full Errors section</button>';
     cmaGuideAppend('assistant', html, true);
   }catch(e){
     cmaGuideAppend('assistant', '⚠ Could not run the checker: ' + e.message);
