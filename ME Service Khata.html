@@ -152,6 +152,9 @@ input[type=text], input[type=number], input[type=date], textarea { cursor:text !
 #faq-srch{display:flex;gap:8px;padding:10px 12px;background:#fff;border-top:1px solid #E3E3E3;flex-shrink:0;}
 #faq-inp{flex:1;border:1px solid #d0dbe8;border-radius:20px;padding:10px 14px;font-size:0.82rem;outline:none;box-sizing:border-box;}
 #faq-send{background:#1565C0;color:#fff;border:none;width:38px;height:38px;border-radius:50%;font-size:15px;cursor:pointer;flex-shrink:0;}
+#faq-mic{background:#EFF6FF;color:#1565C0;border:1.5px solid #BBDEFB;width:38px;height:38px;border-radius:50%;font-size:15px;cursor:pointer;flex-shrink:0;}
+#faq-mic.listening{background:#D32F2F;color:#fff;border-color:#D32F2F;animation:faqMicPulse 1s infinite;}
+@keyframes faqMicPulse{0%{box-shadow:0 0 0 0 rgba(211,47,47,0.5);}70%{box-shadow:0 0 0 10px rgba(211,47,47,0);}100%{box-shadow:0 0 0 0 rgba(211,47,47,0);}}
 </style>
 </head>
 <body>
@@ -14679,16 +14682,16 @@ var _EXTRA_FAQ_DATA=[
 {q:"Which app should I use for my business?", a:"Buying & reselling goods → Trading Khata. Making/producing goods → Manufacturing Khata. Providing services (no stock) → Service Khata. A mix of all three → All In One Khata. Multiple branches/units → Multi Unit Khata.",tags:["which app","choose app","which khata"]},
 
 {q:"I found a difference in my statement", a:"Tell me which one: Balance Sheet, Trial Balance, Cash Flow, Cash/Bank balance, Stock value, Debtors, Creditors, Loan outstanding, or Bank statement vs app entries. Or go straight to <b>Health Check</b> and tap <b>Run Health Check</b> — it checks all of these at once and shows exactly which figure is off and how to fix it.",tags:["difference","mismatch","discrepancy"],diag:true},
-{q:"Balance Sheet not tallying", a:"Go to <b>Health Check</b> → Run Health Check to see the exact difference amount. Common causes: 1) Loan disbursement not added to Cash/Bank. 2) Additional capital not entered under Capital/Loans. 3) Drawings not recorded. Check <b>Financials → Balance Sheet</b> for the detailed break-up.",tags:["balance sheet not tallying","balance sheet difference","assets liabilities","bs difference"],diag:true},
-{q:"Trial Balance Debit not equal Credit", a:"Go to <b>Data → Opening Trial Balance</b> and recheck each head: Debit side (Cash, Bank, Stock, Debtors, Fixed Assets) vs Credit side (Capital, Loans, Creditors). Fix the wrong entry, then tap <b>Post to Books</b> again.",tags:["trial balance","tb not matching","debit credit not matching"],diag:true},
+{q:"Balance Sheet not tallying", a:"Go to <b>Health Check</b> → Run Health Check to see the exact difference amount. Common causes: 1) Loan disbursement not added to Cash/Bank. 2) Additional capital not entered under Capital/Loans. 3) Drawings not recorded. Check <b>Financials → Balance Sheet</b> for the detailed break-up.",tags:["balance sheet not tallying","balance sheet difference","assets liabilities","bs difference"],diag:true,liveCheck:['Balance Sheet']},
+{q:"Trial Balance Debit not equal Credit", a:"Go to <b>Data → Opening Trial Balance</b> and recheck each head: Debit side (Cash, Bank, Stock, Debtors, Fixed Assets) vs Credit side (Capital, Loans, Creditors). Fix the wrong entry, then tap <b>Post to Books</b> again.",tags:["trial balance","tb not matching","debit credit not matching"],diag:true,liveCheck:['Trial Balance']},
 {q:"Cash Flow showing a difference", a:"For a new business keep Opening Cash/Bank = 0. For an existing business, Opening Cash/Bank in Data → Opening Trial Balance must match your real balance on the day you started. Also check every Sale/Purchase/Expense has the correct Payment Mode.",tags:["cash flow difference","cash flow mismatch","cashflow"],diag:true},
-{q:"Cash or Bank balance looks wrong or negative", a:"Usually means: 1) More cash expenses/purchases recorded than cash available. 2) A transaction marked Cash was really Bank/UPI (or vice-versa). 3) Opening Cash/Bank missing for an existing business. Check <b>Cash/Bank</b> menu entry-by-entry, or run Health Check.",tags:["cash balance wrong","bank balance wrong","negative cash","negative bank"],diag:true},
-{q:"Stock or Inventory value doesn't match", a:"Check: 1) Opening Stock entered in Data → Opening Trial Balance for an existing business. 2) Every Purchase is linked to an Inventory item. 3) No item shows negative stock in <b>Inventory</b>. Health Check → 'Closing Stock Consistent' and 'No Negative Stock' will show the exact item.",tags:["stock mismatch","inventory mismatch","stock value wrong","closing stock difference"],diag:true},
-{q:"Debtors total looks wrong", a:"Debtors should roughly equal Credit Sales plus Opening Debtors. Check for a payment received but not recorded, or a duplicated entry, in <b>Capital/Loans → Debtors</b>.",tags:["debtors mismatch","debtors wrong","debtors high"],diag:true},
-{q:"Creditors total looks wrong", a:"Creditors should roughly equal Credit Purchases plus Opening Creditors. Check for a payment made but not recorded, or a duplicated entry, in <b>Capital/Loans → Creditors</b>.",tags:["creditors mismatch","creditors wrong","creditors high"],diag:true},
-{q:"Loan outstanding balance is wrong", a:"Check for a negative outstanding balance, or an outstanding amount greater than the sanctioned amount, in <b>Capital/Loans → Loans</b>. Health Check → 'Loan Balances Correct' names the exact lender and issue.",tags:["loan balance wrong","loan mismatch","loan outstanding wrong"],diag:true},
-{q:"Bank statement doesn't match my app entries", a:"Use <b>Bank Recon</b> → upload your bank statement (CSV/Excel) → it auto-matches against your recorded entries and lists unmatched bank transactions and unmatched app entries (e.g. cheques not yet cleared).",tags:["bank statement mismatch","bank reconciliation","recon difference"],diag:true},
-{q:"Duplicate bill or voucher numbers found", a:"Go to <b>Reports → Bills</b> and edit the duplicate bill number. Health Check → 'No Duplicate Voucher Nos.' lists the exact duplicates.",tags:["duplicate bill","duplicate voucher"],diag:true},
+{q:"Cash or Bank balance looks wrong or negative", a:"Usually means: 1) More cash expenses/purchases recorded than cash available. 2) A transaction marked Cash was really Bank/UPI (or vice-versa). 3) Opening Cash/Bank missing for an existing business. Check <b>Cash/Bank</b> menu entry-by-entry, or run Health Check.",tags:["cash balance wrong","bank balance wrong","negative cash","negative bank"],diag:true,liveCheck:['Cash & Bank','Cash Position']},
+{q:"Stock or Inventory value doesn't match", a:"Check: 1) Opening Stock entered in Data → Opening Trial Balance for an existing business. 2) Every Purchase is linked to an Inventory item. 3) No item shows negative stock in <b>Inventory</b>. Health Check → 'Closing Stock Consistent' and 'No Negative Stock' will show the exact item.",tags:["stock mismatch","inventory mismatch","stock value wrong","closing stock difference"],diag:true,liveCheck:['Negative Stock','Closing Stock']},
+{q:"Debtors total looks wrong", a:"Debtors should roughly equal Credit Sales plus Opening Debtors. Check for a payment received but not recorded, or a duplicated entry, in <b>Capital/Loans → Debtors</b>.",tags:["debtors mismatch","debtors wrong","debtors high"],diag:true,liveCheck:['Debtors']},
+{q:"Creditors total looks wrong", a:"Creditors should roughly equal Credit Purchases plus Opening Creditors. Check for a payment made but not recorded, or a duplicated entry, in <b>Capital/Loans → Creditors</b>.",tags:["creditors mismatch","creditors wrong","creditors high"],diag:true,liveCheck:['Creditors']},
+{q:"Loan outstanding balance is wrong", a:"Check for a negative outstanding balance, or an outstanding amount greater than the sanctioned amount, in <b>Capital/Loans → Loans</b>. Health Check → 'Loan Balances Correct' names the exact lender and issue.",tags:["loan balance wrong","loan mismatch","loan outstanding wrong"],diag:true,liveCheck:['Loan Balances']},
+{q:"Bank statement doesn't match my app entries", a:"Use <b>Bank Recon</b> → upload your bank statement (CSV/Excel) → it auto-matches against your recorded entries and lists unmatched bank transactions and unmatched app entries (e.g. cheques not yet cleared).",tags:["bank statement mismatch","bank reconciliation","passbook mismatch"],diag:true},
+{q:"Duplicate bill or voucher numbers found", a:"Go to <b>Reports → Bills</b> and edit the duplicate bill number. Health Check → 'No Duplicate Voucher Nos.' lists the exact duplicates.",tags:["duplicate bill","duplicate voucher"],diag:true,liveCheck:['Duplicate']},
 {q:"How does Health Check find differences?", a:"It runs 10 checks: Trial Balance tally, Balance Sheet tally, Cash & Bank position, Negative Stock, Closing Stock consistency, Debtors/Creditors reconciliation, Loan balances, Duplicate vouchers, Expired stock. Go to <b>Health Check</b> → tap <b>Run Health Check</b>.",tags:["what is health check","10 checks","accuracy score"],diag:true}
 ];
 
@@ -14726,8 +14729,33 @@ function _faqAnswerFor(text){
     if(diagIntent && !item.diag) score-=2;
     if(score>bestScore){bestScore=score;best=item;}
   });
-  if(best && bestScore>=1) return best.a;
+  if(best && bestScore>=1){
+    if(best.liveCheck){
+      var live=_liveDiag(best.liveCheck);
+      if(live) return live+'<br><br><span style="color:#78909C;font-size:11px">'+best.a+'</span>';
+    }
+    return best.a;
+  }
   return "I couldn't find an exact match. Try asking about: adding a bank account, entering a purchase/sale, viewing the Balance Sheet, a difference in any statement, backup/restore, GST, loans, or Health Check.";
+}
+
+function _liveDiag(nameSubs){
+  try{
+    if(typeof runHealthCheck!=='function') return null;
+    runHealthCheck();
+    var hc=window._healthResult;
+    if(!hc||!hc.checks) return null;
+    var matches=hc.checks.filter(function(c){
+      return nameSubs.some(function(n){ return c.name && c.name.toLowerCase().indexOf(n.toLowerCase())>-1; });
+    });
+    if(!matches.length) return null;
+    return matches.map(function(c){
+      var icon = c.pass ? '✅' : (c.warn ? '⚠️' : '❌');
+      var line = icon+' <b>'+c.name+':</b> '+c.detail;
+      if(!c.pass && c.fix) line += '<br>👉 '+c.fix;
+      return line;
+    }).join('<br><br>');
+  }catch(e){ return null; }
 }
 
 function _faqAddMsg(text,who){
@@ -14766,6 +14794,7 @@ function _faqSend(){
 function _faqOpen(greeting){
   document.getElementById('faq-overlay').className='open';
   document.getElementById('faq-panel').className='open';
+  if(typeof _faqInitVoice==='function') _faqInitVoice();
   var badge=document.getElementById('faq-badge'); if(badge) badge.style.display='none';
   var body=document.getElementById('faq-body');
   if(body && !body.dataset.greeted){
@@ -14778,6 +14807,60 @@ function _faqOpen(greeting){
 function _faqClose(){
   document.getElementById('faq-overlay').className='';
   document.getElementById('faq-panel').className='';
+}
+
+
+// ── Voice input (Web Speech API) ──
+var _faqRecognition = null;
+var _faqListening = false;
+var _faqVoiceInitDone = false;
+function _faqInitVoice(){
+  if(_faqVoiceInitDone) return;
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var micBtn = document.getElementById('faq-mic');
+  if(!SR || !micBtn) return;
+  _faqVoiceInitDone = true;
+  micBtn.style.display = 'flex';
+  micBtn.style.alignItems = 'center';
+  micBtn.style.justifyContent = 'center';
+  _faqRecognition = new SR();
+  _faqRecognition.lang = 'en-IN';
+  _faqRecognition.interimResults = false;
+  _faqRecognition.maxAlternatives = 1;
+  _faqRecognition.onresult = function(e){
+    var transcript = e.results[0][0].transcript;
+    document.getElementById('faq-inp').value = transcript;
+    _faqSend();
+  };
+  _faqRecognition.onerror = function(e){
+    _faqListening = false;
+    micBtn.classList.remove('listening');
+    if(e.error === 'not-allowed' || e.error === 'permission-denied'){
+      _faqAddMsg("🎤 I need microphone permission to hear you — please allow microphone access and try again.", 'bot');
+    } else if(e.error === 'no-speech'){
+      _faqAddMsg("🎤 I didn't catch that — please try again.", 'bot');
+    }
+  };
+  _faqRecognition.onend = function(){
+    _faqListening = false;
+    micBtn.classList.remove('listening');
+  };
+}
+
+function _faqMicToggle(){
+  if(!_faqRecognition) return;
+  var micBtn = document.getElementById('faq-mic');
+  if(_faqListening){
+    _faqRecognition.stop();
+    _faqListening = false;
+    micBtn.classList.remove('listening');
+    return;
+  }
+  try{
+    _faqRecognition.start();
+    _faqListening = true;
+    micBtn.classList.add('listening');
+  }catch(e){ /* already started or blocked */ }
 }
 
 </script>
@@ -14793,6 +14876,7 @@ function _faqClose(){
   <div class="faq-quick" id="faq-quick"></div>
   <div id="faq-srch">
     <input type="text" placeholder="Type your question..." id="faq-inp" onkeydown="if(event.key==='Enter')_faqSend()">
+    <button id="faq-mic" onclick="_faqMicToggle()" style="display:none">🎤</button>
     <button id="faq-send" onclick="_faqSend()">➤</button>
   </div>
 </div>
