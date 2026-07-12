@@ -85,6 +85,9 @@ footer b{color:#FFD54F;}
 #chat-input-row{display:flex;gap:8px;padding:10px 12px;background:#fff;border-top:1px solid #e0e8f0;}
 #chat-input{flex:1;border:1px solid #d0dbe8;border-radius:20px;padding:10px 14px;font-size:0.82rem;outline:none;}
 #chat-send{background:#1565C0;color:#fff;border:none;width:40px;height:40px;border-radius:50%;font-size:16px;cursor:pointer;flex-shrink:0;}
+#chat-mic{background:#EFF6FF;color:#1565C0;border:1.5px solid #BBDEFB;width:40px;height:40px;border-radius:50%;font-size:16px;cursor:pointer;flex-shrink:0;}
+#chat-mic.listening{background:#D32F2F;color:#fff;border-color:#D32F2F;animation:chatMicPulse 1s infinite;}
+@keyframes chatMicPulse{0%{box-shadow:0 0 0 0 rgba(211,47,47,0.5);}70%{box-shadow:0 0 0 10px rgba(211,47,47,0);}100%{box-shadow:0 0 0 0 rgba(211,47,47,0);}}
 </style>
 </head>
 <body>
@@ -202,6 +205,7 @@ footer b{color:#FFD54F;}
   <div class="chat-quick" id="chat-quick"></div>
   <div id="chat-input-row">
     <input type="text" id="chat-input" placeholder="Type your question..." onkeydown="if(event.key==='Enter')chatSend()">
+    <button id="chat-mic" onclick="chatMicToggle()" style="display:none">🎤</button>
     <button id="chat-send" onclick="chatSend()">➤</button>
   </div>
 </div>
@@ -237,7 +241,7 @@ var CHAT_KB = [
 {q:"Loan outstanding balance is wrong", tags:["loan balance wrong","loan mismatch","loan outstanding wrong","loan difference"], diag:true,
  a:"Two common issues: (1) Outstanding balance is negative, or (2) Outstanding is more than the Sanctioned Amount. Go to <b>Capital/Loans → Loans</b> and correct the entry for that lender. Health Check → 'Loan Balances Correct' will name the exact lender and the issue."},
 
-{q:"My bank statement doesn't match my app entries", tags:["bank statement mismatch","bank reconciliation","recon difference","statement vs app","unmatched transactions"], diag:true,
+{q:"My bank statement doesn't match my app entries", tags:["bank statement mismatch","bank reconciliation","passbook mismatch","unmatched bank transactions"], diag:true,
  a:"Use the <b>Bank Recon</b> (Bank Reconciliation) menu → upload your bank statement as CSV or Excel → the app automatically matches it against your recorded entries and lists any <b>unmatched bank transactions</b> (in the statement but not in your app) and <b>unmatched app entries</b> (recorded but not on the statement, e.g. cheques not yet cleared). It also compares bank-charged interest with the interest you've recorded, so you can add any missing entries."},
 
 {q:"Duplicate bill or voucher numbers found", tags:["duplicate bill","duplicate voucher","duplicate invoice number"], diag:true,
@@ -444,6 +448,60 @@ function chatOpen(){
 function chatClose(){
   document.getElementById('chat-overlay').classList.remove('open');
   document.getElementById('chat-panel').classList.remove('open');
+}
+
+// ── Voice input (Web Speech API) ──
+var chatRecognition = null;
+var chatListening = false;
+(function chatInitVoice(){
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var micBtn = document.getElementById('chat-mic');
+  if(!SR || !micBtn) return; // not supported on this browser — keep mic hidden
+  micBtn.style.display = 'flex';
+  micBtn.style.alignItems = 'center';
+  micBtn.style.justifyContent = 'center';
+  chatRecognition = new SR();
+  chatRecognition.lang = 'en-IN';
+  chatRecognition.interimResults = false;
+  chatRecognition.maxAlternatives = 1;
+  chatRecognition.onresult = function(e){
+    var transcript = e.results[0][0].transcript;
+    document.getElementById('chat-input').value = transcript;
+    chatSend();
+  };
+  chatRecognition.onerror = function(e){
+    chatListening = false;
+    micBtn.classList.remove('listening');
+    if(e.error === 'not-allowed' || e.error === 'permission-denied'){
+      chatAddMsg("🎤 I need microphone permission to hear you — please allow microphone access and try again.", 'bot');
+    } else if(e.error === 'no-speech'){
+      chatAddMsg("🎤 I didn't catch that — please try again.", 'bot');
+    }
+  };
+  chatRecognition.onend = function(){
+    chatListening = false;
+    micBtn.classList.remove('listening');
+  };
+})();
+
+function chatMicToggle(){
+  if(!chatRecognition) return;
+  var micBtn = document.getElementById('chat-mic');
+  if(chatListening){
+    chatRecognition.stop();
+    chatListening = false;
+    micBtn.classList.remove('listening');
+    return;
+  }
+  if(location.protocol==='file:'){
+    chatAddMsg("🎤 Voice input needs this app to be opened from a web address (https://...), not a local file — the browser blocks microphone access for local files. Host the file online (e.g. netlify.com/drop) and open it from that link to use voice input. Typing your question works fine either way!", 'bot');
+    return;
+  }
+  try{
+    chatRecognition.start();
+    chatListening = true;
+    micBtn.classList.add('listening');
+  }catch(e){ /* already started or blocked — ignore */ }
 }
 </script>
 
