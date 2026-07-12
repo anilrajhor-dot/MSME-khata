@@ -6516,6 +6516,8 @@ function pgDat(){
   h+=card('Backup &amp; Restore',
   btn('⬇ Download Backup','expDat()')+
   '<br><br>'+
+  btn('🔒 Encrypted Backup','expDatEncrypted()','#2E7D32')+
+  '<br><br>'+
   btn('⬆ Paste Backup to Restore','showImportModal()','#546E7A')+
   '<br><br>'+
   '<button onclick="triggerFileImport()" class="btn bfull" style="background:#546E7A;cursor:pointer">⬆ Import Backup File</button>'+
@@ -6526,6 +6528,95 @@ function pgDat(){
   h+=card('Install on Phone','<div class="al ali"><b style="font-size:12px">Android (Chrome)</b><p style="font-size:11px;margin-top:4px">Menu ⋮ → Add to Home Screen</p></div><div class="al ali"><b style="font-size:12px">iPhone (Safari)</b><p style="font-size:11px;margin-top:4px">Share ↑ → Add to Home Screen</p></div><div class="al als"><b style="font-size:12px;color:#2E7D32">✅ Works Offline</b><p style="font-size:11px;margin-top:4px">Data saved on your device</p></div>');
   return h;
 }
+
+// ── Encrypted Backup (AES-256-GCM via Web Crypto API) ──
+function _cryptoAvailable(){ return !!(window.crypto && window.crypto.subtle); }
+function _b64FromBuf(buf){
+  var bytes=new Uint8Array(buf), bin='';
+  for(var i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function _bufFromB64(b64){
+  var bin=atob(b64), bytes=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return bytes.buffer;
+}
+async function _deriveKey(password, saltBytes){
+  var enc=new TextEncoder();
+  var baseKey=await crypto.subtle.importKey('raw', enc.encode(password), {name:'PBKDF2'}, false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2', salt:saltBytes, iterations:200000, hash:'SHA-256'},
+    baseKey, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']
+  );
+}
+async function encryptBackupText(plainText, password){
+  var salt=crypto.getRandomValues(new Uint8Array(16));
+  var iv=crypto.getRandomValues(new Uint8Array(12));
+  var key=await _deriveKey(password, salt);
+  var enc=new TextEncoder();
+  var ctBuf=await crypto.subtle.encrypt({name:'AES-GCM', iv:iv}, key, enc.encode(plainText));
+  var envelope={__mekhata_encrypted__:1, v:1, salt:_b64FromBuf(salt.buffer), iv:_b64FromBuf(iv.buffer), ct:_b64FromBuf(ctBuf)};
+  return JSON.stringify(envelope, null, 2);
+}
+async function decryptBackupText(envelopeText, password){
+  var env=JSON.parse(envelopeText);
+  if(!env || !env.__mekhata_encrypted__) throw new Error('Not an encrypted backup file');
+  var salt=new Uint8Array(_bufFromB64(env.salt));
+  var iv=new Uint8Array(_bufFromB64(env.iv));
+  var key=await _deriveKey(password, salt);
+  var ctBuf=_bufFromB64(env.ct);
+  var plainBuf;
+  try{
+    plainBuf=await crypto.subtle.decrypt({name:'AES-GCM', iv:iv}, key, ctBuf);
+  }catch(e){
+    throw new Error('Wrong password, or file is corrupted/not a valid encrypted backup');
+  }
+  return new TextDecoder().decode(plainBuf);
+}
+function _passwordPrompt(title, message, onSubmit){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000;padding:14px';
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:12px;padding:18px;max-width:380px;width:100%;box-shadow:0 4px 20px rgba(0,0,0,0.25)';
+  box.innerHTML='<div style="font-size:15px;font-weight:700;color:#0D2137;margin-bottom:6px">'+title+'</div>'+
+    '<div style="font-size:12px;color:#546E7A;margin-bottom:10px;line-height:1.5">'+message+'</div>'+
+    '<input type="password" id="_pw_inp" placeholder="Enter password" style="width:100%;padding:10px;border:1.5px solid #BBDEFB;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px" autocomplete="off">'+
+    '<div id="_pw_err" style="color:#C62828;font-size:11px;margin-bottom:8px;display:none"></div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+    '<button id="_pw_cancel" style="padding:9px 14px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#546E7A;font-size:13px;cursor:pointer">Cancel</button>'+
+    '<button id="_pw_ok" style="padding:9px 14px;border-radius:8px;border:none;background:#1565C0;color:#fff;font-size:13px;font-weight:700;cursor:pointer">OK</button>'+
+    '</div>';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  var inp=box.querySelector('#_pw_inp'), errDiv=box.querySelector('#_pw_err');
+  setTimeout(function(){ inp.focus(); }, 50);
+  function cleanup(){ if(overlay.parentNode) document.body.removeChild(overlay); }
+  box.querySelector('#_pw_cancel').onclick=function(){ cleanup(); };
+  function submit(){
+    var pw=inp.value;
+    if(!pw){ errDiv.textContent='Please enter a password.'; errDiv.style.display='block'; return; }
+    onSubmit(pw, function(errMsg){
+      if(errMsg){ errDiv.textContent=errMsg; errDiv.style.display='block'; inp.value=''; inp.focus(); }
+      else { cleanup(); }
+    });
+  }
+  box.querySelector('#_pw_ok').onclick=submit;
+  inp.onkeydown=function(e){ if(e.key==='Enter') submit(); };
+}
+function expDatEncrypted(){
+  if(!_cryptoAvailable()){
+    toast('Encryption needs a secure connection (https://). This works once the app is hosted online — it will not work when opened as a local file.','e');
+    return;
+  }
+  _passwordPrompt('🔒 Set Backup Password', 'Choose a password to encrypt this backup. You will need this exact password to restore it later — write it down somewhere safe! There is no way to recover a lost password.', function(pw, done){
+    encryptBackupText(JSON.stringify(D,null,2), pw).then(function(enc){
+      done();
+      showBackupModal(enc, 'Accounts_'+td()+'_encrypted.json');
+      toast('🔒 Encrypted backup created. Remember your password — it cannot be recovered if lost!','w');
+    }).catch(function(e){ done('Encryption failed: '+e.message); });
+  });
+}
+
 function expDat(){
   var b=JSON.stringify(D,null,2);
   showBackupModal(b,'Accounts_'+td()+'.json');
@@ -6594,6 +6685,30 @@ function showBackupModal(content, filename){
   document.body.appendChild(overlay);
 }
 function importFromData(jsonText){
+  var trimmed=(jsonText||'').trim();
+  var probe=null;
+  try{ probe=JSON.parse(trimmed); }catch(e){ probe=null; }
+  if(probe && probe.__mekhata_encrypted__){
+    if(!_cryptoAvailable()){
+      toast('This is an encrypted backup. Decryption needs a secure https:// connection — open the app from its https:// link to restore it.','e');
+      return false;
+    }
+    _passwordPrompt('🔒 Enter Backup Password', 'This backup is encrypted. Enter the password you used when creating it.', function(pw, done){
+      decryptBackupText(trimmed, pw).then(function(plainText){
+        done();
+        var ok=_importFromDataPlain(plainText);
+        if(ok){
+          var io=document.getElementById('import_overlay');
+          if(io && io.parentNode) io.parentNode.removeChild(io);
+        }
+      }).catch(function(e){ done(e.message||'Wrong password'); });
+    });
+    return 'async';
+  }
+  return _importFromDataPlain(jsonText);
+}
+
+function _importFromDataPlain(jsonText){
   try{
     // Clean the text — remove BOM, invisible chars, trim whitespace
     // Clean text — remove BOM and find JSON boundaries
@@ -6755,7 +6870,8 @@ function showImportModal(){
     if(!text){ statusDiv.textContent='Please paste your backup data first.'; statusDiv.style.color='#C62828'; return; }
     confirmDialog('This will REPLACE all current data with the pasted backup. Continue?', function(){
       var ok = importFromData(text);
-      if(ok) document.body.removeChild(overlay);
+      if(ok==='async'){ /* password prompt showing; async flow closes this overlay itself on success */ }
+      else if(ok) document.body.removeChild(overlay);
       else { statusDiv.textContent='Could not import - check that you copied the full backup text.'; statusDiv.style.color='#C62828'; }
     });
   };
@@ -14728,6 +14844,7 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"How to make an encrypted backup?", a:"Go to <b>Data</b> tab &rarr; tap <b>🔒 Encrypted Backup</b> (next to Download Backup) &rarr; choose a password &rarr; the backup text shown is now scrambled and unreadable without that password. To restore it, use Paste Backup or Import Backup File as usual &mdash; you will be asked for the same password before it decrypts. <b>Write your password down somewhere safe</b> &mdash; it cannot be recovered if lost, and the backup would be permanently unreadable without it.",tags:["encrypted backup","encrypt backup","password protect backup","secure backup"]},
 {q:"How to add capital?", a:"Go to <b>Capital/Loans &rarr; Capital</b> &rarr; enter your Initial (or Additional) Capital as Cash or Bank &rarr; Save. For a partnership, go to Profile &rarr; Constitution &rarr; select Partnership, then enter a separate capital amount for each partner.",tags:["add capital","initial capital","owner capital","capital kaise add karen"]},
 {q:"How to view the Balance Sheet, P&L or Cash Flow?", a:"Go to <b>Financials</b> menu &rarr; open <b>Balance Sheet</b>, <b>P&amp;L Statement</b> or <b>Cash Flow</b>. All are auto-generated from your Sales, Purchase, Expense, Capital and Loan entries. Use <b>Reports</b> for item-wise and monthly breakdowns.",tags:["view balance sheet","view p&l","view cash flow","see balance sheet","show balance sheet","balance sheet kaise dekhen"]},
 {q:"How does GST work while entering a purchase or sale?", a:"In the plain <b>Purchase</b> and <b>Sales</b> tabs you just enter Qty and Rate/Price as one amount &mdash; there is no separate GST field there, and it does not get added into your Cash/Bank/Debtor/Creditor entry automatically. GST is worked out in the background using the <b>GST rate assigned to that item</b> (Inventory &rarr; Edit Item, or your default rate) and shown in <b>GST Module &rarr; Summary</b> as Output GST (Sales), Input Tax Credit/ITC (Purchases) and Net GST Payable &mdash; useful for return filing. If you use the <b>Bill/Invoice</b> screen instead, GST is shown added on top of the item price on the printed invoice. Either way, GST does not automatically appear as a 'GST Payable' liability on your Balance Sheet &mdash; record it yourself via Capital/Loans &rarr; Other Liabilities once you check GST Module &rarr; Summary.",tags:["gst on purchase","gst on sale","gst entry purchase sale","how gst calculated","gst added on top","gst separate field","is gst automatic"]},
@@ -14907,6 +15024,10 @@ function _faqMicToggle(){
     _faqRecognition.stop();
     _faqListening = false;
     micBtn.classList.remove('listening');
+    return;
+  }
+  if(location.protocol==='file:'){
+    _faqAddMsg("🎤 Voice input needs this app to be opened from a web address (https://...), not a local file — the browser blocks microphone access for local files. Host the file online (e.g. netlify.com/drop) and open it from that link to use voice input. Typing your question works fine either way!", 'bot');
     return;
   }
   try{
