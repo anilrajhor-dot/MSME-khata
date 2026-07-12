@@ -3655,6 +3655,8 @@ async function sendAIChatMessage(){
     <input id="cmaGuideInput" type="text" placeholder="Ask e.g. 'how does drawing power work'"
       style="flex:1;padding:8px 9px;border:2px solid var(--line, #ccc);border-radius:4px;font-size:0.83rem;"
       onkeydown="if(event.key==='Enter'){cmaGuideAsk();}">
+    <button id="cmaGuideMicBtn" onclick="cmaGuideToggleMic()" title="Ask by voice"
+      style="padding:8px 11px;border:none;border-radius:4px;background:#eef1f4;cursor:pointer;font-size:1rem;">🎤</button>
     <button class="btn btn-primary" style="padding:8px 13px;" onclick="cmaGuideAsk()">➤</button>
   </div>
 </div>
@@ -3820,6 +3822,74 @@ function cmaGuideAsk(){
     cmaGuideAppend('assistant', "I couldn't match that to a specific step. Try mentioning a feature name (e.g. \"step 4\", \"drawing power\", \"sanction letter\"), or open Help → 📋 Overview for the full list. You can also tap 'Quick Topics' below.");
   }
 }
+
+/* ---- Voice input (Web Speech API) ---- */
+var cmaGuideRecognition = null;
+var cmaGuideListening = false;
+
+function cmaGuideGetSpeechCtor(){
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function cmaGuideToggleMic(){
+  var Ctor = cmaGuideGetSpeechCtor();
+  var btn = document.getElementById('cmaGuideMicBtn');
+  if(!Ctor){
+    cmaGuideAppend('assistant', "🎤 Voice input isn't supported in this browser. Try Chrome or Safari, and make sure the page is opened over https:// (or as a local file loaded via a web server) rather than double-clicked from disk.");
+    return;
+  }
+  if(cmaGuideListening){
+    if(cmaGuideRecognition) cmaGuideRecognition.stop();
+    return;
+  }
+  if(!cmaGuideRecognition){
+    cmaGuideRecognition = new Ctor();
+    cmaGuideRecognition.lang = 'en-IN';
+    cmaGuideRecognition.continuous = false;
+    cmaGuideRecognition.interimResults = false;
+    cmaGuideRecognition.maxAlternatives = 1;
+
+    cmaGuideRecognition.onstart = function(){
+      cmaGuideListening = true;
+      btn.style.background = '#e53935';
+      btn.style.color = '#fff';
+      btn.textContent = '⏹';
+      btn.title = 'Listening… tap to stop';
+      document.getElementById('cmaGuideInput').placeholder = '🎙 Listening…';
+    };
+    cmaGuideRecognition.onresult = function(evt){
+      var transcript = evt.results[0][0].transcript;
+      var input = document.getElementById('cmaGuideInput');
+      input.value = transcript;
+      cmaGuideAsk();
+    };
+    cmaGuideRecognition.onerror = function(evt){
+      var msg = 'Voice input error: ' + evt.error;
+      if(evt.error === 'not-allowed' || evt.error === 'permission-denied'){
+        msg = "🎤 Microphone access was blocked. Please allow microphone permission for this page and try again.";
+      } else if(evt.error === 'no-speech'){
+        msg = "🎤 Didn't catch that — no speech detected. Tap the mic and try again.";
+      } else if(evt.error === 'network'){
+        msg = "🎤 Voice recognition needs an internet connection to work.";
+      }
+      cmaGuideAppend('assistant', msg);
+    };
+    cmaGuideRecognition.onend = function(){
+      cmaGuideListening = false;
+      btn.style.background = '#eef1f4';
+      btn.style.color = '#000';
+      btn.textContent = '🎤';
+      btn.title = 'Ask by voice';
+      document.getElementById('cmaGuideInput').placeholder = "Ask e.g. 'how does drawing power work'";
+    };
+  }
+  try{
+    cmaGuideRecognition.start();
+  }catch(e){
+    cmaGuideAppend('assistant', "🎤 Couldn't start voice input: " + e.message);
+  }
+}
+
 
 function cmaGuideRunChecks(){
   cmaGuideAppend('user', 'Check my data for errors');
