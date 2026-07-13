@@ -5619,6 +5619,7 @@ function pgBankCalc(){
   h += '<button class="'+(tab==='rd'?'act':'')+'" onclick="window._bctab=\'rd\';renderPage()">RD Interest</button>';
   h += '<button class="'+(tab==='reinvest'?'act':'')+'" onclick="window._bctab=\'reinvest\';renderPage()">Reinvestment Scheme</button>';
   h += '<button class="'+(tab==='sip'?'act':'')+'" onclick="window._bctab=\'sip\';renderPage()">SIP</button>';
+  h += '<button class="'+(tab==='stmt'?'act':'')+'" onclick="window._bctab=\'stmt\';renderPage()">From Bank Statement</button>';
   h += '</div>';
 
   if(tab==='fd'){
@@ -5663,6 +5664,28 @@ function pgBankCalc(){
       btn('Calculate Future Value','calcSIPLive()')+
       '<div id="sip_res" style="margin-top:10px"></div>'
     );
+    return h;
+  }
+
+  if(tab==='stmt'){
+    h += card('Calculate Interest from a Bank Statement',
+      '<div style="font-size:12px;color:#546E7A;margin-bottom:8px">Upload a bank statement (Deposit/Savings account or Loan account) as CSV or Excel, enter the interest rate and the period, and this works out the actual interest — using the day-wise balance exactly as it moved in the statement. For a month-wise statement, set Period Start/End to that month so days with no transaction are still counted correctly.</div>'+
+      '<div style="display:flex;gap:8px;margin-bottom:10px">'+
+        '<button onclick="window._stmtAcctType=\'deposit\';renderPage()" style="flex:1;padding:10px;border-radius:8px;border:2px solid '+(window._stmtAcctType==='loan'?'#BBDEFB':'#1565C0')+';background:'+(window._stmtAcctType==='loan'?'#fff':'#E3F2FD')+';color:'+(window._stmtAcctType==='loan'?'#546E7A':'#1565C0')+';font-weight:700;font-size:13px;cursor:pointer">💰 Deposit / Savings Account</button>'+
+        '<button onclick="window._stmtAcctType=\'loan\';renderPage()" style="flex:1;padding:10px;border-radius:8px;border:2px solid '+(window._stmtAcctType==='loan'?'#1565C0':'#BBDEFB')+';background:'+(window._stmtAcctType==='loan'?'#E3F2FD':'#fff')+';color:'+(window._stmtAcctType==='loan'?'#1565C0':'#546E7A')+';font-weight:700;font-size:13px;cursor:pointer">🏦 Loan Account</button>'+
+      '</div>'+
+      inp('Interest Rate % p.a.','stmt_r','number',7)+
+      g2(inp('Period Start (optional)','stmt_start','date',''), inp('Period End (optional)','stmt_end','date',''))+
+      '<div style="font-size:11px;color:#546E7A;margin:2px 0 6px">Leave Period Start/End blank to use just the first-to-last transaction date in the file. Set both (e.g. 1st to last day of a month) if the file is a month-wise statement so every day in that month is counted, even ones with no transaction.</div>'+
+      inp('Opening Balance (₹, as on Period Start / before first transaction)','stmt_ob','number',0)+
+      '<div style="font-size:11px;color:#546E7A;margin:2px 0 6px">Only matters if Period Start is earlier than the first transaction date, or if the file has no running Balance column.</div>'+
+      '<div style="margin-top:8px"><input type="file" id="stmt_file" accept=".csv,.xlsx,.xls" onchange="handleStmtInterestFile(event)" style="width:100%;padding:9px;border:1px solid #BBDEFB;border-radius:8px;font-size:13px"></div>'+
+      '<div style="font-size:11px;color:#546E7A;margin-top:6px">Export your statement from net-banking as CSV or Excel. Processed on your device only — not saved or uploaded anywhere.</div>'+
+      '<div id="stmt_status" style="margin-top:10px"></div>'
+    );
+    if(window._stmtInterestResult){
+      h += renderStmtInterestResult(window._stmtInterestResult);
+    }
     return h;
   }
 
@@ -5777,6 +5800,147 @@ function calcSIPLive(){
   var gain = fv - invested;
   var el=document.getElementById('sip_res');
   if(el) el.innerHTML = _resultBox3('Total Invested',invested,'#546E7A','Wealth Gained',gain,'#2E7D32','Future Value',fv,'#1565C0');
+}
+
+// ---- Interest calculation from an uploaded bank statement (day-wise balance method) ----
+async function handleStmtInterestFile(ev){
+  var f=ev.target.files[0];
+  if(!f) return;
+  var statusEl=document.getElementById('stmt_status');
+  statusEl.innerHTML='<div class="al ali">Processing...</div>';
+  try{
+    var rows;
+    if(/\.xlsx?$/i.test(f.name)){
+      if(typeof DecompressionStream==='undefined'){
+        statusEl.innerHTML='<div class="al ald">Your browser does not support reading Excel files here. Please export the statement as CSV instead.</div>';
+        return;
+      }
+      var buf = await f.arrayBuffer();
+      rows = await parseXlsxArrayBuffer(buf);
+    } else {
+      var text = await f.text();
+      rows = parseCSV(text);
+    }
+    var txns = extractBankTxns(rows);
+    if(txns.length===0){
+      statusEl.innerHTML='<div class="al ald">Could not detect transaction rows. Make sure the file has columns for Date and Debit/Credit (or Amount), ideally with a running Balance column.</div>';
+      return;
+    }
+    var ratePct = gvn('stmt_r');
+    var openingBal = gvn('stmt_ob');
+    var acctType = window._stmtAcctType==='loan' ? 'loan' : 'deposit';
+    var periodStart = gv('stmt_start') || null;
+    var periodEnd = gv('stmt_end') || null;
+    if(!ratePct){
+      statusEl.innerHTML='<div class="al ald">Please enter the Interest Rate % p.a. first.</div>';
+      return;
+    }
+    var result = computeStatementInterest(txns, ratePct, openingBal, acctType, periodStart, periodEnd);
+    if(result.error){
+      statusEl.innerHTML='<div class="al ald">'+result.error+'</div>';
+      return;
+    }
+    window._stmtInterestResult = result;
+    statusEl.innerHTML='<div class="al als">Processed '+txns.length+' transactions. Calculating for '+result.fromDate+' to '+result.toDate+'.</div>';
+    renderPage();
+  }catch(e){
+    statusEl.innerHTML='<div class="al ald">Error reading file: '+esc(e.message)+'</div>';
+  }
+}
+
+// Build a day-wise closing-balance timeline from transactions, then sum daily interest.
+// acctType: 'deposit' (credit increases balance) or 'loan' (debit increases outstanding balance)
+// periodStart/periodEnd (optional 'YYYY-MM-DD'): explicit period boundaries, e.g. for a month-wise
+// statement, so days before the first transaction (using openingBal) or after the last transaction
+// (holding the last balance) are still counted correctly.
+function computeStatementInterest(txns, ratePct, openingBal, acctType, periodStart, periodEnd){
+  var sorted = txns.slice().sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
+  var hasBalanceCol = sorted.every(function(t){ return t.balance!==null && t.balance!==undefined; });
+
+  // Determine the closing balance AFTER each transaction
+  var running = openingBal||0;
+  var txnBalances = sorted.map(function(t){
+    if(hasBalanceCol){
+      running = t.balance;
+    } else if(acctType==='loan'){
+      running = running + (t.debit||0) - (t.credit||0); // debit = drawdown increases outstanding, credit = repayment reduces it
+    } else {
+      running = running + (t.credit||0) - (t.debit||0); // credit = deposit increases balance, debit = withdrawal reduces it
+    }
+    return {date:t.date, balance:running, desc:t.desc};
+  });
+
+  var firstTxnDate = sorted[0].date, lastTxnDate = sorted[sorted.length-1].date;
+  var fromDate = periodStart || firstTxnDate;
+  var toDate = periodEnd || lastTxnDate;
+  if(fromDate > toDate){
+    return {error:'Period Start is after Period End — please check the dates.'};
+  }
+
+  var dayRate = ratePct/100/365;
+  var cur = new Date(fromDate+'T00:00:00');
+  var end = new Date(toDate+'T00:00:00');
+  var balByDate = {};
+  txnBalances.forEach(function(tb){ balByDate[tb.date] = tb.balance; });
+
+  // Balance for any day before the first transaction date is the Opening Balance provided.
+  var runningBal = openingBal||0;
+  var totalInterest = 0;
+  var totalDays = 0;
+  var monthly = {}; // 'YYYY-MM' -> {days, interest, balanceSum}
+
+  while(cur <= end){
+    var iso = cur.toISOString().slice(0,10);
+    if(balByDate.hasOwnProperty(iso)) runningBal = balByDate[iso];
+    var interestToday = runningBal * dayRate;
+    totalInterest += interestToday;
+    totalDays++;
+    var ym = iso.slice(0,7);
+    if(!monthly[ym]) monthly[ym] = {days:0, interest:0, balanceSum:0};
+    monthly[ym].days++;
+    monthly[ym].interest += interestToday;
+    monthly[ym].balanceSum += runningBal;
+    cur.setDate(cur.getDate()+1);
+  }
+
+  var monthRows = Object.keys(monthly).sort().map(function(ym){
+    var m = monthly[ym];
+    return {ym:ym, days:m.days, avgBal:m.balanceSum/m.days, interest:m.interest};
+  });
+
+  return {
+    fromDate:fromDate, toDate:toDate, totalDays:totalDays,
+    totalInterest:totalInterest, acctType:acctType, ratePct:ratePct,
+    hasBalanceCol:hasBalanceCol, monthRows:monthRows,
+    noBalanceColAtAll: !hasBalanceCol,
+    openingBalUsedForLeadDays: hasBalanceCol && fromDate < firstTxnDate,
+    firstTxnDate:firstTxnDate, lastTxnDate:lastTxnDate
+  };
+}
+
+function renderStmtInterestResult(r){
+  var label = r.acctType==='loan' ? 'Interest Accrued (Payable)' : 'Interest Earned';
+  var color = r.acctType==='loan' ? '#C62828' : '#2E7D32';
+  var h = card('Result: '+(r.acctType==='loan'?'Loan Account':'Deposit Account')+' — '+r.fromDate+' to '+r.toDate,
+    '<div class="kg">'+
+    '<div class="ki"><div class="kl">Period</div><div class="kv">'+r.totalDays+' days</div></div>'+
+    '<div class="ki"><div class="kl">'+label+'</div><div class="kv" style="color:'+color+'">'+fc(r.totalInterest)+'</div></div>'+
+    '</div>'+
+    (r.noBalanceColAtAll
+      ? '<div class="al alw" style="margin-top:8px">No running Balance column was found in the file, so the Opening Balance you entered was used to reconstruct daily balances from the debit/credit entries throughout. Double-check the Opening Balance is correct for an accurate result.</div>'
+      : (r.openingBalUsedForLeadDays
+          ? '<div class="al ali" style="margin-top:8px">Used the actual running Balance column from your statement from '+r.firstTxnDate+' onwards. For '+r.fromDate+' to the day before that, there\'s no transaction data, so the Opening Balance you entered was used instead — double-check it\'s correct for those early days.</div>'
+          : '<div class="al als" style="margin-top:8px">Used the actual running Balance column from your statement for day-by-day accuracy.</div>'))+
+    '<div style="margin-top:12px;font-size:12px;font-weight:700;color:#546E7A">Month-wise Breakdown</div>'+
+    tbl([
+      {l:'Month',fn:function(row){return row.ym;}},
+      {l:'Days',fn:function(row){return row.days;}},
+      {l:'Avg Balance',r:1,fn:function(row){return fc(Math.round(row.avgBal));}},
+      {l:'Interest',r:1,fn:function(row){return fc(row.interest);}}
+    ], r.monthRows)+
+    '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print','window.print()','#546E7A')+'</div>'
+  );
+  return h;
 }
 
 function pgEMI(){
@@ -8770,22 +8934,26 @@ function appInterestInRange(fromDate,toDate){
 
 // ===== UI =====
 function pgRecon(){
-  var h = '<div class="al ali"><div class="alt">Bank Statement Reconciliation</div><p>Upload your bank statement (CSV or Excel/.xlsx) to check it against entries recorded in this app, and verify interest charged by the bank against interest recorded here.</p></div>';
+  var h = '<div class="al ali"><div class="alt">Bank Statement Reconciliation</div><p>Upload your bank statement (CSV or Excel/.xlsx) to check it against entries recorded in this app, and verify interest charged by the bank against interest recorded here. You can upload one full-year statement in a single file, <b>or</b> upload month by month — each new file adds to the same reconciliation instead of replacing it.</p></div>';
 
   var accts = D.bankAccounts && D.bankAccounts.length ? D.bankAccounts : [{id:'acc1',name:'Bank Account 1'}];
   var selAcc = window._reconAcct || accts[0].id;
   if(accts.length>1){
     h += card('Select Bank Account',
-      '<div class="fg"><label>Which account does this statement belong to?</label><select onchange="window._reconAcct=this.value;window._reconResult=null;renderPage()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
+      '<div class="fg"><label>Which account does this statement belong to?</label><select onchange="window._reconAcct=this.value;window._reconAllTxns=[];window._reconLoadedFiles=[];window._reconResult=null;renderPage()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
       accts.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===selAcc?' selected':'')+'>'+esc(a.name)+'</option>';}).join('')+
       '</select></div>'
     );
   }
 
-  h += card('Upload Statement',
+  var loadedFiles = window._reconLoadedFiles || [];
+  h += card('Upload Statement'+(loadedFiles.length?' ('+loadedFiles.length+' file'+(loadedFiles.length>1?'s':'')+' loaded so far)':''),
     '<input type="file" id="recon_file" accept=".csv,.xlsx,.xls" onchange="handleReconFile(event)" style="width:100%;padding:9px;border:1px solid #BBDEFB;border-radius:8px;font-size:13px">'+
     '<div style="font-size:11px;color:#546E7A;margin-top:6px">Export your statement from net-banking as CSV or Excel. The file is processed on your device only and is not saved.'+(accts.length>1?' Make sure this statement matches the account selected above ('+esc((function(){for(var i=0;i<accts.length;i++)if(accts[i].id===selAcc)return accts[i].name;return '';})())+').':'')+'</div>'+
-    '<div id="recon_status" style="margin-top:10px"></div>'
+    (loadedFiles.length ? '<div style="margin-top:10px;font-size:12px"><b>Statements loaded:</b><br>'+
+      loadedFiles.map(function(lf){return '• '+esc(lf.name)+' — '+lf.fromDate+' to '+lf.toDate+' ('+lf.count+' txns)';}).join('<br>')+
+      '</div>'+btn('🗑 Clear All & Start Fresh','reconClearAll()','#C62828') : '')+
+    '<div id="recon_status" style="margin-top:10px">'+(window._reconStatusMsg || '')+'</div>'
   );
 
   if(window._reconResult){
@@ -8794,16 +8962,26 @@ function pgRecon(){
   return h;
 }
 
+function reconClearAll(){
+  window._reconAllTxns = [];
+  window._reconLoadedFiles = [];
+  window._reconResult = null;
+  window._reconStatusMsg = null;
+  renderPage();
+}
+
 async function handleReconFile(ev){
   var f=ev.target.files[0];
   if(!f) return;
   var statusEl=document.getElementById('recon_status');
+  window._reconStatusMsg=null;
   statusEl.innerHTML='<div class="al ali">Processing...</div>';
   try{
     var rows;
     if(/\.xlsx?$/i.test(f.name)){
       if(typeof DecompressionStream==='undefined'){
-        statusEl.innerHTML='<div class="al ald">Your browser does not support reading Excel files here. Please export the statement as CSV instead.</div>';
+        window._reconStatusMsg='<div class="al ald">Your browser does not support reading Excel files here. Please export the statement as CSV instead.</div>';
+        renderPage();
         return;
       }
       var buf = await f.arrayBuffer();
@@ -8812,11 +8990,37 @@ async function handleReconFile(ev){
       var text = await f.text();
       rows = parseCSV(text);
     }
-    var bankTxns = extractBankTxns(rows);
-    if(bankTxns.length===0){
-      statusEl.innerHTML='<div class="al ald">Could not detect transaction rows. Make sure the file has columns for Date and Debit/Credit (or Amount).</div>';
+    var newTxns = extractBankTxns(rows);
+    if(newTxns.length===0){
+      window._reconStatusMsg='<div class="al ald">Could not detect transaction rows. Make sure the file has columns for Date and Debit/Credit (or Amount).</div>';
+      renderPage();
       return;
     }
+
+    if(!window._reconAllTxns) window._reconAllTxns=[];
+    if(!window._reconLoadedFiles) window._reconLoadedFiles=[];
+
+    // Dedupe against already-loaded transactions (same date+debit+credit+description = same entry)
+    var existingKeys={};
+    window._reconAllTxns.forEach(function(t){
+      existingKeys[t.date+'|'+t.debit+'|'+t.credit+'|'+t.desc] = true;
+    });
+    var added=0, skippedDupes=0;
+    newTxns.forEach(function(t){
+      var key=t.date+'|'+t.debit+'|'+t.credit+'|'+t.desc;
+      if(existingKeys[key]){ skippedDupes++; return; }
+      existingKeys[key]=true;
+      window._reconAllTxns.push(t);
+      added++;
+    });
+
+    var fileDates=newTxns.map(function(t){return t.date;});
+    var fileFrom=fileDates.reduce(function(a,b){return a<b?a:b;});
+    var fileTo=fileDates.reduce(function(a,b){return a>b?a:b;});
+    window._reconLoadedFiles.push({name:f.name, fromDate:fileFrom, toDate:fileTo, count:newTxns.length});
+
+    // Recompute the combined reconciliation over ALL accumulated transactions
+    var bankTxns = window._reconAllTxns;
     var dates=bankTxns.map(function(t){return t.date;});
     var fromDate=dates.reduce(function(a,b){return a<b?a:b;});
     var toDate=dates.reduce(function(a,b){return a>b?a:b;});
@@ -8831,10 +9035,12 @@ async function handleReconFile(ev){
       matched:result.matched.length, unmatchedBank:result.unmatchedBank, unmatchedApp:result.unmatchedApp,
       interestEntries:interestEntries, bankInterestTotal:bankInterestTotal, appInterest:appInterest
     };
-    statusEl.innerHTML='<div class="al als">Processed '+bankTxns.length+' transactions ('+fromDate+' to '+toDate+').</div>';
+    var msg = 'Added '+added+' new transaction'+(added===1?'':'s')+' from this file'+(skippedDupes?' ('+skippedDupes+' duplicate'+(skippedDupes===1?'':'s')+' skipped)':'')+'. Combined total: '+bankTxns.length+' transactions ('+fromDate+' to '+toDate+').';
+    window._reconStatusMsg='<div class="al als">'+msg+'</div>';
     renderPage();
   }catch(e){
-    statusEl.innerHTML='<div class="al ald">Error reading file: '+esc(e.message)+'</div>';
+    window._reconStatusMsg='<div class="al ald">Error reading file: '+esc(e.message)+'</div>';
+    if(statusEl) statusEl.innerHTML=window._reconStatusMsg;
   }
 }
 
@@ -14959,6 +15165,7 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"How to calculate interest from an uploaded bank statement?", a:"Go to <b>Bank Calculators → From Bank Statement</b> &rarr; choose Deposit/Savings or Loan Account &rarr; enter the Interest Rate % p.a. &rarr; optionally set Period Start/End (recommended for a month-wise statement, so every day in that month counts even without a transaction) &rarr; enter Opening Balance if needed &rarr; upload the CSV/Excel statement. It works out interest using the actual day-by-day balance and shows a month-wise breakdown.",tags:["calculate interest from statement","upload statement interest","deposit interest calculation","loan interest calculation","month wise statement interest"]},
 {q:"How to calculate FD, RD or SIP returns?", a:"Go to the <b>Bank Calculators</b> menu (next to EMI Calc) &rarr; choose <b>FD Interest</b> (one-time deposit), <b>RD Interest</b> (monthly deposit), <b>Reinvestment Scheme</b> (cumulative FD with quarter-by-quarter growth), or <b>SIP</b> (monthly investment growth) &rarr; enter the amount, rate and tenure &rarr; tap Calculate.",tags:["fd calculator","rd calculator","sip calculator","fixed deposit interest","recurring deposit interest","reinvestment scheme","bank calculators"]},
 {q:"How to make an encrypted backup?", a:"Go to <b>Data</b> tab &rarr; tap <b>🔒 Encrypted Backup</b> (next to Download Backup) &rarr; choose a password &rarr; the backup text shown is now scrambled and unreadable without that password. To restore it, use Paste Backup or Import Backup File as usual &mdash; you will be asked for the same password before it decrypts. <b>Write your password down somewhere safe</b> &mdash; it cannot be recovered if lost, and the backup would be permanently unreadable without it.",tags:["encrypted backup","encrypt backup","password protect backup","secure backup"]},
 {q:"How to add capital?", a:"Go to <b>Capital/Loans &rarr; Capital</b> &rarr; enter your Initial (or Additional) Capital as Cash or Bank &rarr; Save. For a partnership, go to Profile &rarr; Constitution &rarr; select Partnership, then enter a separate capital amount for each partner.",tags:["add capital","initial capital","owner capital","capital kaise add karen"]},
