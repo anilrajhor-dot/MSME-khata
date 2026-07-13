@@ -2698,6 +2698,7 @@ function pgAIAdvisor(){
      'How to control expenses?',
      'Monthly profit trend',
      'Stock turnover ratio',
+     'What is my monthly CC & TL interest?',
     ].map(function(q){
       return '<button onclick="askAI(\''+q.replace(/'/g,"\\'")+'\')" style="text-align:left;padding:7px 8px;background:#F3E5F5;border:1px solid #CE93D8;border-radius:8px;font-size:11px;color:#4A148C;cursor:pointer;line-height:1.3">'+q+'</button>';
     }).join('')+
@@ -2781,6 +2782,11 @@ function askAI(quickQ){
     '- Total Debtors: Rs.'+Math.round(f.dr)+'\n'+
     '- Total Creditors: Rs.'+Math.round(f.cr)+'\n'+
     '- Loan Outstanding: Rs.'+Math.round(f.ltl)+'\n'+
+    (D.loanAssessment && (D.loanAssessment.ccLimit>0 || D.loanAssessment.tlAmount>0) ?
+      'Bank Loan Assessment (from Loan Details tab):\n'+
+      (D.loanAssessment.ccLimit>0 ? '- CC/Working Capital Limit: Rs.'+Math.round(D.loanAssessment.ccLimit)+' @ '+D.loanAssessment.ccRate+'% p.a., charged monthly on the last working day (approx Rs.'+Math.round(D.loanAssessment.ccLimit*D.loanAssessment.ccRate/1200)+'/month if fully utilized)\n' : '') +
+      (D.loanAssessment.tlAmount>0 ? '- Term Loan: Rs.'+Math.round(D.loanAssessment.tlAmount)+' @ '+D.loanAssessment.tlRate+'% p.a. over '+D.loanAssessment.tlTenure+' months, EMI-based reducing balance, interest charged monthly\n' : '')
+      : '')+
     'Top 5 Items by Sales: '+topItems+'\n'+
     'Overdue Collections: '+overdueCount+' customers, Rs.'+Math.round(overdueAmt)+'\n'+
     'Low/Out of Stock: '+(lowStockItems||'None')+'\n'+
@@ -5251,13 +5257,13 @@ function pgBankCalc(){
         '<button onclick="window._stmtAcctType=\'loan\';renderPage()" style="flex:1;padding:10px;border-radius:8px;border:2px solid '+(window._stmtAcctType==='loan'?'#1565C0':'#BBDEFB')+';background:'+(window._stmtAcctType==='loan'?'#E3F2FD':'#fff')+';color:'+(window._stmtAcctType==='loan'?'#1565C0':'#546E7A')+';font-weight:700;font-size:13px;cursor:pointer">🏦 Loan Account</button>'+
       '</div>'+
       inp('Interest Rate % p.a.','stmt_r','number',7)+
-      g2(inp('Period Start (optional)','stmt_start','date',''), inp('Period End (optional)','stmt_end','date',''))+
-      '<div style="font-size:11px;color:#546E7A;margin:2px 0 6px">Leave Period Start/End blank to use just the first-to-last transaction date in the file. Set both (e.g. 1st to last day of a month) if the file is a month-wise statement so every day in that month is counted, even ones with no transaction.</div>'+
+      g2(inp('Period Start (optional)','stmt_start','date', window._stmtInterestResult ? window._stmtInterestResult.fromDate : ''), inp('Period End (optional)','stmt_end','date', window._stmtInterestResult ? window._stmtInterestResult.toDate : ''))+
+      '<div style="font-size:11px;color:#546E7A;margin:2px 0 6px">By default, if left blank, this automatically covers the full calendar month(s) in the file — e.g. if the first transaction is on the 15th, it still calculates from the 1st (using Opening Balance for the lead-in days); if the last transaction is on the 26th, it still calculates through to month-end. Only set Period Start/End yourself if you want a different custom range.</div>'+
       inp('Opening Balance (₹, as on Period Start / before first transaction)','stmt_ob','number',0)+
       '<div style="font-size:11px;color:#546E7A;margin:2px 0 6px">Only matters if Period Start is earlier than the first transaction date, or if the file has no running Balance column.</div>'+
-      '<div style="margin-top:8px"><input type="file" id="stmt_file" accept=".csv,.xlsx,.xls" onchange="handleStmtInterestFile(event)" style="width:100%;padding:9px;border:1px solid #BBDEFB;border-radius:8px;font-size:13px"></div>'+
-      '<div style="font-size:11px;color:#546E7A;margin-top:6px">Export your statement from net-banking as CSV or Excel. Processed on your device only — not saved or uploaded anywhere.</div>'+
-      '<div id="stmt_status" style="margin-top:10px"></div>'
+      '<div style="margin-top:8px"><input type="file" id="stmt_file" accept=".csv,.xlsx,.xls,.pdf" onchange="handleStmtInterestFile(event)" style="width:100%;padding:9px;border:1px solid #BBDEFB;border-radius:8px;font-size:13px"></div>'+
+      '<div style="font-size:11px;color:#546E7A;margin-top:6px">Accepts CSV, Excel, or PDF statements. CSV/Excel work fully offline and parse most reliably. PDF needs internet the first time (to load the PDF reader) and is best-effort — bank PDF layouts vary, so if it doesn\'t parse well, export as CSV/Excel instead for guaranteed accuracy. Password-protected PDFs are supported — you\'ll be asked for the password. Everything is processed on your device only — not saved or uploaded anywhere.</div>'+
+      '<div id="stmt_status" style="margin-top:10px">'+(window._stmtStatusMsg||'')+'</div>'
     );
     if(window._stmtInterestResult){
       h += renderStmtInterestResult(window._stmtInterestResult);
@@ -5379,27 +5385,76 @@ function calcSIPLive(){
 }
 
 // ---- Interest calculation from an uploaded bank statement (day-wise balance method) ----
+// Simple one-shot password prompt for opening a protected PDF. Resolves to the password
+// string, or null if the user cancels.
+function _pdfPasswordPrompt(fileName){
+  return new Promise(function(resolve){
+    var overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000;padding:14px';
+    var box=document.createElement('div');
+    box.style.cssText='background:#fff;border-radius:12px;padding:18px;max-width:380px;width:100%;box-shadow:0 4px 20px rgba(0,0,0,0.25)';
+    box.innerHTML='<div style="font-size:15px;font-weight:700;color:#0D2137;margin-bottom:6px">🔒 PDF is Password-Protected</div>'+
+      '<div style="font-size:12px;color:#546E7A;margin-bottom:10px;line-height:1.5">Enter the password for <b>'+esc(fileName)+'</b> (banks often use your PAN, date of birth, or account number — check your bank\'s statement email for the exact format).</div>'+
+      '<input type="password" id="_pdfpw_inp" placeholder="Enter PDF password" style="width:100%;padding:10px;border:1.5px solid #BBDEFB;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px" autocomplete="off">'+
+      '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+      '<button id="_pdfpw_cancel" style="padding:9px 14px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#546E7A;font-size:13px;cursor:pointer">Cancel</button>'+
+      '<button id="_pdfpw_ok" style="padding:9px 14px;border-radius:8px;border:none;background:#1565C0;color:#fff;font-size:13px;font-weight:700;cursor:pointer">Open PDF</button>'+
+      '</div>';
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    var inp=box.querySelector('#_pdfpw_inp');
+    setTimeout(function(){ inp.focus(); }, 50);
+    function cleanup(v){ if(overlay.parentNode) document.body.removeChild(overlay); resolve(v); }
+    box.querySelector('#_pdfpw_cancel').onclick=function(){ cleanup(null); };
+    box.querySelector('#_pdfpw_ok').onclick=function(){ cleanup(inp.value||null); };
+    inp.onkeydown=function(e){ if(e.key==='Enter') cleanup(inp.value||null); };
+  });
+}
+
+// Shared file parser for statement uploads: handles CSV, Excel, and PDF (with password
+// support), returning rows in the same shape so extractBankTxns() works unchanged.
+async function getStatementRows(f, statusEl){
+  if(/\.xlsx?$/i.test(f.name)){
+    if(typeof DecompressionStream==='undefined'){
+      throw new Error('Your browser does not support reading Excel files here. Please export the statement as CSV instead.');
+    }
+    var buf = await f.arrayBuffer();
+    return await parseXlsxArrayBuffer(buf);
+  }
+  if(/\.pdf$/i.test(f.name)){
+    if(statusEl) statusEl.innerHTML='<div class="al ali">Loading PDF reader (needs internet the first time)...</div>';
+    try{
+      return await parsePdfToRows(f);
+    }catch(e){
+      if(e && e.isPasswordRequired){
+        var pw = await _pdfPasswordPrompt(f.name);
+        if(!pw) throw new Error('Password is needed to open this PDF.');
+        if(statusEl) statusEl.innerHTML='<div class="al ali">Reading PDF...</div>';
+        try{
+          return await parsePdfToRows(f, pw);
+        }catch(e2){
+          throw new Error('Could not open the PDF — the password may be incorrect. Try again, or export the statement as CSV/Excel instead.');
+        }
+      }
+      throw new Error('Could not read this PDF (its layout may be too complex to parse reliably). For best results, export the statement as CSV or Excel from net-banking instead. ('+e.message+')');
+    }
+  }
+  var text = await f.text();
+  return parseCSV(text);
+}
+
 async function handleStmtInterestFile(ev){
   var f=ev.target.files[0];
   if(!f) return;
   var statusEl=document.getElementById('stmt_status');
+  window._stmtStatusMsg=null;
   statusEl.innerHTML='<div class="al ali">Processing...</div>';
   try{
-    var rows;
-    if(/\.xlsx?$/i.test(f.name)){
-      if(typeof DecompressionStream==='undefined'){
-        statusEl.innerHTML='<div class="al ald">Your browser does not support reading Excel files here. Please export the statement as CSV instead.</div>';
-        return;
-      }
-      var buf = await f.arrayBuffer();
-      rows = await parseXlsxArrayBuffer(buf);
-    } else {
-      var text = await f.text();
-      rows = parseCSV(text);
-    }
+    var rows = await getStatementRows(f, statusEl);
     var txns = extractBankTxns(rows);
     if(txns.length===0){
-      statusEl.innerHTML='<div class="al ald">Could not detect transaction rows. Make sure the file has columns for Date and Debit/Credit (or Amount), ideally with a running Balance column.</div>';
+      window._stmtStatusMsg='<div class="al ald">Could not detect transaction rows. Make sure the file has columns for Date and Debit/Credit (or Amount), ideally with a running Balance column.'+(/\.pdf$/i.test(f.name)?' PDF layouts vary a lot — if this keeps failing, try exporting as CSV or Excel instead.':'')+'</div>';
+      statusEl.innerHTML=window._stmtStatusMsg;
       return;
     }
     var ratePct = gvn('stmt_r');
@@ -5408,19 +5463,22 @@ async function handleStmtInterestFile(ev){
     var periodStart = gv('stmt_start') || null;
     var periodEnd = gv('stmt_end') || null;
     if(!ratePct){
-      statusEl.innerHTML='<div class="al ald">Please enter the Interest Rate % p.a. first.</div>';
+      window._stmtStatusMsg='<div class="al ald">Please enter the Interest Rate % p.a. first.</div>';
+      statusEl.innerHTML=window._stmtStatusMsg;
       return;
     }
     var result = computeStatementInterest(txns, ratePct, openingBal, acctType, periodStart, periodEnd);
     if(result.error){
-      statusEl.innerHTML='<div class="al ald">'+result.error+'</div>';
+      window._stmtStatusMsg='<div class="al ald">'+result.error+'</div>';
+      statusEl.innerHTML=window._stmtStatusMsg;
       return;
     }
     window._stmtInterestResult = result;
-    statusEl.innerHTML='<div class="al als">Processed '+txns.length+' transactions. Calculating for '+result.fromDate+' to '+result.toDate+'.</div>';
+    window._stmtStatusMsg='<div class="al als">Processed '+txns.length+' transactions'+(/\.pdf$/i.test(f.name)?' from PDF':'')+'. Calculating for '+result.fromDate+' to '+result.toDate+'.</div>';
     renderPage();
   }catch(e){
-    statusEl.innerHTML='<div class="al ald">Error reading file: '+esc(e.message)+'</div>';
+    window._stmtStatusMsg='<div class="al ald">'+esc(e.message)+'</div>';
+    if(statusEl) statusEl.innerHTML=window._stmtStatusMsg;
   }
 }
 
@@ -5429,6 +5487,20 @@ async function handleStmtInterestFile(ev){
 // periodStart/periodEnd (optional 'YYYY-MM-DD'): explicit period boundaries, e.g. for a month-wise
 // statement, so days before the first transaction (using openingBal) or after the last transaction
 // (holding the last balance) are still counted correctly.
+// Detects interest entries the BANK itself recorded in the statement (either credited to a
+// deposit account, or debited/charged on a loan account), so calculated interest can be verified
+// against what the bank actually applied.
+function findInterestEntriesBoth(bankTxns){
+  var out=[];
+  for(var i=0;i<bankTxns.length;i++){
+    var d2=bankTxns[i].desc.toLowerCase();
+    if(!/interest|int\.?\s*(debit|credit|paid|earned|chgd|charged)|int\.?\s*(cr|dr)\b/.test(d2)) continue;
+    if(bankTxns[i].debit>0) out.push({date:bankTxns[i].date, amount:bankTxns[i].debit, type:'debit', desc:bankTxns[i].desc});
+    else if(bankTxns[i].credit>0) out.push({date:bankTxns[i].date, amount:bankTxns[i].credit, type:'credit', desc:bankTxns[i].desc});
+  }
+  return out;
+}
+
 function computeStatementInterest(txns, ratePct, openingBal, acctType, periodStart, periodEnd){
   var sorted = txns.slice().sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
   var hasBalanceCol = sorted.every(function(t){ return t.balance!==null && t.balance!==undefined; });
@@ -5447,8 +5519,16 @@ function computeStatementInterest(txns, ratePct, openingBal, acctType, periodSta
   });
 
   var firstTxnDate = sorted[0].date, lastTxnDate = sorted[sorted.length-1].date;
-  var fromDate = periodStart || firstTxnDate;
-  var toDate = periodEnd || lastTxnDate;
+  // Default: extend to the full calendar month(s) covered by the statement — 1st of the month
+  // of the first transaction, to the last day of the month of the last transaction — rather than
+  // just the exact transaction dates, so a statement starting mid-month (e.g. 15th) still gets
+  // interest calculated from the 1st (using Opening Balance for the lead-in days), and a statement
+  // ending mid-month (e.g. 26th) still gets interest calculated through to month-end.
+  var defaultFrom = firstTxnDate.slice(0,8) + '01';
+  var defaultToDate = new Date(+lastTxnDate.slice(0,4), +lastTxnDate.slice(5,7), 0); // last day of that month
+  var defaultTo = defaultToDate.toISOString().slice(0,10);
+  var fromDate = periodStart || defaultFrom;
+  var toDate = periodEnd || defaultTo;
   if(fromDate > toDate){
     return {error:'Period Start is after Period End — please check the dates.'};
   }
@@ -5464,6 +5544,7 @@ function computeStatementInterest(txns, ratePct, openingBal, acctType, periodSta
   var totalInterest = 0;
   var totalDays = 0;
   var monthly = {}; // 'YYYY-MM' -> {days, interest, balanceSum}
+  var dailyInterest = []; // [{date, interest}] — used to build settlement-based comparison below
 
   while(cur <= end){
     var iso = cur.toISOString().slice(0,10);
@@ -5471,6 +5552,7 @@ function computeStatementInterest(txns, ratePct, openingBal, acctType, periodSta
     var interestToday = runningBal * dayRate;
     totalInterest += interestToday;
     totalDays++;
+    dailyInterest.push({date:iso, interest:interestToday});
     var ym = iso.slice(0,7);
     if(!monthly[ym]) monthly[ym] = {days:0, interest:0, balanceSum:0};
     monthly[ym].days++;
@@ -5484,13 +5566,53 @@ function computeStatementInterest(txns, ratePct, openingBal, acctType, periodSta
     return {ym:ym, days:m.days, avgBal:m.balanceSum/m.days, interest:m.interest};
   });
 
+  // Bank-recorded interest entries in the statement, matched to the same type as the account
+  // (credit entries for a deposit account, debit entries for a loan account).
+  var wantType = acctType==='loan' ? 'debit' : 'credit';
+  var bankEntries = findInterestEntriesBoth(txns).filter(function(e){ return e.type===wantType; })
+    .sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
+  var totalBankInterest = bankEntries.reduce(function(s,e){return s+e.amount;},0);
+
+  // Settlement-based comparison: for each bank interest posting, sum up the CALCULATED interest
+  // accrued since the previous posting (or period start, for the first one) — this correctly
+  // matches banks that credit/charge interest as one lump sum covering a whole quarter, instead of
+  // wrongly comparing a quarterly lump sum against a single calendar month's accrual.
+  var settlementRows = [];
+  if(bankEntries.length){
+    var segStart = fromDate;
+    bankEntries.forEach(function(be){
+      var segCalc = dailyInterest.filter(function(d){ return d.date>=segStart && d.date<=be.date; })
+        .reduce(function(s,d){return s+d.interest;},0);
+      settlementRows.push({
+        periodFrom:segStart, periodTo:be.date, calculated:segCalc, bankAmount:be.amount,
+        diff:segCalc-be.amount, desc:be.desc
+      });
+      // next segment starts the day after this settlement
+      var nextDay=new Date(be.date+'T00:00:00'); nextDay.setDate(nextDay.getDate()+1);
+      segStart = nextDay.toISOString().slice(0,10);
+    });
+    // any calculated interest accrued after the last bank posting, up to period end, is still
+    // pending — show it separately rather than as a "discrepancy"
+    if(segStart <= toDate){
+      var pendingCalc = dailyInterest.filter(function(d){ return d.date>=segStart && d.date<=toDate; })
+        .reduce(function(s,d){return s+d.interest;},0);
+      settlementRows.push({
+        periodFrom:segStart, periodTo:toDate, calculated:pendingCalc, bankAmount:null,
+        diff:null, pending:true
+      });
+    }
+  }
+
   return {
     fromDate:fromDate, toDate:toDate, totalDays:totalDays,
     totalInterest:totalInterest, acctType:acctType, ratePct:ratePct,
     hasBalanceCol:hasBalanceCol, monthRows:monthRows,
     noBalanceColAtAll: !hasBalanceCol,
     openingBalUsedForLeadDays: hasBalanceCol && fromDate < firstTxnDate,
-    firstTxnDate:firstTxnDate, lastTxnDate:lastTxnDate
+    firstTxnDate:firstTxnDate, lastTxnDate:lastTxnDate,
+    totalBankInterest:totalBankInterest, anyBankEntriesFound: bankEntries.length>0,
+    totalDiff: totalInterest - totalBankInterest,
+    settlementRows:settlementRows
   };
 }
 
@@ -5500,14 +5622,35 @@ function renderStmtInterestResult(r){
   var h = card('Result: '+(r.acctType==='loan'?'Loan Account':'Deposit Account')+' — '+r.fromDate+' to '+r.toDate,
     '<div class="kg">'+
     '<div class="ki"><div class="kl">Period</div><div class="kv">'+r.totalDays+' days</div></div>'+
-    '<div class="ki"><div class="kl">'+label+'</div><div class="kv" style="color:'+color+'">'+fc(r.totalInterest)+'</div></div>'+
+    '<div class="ki"><div class="kl">Calculated '+label+'</div><div class="kv" style="color:'+color+'">'+fc(r.totalInterest)+'</div></div>'+
     '</div>'+
     (r.noBalanceColAtAll
       ? '<div class="al alw" style="margin-top:8px">No running Balance column was found in the file, so the Opening Balance you entered was used to reconstruct daily balances from the debit/credit entries throughout. Double-check the Opening Balance is correct for an accurate result.</div>'
       : (r.openingBalUsedForLeadDays
           ? '<div class="al ali" style="margin-top:8px">Used the actual running Balance column from your statement from '+r.firstTxnDate+' onwards. For '+r.fromDate+' to the day before that, there\'s no transaction data, so the Opening Balance you entered was used instead — double-check it\'s correct for those early days.</div>'
           : '<div class="al als" style="margin-top:8px">Used the actual running Balance column from your statement for day-by-day accuracy.</div>'))+
-    '<div style="margin-top:12px;font-size:12px;font-weight:700;color:#546E7A">Month-wise Breakdown</div>'+
+    (r.anyBankEntriesFound
+      ? '<div class="kg" style="margin-top:8px">'+
+        '<div class="ki"><div class="kl">Bank '+(r.acctType==='loan'?'Charged':'Credited')+' (per Statement)</div><div class="kv">'+fc(r.totalBankInterest)+'</div></div>'+
+        '<div class="ki"><div class="kl">Overall Discrepancy</div><div class="kv" style="color:'+(Math.abs(r.totalDiff)<1?'#2E7D32':'#C62828')+'">'+(r.totalDiff>=0?'+':'')+fc(r.totalDiff)+'</div></div>'+
+        '</div>'+
+        (Math.abs(r.totalDiff)<1
+          ? '<div class="al als" style="margin-top:6px">✅ Calculated interest matches what the bank recorded over the full period — no discrepancy found.</div>'
+          : '<div class="al ald" style="margin-top:6px">⚠️ Discrepancy of '+fc(Math.abs(r.totalDiff))+' over the full period. Check: the interest rate entered may not match the bank\'s actual rate/slab, or see which settlement period below differs to narrow it down.</div>')+
+        '<div style="margin-top:12px;font-size:12px;font-weight:700;color:#546E7A">Verification by Settlement Period</div>'+
+        '<div style="font-size:11px;color:#546E7A;margin-bottom:4px">Each row covers the period up to when the bank actually posted interest (e.g. a full quarter if credited quarterly), so it compares like-for-like — not a single calendar month against a multi-month lump sum.</div>'+
+        tbl([
+          {l:'Period',fn:function(row){return row.periodFrom+' to '+row.periodTo;}},
+          {l:'Calculated',r:1,fn:function(row){return fc(row.calculated);}},
+          {l:'Bank',r:1,fn:function(row){return row.pending?'<span style="color:#90A4AE">not yet posted</span>':fc(row.bankAmount);}},
+          {l:'Diff',r:1,fn:function(row){
+            if(row.pending) return '<span style="color:#90A4AE">—</span>';
+            var ok=Math.abs(row.diff)<1;
+            return '<span style="color:'+(ok?'#2E7D32':'#C62828')+';font-weight:700">'+(row.diff>=0?'+':'')+fc(row.diff)+'</span>';
+          }}
+        ], r.settlementRows)
+      : '<div class="al ali" style="margin-top:8px">No interest entries were found in this statement to verify against (bank may credit/debit interest on a date outside this file, or use wording this tool didn\'t recognise). The calculated figure above is the estimate based on the rate you entered.</div>')+
+    '<div style="margin-top:14px;font-size:12px;font-weight:700;color:#546E7A">Interest Accrual by Calendar Month (for your reference)</div>'+
     tbl([
       {l:'Month',fn:function(row){return row.ym;}},
       {l:'Days',fn:function(row){return row.days;}},
@@ -8380,6 +8523,136 @@ function parseCSV(text){
 
 // ===== COLUMN AUTO-DETECTION =====
 // Given header row + sample rows, guess which columns are Date/Description/Debit/Credit/Amount/Balance
+function loadPdfJs(){
+  return new Promise(function(resolve, reject){
+    if(_pdfjsLoaded && window.pdfjsLib){ resolve(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = function(){
+      try{
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        _pdfjsLoaded = true;
+        resolve();
+      }catch(e){ reject(e); }
+    };
+    s.onerror = function(){ reject(new Error('Could not load PDF reader library — check your internet connection.')); };
+    document.head.appendChild(s);
+  });
+}
+
+// Reconstructs table-like rows from a PDF page's text items. Groups items sharing roughly the
+// same vertical position into lines, finds a header-like line (containing "date" plus one of
+// debit/credit/balance/amount), and uses that header's X-positions to define column "zones" —
+// every other line's items are then assigned to the zone they fall under by X position. This
+// correctly keeps blank cells blank (important: a credit-only row and a debit-only row would
+// otherwise look identical if columns were just concatenated in sequence) and isn't confused by
+// multi-word text like "Cash Deposit" splitting into extra columns. Falls back to a simpler
+// gap-based split if no header-like line can be found on the page.
+function pdfPageToRows(textContent, viewportHeight){
+  var items = textContent.items.filter(function(it){ return it.str && it.str.trim()!==''; });
+  if(!items.length) return [];
+  var lines = [];
+  items.forEach(function(it){
+    var y = Math.round(it.transform[5]);
+    var x = it.transform[4];
+    var w = it.width || (it.str.length*5.5);
+    var line = lines.find(function(l){ return Math.abs(l.y - y) <= 3; });
+    if(!line){ line = {y:y, items:[]}; lines.push(line); }
+    line.items.push({x:x, w:w, str:it.str});
+  });
+  lines.sort(function(a,b){ return b.y - a.y; });
+  lines.forEach(function(l){ l.items.sort(function(a,b){ return a.x - b.x; }); });
+
+  function gapSplitLine(line){
+    var cols = []; var cur = ''; var lastX = null; var lastStr = '';
+    line.items.forEach(function(it){
+      var gap = lastX===null ? 0 : it.x - lastX;
+      var expectedGap = lastStr.length * 5.5 * 0.6;
+      if(lastX!==null && gap > Math.max(12, expectedGap)){
+        cols.push(cur.trim()); cur = it.str;
+      } else {
+        cur += (cur? ' ':'') + it.str;
+      }
+      lastX = it.x + (it.w||0);
+      lastStr = it.str;
+    });
+    if(cur.trim()) cols.push(cur.trim());
+    return cols;
+  }
+
+  // find a header-like line
+  var headerIdx = -1;
+  for(var i=0; i<Math.min(lines.length, 20); i++){
+    var joined = lines[i].items.map(function(it){return it.str;}).join(' ').toLowerCase();
+    if(/date/.test(joined) && /(debit|withdrawal|credit|deposit|balance|amount)/.test(joined)){
+      headerIdx = i; break;
+    }
+  }
+
+  if(headerIdx === -1){
+    // no header found — best effort with the simple gap-based split for every line
+    return lines.map(gapSplitLine);
+  }
+
+  // build column zones from the header line's item positions
+  var headerItems = lines[headerIdx].items;
+  var zoneStarts = headerItems.map(function(it){ return it.x; });
+  var zoneBounds = zoneStarts.map(function(x, idx){
+    var nextX = idx+1<zoneStarts.length ? zoneStarts[idx+1] : Infinity;
+    return {start: idx===0 ? -Infinity : (zoneStarts[idx-1]+x)/2, end: idx===zoneStarts.length-1 ? Infinity : (x+nextX)/2};
+  });
+
+  function zoneSplitLine(line){
+    var cols = new Array(headerItems.length).fill('');
+    line.items.forEach(function(it){
+      var mid = it.x + (it.w||0)/2;
+      var zoneIdx = 0;
+      for(var z=0; z<zoneBounds.length; z++){
+        if(mid>=zoneBounds[z].start && mid<zoneBounds[z].end){ zoneIdx=z; break; }
+        if(z===zoneBounds.length-1) zoneIdx=z;
+      }
+      cols[zoneIdx] = cols[zoneIdx] ? cols[zoneIdx]+' '+it.str : it.str;
+    });
+    return cols.map(function(c){return c.trim();});
+  }
+
+  return lines.map(function(line, idx){
+    // lines clearly before the header (e.g. bank letterhead) are unlikely to be data rows;
+    // still include them via gap-split in case they contain useful info, extractBankTxns will
+    // simply skip anything that doesn't parse as a transaction row.
+    return idx < headerIdx ? gapSplitLine(line) : zoneSplitLine(line);
+  });
+}
+
+// Parses a PDF File into rows (same shape as parseCSV/parseXlsxArrayBuffer output), so the
+// existing detectColumns()/extractBankTxns() pipeline can be reused unchanged.
+// Prompts for a password if the PDF is protected (common for Indian bank e-statements).
+async function parsePdfToRows(file, password){
+  await loadPdfJs();
+  var buf = await file.arrayBuffer();
+  var loadingTask;
+  try{
+    loadingTask = window.pdfjsLib.getDocument(password ? {data:buf, password:password} : {data:buf});
+    var pdf = await loadingTask.promise;
+  }catch(e){
+    if(e && e.name==='PasswordException'){
+      var err = new Error('PASSWORD_REQUIRED');
+      err.isPasswordRequired = true;
+      throw err;
+    }
+    throw e;
+  }
+  var allRows = [];
+  for(var p=1; p<=pdf.numPages; p++){
+    var page = await pdf.getPage(p);
+    var textContent = await page.getTextContent();
+    var viewport = page.getViewport({scale:1});
+    var pageRows = pdfPageToRows(textContent, viewport.height);
+    allRows = allRows.concat(pageRows);
+  }
+  return allRows;
+}
+
 function detectColumns(rows){
   if(!rows||rows.length<1) return null;
   var header = rows[0].map(function(h){return String(h||'').toLowerCase().trim();});
@@ -8538,8 +8811,8 @@ function pgRecon(){
 
   var loadedFiles = window._reconLoadedFiles || [];
   h += card('Upload Statement'+(loadedFiles.length?' ('+loadedFiles.length+' file'+(loadedFiles.length>1?'s':'')+' loaded so far)':''),
-    '<input type="file" id="recon_file" accept=".csv,.xlsx,.xls" onchange="handleReconFile(event)" style="width:100%;padding:9px;border:1px solid #BBDEFB;border-radius:8px;font-size:13px">'+
-    '<div style="font-size:11px;color:#546E7A;margin-top:6px">Export your statement from net-banking as CSV or Excel. The file is processed on your device only and is not saved.'+(accts.length>1?' Make sure this statement matches the account selected above ('+esc((function(){for(var i=0;i<accts.length;i++)if(accts[i].id===selAcc)return accts[i].name;return '';})())+').':'')+'</div>'+
+    '<input type="file" id="recon_file" accept=".csv,.xlsx,.xls,.pdf" onchange="handleReconFile(event)" style="width:100%;padding:9px;border:1px solid #BBDEFB;border-radius:8px;font-size:13px">'+
+    '<div style="font-size:11px;color:#546E7A;margin-top:6px">Accepts CSV, Excel, or PDF statements (PDF needs internet the first time and is best-effort — if it doesn\'t parse well, export as CSV/Excel instead; password-protected PDFs are supported). Processed on your device only and not saved.'+(accts.length>1?' Make sure this statement matches the account selected above ('+esc((function(){for(var i=0;i<accts.length;i++)if(accts[i].id===selAcc)return accts[i].name;return '';})())+').':'')+'</div>'+
     (loadedFiles.length ? '<div style="margin-top:10px;font-size:12px"><b>Statements loaded:</b><br>'+
       loadedFiles.map(function(lf){return '• '+esc(lf.name)+' — '+lf.fromDate+' to '+lf.toDate+' ('+lf.count+' txns)';}).join('<br>')+
       '</div>'+btn('🗑 Clear All & Start Fresh','reconClearAll()','#C62828') : '')+
@@ -8567,22 +8840,10 @@ async function handleReconFile(ev){
   window._reconStatusMsg=null;
   statusEl.innerHTML='<div class="al ali">Processing...</div>';
   try{
-    var rows;
-    if(/\.xlsx?$/i.test(f.name)){
-      if(typeof DecompressionStream==='undefined'){
-        window._reconStatusMsg='<div class="al ald">Your browser does not support reading Excel files here. Please export the statement as CSV instead.</div>';
-        renderPage();
-        return;
-      }
-      var buf = await f.arrayBuffer();
-      rows = await parseXlsxArrayBuffer(buf);
-    } else {
-      var text = await f.text();
-      rows = parseCSV(text);
-    }
+    var rows = await getStatementRows(f, statusEl);
     var newTxns = extractBankTxns(rows);
     if(newTxns.length===0){
-      window._reconStatusMsg='<div class="al ald">Could not detect transaction rows. Make sure the file has columns for Date and Debit/Credit (or Amount).</div>';
+      window._reconStatusMsg='<div class="al ald">Could not detect transaction rows. Make sure the file has columns for Date and Debit/Credit (or Amount).'+(/\.pdf$/i.test(f.name)?' PDF layouts vary a lot — if this keeps failing, try exporting as CSV or Excel instead.':'')+'</div>';
       renderPage();
       return;
     }
@@ -11010,6 +11271,7 @@ function pgLoanAssess() {
   h += '<button class="'+(tab==='dscr'?'act':'')+'" onclick="window._latab=\'dscr\';renderPage()">DSCR</button>';
   h += '<button class="'+(tab==='bepirr'?'act':'')+'" onclick="window._latab=\'bepirr\';renderPage()">BEP / IRR</button>';
   h += '<button class="'+(tab==='projcfs'?'act':'')+'" onclick="window._latab=\'projcfs\';renderPage()">Proj. Cash Flow</button>';
+  h += '<button class="'+(tab==='monthlysched'?'act':'')+'" onclick="window._latab=\'monthlysched\';renderPage()">Monthly Interest</button>';
   h += '</div>';
 
   // Load saved assumptions or defaults
@@ -11581,7 +11843,7 @@ function pgLoanAssess() {
       return '<tr style="background:#37474F"><td colspan="3" style="padding:6px 8px;font-weight:700;font-size:12px;color:#fff">'+esc(title)+'</td></tr>';
     }
 
-    var tbl = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'+
+    var cfsTable = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'+
       '<thead><tr>'+
       '<th style="text-align:left;padding:6px 8px;background:#1565C0;color:#fff;font-size:11px">Particulars</th>'+
       '<th style="text-align:right;padding:6px 8px;background:#1565C0;color:#fff;font-size:11px">Year 1 (₹)</th>'+
@@ -11589,42 +11851,96 @@ function pgLoanAssess() {
       '</tr></thead><tbody>';
 
     // Section A
-    tbl += cfSection('A.  CASH FLOWS FROM OPERATING ACTIVITIES');
-    tbl += cfRow('Net Profit after Interest', la2.np1, la2.np2, true);
-    tbl += cfRow('Add: Depreciation & Amortization', dep+newFADep, dep+newFADep, false, true);
-    tbl += cfRow('Changes in Working Capital', -delta_wc_y1, -delta_wc_y2, false, true);
-    tbl += '<tr style="background:rgba(0,0,0,.03)"><td style="padding:4px 8px 4px 28px;font-size:10px;color:#546E7A">Increase in Debtors/Stock</td>'+
+    cfsTable += cfSection('A.  CASH FLOWS FROM OPERATING ACTIVITIES');
+    cfsTable += cfRow('Net Profit after Interest', la2.np1, la2.np2, true);
+    cfsTable += cfRow('Add: Depreciation & Amortization', dep+newFADep, dep+newFADep, false, true);
+    cfsTable += cfRow('Changes in Working Capital', -delta_wc_y1, -delta_wc_y2, false, true);
+    cfsTable += '<tr style="background:rgba(0,0,0,.03)"><td style="padding:4px 8px 4px 28px;font-size:10px;color:#546E7A">Increase in Debtors/Stock</td>'+
            '<td style="text-align:right;padding:4px 8px;font-size:10px;color:#546E7A">'+fc(wc_gap_y1)+'</td>'+
            '<td style="text-align:right;padding:4px 8px;font-size:10px;color:#546E7A">'+fc(wc_gap_y2)+'</td></tr>';
-    tbl += cfRow('A.  Net Cash from Operating Activities', cf_op_y1, cf_op_y2, true, false, true);
+    cfsTable += cfRow('A.  Net Cash from Operating Activities', cf_op_y1, cf_op_y2, true, false, true);
 
     // Section B
-    tbl += cfSection('B.  CASH FLOWS FROM INVESTING ACTIVITIES');
-    tbl += cfRow('Purchase of Fixed Assets (from Term Loan)', cf_inv_y1, cf_inv_y2, false, true);
-    tbl += cfRow('B.  Net Cash from Investing Activities', cf_inv_y1, cf_inv_y2, true, false, true);
+    cfsTable += cfSection('B.  CASH FLOWS FROM INVESTING ACTIVITIES');
+    cfsTable += cfRow('Purchase of Fixed Assets (from Term Loan)', cf_inv_y1, cf_inv_y2, false, true);
+    cfsTable += cfRow('B.  Net Cash from Investing Activities', cf_inv_y1, cf_inv_y2, true, false, true);
 
     // Section C
-    tbl += cfSection('C.  CASH FLOWS FROM FINANCING ACTIVITIES');
-    tbl += cfRow('New CC Limit Sanctioned', ccLimit, 0, false, true);
-    tbl += cfRow('New Term Loan Received', tlAmount, 0, false, true);
-    tbl += cfRow('TL Principal Repayment (EMI)', -tl_prin_y1, -tl_prin_y2, false, true);
-    tbl += cfRow('C.  Net Cash from Financing Activities', cf_fin_y1, cf_fin_y2, true, false, true);
+    cfsTable += cfSection('C.  CASH FLOWS FROM FINANCING ACTIVITIES');
+    cfsTable += cfRow('New CC Limit Sanctioned', ccLimit, 0, false, true);
+    cfsTable += cfRow('New Term Loan Received', tlAmount, 0, false, true);
+    cfsTable += cfRow('TL Principal Repayment (EMI)', -tl_prin_y1, -tl_prin_y2, false, true);
+    cfsTable += cfRow('C.  Net Cash from Financing Activities', cf_fin_y1, cf_fin_y2, true, false, true);
 
     // Reconciliation
-    tbl += cfSection('RECONCILIATION');
-    tbl += cfRow('Net Change in Cash (A+B+C)', net_y1, net_y2, true);
-    tbl += cfRow('Opening Cash & Bank Balance', open_cash, close_y1, false, true);
-    tbl += cfRow('Closing Cash & Bank Balance', close_y1, close_y2, true, false, true);
+    cfsTable += cfSection('RECONCILIATION');
+    cfsTable += cfRow('Net Change in Cash (A+B+C)', net_y1, net_y2, true);
+    cfsTable += cfRow('Opening Cash & Bank Balance', open_cash, close_y1, false, true);
+    cfsTable += cfRow('Closing Cash & Bank Balance', close_y1, close_y2, true, false, true);
 
-    tbl += '</tbody></table></div>';
+    cfsTable += '</tbody></table></div>';
 
-    h += card('Projected Cash Flow Statement (Indirect Method)', tbl+
+    h += card('Projected Cash Flow Statement (Indirect Method)', cfsTable+
       '<div class="al ali" style="margin-top:8px;font-size:11px">'+
       '<b>Assumptions used:</b> Stock '+stockDays+' days | Debtors '+debtorDays+' days | Creditors '+creditorDays+' days | '+
       'Dep on new assets: '+fc(newFADep)+'/yr | TL EMI principal: ₹'+fc(tl_prin_y1)+'/yr (Y1), ₹'+fc(tl_prin_y2)+'/yr (Y2).<br>'+
       'Positive = cash inflow &nbsp;|&nbsp; (Negative) = cash outflow.</div>'+
       '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print Projected CFS','window.print()','#546E7A')+'</div>'
     );
+    return h;
+  }
+
+  if (tab === 'monthlysched') {
+    if(la2.s1 <= 0 && ccLimit<=0 && tlAmount<=0){
+      h += card('Monthly Interest Schedule — Data Required',
+        '<div class="al alw">Enter loan details in <b>Loan Details</b> tab first, then tap Save & Calculate.</div>'
+      );
+      return h;
+    }
+    h += '<div class="al ali"><div class="alt">Monthly Interest Schedule</div><p>Working capital (CC) interest is charged every month on the last working day of that month, on the sanctioned limit assumed fully utilized. Term Loan interest is charged monthly too, on the reducing balance as EMIs are paid — not a flat estimate. Use this to check what should appear on your bank statement each month.</p></div>';
+
+    var MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    if(ccLimit>0){
+      var ccRows1 = la2.ccY1Rows.map(function(r){
+        return {label:MONTH_NAMES[r.month-1]+' '+r.year, lwd:r.lastWorkingDay, days:r.days, interest:r.interest};
+      });
+      h += card('Cash Credit / Working Capital — Year 1 (Limit: '+fc(ccLimit)+' @ '+ccRate+'% p.a.)',
+        tbl([
+          {l:'Month',fn:function(row){return row.label;}},
+          {l:'Charged On',fn:function(row){return row.lwd;}},
+          {l:'Days',fn:function(row){return row.days;}},
+          {l:'Interest',r:1,fn:function(row){return fc(row.interest);}}
+        ], ccRows1)+
+        '<div style="text-align:right;padding:8px;font-weight:700;font-size:12px">Total Year 1: '+fc(la2.ccInt1)+'</div>'+
+        '<div class="al ali" style="margin-top:6px;font-size:11px">"Charged On" is the last working day of each month (Saturdays/Sundays skipped; bank holidays are not accounted for, so the actual date may shift by a day or two).</div>'
+      );
+    }
+
+    if(tlAmount>0 && la2.tlY1Rows.length){
+      h += card('Term Loan — Year 1 (Amount: '+fc(tlAmount)+' @ '+tlRate+'% p.a., '+tlTenure+' months)',
+        tbl([
+          {l:'Month #',fn:function(row){return row.month;}},
+          {l:'EMI',r:1,fn:function(row){return fc(row.emi);}},
+          {l:'Interest',r:1,fn:function(row){return fc(row.interest);}},
+          {l:'Principal',r:1,fn:function(row){return fc(row.principal);}},
+          {l:'Balance',r:1,fn:function(row){return fc(row.balance);}}
+        ], la2.tlY1Rows)+
+        '<div style="text-align:right;padding:8px;font-weight:700;font-size:12px">Total Interest Year 1: '+fc(la2.tlInt1)+' &nbsp;|&nbsp; Total Principal Year 1: '+fc(la2.tlSchedule.slice(0,12).reduce(function(s,r){return s+r.principal;},0))+'</div>'
+      );
+    }
+
+    if(ccLimit>0 || (tlAmount>0 && la2.tlY1Rows.length)){
+      var totalMonthlyOutflow = (la2.ccInt1||0) + (tlAmount>0 ? la2.emi*Math.min(12,la2.tlY1Rows.length) : 0);
+      h += card('Combined Monthly Interest Outflow (Year 1)',
+        '<div class="kg">'+
+        '<div class="ki"><div class="kl">CC Interest (Year 1)</div><div class="kv">'+fc(la2.ccInt1||0)+'</div></div>'+
+        '<div class="ki"><div class="kl">TL Interest (Year 1)</div><div class="kv">'+fc(la2.tlInt1||0)+'</div></div>'+
+        '</div>'+
+        '<div style="text-align:right;margin-top:8px;font-weight:700">Total Interest Outflow Year 1: '+fc((la2.ccInt1||0)+(la2.tlInt1||0))+'</div>'+
+        '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print','window.print()','#546E7A')+'</div>'
+      );
+    }
     return h;
   }
 
@@ -11691,33 +12007,89 @@ function getLABase() {
 }
 
 // Compute projections from base + assumptions
+// Days in a given calendar month (1-12), accounting for leap years
+function daysInMonth(year, month1to12){
+  return new Date(year, month1to12, 0).getDate();
+}
+// Last working day of a month (skips Saturday/Sunday; does not account for bank holidays)
+function lastWorkingDayOfMonth(year, month1to12){
+  var d = new Date(year, month1to12, 0); // last calendar day of the month
+  while(d.getDay()===0 || d.getDay()===6){ d.setDate(d.getDate()-1); } // 0=Sun, 6=Sat
+  return d;
+}
+function fmtDateDMY(d){
+  var dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0'), yy=d.getFullYear();
+  return dd+'-'+mm+'-'+yy;
+}
+
+// Builds a proper month-by-month reducing-balance amortization schedule for a Term Loan.
+// Returns an array of {month, emi, interest, principal, balance} for each month (1..tenureMonths).
+function buildTLAmortSchedule(principal, ratePct, tenureMonths){
+  if(!(principal>0) || !(tenureMonths>0)) return [];
+  var monthlyRate = ratePct/1200;
+  var emi = calcEMI(principal, ratePct, tenureMonths);
+  var bal = principal;
+  var rows = [];
+  for(var m=1; m<=tenureMonths; m++){
+    var interest = bal*monthlyRate;
+    var principalPaid = Math.min(emi-interest, bal);
+    bal = Math.max(0, bal-principalPaid);
+    rows.push({month:m, emi:emi, interest:interest, principal:principalPaid, balance:bal});
+    if(bal<=0) break;
+  }
+  return rows;
+}
+
 function getLAProjections(base, ccLimit, tlAmount, ccRate, tlRate, tlTenure, salesGrowth, expGrowth, stockDays, debtorDays, creditorDays) {
   var cogsRatio = base.sales > 0 ? base.cogs/base.sales : 0.7;
+
+  // ── Term Loan: proper month-by-month reducing-balance amortization (not a flat estimate) ──
+  var tlSchedule = buildTLAmortSchedule(tlAmount, tlRate, tlTenure);
+  var tlY1Rows = tlSchedule.slice(0,12), tlY2Rows = tlSchedule.slice(12,24);
+  var tlInt1 = Math.round(tlY1Rows.reduce(function(s,r){return s+r.interest;},0));
+  var tlPrinY1Amort = Math.round(tlY1Rows.reduce(function(s,r){return s+r.principal;},0));
+  var tlInt2 = Math.round(tlY2Rows.reduce(function(s,r){return s+r.interest;},0));
+  var emi = tlAmount > 0 && tlTenure > 0 ? calcEMI(tlAmount, tlRate, tlTenure) : 0;
+  var tlObY2 = tlY1Rows.length ? tlY1Rows[tlY1Rows.length-1].balance : 0;
+
+  // ── CC / Working Capital: charged monthly (on the last working day of each month), based
+  // on actual days in that month, assuming full utilization of the sanctioned limit ──
+  var todayY = new Date().getFullYear();
+  function buildCCMonthly(startYear, startMonth1to12){
+    var rows=[]; var y=startYear, m=startMonth1to12;
+    for(var i=0;i<12;i++){
+      var dim = daysInMonth(y,m);
+      var interest = ccLimit>0 ? ccLimit*ccRate/100*dim/365 : 0;
+      rows.push({year:y, month:m, days:dim, interest:interest, lastWorkingDay:fmtDateDMY(lastWorkingDayOfMonth(y,m))});
+      m++; if(m>12){m=1; y++;}
+    }
+    return rows;
+  }
+  var ccY1Rows = buildCCMonthly(todayY, 1);
+  var ccY2Rows = buildCCMonthly(todayY+1, 1);
+  var ccInt1 = Math.round(ccY1Rows.reduce(function(s,r){return s+r.interest;},0));
+  var ccInt2 = Math.round(ccY2Rows.reduce(function(s,r){return s+r.interest;},0));
+
   // Year 1
   var s1 = Math.round(base.sales * (1 + salesGrowth/100));
   var c1 = Math.round(s1 * cogsRatio);
   var g1 = s1 - c1;
   var e1 = Math.round(base.exp * (1 + expGrowth/100));
   var ebit1 = g1 - e1;
-  var ccInt1 = ccLimit > 0 ? Math.round(ccLimit * ccRate/100) : 0;
-  var tlInt1 = tlAmount > 0 ? Math.round(tlAmount * tlRate/100) : 0;
   var np1 = ebit1 - ccInt1 - tlInt1;
-  // EMI
-  var emi = tlAmount > 0 && tlTenure > 0 ? calcEMI(tlAmount, tlRate, tlTenure) : 0;
   // Year 2
-  var tlPrinY1 = Math.max(0, emi*12 - tlInt1);
-  var tlObY2 = Math.max(0, tlAmount - tlPrinY1);
+  var tlPrinY1 = tlPrinY1Amort;
   var s2 = Math.round(s1 * (1 + salesGrowth/100));
   var c2 = Math.round(s2 * cogsRatio);
   var g2 = s2 - c2;
   var e2 = Math.round(e1 * (1 + expGrowth/100));
   var ebit2 = g2 - e2;
-  var ccInt2 = ccLimit > 0 ? Math.round(ccLimit * ccRate/100) : 0;
-  var tlInt2 = tlObY2 > 0 ? Math.round(tlObY2 * tlRate/100) : 0;
   var np2 = ebit2 - ccInt2 - tlInt2;
   return {s1:s1,c1:c1,g1:g1,e1:e1,ebit1:ebit1,ccInt1:ccInt1,tlInt1:tlInt1,np1:np1,
           s2:s2,c2:c2,g2:g2,e2:e2,ebit2:ebit2,ccInt2:ccInt2,tlInt2:tlInt2,np2:np2,
-          emi:emi, tlObY2:tlObY2};
+          emi:emi, tlObY2:tlObY2,
+          tlSchedule:tlSchedule, tlY1Rows:tlY1Rows, tlY2Rows:tlY2Rows,
+          ccY1Rows:ccY1Rows, ccY2Rows:ccY2Rows};
 }
 
 function saveWCInputs(){
@@ -16191,6 +16563,8 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"Can I upload a PDF bank statement?", a:"Yes &mdash; both the <b>Bank Calculators &rarr; From Bank Statement</b> tool and <b>Bank Recon</b> accept PDF now, alongside CSV/Excel. PDF needs internet the first time (to load the PDF reader) and is best-effort, since bank PDF layouts vary a lot &mdash; if it does not parse well, export the statement as CSV or Excel instead for guaranteed accuracy. Password-protected PDFs are supported &mdash; you will be asked for the password when needed.",tags:["upload pdf statement","pdf bank statement","pdf reconciliation","password protected pdf statement"]},
+{q:"How is Working Capital (CC) and Term Loan interest calculated in Bank Loan Assessment?", a:"Go to <b>Bank Loan Assessment &rarr; Monthly Interest</b> tab. CC/Working Capital interest is charged every month on the sanctioned limit (assumed fully utilized), on the <b>last working day</b> of each month (Saturdays/Sundays skipped) &mdash; it's a proper day-count calculation, not a flat annual estimate. Term Loan interest is calculated on the <b>reducing balance</b> as EMIs are paid each month, also charged monthly &mdash; not a flat first-year estimate. This tab shows the exact month-by-month breakdown so you know what to expect on your bank statement.",tags:["monthly interest schedule","cc interest calculation","term loan interest monthly","working capital interest","last working day interest"]},
 {q:"How to calculate interest from an uploaded bank statement?", a:"Go to <b>Bank Calculators → From Bank Statement</b> &rarr; choose Deposit/Savings or Loan Account &rarr; enter the Interest Rate % p.a. &rarr; optionally set Period Start/End (recommended for a month-wise statement, so every day in that month counts even without a transaction) &rarr; enter Opening Balance if needed &rarr; upload the CSV/Excel statement. It works out interest using the actual day-by-day balance and shows a month-wise breakdown.",tags:["calculate interest from statement","upload statement interest","deposit interest calculation","loan interest calculation","month wise statement interest"]},
 {q:"How to calculate FD, RD or SIP returns?", a:"Go to the <b>Bank Calculators</b> menu (next to EMI Calc) &rarr; choose <b>FD Interest</b> (one-time deposit), <b>RD Interest</b> (monthly deposit), <b>Reinvestment Scheme</b> (cumulative FD with quarter-by-quarter growth), or <b>SIP</b> (monthly investment growth) &rarr; enter the amount, rate and tenure &rarr; tap Calculate.",tags:["fd calculator","rd calculator","sip calculator","fixed deposit interest","recurring deposit interest","reinvestment scheme","bank calculators"]},
 {q:"How to make an encrypted backup?", a:"Go to <b>Data</b> tab &rarr; tap <b>🔒 Encrypted Backup</b> (next to Download Backup) &rarr; choose a password &rarr; the backup text shown is now scrambled and unreadable without that password. To restore it, use Paste Backup or Import Backup File as usual &mdash; you will be asked for the same password before it decrypts. <b>Write your password down somewhere safe</b> &mdash; it cannot be recovered if lost, and the backup would be permanently unreadable without it.",tags:["encrypted backup","encrypt backup","password protect backup","secure backup"]},
