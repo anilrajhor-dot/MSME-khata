@@ -5380,6 +5380,174 @@ function addCB(){
   sv();go('cashbank');toast('Added!');
 }
 // ===== EMI CALCULATOR (standalone, for what-if) =====
+// ===== BANK CALCULATORS (FD / RD / Reinvestment / SIP) =====
+function pgBankCalc(){
+  var tab = window._bctab || 'fd';
+  var h = '<div class="tabs">';
+  h += '<button class="'+(tab==='fd'?'act':'')+'" onclick="window._bctab=\'fd\';renderPage()">FD Interest</button>';
+  h += '<button class="'+(tab==='rd'?'act':'')+'" onclick="window._bctab=\'rd\';renderPage()">RD Interest</button>';
+  h += '<button class="'+(tab==='reinvest'?'act':'')+'" onclick="window._bctab=\'reinvest\';renderPage()">Reinvestment Scheme</button>';
+  h += '<button class="'+(tab==='sip'?'act':'')+'" onclick="window._bctab=\'sip\';renderPage()">SIP</button>';
+  h += '</div>';
+
+  if(tab==='fd'){
+    h += card('Fixed Deposit (FD) Interest Calculator',
+      '<div style="font-size:12px;color:#546E7A;margin-bottom:8px">Calculates maturity value of a one-time deposit with compound interest.</div>'+
+      g2(inp('Deposit Amount (₹)','fd_p','number',100000), inp('Interest Rate % p.a.','fd_r','number',7))+
+      g2(inp('Tenure','fd_t','number',12), sl2('Unit','fd_tu',[{v:'days',l:'Days'},{v:'months',l:'Months'},{v:'years',l:'Years'}],'months'))+
+      sl2('Compounding','fd_c',[{v:'4',l:'Quarterly (most common)'},{v:'12',l:'Monthly'},{v:'2',l:'Half-Yearly'},{v:'1',l:'Yearly'}],'4')+
+      btn('Calculate Maturity Value','calcFDLive()')+
+      '<div id="fd_res" style="margin-top:10px"></div>'
+    );
+    return h;
+  }
+
+  if(tab==='rd'){
+    h += card('Recurring Deposit (RD) Interest Calculator',
+      '<div style="font-size:12px;color:#546E7A;margin-bottom:8px">Calculates maturity value of a fixed monthly deposit, with quarterly compounding (standard bank RD method).</div>'+
+      g2(inp('Monthly Deposit (₹)','rd_p','number',5000), inp('Interest Rate % p.a.','rd_r','number',7))+
+      g2(inp('Tenure','rd_t','number',12), sl2('Unit','rd_tu',[{v:'days',l:'Days'},{v:'months',l:'Months'},{v:'years',l:'Years'}],'months'))+
+      btn('Calculate Maturity Value','calcRDLive()')+
+      '<div id="rd_res" style="margin-top:10px"></div>'
+    );
+    return h;
+  }
+
+  if(tab==='reinvest'){
+    h += card('Reinvestment / Cumulative Deposit Scheme',
+      '<div style="font-size:12px;color:#546E7A;margin-bottom:8px">A Reinvestment (Cumulative) Deposit reinvests interest every quarter instead of paying it out, so it compounds until maturity. Shows the quarter-by-quarter growth.</div>'+
+      g2(inp('Deposit Amount (₹)','ri_p','number',100000), inp('Interest Rate % p.a.','ri_r','number',7))+
+      g2(inp('Tenure','ri_t','number',36), sl2('Unit','ri_tu',[{v:'days',l:'Days'},{v:'months',l:'Months'},{v:'years',l:'Years'}],'months'))+
+      btn('Calculate & Show Growth','calcReinvestLive()')+
+      '<div id="ri_res" style="margin-top:10px"></div>'
+    );
+    return h;
+  }
+
+  if(tab==='sip'){
+    h += card('SIP (Systematic Investment Plan) Calculator',
+      '<div style="font-size:12px;color:#546E7A;margin-bottom:8px">Calculates the future value of a fixed monthly investment (e.g. mutual fund SIP) at an expected annual return.</div>'+
+      g2(inp('Monthly Investment (₹)','sip_p','number',5000), inp('Expected Annual Return % p.a.','sip_r','number',12))+
+      g2(inp('Tenure','sip_t','number',60), sl2('Unit','sip_tu',[{v:'days',l:'Days'},{v:'months',l:'Months'},{v:'years',l:'Years'}],'months'))+
+      btn('Calculate Future Value','calcSIPLive()')+
+      '<div id="sip_res" style="margin-top:10px"></div>'
+    );
+    return h;
+  }
+
+  return h;
+}
+
+// Small helper: a <select> with {v,l} options, matching the style of sl() used elsewhere
+function sl2(lbl,id,opts,defVal){
+  var o=opts.map(function(x){return '<option value="'+x.v+'"'+(String(x.v)===String(defVal)?' selected':'')+'>'+x.l+'</option>';}).join('');
+  return '<div class="fg"><label>'+lbl+'</label><select id="'+id+'" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+o+'</select></div>';
+}
+
+function _resultBox3(label1,val1,color1,label2,val2,color2,label3,val3,color3){
+  return '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-top:8px">'+
+    '<div style="background:'+color1+'22;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">'+label1+'</div><div style="font-size:15px;font-weight:800;color:'+color1+'">'+fc(val1)+'</div></div>'+
+    '<div style="background:'+color2+'22;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">'+label2+'</div><div style="font-size:15px;font-weight:800;color:'+color2+'">'+fc(val2)+'</div></div>'+
+    '<div style="background:'+color3+'22;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">'+label3+'</div><div style="font-size:15px;font-weight:800;color:'+color3+'">'+fc(val3)+'</div></div>'+
+    '</div>';
+}
+
+// ---- Tenure unit conversion helpers ----
+function tenureToYears(value, unit){
+  if(unit==='days') return value/365;
+  if(unit==='years') return value;
+  return value/12; // months (default)
+}
+function tenureToMonths(value, unit){
+  if(unit==='days') return value/30.4368;
+  if(unit==='years') return value*12;
+  return value; // months (default)
+}
+
+// ---- FD ----
+function calcFDMaturity(p, ratePct, years, compoundsPerYear){
+  var t = years;
+  var n = compoundsPerYear;
+  var r = ratePct/100;
+  var maturity = p * Math.pow(1 + r/n, n*t);
+  return maturity;
+}
+function calcFDLive(){
+  var p=gvn('fd_p'), r=gvn('fd_r'), t=gvn('fd_t'), unit=gv('fd_tu')||'months', c=+gv('fd_c')||4;
+  if(!p || !t){ return; }
+  var years = tenureToYears(t, unit);
+  var maturity = calcFDMaturity(p, r, years, c);
+  var interest = maturity - p;
+  var el=document.getElementById('fd_res');
+  if(el) el.innerHTML = _resultBox3('Deposit',p,'#546E7A','Interest Earned',interest,'#2E7D32','Maturity Value',maturity,'#1565C0');
+}
+
+// ---- RD ----
+function calcRDMaturity(monthlyDep, ratePct, months){
+  var i = ratePct/400; // quarterly rate as decimal
+  var q = months/3;    // number of quarters (fractional allowed)
+  if(i<=0) return monthlyDep*months;
+  var denom = 1 - Math.pow(1+i, -1/3);
+  if(denom<=0) return monthlyDep*months;
+  var maturity = monthlyDep * ((Math.pow(1+i,q) - 1) / denom);
+  return maturity;
+}
+function calcRDLive(){
+  var p=gvn('rd_p'), r=gvn('rd_r'), t=gvn('rd_t'), unit=gv('rd_tu')||'months';
+  if(!p || !t){ return; }
+  var months = Math.round(tenureToMonths(t, unit));
+  var maturity = calcRDMaturity(p, r, months);
+  var invested = p*months;
+  var interest = maturity - invested;
+  var el=document.getElementById('rd_res');
+  if(el) el.innerHTML = _resultBox3('Total Deposited',invested,'#546E7A','Interest Earned',interest,'#2E7D32','Maturity Value',maturity,'#1565C0');
+}
+
+// ---- Reinvestment / Cumulative Deposit (quarterly compounding, with growth table) ----
+function calcReinvestLive(){
+  var p=gvn('ri_p'), r=gvn('ri_r'), t=gvn('ri_t'), unit=gv('ri_tu')||'months';
+  if(!p || !t){ return; }
+  var months = tenureToMonths(t, unit);
+  var quarters = Math.ceil(months/3);
+  var qRate = r/400;
+  var bal = p;
+  var rows = [];
+  for(var q=1; q<=quarters; q++){
+    var interestThisQ = bal*qRate;
+    bal += interestThisQ;
+    rows.push({q:q, months:Math.min(q*3,months), interest:interestThisQ, balance:bal});
+  }
+  var maturity = bal;
+  var interest = maturity - p;
+  var el=document.getElementById('ri_res');
+  if(!el) return;
+  el.innerHTML = _resultBox3('Deposit',p,'#546E7A','Interest Earned',interest,'#2E7D32','Maturity Value',maturity,'#1565C0')+
+    '<div style="margin-top:12px;font-size:12px;font-weight:700;color:#546E7A">Quarter-by-Quarter Growth</div>'+
+    tbl([
+      {l:'Qtr',fn:function(row){return row.q;}},
+      {l:'Interest Reinvested',r:1,fn:function(row){return fc(row.interest);}},
+      {l:'Balance',r:1,fn:function(row){return fc(row.balance);}}
+    ], rows);
+}
+
+// ---- SIP ----
+function calcSIPFV(monthlyAmt, annualRatePct, months){
+  var i = annualRatePct/1200;
+  if(i<=0) return monthlyAmt*months;
+  var fv = monthlyAmt * ((Math.pow(1+i, months) - 1) / i) * (1+i);
+  return fv;
+}
+function calcSIPLive(){
+  var p=gvn('sip_p'), r=gvn('sip_r'), t=gvn('sip_t'), unit=gv('sip_tu')||'months';
+  if(!p || !t){ return; }
+  var months = Math.round(tenureToMonths(t, unit));
+  var fv = calcSIPFV(p, r, months);
+  var invested = p*months;
+  var gain = fv - invested;
+  var el=document.getElementById('sip_res');
+  if(el) el.innerHTML = _resultBox3('Total Invested',invested,'#546E7A','Wealth Gained',gain,'#2E7D32','Future Value',fv,'#1565C0');
+}
+
 function pgEMI(){
   return card('EMI Calculator (What-if)',g2(inp('Loan Amount','em_p','number',100000),inp('Interest %','em_r','number',12))+g2(inp('Months','em_t','number',36),inp('Prepay Month#','em_pm','number',0))+inp('Prepay Amount','em_pa','number',0)+btn('Calculate EMI','calcEMI2()')+' '+btn('Full Schedule','genSched()','#546E7A')+'<div id="emi_res" style="margin-top:10px"></div><div id="emi_sc" style="margin-top:10px"></div>');
 }
@@ -15463,13 +15631,13 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 // ===== NAVIGATION & RENDER =====
 var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',production:'उत्पादन',consumption:'उपभोग',bizmanager:'व्यवसाय प्रबंधक',interunit:'अंतर-इकाई स्थानांतरण',template:'डेटा टेम्पलेट'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',reminders:'Payment Reminders',margin:'Margin Settings',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',reminders:'Payment Reminders',margin:'Margin Settings',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template'};
 function getNavAll(){
   var biz = getBizType();
   var base = ['bizmanager','profile','dashboard','capital','inventory'];
   if(biz==='Manufacturing'||biz==='Trading + Manufacturing') base.push('production');
   if(biz==='Service'||biz==='Trading + Service') base.push('consumption');
-  base = base.concat(['interunit','purchase','sales','expenses','cashbank','recon','emi',
+  base = base.concat(['interunit','purchase','sales','expenses','cashbank','recon','emi','bankcalc',
     'financials','projections','analytics','loanassess','reminders',
     'gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help']);
   return base;
@@ -15509,7 +15677,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,expenses:pgExp,cashbank:pgCB,emi:pgEMI,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,production:pgProduction,consumption:pgConsumption,bizmanager:pgBizManager,interunit:pgInterUnit,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
+  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,production:pgProduction,consumption:pgConsumption,bizmanager:pgBizManager,interunit:pgInterUnit,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
   // Update business switcher bar
@@ -15892,6 +16060,7 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"How to calculate FD, RD or SIP returns?", a:"Go to the <b>Bank Calculators</b> menu (next to EMI Calc) &rarr; choose <b>FD Interest</b> (one-time deposit), <b>RD Interest</b> (monthly deposit), <b>Reinvestment Scheme</b> (cumulative FD with quarter-by-quarter growth), or <b>SIP</b> (monthly investment growth) &rarr; enter the amount, rate and tenure &rarr; tap Calculate.",tags:["fd calculator","rd calculator","sip calculator","fixed deposit interest","recurring deposit interest","reinvestment scheme","bank calculators"]},
 {q:"How to make an encrypted backup?", a:"Go to <b>Data</b> tab &rarr; tap <b>🔒 Encrypted Backup</b> (next to Download Backup) &rarr; choose a password &rarr; the backup text shown is now scrambled and unreadable without that password. To restore it, use Paste Backup or Import Backup File as usual &mdash; you will be asked for the same password before it decrypts. <b>Write your password down somewhere safe</b> &mdash; it cannot be recovered if lost, and the backup would be permanently unreadable without it.",tags:["encrypted backup","encrypt backup","password protect backup","secure backup"]},
 {q:"How to add capital?", a:"Go to <b>Capital/Loans &rarr; Capital</b> &rarr; enter your Initial (or Additional) Capital as Cash or Bank &rarr; Save. For a partnership, go to Profile &rarr; Constitution &rarr; select Partnership, then enter a separate capital amount for each partner.",tags:["add capital","initial capital","owner capital","capital kaise add karen"]},
 {q:"How to view the Balance Sheet, P&L or Cash Flow?", a:"Go to <b>Financials</b> menu &rarr; open <b>Balance Sheet</b>, <b>P&amp;L Statement</b> or <b>Cash Flow</b>. All are auto-generated from your Sales, Purchase, Expense, Capital and Loan entries. Use <b>Reports</b> for item-wise and monthly breakdowns.",tags:["view balance sheet","view p&l","view cash flow","see balance sheet","show balance sheet","balance sheet kaise dekhen"]},
