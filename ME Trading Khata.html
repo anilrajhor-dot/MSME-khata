@@ -168,7 +168,7 @@ input[type=text], input[type=number], input[type=date], textarea { cursor:text !
   <button onclick="toggleHi()" id="lb">हि</button>
 </div>
 <div id="nav"></div>
-<div id="pg"></div>
+<div id="pg"><div style="padding:40px 20px;text-align:center;color:#90A4AE;font-size:13px">Loading your data...</div></div>
 <div id="bn"></div>
 <div style="height:60px"></div>
 </div>
@@ -310,6 +310,72 @@ function migrateData(d){
   if(d.loanAssessment && d.loanAssessment.manualExp===undefined) d.loanAssessment.manualExp=0;
   return d;
 }
+// ── IndexedDB (primary storage — no realistic size limit, unlike localStorage's ~5-10MB cap
+// which silently fails on a full year of data). localStorage/sessionStorage are kept only as a
+// best-effort fast fallback for older/restricted browsers, not the source of truth. ──
+var IDB_NAME = 'mefm_idb_v1';
+var IDB_STORE = 'kv';
+var _idbConnPromise = null;
+function idbOpen(){
+  if(_idbConnPromise) return _idbConnPromise;
+  _idbConnPromise = new Promise(function(resolve, reject){
+    if(!window.indexedDB){ reject(new Error('IndexedDB not supported in this browser')); return; }
+    var req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = function(e){
+      var db = e.target.result;
+      if(!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = function(e){ resolve(e.target.result); };
+    req.onerror = function(e){ _idbConnPromise = null; reject(e.target.error); };
+  });
+  return _idbConnPromise;
+}
+function idbGet(key){
+  return idbOpen().then(function(db){
+    return new Promise(function(resolve, reject){
+      var tx = db.transaction(IDB_STORE, 'readonly');
+      var store = tx.objectStore(IDB_STORE);
+      var req = store.get(key);
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+  });
+}
+function idbSet(key, value){
+  return idbOpen().then(function(db){
+    return new Promise(function(resolve, reject){
+      var tx = db.transaction(IDB_STORE, 'readwrite');
+      var store = tx.objectStore(IDB_STORE);
+      var req = store.put(value, key);
+      req.onsuccess = function(){ resolve(); };
+      req.onerror = function(){ reject(req.error); };
+    });
+  });
+}
+
+// Async loader: IndexedDB first (the real store, no size ceiling); if empty, fall back to
+// legacy localStorage/sessionStorage and — if found — migrate it into IndexedDB immediately so
+// every load after this one is served from IndexedDB.
+async function ldAsync(){
+  try{
+    var idbVal = await idbGet(SK);
+    if(idbVal){
+      try{ return migrateData(JSON.parse(idbVal)); }catch(e){}
+    }
+  }catch(e){ /* IndexedDB unavailable (very old browser / private mode edge case) — fall through */ }
+  var r=null;
+  try{r=localStorage.getItem(SK);}catch(e){}
+  if(!r){try{r=sessionStorage.getItem(SK);}catch(e){}}
+  if(r){
+    try{
+      var d=migrateData(JSON.parse(r));
+      idbSet(SK, JSON.stringify(d)).catch(function(){});
+      return d;
+    }catch(e){}
+  }
+  return defD();
+}
+// Legacy synchronous loader, kept only as a reference/fallback for any old call sites.
 function ld(){
   var r=null;
   try{r=localStorage.getItem(SK);}catch(e){}
@@ -319,7 +385,34 @@ function ld(){
   }catch(e){}}
   return defD();
 }
-function sv(){var s=JSON.stringify(D);try{localStorage.setItem(SK,s);}catch(e){}try{sessionStorage.setItem(SK,s);}catch(e){}}
+var _svIdbTimer = null;
+var _svSaveFailWarned = false;
+function sv(){
+  var s=JSON.stringify(D);
+  var lsOk=true;
+  try{localStorage.setItem(SK,s);}catch(e){lsOk=false;}
+  try{sessionStorage.setItem(SK,s);}catch(e){}
+  // Debounced write to IndexedDB — the real backing store, sized for a full year of data.
+  if(_svIdbTimer) clearTimeout(_svIdbTimer);
+  _svIdbTimer = setTimeout(function(){
+    idbSet(SK, s).then(function(){
+      _svSaveFailWarned = false;
+    }).catch(function(err){
+      // Unlike before, a failed save is no longer silently swallowed — the user is warned so
+      // they know to back up manually instead of unknowingly losing data.
+      if(!_svSaveFailWarned){
+        _svSaveFailWarned = true;
+        if(typeof toast==='function'){
+          toast('⚠️ Could not save your data ('+(lsOk?'storage blocked':'storage full')+'). Please back up now via Data → Download Backup, and try closing other tabs / freeing device storage.', 'e');
+        }
+      }
+    });
+  }, 200);
+}
+window.addEventListener('beforeunload', function(){
+  // best-effort final flush — not guaranteed to complete, but worth attempting
+  try{ idbSet(SK, JSON.stringify(D)); }catch(e){}
+});
 function fmt(n,d){d=d||0;if(isNaN(n))return'0';return Number(n).toLocaleString('en-IN',{minimumFractionDigits:d,maximumFractionDigits:d});}
 function fc(n){return'₹'+fmt(n,2);}
 function td(){return new Date().toISOString().split('T')[0];}
@@ -2876,6 +2969,7 @@ function pgAIAdvisor(){
      'Monthly profit trend',
      'Stock turnover ratio',
      'What is my monthly CC & TL interest?',
+     'Is my term loan affordable (DSCR)?',
     ].map(function(q){
       return '<button onclick="askAI(\''+q.replace(/'/g,"\\'")+'\')" style="text-align:left;padding:7px 8px;background:#F3E5F5;border:1px solid #CE93D8;border-radius:8px;font-size:11px;color:#4A148C;cursor:pointer;line-height:1.3">'+q+'</button>';
     }).join('')+
@@ -2962,7 +3056,8 @@ function askAI(quickQ){
     (D.loanAssessment && (D.loanAssessment.ccLimit>0 || D.loanAssessment.tlAmount>0) ?
       'Bank Loan Assessment (from Loan Details tab):\n'+
       (D.loanAssessment.ccLimit>0 ? '- CC/Working Capital Limit: Rs.'+Math.round(D.loanAssessment.ccLimit)+' @ '+D.loanAssessment.ccRate+'% p.a., charged monthly on the last working day (approx Rs.'+Math.round(D.loanAssessment.ccLimit*D.loanAssessment.ccRate/1200)+'/month if fully utilized)\n' : '') +
-      (D.loanAssessment.tlAmount>0 ? '- Term Loan: Rs.'+Math.round(D.loanAssessment.tlAmount)+' @ '+D.loanAssessment.tlRate+'% p.a. over '+D.loanAssessment.tlTenure+' months, EMI-based reducing balance, interest charged monthly\n' : '')
+      (D.loanAssessment.tlAmount>0 ? '- Term Loan: Rs.'+Math.round(D.loanAssessment.tlAmount)+' @ '+D.loanAssessment.tlRate+'% p.a. over '+D.loanAssessment.tlTenure+' months, EMI-based reducing balance, interest charged monthly\n' : '') +
+      (D.loanAssessment.tlAmount>0 ? '(For detailed DSCR/viability verdict, tell the user to check Bank Loan Assessment -> DSCR tab, which computes it from their real projected cash accrual.)\n' : '')
       : '')+
     'Top 5 Items by Sales: '+topItems+'\n'+
     'Overdue Collections: '+overdueCount+' customers, Rs.'+Math.round(overdueAmt)+'\n'+
@@ -15155,8 +15250,8 @@ function syncOtherAssets(){
     });
   }
 }
-function loadFullApp() {
-  var saved=ld();
+async function loadFullApp() {
+  var saved=await ldAsync();
   // Use demo data if no real business data saved yet (businessName is empty)
   if(!saved.profile.businessName||saved.profile.businessName===''){
     D=JSON.parse(JSON.stringify(_DEMO_DATA));
@@ -15283,6 +15378,9 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"How to upload a full year bank statement month by month for reconciliation?", a:"Go to <b>Bank Recon</b> &rarr; upload your first month's statement (CSV/Excel/PDF) &rarr; then just upload the next month's file the same way &mdash; it automatically adds to the same reconciliation instead of replacing it, and skips any duplicate transactions if you accidentally re-upload a month. Keep going month by month to build up the full year. The <b>Statements loaded</b> list shows every file you've added so far, and <b>🗑 Clear All &amp; Start Fresh</b> resets it when you want to begin a new reconciliation.",tags:["upload full year statement","month by month reconciliation","multiple bank statements","accumulate statements"]},
+{q:"My full year data import isn't saving / data disappears after closing the app", a:"This is fixed. Earlier, large imports (a full year of transactions) could silently fail to save because the old storage had a small size limit (~5-10MB) that a full year of data can exceed. The app now saves to a much larger, more reliable storage (IndexedDB) with no realistic size limit, and any existing data is automatically carried over the first time you open the updated app &mdash; nothing is lost. If you still see a save warning, it means your device's storage itself is full or blocked (e.g. private/incognito mode) &mdash; free up space or try a normal browser window, and back up via <b>Data &rarr; Download Backup</b> regularly either way.",tags:["full year not saving","data disappears","import not working","storage full","data lost after closing"]},
+{q:"Is my Term Loan affordable? What does DSCR mean?", a:"Go to <b>Bank Loan Assessment &rarr; DSCR</b> tab. DSCR (Debt Service Coverage Ratio) measures whether your business's cash accrual can comfortably cover your Term Loan EMI + CC interest each year &mdash; banks generally want DSCR above 1.5&ndash;2.0. This tab shows your actual computed DSCR for both projected years with a clear ✅ Viable / ⚠️ Review verdict and the reasons behind it, based on your real Sales, Expenses, CC and Term Loan figures entered in Loan Details.",tags:["dscr","term loan viability","is loan affordable","debt service coverage ratio","loan assessment viability"]},
 {q:"How to download or share a ledger account statement?", a:"Go to <b>Reports &rarr; Account Statements</b> &rarr; select any account (Bank, Cash, Loan/CC/OD, a Debtor/customer, a Creditor/supplier, a Stock item, the Capital Account, or the Fixed Assets Register) &rarr; tap <b>Show Statement</b>. Every ledger has a full running balance and two buttons: <b>Share</b> (sends via WhatsApp/Email on mobile, or copies to clipboard on desktop) and <b>Print / Download PDF</b>.",tags:["download ledger","share ledger","account statement","ledger account pdf","capital account statement","fixed assets register"]},
 {q:"Can I upload a PDF bank statement?", a:"Yes &mdash; both the <b>Bank Calculators &rarr; From Bank Statement</b> tool and <b>Bank Recon</b> accept PDF now, alongside CSV/Excel. PDF needs internet the first time (to load the PDF reader) and is best-effort, since bank PDF layouts vary a lot &mdash; if it does not parse well, export the statement as CSV or Excel instead for guaranteed accuracy. Password-protected PDFs are supported &mdash; you will be asked for the password when needed.",tags:["upload pdf statement","pdf bank statement","pdf reconciliation","password protected pdf statement"]},
 {q:"How is Working Capital (CC) and Term Loan interest calculated in Bank Loan Assessment?", a:"Go to <b>Bank Loan Assessment → Monthly Interest</b> tab. CC/Working Capital interest is charged every month on the sanctioned limit (assumed fully utilized), on the <b>last working day</b> of each month (Saturdays/Sundays skipped) — it's a proper day-count calculation, not a flat annual estimate. Term Loan interest is calculated on the <b>reducing balance</b> as EMIs are paid each month, also charged monthly — not a flat first-year estimate. This tab shows the exact month-by-month breakdown so you know what to expect on your bank statement.",tags:["monthly interest schedule","cc interest calculation","term loan interest monthly","working capital interest","last working day interest"]},
