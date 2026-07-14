@@ -6509,12 +6509,105 @@ function pgRep(){
     var accts2 = D.bankAccounts && D.bankAccounts.length ? D.bankAccounts : [{id:'acc1',name:'Bank Account 1'}];
     accts2.forEach(function(a){ stOpts.push({v:'bank:'+a.id, l:'Bank: '+a.name+(a.accountNumber?' (A/c '+a.accountNumber+')':'')}); });
     stOpts.push({v:'cash', l:'Cash in Hand'});
-    D.loans.forEach(function(l){ stOpts.push({v:'loan:'+l.id, l:l.loanType+': '+l.bankName+(l.accountNumber?' (A/c '+l.accountNumber+')':'')+(l.undrawn?' (Not yet drawn)':'')}); });
+    D.loans.forEach(function(l){ stOpts.push({v:'loan:'+l.id, l:(l.loanType||'Loan')+': '+(l.bankName||'Bank')+(l.accountNumber?' (A/c '+l.accountNumber+')':'')+(l.undrawn?' (Not yet drawn)':'')}); });
+    stOpts.push({v:'capital', l:'Capital Account'});
+    if(D.fixedAssets && D.fixedAssets.length) stOpts.push({v:'fixedassets', l:'Fixed Assets Register'});
+    var debtorNames = Array.from(new Set(D.debtors.map(function(x){return x.name;}))).sort();
+    debtorNames.forEach(function(n){ stOpts.push({v:'debtor:'+encodeURIComponent(n), l:'Debtor: '+n}); });
+    var creditorNames = Array.from(new Set(D.creditors.map(function(x){return x.name;}))).sort();
+    creditorNames.forEach(function(n){ stOpts.push({v:'creditor:'+encodeURIComponent(n), l:'Creditor: '+n}); });
+    D.inventory.forEach(function(it){ stOpts.push({v:'item:'+it.id, l:'Item: '+it.itemName}); });
     var stSel = window._stmtAcct || '';
-    h += card('Account Statement', sl('Select Account','rep_stmt_acct',stOpts,stSel)+
-      '<div style="font-size:11px;color:#90A4AE;margin-top:4px">Select a bank/current account, Cash, or a loan/CC/OD account to see its full transaction history with running balance.</div>'+
+    h += card('Account Statement / Ledger', sl('Select Account','rep_stmt_acct',stOpts,stSel)+
+      '<div style="font-size:11px;color:#90A4AE;margin-top:4px">Select any account — bank, cash, loan/CC/OD, a customer (debtor), a supplier (creditor), or a stock item — to see its full ledger with running balance. Every ledger can be downloaded as PDF or shared directly.</div>'+
       btn('Show Statement','window._stmtAcct=gv('+Q+'rep_stmt_acct'+Q+');renderPage()','#1565C0')
     );
+
+    if(stSel && stSel.indexOf('debtor:')===0){
+      var drName = decodeURIComponent(stSel.slice(7));
+      var drRows = D.debtors.filter(function(x){return x.name===drName;}).slice().sort(function(a,b){return(a.date||'').localeCompare(b.date||'');});
+      var runDr=0;
+      drRows.forEach(function(r){ runDr += r.amount; r._bal=runDr; r._dispType = r.amount>=0 ? 'Sale / Owed' : 'Received'; });
+      var drRowsRev = drRows.slice().reverse();
+      var drCols = [{l:'Date',k:'date'},{l:'Type',fn:function(r){return r._dispType;}},{l:'Reference',k:'ref'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}];
+      setLedgerShareData('Debtor Ledger: '+drName, drCols, drRowsRev, ['Business: '+(D.profile.businessName||''), 'Current Outstanding: '+fc(runDr)]);
+      h += card('Statement: Debtor — '+esc(drName), '<div class="al ali">Current Outstanding: '+fc(runDr)+'</div>'+
+        tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r._dispType==='Received'?'#2E7D32':'#C62828')+';font-weight:700">'+r._dispType+'</span>';}},{l:'Reference',k:'ref'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}], drRowsRev)+
+        ledgerActionButtons()
+      );
+      if(drRows.length===0) h += '<div class="al ali">No transactions recorded for this customer yet.</div>';
+      return h;
+    }
+
+    if(stSel && stSel.indexOf('creditor:')===0){
+      var crName = decodeURIComponent(stSel.slice(9));
+      var crRows = D.creditors.filter(function(x){return x.name===crName;}).slice().sort(function(a,b){return(a.date||'').localeCompare(b.date||'');});
+      var runCr=0;
+      crRows.forEach(function(r){ runCr += r.amount; r._bal=runCr; r._dispType = r.amount>=0 ? 'Purchase / Owed' : 'Paid'; });
+      var crRowsRev = crRows.slice().reverse();
+      var crCols = [{l:'Date',k:'date'},{l:'Type',fn:function(r){return r._dispType;}},{l:'Reference',k:'ref'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}];
+      setLedgerShareData('Creditor Ledger: '+crName, crCols, crRowsRev, ['Business: '+(D.profile.businessName||''), 'Current Outstanding: '+fc(runCr)]);
+      h += card('Statement: Creditor — '+esc(crName), '<div class="al ali">Current Outstanding: '+fc(runCr)+'</div>'+
+        tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r._dispType==='Paid'?'#2E7D32':'#C62828')+';font-weight:700">'+r._dispType+'</span>';}},{l:'Reference',k:'ref'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}], crRowsRev)+
+        ledgerActionButtons()
+      );
+      if(crRows.length===0) h += '<div class="al ali">No transactions recorded for this supplier yet.</div>';
+      return h;
+    }
+
+    if(stSel === 'capital'){
+      var capRows = [];
+      if(D.capital.initialCapital) capRows.push({date:(D.profile.businessStartDate||''), _dispType:'Initial Capital Introduced', amount:D.capital.initialCapital});
+      if(D.capital.additionalCapital) capRows.push({date:'', _dispType:'Additional Capital Introduced (cumulative)', amount:D.capital.additionalCapital});
+      (D.drawings||[]).slice().sort(function(a,b){return(a.date||'').localeCompare(b.date||'');}).forEach(function(dr){
+        capRows.push({date:dr.date, _dispType:'Drawings'+(dr.remarks?' — '+dr.remarks:''), amount:-(dr.amount||0)});
+      });
+      var runCap=0;
+      capRows.forEach(function(r){ runCap += r.amount; r._bal=runCap; });
+      var capRowsRev = capRows.slice().reverse();
+      var capCols = [{l:'Date',fn:function(r){return r.date||'—';}},{l:'Particulars',fn:function(r){return r._dispType;}},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}];
+      setLedgerShareData('Capital Account', capCols, capRowsRev, ['Business: '+(D.profile.businessName||''), 'Current Capital: '+fc(runCap)]);
+      h += card('Statement: Capital Account', '<div class="al ali">Current Capital: '+fc(runCap)+' &middot; Note: Initial/Additional Capital are stored as running totals (no per-entry date in this app), so they show as single lines; Drawings are shown individually with their actual dates.</div>'+
+        tbl([{l:'Date',fn:function(r){return r.date||'—';}},{l:'Particulars',fn:function(r){return '<span style="color:'+(r.amount>=0?'#2E7D32':'#C62828')+';font-weight:700">'+r._dispType+'</span>';}},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}], capRowsRev)+
+        (capRows.length ? ledgerActionButtons() : ''));
+      if(capRows.length===0) h += '<div class="al ali">No capital recorded yet — go to Capital/Loans to add it.</div>';
+      return h;
+    }
+
+    if(stSel === 'fixedassets'){
+      var faRows = (D.fixedAssets||[]).filter(function(a){return !a.disposed;}).slice().sort(function(a,b){return(a.purchaseDate||'').localeCompare(b.purchaseDate||'');});
+      var faCols = [{l:'Purchased',k:'purchaseDate'},{l:'Asset',k:'name'},{l:'Category',k:'category'},{l:'Cost',r:1,fn:function(r){return fc(r.cost);}},{l:'Accum. Dep.',r:1,fn:function(r){return fc(r.accumDep||0);}},{l:'WDV',r:1,fn:function(r){return fc(r.cost-(r.accumDep||0));}}];
+      var totCost = faRows.reduce(function(s,r){return s+r.cost;},0);
+      var totDep = faRows.reduce(function(s,r){return s+(r.accumDep||0);},0);
+      setLedgerShareData('Fixed Assets Register', faCols, faRows, ['Business: '+(D.profile.businessName||''), 'Total Cost: '+fc(totCost), 'Total Accum. Depreciation: '+fc(totDep), 'Total WDV: '+fc(totCost-totDep)]);
+      h += card('Statement: Fixed Assets Register', '<div class="al ali">Total Cost: '+fc(totCost)+' &middot; Total WDV: '+fc(totCost-totDep)+'</div>'+
+        tbl(faCols, faRows)+
+        (faRows.length ? ledgerActionButtons() : ''));
+      if(faRows.length===0) h += '<div class="al ali">No fixed assets recorded yet — go to Capital/Loans → Fixed Assets to add one.</div>';
+      return h;
+    }
+
+    if(stSel && stSel.indexOf('item:')===0){
+      var itId = stSel.slice(5);
+      var itObj = D.inventory.find(function(x){return x.id===itId;});
+      var itRows = [];
+      D.purchases.filter(function(p){return p.itemId===itId;}).forEach(function(p){ itRows.push({date:p.date, _dispType:'Purchase (In)', qty:p.qty, rate:p.rate, amount:p.amount}); });
+      D.sales.filter(function(s){return s.itemId===itId;}).forEach(function(s){ itRows.push({date:s.date, _dispType:'Sale (Out)', qty:-s.qty, rate:(s.sellingPrice!=null?s.sellingPrice:s.price)||0, amount:s.totalAmount}); });
+      itRows.sort(function(a,b){return(a.date||'').localeCompare(b.date||'');});
+      var runQty=0;
+      itRows.forEach(function(r){ runQty += r.qty; r._bal=runQty; });
+      var itRowsRev = itRows.slice().reverse();
+      var itLabel = itObj ? itObj.itemName : 'Item';
+      var itUnit = itObj ? (itObj.unit||'') : '';
+      var itCols = [{l:'Date',k:'date'},{l:'Type',fn:function(r){return r._dispType;}},{l:'Qty',fn:function(r){return Math.abs(r.qty);}},{l:'Rate',r:1,fn:function(r){return fc(r.rate);}},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance Qty',fn:function(r){return r._bal;}}];
+      setLedgerShareData('Stock Ledger: '+itLabel, itCols, itRowsRev, ['Business: '+(D.profile.businessName||''), 'Current Stock: '+runQty+' '+itUnit]);
+      h += card('Statement: Item — '+esc(itLabel), '<div class="al ali">Current Stock: '+runQty+' '+esc(itUnit)+'</div>'+
+        tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r._dispType.indexOf('Purchase')===0?'#2E7D32':'#C62828')+';font-weight:700">'+r._dispType+'</span>';}},{l:'Qty',fn:function(r){return Math.abs(r.qty);}},{l:'Rate',r:1,fn:function(r){return fc(r.rate);}},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance Qty',fn:function(r){return r._bal;}}], itRowsRev)+
+        ledgerActionButtons()
+      );
+      if(itRows.length===0) h += '<div class="al ali">No purchase or sale transactions recorded for this item yet.</div>';
+      return h;
+    }
 
     if(stSel){
       var stRows=[], openBal=0, label='';
@@ -6545,8 +6638,11 @@ function pgRep(){
             stRows.forEach(function(r){ runCC += (r.type==='payment'?r.amount:-r.amount); r._bal=runCC; r._dispType=(r.type==='payment'?'Drawn':'Repaid'); });
             (lAcct.payments||[]).forEach(function(p){ runCC -= (p.principal||0); });
             stRows = stRows.slice().reverse();
+            var ccCols = [{l:'Date',k:'date'},{l:'Type',fn:function(r){return r._dispType;}},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Outstanding',r:1,fn:function(r){return fc(r._bal);}}];
+            setLedgerShareData('Statement: '+label, ccCols, stRows, ['Business: '+(D.profile.businessName||''), 'Current Outstanding: '+fc(lAcct.outstandingBalance)+(lAcct.sanctionedLimit>0?(' / Limit: '+fc(lAcct.sanctionedLimit)):'')]);
             h += card('Statement: '+esc(label), '<div class="al ali">Current Outstanding: '+fc(lAcct.outstandingBalance)+(lAcct.sanctionedLimit>0?(' / Limit: '+fc(lAcct.sanctionedLimit)):'')+'</div>'+
-              tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r._dispType==='Drawn'?'#C62828':'#2E7D32')+';font-weight:700">'+r._dispType+'</span>';}},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Outstanding',r:1,fn:function(r){return fc(r._bal);}}],stRows));
+              tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r._dispType==='Drawn'?'#C62828':'#2E7D32')+';font-weight:700">'+r._dispType+'</span>';}},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Outstanding',r:1,fn:function(r){return fc(r._bal);}}],stRows)+
+              (stRows.length ? ledgerActionButtons() : ''));
             if(stRows.length===0) h += '<div class="al ali">No drawdowns or repayments recorded yet for this account.</div>';
             return h;
           } else {
@@ -6561,8 +6657,11 @@ function pgRep(){
             var runTL=0;
             tlRows.forEach(function(r){ runTL += (r._dispType==='Drawn'?r.amount:-r.amount); r._bal=runTL; });
             tlRows = tlRows.slice().reverse();
+            var tlCols = [{l:'Date',k:'date'},{l:'Type',fn:function(r){return r._dispType;}},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Outstanding',r:1,fn:function(r){return fc(r._bal);}}];
+            setLedgerShareData('Statement: '+label, tlCols, tlRows, ['Business: '+(D.profile.businessName||''), 'Current Outstanding: '+fc(lAcct.outstandingBalance)]);
             h += card('Statement: '+esc(label), '<div class="al ali">Current Outstanding: '+fc(lAcct.outstandingBalance)+(lAcct.undrawn?' &middot; Sanctioned (Not Yet Drawn): '+fc(lAcct.sanctionedAmount||0):'')+'</div>'+
-              tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r._dispType==='Drawn'?'#C62828':'#2E7D32')+';font-weight:700">'+r._dispType+'</span>';}},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Outstanding',r:1,fn:function(r){return fc(r._bal);}}],tlRows));
+              tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r._dispType==='Drawn'?'#C62828':'#2E7D32')+';font-weight:700">'+r._dispType+'</span>';}},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Outstanding',r:1,fn:function(r){return fc(r._bal);}}],tlRows)+
+              (tlRows.length ? ledgerActionButtons() : ''));
             if(tlRows.length===0) h += '<div class="al ali">'+(lAcct.undrawn?'This loan is sanctioned but not yet drawn - go to Capital/Loans to record a drawdown when funds are received.':'No disbursement or repayment history recorded for this loan yet.')+'</div>';
             return h;
           }
@@ -6573,8 +6672,11 @@ function pgRep(){
       stRows = stRows.slice().sort(function(a,b){return(a.date||'').localeCompare(b.date||'');});
       stRows.forEach(function(r){ runBalSt += (r.type==='receipt'?r.amount:-r.amount); r._bal=runBalSt; });
       stRows = stRows.slice().reverse();
+      var cbCols = [{l:'Date',k:'date'},{l:'Type',fn:function(r){return r.type;}},{l:'Party',k:'party'},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}];
+      setLedgerShareData('Statement: '+label, cbCols, stRows, ['Business: '+(D.profile.businessName||''), 'Opening Balance: '+fc(openBal), 'Current Balance: '+fc(runBalSt)]);
       h += card('Statement: '+esc(label), '<div class="al ali">Opening Balance: '+fc(openBal)+' &middot; Current Balance: '+fc(runBalSt)+'</div>'+
-        tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r.type==='receipt'?'#2E7D32':'#C62828')+';font-weight:700">'+r.type+'</span>';}},{l:'Party',k:'party'},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}],stRows));
+        tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r.type==='receipt'?'#2E7D32':'#C62828')+';font-weight:700">'+r.type+'</span>';}},{l:'Party',k:'party'},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}],stRows)+
+        (stRows.length ? ledgerActionButtons() : ''));
       if(stRows.length===0) h += '<div class="al ali">No transactions recorded for this account yet.</div>';
     }
   }
@@ -15590,6 +15692,7 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"How to download or share a ledger account statement?", a:"Go to <b>Reports &rarr; Account Statements</b> &rarr; select any account (Bank, Cash, Loan/CC/OD, a Debtor/customer, a Creditor/supplier, a Stock item, the Capital Account, or the Fixed Assets Register) &rarr; tap <b>Show Statement</b>. Every ledger has a full running balance and two buttons: <b>Share</b> (sends via WhatsApp/Email on mobile, or copies to clipboard on desktop) and <b>Print / Download PDF</b>.",tags:["download ledger","share ledger","account statement","ledger account pdf","capital account statement","fixed assets register"]},
 {q:"Can I upload a PDF bank statement?", a:"Yes &mdash; both the <b>Bank Calculators &rarr; From Bank Statement</b> tool and <b>Bank Recon</b> accept PDF now, alongside CSV/Excel. PDF needs internet the first time (to load the PDF reader) and is best-effort, since bank PDF layouts vary a lot &mdash; if it does not parse well, export the statement as CSV or Excel instead for guaranteed accuracy. Password-protected PDFs are supported &mdash; you will be asked for the password when needed.",tags:["upload pdf statement","pdf bank statement","pdf reconciliation","password protected pdf statement"]},
 {q:"How is Working Capital (CC) and Term Loan interest calculated in Bank Loan Assessment?", a:"Go to <b>Bank Loan Assessment &rarr; Monthly Interest</b> tab. CC/Working Capital interest is charged every month on the sanctioned limit (assumed fully utilized), on the <b>last working day</b> of each month (Saturdays/Sundays skipped) &mdash; it's a proper day-count calculation, not a flat annual estimate. Term Loan interest is calculated on the <b>reducing balance</b> as EMIs are paid each month, also charged monthly &mdash; not a flat first-year estimate. This tab shows the exact month-by-month breakdown so you know what to expect on your bank statement.",tags:["monthly interest schedule","cc interest calculation","term loan interest monthly","working capital interest","last working day interest"]},
 {q:"How to calculate interest from an uploaded bank statement?", a:"Go to <b>Bank Calculators → From Bank Statement</b> &rarr; choose Deposit/Savings or Loan Account &rarr; enter the Interest Rate % p.a. &rarr; optionally set Period Start/End (recommended for a month-wise statement, so every day in that month counts even without a transaction) &rarr; enter Opening Balance if needed &rarr; upload the CSV/Excel statement. It works out interest using the actual day-by-day balance and shows a month-wise breakdown.",tags:["calculate interest from statement","upload statement interest","deposit interest calculation","loan interest calculation","month wise statement interest"]},
