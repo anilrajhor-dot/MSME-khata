@@ -7343,6 +7343,25 @@ function showBackupModal(content, filename){
   var btnRow = document.createElement('div');
   btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap';
 
+  var downloadBtn = document.createElement('button');
+  downloadBtn.textContent = '\u2b07 Download as File';
+  downloadBtn.style.cssText = 'padding:9px 14px;border-radius:8px;border:none;background:#1565C0;color:#fff;font-size:13px;font-weight:700;cursor:pointer';
+  downloadBtn.onclick = function(){
+    try{
+      var blob = new Blob([content], {type:'application/json'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+      toast('Download started \u2014 check your Downloads/Files app.');
+    }catch(e){
+      toast('Download failed on this browser \u2014 use Select All + Copy below instead.','e');
+    }
+  };
+
   var selectBtn = document.createElement('button');
   selectBtn.textContent = 'Select All';
   selectBtn.style.cssText = 'padding:9px 14px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#1565C0;font-size:13px;cursor:pointer';
@@ -7372,6 +7391,7 @@ function showBackupModal(content, filename){
   closeBtn.style.cssText = 'padding:9px 14px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#546E7A;font-size:13px;cursor:pointer';
   closeBtn.onclick = function(){ document.body.removeChild(overlay); };
 
+  btnRow.appendChild(downloadBtn);
   btnRow.appendChild(selectBtn);
   btnRow.appendChild(copyBtn);
   btnRow.appendChild(closeBtn);
@@ -7473,7 +7493,7 @@ function triggerFileImport(){
 function impDat(e){
   var f2=e.target.files[0];
   if(!f2){toast('No file selected','e');return;}
-  if(f2.size>10*1024*1024){toast('File too large (max 10MB)','e');return;}
+  if(f2.size>200*1024*1024){toast('File too large (max 200MB). If your backup is genuinely this large, contact support.','e');return;}
   toast('Reading file: '+f2.name+' ('+Math.round(f2.size/1024)+'KB)...');
   var r2=new FileReader();
   r2.onload=function(ev){
@@ -15688,6 +15708,7 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"How to backup and restore a large full-year backup?", a:"Go to <b>Data → Download Backup</b> → tap the blue <b>Download as File</b> button (not the copy-paste option, which struggles with large data) → it saves a real .json file to your device, however large. To restore it later, use <b>Import Backup File</b> and select that file — there is no practical size limit; a full year of daily entries imports in a few seconds.",tags:["backup large data","restore large backup","full year backup","backup file size limit","download backup file"], diag:false},
 {q:"How do I safely delete all my data?", tags:["delete all data","clear all data","danger zone","reset app data"], diag:false,
  a:"Go to <b>Data</b> tab → scroll to the red <b>DANGER ZONE</b> → it lists exactly what gets erased (all sales, purchases, expenses, inventory, debtors, creditors, loans, fixed assets, drawings, capital, profile) → tap <b>Delete All Data</b> → type <b>DELETE</b> to confirm (the button stays disabled until you type it exactly). Back up first via Download Backup if there is any chance you will need this data again — this cannot be undone."},
 {q:"How to rectify entries before an audit, and prevent changes after?", tags:["audit lock","lock financial year","prevent editing after audit","rectify entries before audit","post audit no changes"], diag:false,
