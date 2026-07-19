@@ -207,6 +207,8 @@ function defD(){
     otherLiabItems:[],
     priorPeriod:{enabled:false,fromDate:'',toDate:'',sales:0,cogs:0,expenseByCat:{}},
     drawings:[],
+    auditLocks:[],
+    archivedYears:{},
     advances:[],
     security:{pinEnabled:false,pinHash:''},
     bills:[],
@@ -244,6 +246,8 @@ function migrateData(d){
   if(!d.otherAssetItems)d.otherAssetItems=[];
   if(!d.otherLiabItems)d.otherLiabItems=[];
   if(!d.priorPeriod)d.priorPeriod={enabled:false,fromDate:'',toDate:'',sales:0,cogs:0,expenseByCat:{}};
+  if(!d.auditLocks)d.auditLocks=[];
+  if(!d.archivedYears)d.archivedYears={};
   if(!d.profile.businessStage) d.profile.businessStage = 'new';
   if(!d.security) d.security = {pinEnabled:false,pinHash:''};
   if(!d.bills) d.bills=[];
@@ -1836,7 +1840,19 @@ function renderDemo(){
         '</div>'+
       '</div>';
     }).join('')+
-    '<button onclick="clearAllData()" style="width:100%;padding:10px;background:#C62828;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px">🗑️ Clear All Data (Start Fresh)</button>'
+    '<div style="border:2px solid #C62828;border-radius:10px;padding:12px;margin-top:14px;background:#FFEBEE">'+
+      '<div style="font-size:13px;font-weight:800;color:#C62828;margin-bottom:6px">⚠️ DANGER ZONE</div>'+
+      '<div style="font-size:11px;color:#B71C1C;line-height:1.6;margin-bottom:10px">'+
+        '<b>Clear All Data</b> will permanently erase, with no way to undo:<br>'+
+        '• All Sales, Purchase and Expense entries<br>'+
+        '• All Inventory, Debtors and Creditors records<br>'+
+        '• All Loans, Fixed Assets and Drawings<br>'+
+        '• All Capital and Opening Balance entries<br>'+
+        '• Your Business Profile settings<br><br>'+
+        '<b>This cannot be reversed.</b> Take a backup first via <b>Download Backup</b> above if there is any chance you might need this data later.'+
+      '</div>'+
+      '<button onclick="clearAllData()" style="width:100%;padding:10px;background:#C62828;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🗑️ Delete All Data — Start Fresh</button>'+
+    '</div>'
   );
 }
 
@@ -1937,14 +1953,258 @@ function loadDemoData(filename){
   });
 }
 
+// ── Financial Year Audit Lock (Apr-Mar convention) ──
+// Once a year is marked audited & locked, entries dated within it cannot be edited or deleted,
+// so books stay exactly as they were signed off — matching how a real audit trail should work.
+function getFYForDate(dateStr){
+  if(!dateStr) return null;
+  var y = +dateStr.slice(0,4), m = +dateStr.slice(5,7);
+  var fyStartYear = m>=4 ? y : y-1;
+  return 'FY'+fyStartYear+'-'+String(fyStartYear+1).slice(2);
+}
+function fyDateRange(fyLabel){
+  var startYear = +fyLabel.replace('FY','').split('-')[0];
+  return {from: startYear+'-04-01', to: (startYear+1)+'-03-31'};
+}
+function isDateAuditLocked(dateStr){
+  if(!dateStr) return false;
+  if(!D.auditLocks) D.auditLocks=[];
+  var fy = getFYForDate(dateStr);
+  return D.auditLocks.some(function(l){ return l.fy===fy; });
+}
+function blockIfAuditLocked(dateStr, actionLabel){
+  if(isDateAuditLocked(dateStr)){
+    toast('🔒 '+(getFYForDate(dateStr))+' is audit-locked. Cannot '+(actionLabel||'modify this entry')+'. Unlock it first in Data → Audit Lock if this was a genuine error (only do this before the audit is finalized).', 'e');
+    return true;
+  }
+  return false;
+}
+function lockFinancialYear(fy){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10000;padding:14px';
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:12px;padding:18px;max-width:400px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,0.3);border-top:4px solid #C62828';
+  box.innerHTML='<div style="font-size:16px;font-weight:800;color:#C62828;margin-bottom:8px">🔒 Lock '+fy+'?</div>'+
+    '<div style="font-size:12px;color:#37474F;margin-bottom:12px;line-height:1.6">After locking, <b>no sale, purchase or expense dated in '+fy+' can be edited or deleted</b> — matching a finalized, audited year. Only lock a year <b>after</b> your auditor has signed off. You can unlock it later if truly needed, but that should not happen after a real audit.<br><br>Type <b>LOCK</b> to confirm.</div>'+
+    '<input type="text" id="_lock_confirm_inp" placeholder="Type LOCK" style="width:100%;padding:10px;border:1.5px solid #C62828;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px;text-transform:uppercase" autocomplete="off">'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+    '<button id="_lock_cancel" style="padding:9px 14px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#546E7A;font-size:13px;cursor:pointer">Cancel</button>'+
+    '<button id="_lock_ok" disabled style="padding:9px 14px;border-radius:8px;border:none;background:#E0E0E0;color:#9E9E9E;font-size:13px;font-weight:700;cursor:not-allowed">Lock '+fy+'</button>'+
+    '</div>';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  var inp=box.querySelector('#_lock_confirm_inp');
+  var okBtn=box.querySelector('#_lock_ok');
+  setTimeout(function(){ inp.focus(); }, 50);
+  function cleanup(){ if(overlay.parentNode) document.body.removeChild(overlay); }
+  box.querySelector('#_lock_cancel').onclick=function(){ cleanup(); };
+  inp.oninput=function(){
+    if(inp.value.trim().toUpperCase()==='LOCK'){
+      okBtn.disabled=false; okBtn.style.background='#C62828'; okBtn.style.color='#fff'; okBtn.style.cursor='pointer';
+    } else {
+      okBtn.disabled=true; okBtn.style.background='#E0E0E0'; okBtn.style.color='#9E9E9E'; okBtn.style.cursor='not-allowed';
+    }
+  };
+  okBtn.onclick=function(){
+    if(inp.value.trim().toUpperCase()!=='LOCK') return;
+    cleanup();
+    D.auditLocks.push({fy:fy, lockedOn:td()});
+    sv(); renderPage();
+    toast('🔒 '+fy+' is now locked — no edits or deletions allowed for that year.');
+  };
+  inp.onkeydown=function(e){ if(e.key==='Enter' && !okBtn.disabled) okBtn.click(); };
+}
+function unlockFinancialYear(fy){
+  confirmDialog('Unlock '+fy+'? This year was marked as audited — only unlock if there is a genuine, agreed correction needed. Re-lock it again once done.', function(){
+    D.auditLocks = D.auditLocks.filter(function(l){ return l.fy!==fy; });
+    sv(); renderPage();
+    toast('🔓 '+fy+' unlocked. Remember to re-lock it after making the correction.');
+  });
+}
+
+// ── Archive a locked Financial Year ──
+// Moves that year's Sales/Purchases/Expenses/Drawings/CashBook entries into a separate archived
+// bucket (still fully viewable/downloadable via Reports → Archived Years), and folds their net
+// effect into Opening Balances / Capital so the CURRENT Balance Sheet total is mathematically
+// unchanged — not one rupee is created or lost, it is simply "closed" into the carried-forward
+// balance, exactly like a real accounting year-end close. Debtors/Creditors are NOT touched here
+// since they are always a live outstanding-balance list, not a per-year log.
+function computeArchivePreview(fy){
+  var range = fyDateRange(fy);
+  var inRange = function(d){ return d>=range.from && d<=range.to; };
+  var archSales = D.sales.filter(function(x){return inRange(x.date);});
+  var archPurchases = D.purchases.filter(function(x){return inRange(x.date);});
+  var archExpenses = D.expenses.filter(function(x){return inRange(x.date);});
+  var archDrawings = (D.drawings||[]).filter(function(x){return inRange(x.date);});
+  var archCashBook = D.cashBook.filter(function(x){return inRange(x.date);});
+
+  var archSalesTotal = archSales.reduce(function(s,x){return s+(x.totalAmount||0);},0);
+  var archPurchasesTotal = archPurchases.reduce(function(s,x){return s+(x.amount||0);},0);
+  var archExpensesTotal = archExpenses.reduce(function(s,x){return s+(x.amount||0);},0);
+  var archDrawingsTotal = archDrawings.reduce(function(s,x){return s+(+x.amount||0);},0);
+
+  var csNow = 0;
+  D.inventory.forEach(function(it){ csNow += it.currentStock*it.avgCost + (it.importedStock||0)*(it.importedAvgCost||0); });
+  var osOrig = +D.opening.stock||0;
+  var archivedGP = archSalesTotal - (osOrig + archPurchasesTotal - csNow);
+  var archivedNP = archivedGP - archExpensesTotal;
+
+  var archCashDelta=0, archBankDelta=0;
+  archCashBook.forEach(function(x){
+    if(!x.mode) return;
+    if(x.mode==='cc'||x.mode==='od'||x.mode.indexOf('cc:')===0||x.mode.indexOf('od:')===0) return;
+    var amt = x.type==='receipt'?x.amount:-x.amount;
+    if(x.mode==='cash') archCashDelta+=amt; else archBankDelta+=amt;
+  });
+
+  return {
+    range:range, archSales:archSales, archPurchases:archPurchases, archExpenses:archExpenses,
+    archDrawings:archDrawings, archCashBook:archCashBook,
+    archSalesTotal:archSalesTotal, archPurchasesTotal:archPurchasesTotal, archExpensesTotal:archExpensesTotal,
+    archDrawingsTotal:archDrawingsTotal, archivedGP:archivedGP, archivedNP:archivedNP,
+    archCashDelta:archCashDelta, archBankDelta:archBankDelta, csNow:csNow,
+    entryCount: archSales.length+archPurchases.length+archExpenses.length+archDrawings.length+archCashBook.length
+  };
+}
+
+function archiveFinancialYear(fy){
+  if(!(D.auditLocks||[]).some(function(l){return l.fy===fy;})){
+    toast('🔒 Lock '+fy+' first (audit sign-off) before archiving it.', 'e');
+    return;
+  }
+  var prev = computeArchivePreview(fy);
+  var bsBefore = getBS();
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10000;padding:14px';
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:12px;padding:18px;max-width:420px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,0.3);border-top:4px solid #1565C0;max-height:85vh;overflow-y:auto';
+  box.innerHTML='<div style="font-size:16px;font-weight:800;color:#1565C0;margin-bottom:8px">📦 Archive '+fy+'?</div>'+
+    '<div style="font-size:12px;color:#37474F;margin-bottom:10px;line-height:1.6">This moves '+prev.entryCount+' entries ('+fy+' Sales, Purchases, Expenses, Drawings, Cash/Bank entries) into an archived bucket — still fully viewable and downloadable via <b>Reports → Archived Years</b>, but no longer part of the active count.<br><br>Your Balance Sheet total will not change by even ₹1 — this closing year\'s profit/loss and cash movements are folded into your carried-forward Opening Balance, exactly like a real year-end close.</div>'+
+    '<div style="background:#F0F4FF;border-radius:8px;padding:10px;font-size:11px;color:#37474F;margin-bottom:12px">'+
+      '<b>This year\'s result:</b> Net Profit '+fc(prev.archivedNP)+'<br>'+
+      '<b>Current Balance Sheet total (before):</b> '+fc(bsBefore.totalAssets)+'<br>'+
+      '<b>Will remain exactly:</b> '+fc(bsBefore.totalAssets)+' after archiving'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+    '<button id="_arch_cancel" style="padding:9px 14px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#546E7A;font-size:13px;cursor:pointer">Cancel</button>'+
+    '<button id="_arch_ok" style="padding:9px 14px;border-radius:8px;border:none;background:#1565C0;color:#fff;font-size:13px;font-weight:700;cursor:pointer">📦 Archive '+fy+'</button>'+
+    '</div>';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  function cleanup(){ if(overlay.parentNode) document.body.removeChild(overlay); }
+  box.querySelector('#_arch_cancel').onclick=function(){ cleanup(); };
+  box.querySelector('#_arch_ok').onclick=function(){
+    cleanup();
+    var range=prev.range;
+    var inRange=function(d){ return d>=range.from && d<=range.to; };
+
+    // Compensating adjustments (mathematically preserves total Balance Sheet value exactly)
+    D.capital.additionalCapital = (+D.capital.additionalCapital||0) + prev.archivedNP - prev.archDrawingsTotal;
+    D.opening.stock = prev.csNow;
+    D.opening.cash = (+D.opening.cash||0) + prev.archCashDelta;
+    D.opening.bank = (+D.opening.bank||0) + prev.archBankDelta;
+    D.opening.takenOn = range.to;
+    D.tbPosted = true;
+    D.profile.businessStage = 'existing';
+
+    if(!D.archivedYears) D.archivedYears={};
+    D.archivedYears[fy] = {
+      sales:prev.archSales, purchases:prev.archPurchases, expenses:prev.archExpenses,
+      drawings:prev.archDrawings, cashBook:prev.archCashBook,
+      archivedOn: td(),
+      summary: {sales:prev.archSalesTotal, purchases:prev.archPurchasesTotal, expenses:prev.archExpensesTotal,
+                drawings:prev.archDrawingsTotal, netProfit:prev.archivedNP}
+    };
+
+    D.sales = D.sales.filter(function(x){return !inRange(x.date);});
+    D.purchases = D.purchases.filter(function(x){return !inRange(x.date);});
+    D.expenses = D.expenses.filter(function(x){return !inRange(x.date);});
+    D.drawings = (D.drawings||[]).filter(function(x){return !inRange(x.date);});
+    D.cashBook = D.cashBook.filter(function(x){return !inRange(x.date);});
+
+    sv(); renderPage();
+    var bsAfter = getBS();
+    var diffCheck = Math.abs(bsAfter.totalAssets - bsBefore.totalAssets) < 1;
+    toast(diffCheck ? '📦 '+fy+' archived. Balance Sheet total unchanged: '+fc(bsAfter.totalAssets) : '⚠️ Archived, but please verify Balance Sheet — check Financials.', diffCheck?'s':'e');
+  };
+}
+
+function pgAuditLock(){
+  var allDates = []
+    .concat(D.sales.map(function(x){return x.date;}))
+    .concat(D.purchases.map(function(x){return x.date;}))
+    .concat(D.expenses.map(function(x){return x.date;}))
+    .filter(Boolean);
+  var fySet = {};
+  allDates.forEach(function(d){ fySet[getFYForDate(d)] = true; });
+  (D.auditLocks||[]).forEach(function(l){ fySet[l.fy] = true; });
+  var fys = Object.keys(fySet).sort();
+  var h = '<div class="al ali"><div class="alt">Financial Year Audit Lock</div><p>Before your books are audited, you can freely edit or delete any entry. Once your auditor has signed off a year, <b>lock it here</b> — after that, no sale, purchase or expense dated in that year can be edited or deleted, so the books stay exactly as they were finalized. If a genuine correction is needed after locking, unlock the year first, make the fix, then lock it again.</p></div>';
+  if(fys.length===0){
+    h += '<div class="al ali">No financial years with data yet.</div>';
+    return h;
+  }
+  h += fys.map(function(fy){
+    var locked = (D.auditLocks||[]).find(function(l){ return l.fy===fy; });
+    var range = fyDateRange(fy);
+    var count = allDates.filter(function(d){ return d>=range.from && d<=range.to; }).length;
+    if(locked){
+      var alreadyArchived = D.archivedYears && D.archivedYears[fy];
+      return card(fy+' — 🔒 Locked'+(alreadyArchived?' &amp; 📦 Archived':''),
+        '<div style="font-size:12px;color:#546E7A;margin-bottom:8px">Locked on '+locked.lockedOn+' &middot; '+count+' entries'+(alreadyArchived?' archived on '+alreadyArchived.archivedOn+' (Net Profit that year: '+fc(alreadyArchived.summary.netProfit)+').':' protected from editing/deletion.')+'</div>'+
+        (alreadyArchived
+          ? '<div class="al ali" style="font-size:11px">View or download this year\'s statements via <b>Reports → Archived Years</b>.</div>'
+          : btn('📦 Archive '+fy+' (closing balance → opening balance)','archiveFinancialYear(\''+fy+'\')','#1565C0'))+
+        '<div style="margin-top:6px">'+btn('🔓 Unlock (only if a genuine correction is needed)','unlockFinancialYear(\''+fy+'\')','#E65100')+'</div>'
+      );
+    } else {
+      return card(fy+' — Open (not yet locked)',
+        '<div style="font-size:12px;color:#546E7A;margin-bottom:8px">'+count+' entries. Lock this year only after your auditor has signed off.</div>'+
+        btn('🔒 Lock '+fy+' (Post-Audit)','lockFinancialYear(\''+fy+'\')','#C62828')
+      );
+    }
+  }).join('');
+  return h;
+}
 function clearAllData(){
-  if(!confirm('This will delete ALL data and start fresh. Are you absolutely sure?\n\nसभी data delete हो जाएगा। क्या आप confirm करते हैं?')) return;
-  var bt=BIZ_TYPE;
-  D=defD();
-  D.profile.businessType=bt;
-  sv();
-  go('dashboard');
-  toast('✅ All data cleared. Starting fresh.');
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10000;padding:14px';
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:12px;padding:18px;max-width:400px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,0.3);border-top:4px solid #C62828';
+  box.innerHTML='<div style="font-size:16px;font-weight:800;color:#C62828;margin-bottom:8px">⚠️ Final Confirmation</div>'+
+    '<div style="font-size:12px;color:#37474F;margin-bottom:12px;line-height:1.6">This will <b>permanently delete ALL data</b> — every sale, purchase, expense, inventory item, loan, debtor, creditor and your business profile. There is no undo.<br><br>Type <b>DELETE</b> below to confirm.</div>'+
+    '<input type="text" id="_del_confirm_inp" placeholder="Type DELETE" style="width:100%;padding:10px;border:1.5px solid #C62828;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px;text-transform:uppercase" autocomplete="off">'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+    '<button id="_del_cancel" style="padding:9px 14px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#546E7A;font-size:13px;cursor:pointer">Cancel</button>'+
+    '<button id="_del_ok" disabled style="padding:9px 14px;border-radius:8px;border:none;background:#E0E0E0;color:#9E9E9E;font-size:13px;font-weight:700;cursor:not-allowed">Delete Everything</button>'+
+    '</div>';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  var inp=box.querySelector('#_del_confirm_inp');
+  var okBtn=box.querySelector('#_del_ok');
+  setTimeout(function(){ inp.focus(); }, 50);
+  function cleanup(){ if(overlay.parentNode) document.body.removeChild(overlay); }
+  box.querySelector('#_del_cancel').onclick=function(){ cleanup(); };
+  inp.oninput=function(){
+    if(inp.value.trim().toUpperCase()==='DELETE'){
+      okBtn.disabled=false;
+      okBtn.style.background='#C62828'; okBtn.style.color='#fff'; okBtn.style.cursor='pointer';
+    } else {
+      okBtn.disabled=true;
+      okBtn.style.background='#E0E0E0'; okBtn.style.color='#9E9E9E'; okBtn.style.cursor='not-allowed';
+    }
+  };
+  okBtn.onclick=function(){
+    if(inp.value.trim().toUpperCase()!=='DELETE') return;
+    cleanup();
+    var bt=BIZ_TYPE;
+    D=defD();
+    D.profile.businessType=bt;
+    sv();
+    go('dashboard');
+    toast('✅ All data cleared. Starting fresh.');
+  };
+  inp.onkeydown=function(e){ if(e.key==='Enter' && !okBtn.disabled) okBtn.click(); };
 }
 
 function renderPractice(){
@@ -3059,6 +3319,8 @@ function askAI(quickQ){
       (D.loanAssessment.tlAmount>0 ? '- Term Loan: Rs.'+Math.round(D.loanAssessment.tlAmount)+' @ '+D.loanAssessment.tlRate+'% p.a. over '+D.loanAssessment.tlTenure+' months, EMI-based reducing balance, interest charged monthly\n' : '') +
       (D.loanAssessment.tlAmount>0 ? '(For detailed DSCR/viability verdict, tell the user to check Bank Loan Assessment -> DSCR tab, which computes it from their real projected cash accrual.)\n' : '')
       : '')+
+    (D.archivedYears && Object.keys(D.archivedYears).length>0 ?
+      'Archived Years available (Reports -> Archived Years): '+Object.keys(D.archivedYears).join(', ')+'. Current figures above only reflect the active period since the last archive; mention this if the user asks about total/lifetime performance.\n' : '')+
     'Top 5 Items by Sales: '+topItems+'\n'+
     'Overdue Collections: '+overdueCount+' customers, Rs.'+Math.round(overdueAmt)+'\n'+
     'Low/Out of Stock: '+(lowStockItems||'None')+'\n'+
@@ -6284,7 +6546,7 @@ function ledgerActionButtons(){
 
 function pgRep(){
   var tab=window._rtab||'daybook';
-  var tabs=[{id:'daybook',l:'Day Book'},{id:'purchase',l:'Purchase'},{id:'sales',l:'Sales'},{id:'stock',l:'Stock'},{id:'expense',l:'Expense'},{id:'loan',l:'Loans'},{id:'statements',l:'Account Statements'},{id:'debtors',l:'Debtors'},{id:'creditors',l:'Creditors'},{id:'otheritems',l:'Other Items'},{id:'bills',l:'Bills'},{id:'itempl',l:'Item P&L'},{id:'monthlypl',l:'Monthly P&L'},{id:'budget',l:'Budget vs Actual'},{id:'fullyear',l:'Full Year P&L'}];
+  var tabs=[{id:'daybook',l:'Day Book'},{id:'purchase',l:'Purchase'},{id:'sales',l:'Sales'},{id:'stock',l:'Stock'},{id:'expense',l:'Expense'},{id:'loan',l:'Loans'},{id:'statements',l:'Account Statements'},{id:'debtors',l:'Debtors'},{id:'creditors',l:'Creditors'},{id:'otheritems',l:'Other Items'},{id:'bills',l:'Bills'},{id:'itempl',l:'Item P&L'},{id:'monthlypl',l:'Monthly P&L'},{id:'budget',l:'Budget vs Actual'},{id:'fullyear',l:'Full Year P&L'},{id:'archived',l:'Archived Years'}];
   var h='<div class="tabs">'+tabs.map(function(t2){return '<button class="'+(tab===t2.id?'act':'')+'" onclick="window._rtab=\''+t2.id+'\';renderPage()">'+t2.l+'</button>';}).join('')+'</div>';
   var i,all=[],tot=0;
   if(tab==='daybook'){
@@ -6881,6 +7143,38 @@ function pgRep(){
       );
     }
   }
+  else if(tab==='archived'){
+    var archFys = Object.keys(D.archivedYears||{}).sort();
+    if(archFys.length===0){
+      h += '<div class="al ali">No years archived yet. Archive a locked financial year from <b>Data → Audit Lock</b> to see it here, with all its Sales/Purchases/Expenses still fully viewable and downloadable.</div>';
+    } else {
+      var selArchFy = window._archViewFy || archFys[0];
+      h += '<div class="fg"><label>Select Archived Year</label><select onchange="window._archViewFy=this.value;renderPage()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
+        archFys.map(function(f){return '<option value="'+f+'"'+(f===selArchFy?' selected':'')+'>'+f+'</option>';}).join('')+
+        '</select></div>';
+      var arch = D.archivedYears[selArchFy];
+      if(arch){
+        h += card('Archived: '+selArchFy+' (archived on '+arch.archivedOn+')',
+          '<div class="kg">'+
+          '<div class="ki"><div class="kl">Sales</div><div class="kv">'+fc(arch.summary.sales)+'</div></div>'+
+          '<div class="ki"><div class="kl">Purchases</div><div class="kv">'+fc(arch.summary.purchases)+'</div></div>'+
+          '<div class="ki"><div class="kl">Expenses</div><div class="kv">'+fc(arch.summary.expenses)+'</div></div>'+
+          '<div class="ki"><div class="kl">Net Profit</div><div class="kv" style="color:'+(arch.summary.netProfit>=0?'#2E7D32':'#C62828')+'">'+fc(arch.summary.netProfit)+'</div></div>'+
+          '</div>'
+        );
+        h += card('Archived Sales ('+arch.sales.length+' entries)',
+          tbl([{l:'Date',k:'date'},{l:'Customer',k:'customer'},{l:'Item',k:'itemName'},{l:'Amount',r:1,fn:function(r){return fc(r.totalAmount);}}], arch.sales)+
+          '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print / Download','window.print()','#546E7A')+'</div>'
+        );
+        h += card('Archived Purchases ('+arch.purchases.length+' entries)',
+          tbl([{l:'Date',k:'date'},{l:'Supplier',k:'supplier'},{l:'Item',k:'itemName'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}}], arch.purchases)
+        );
+        h += card('Archived Expenses ('+arch.expenses.length+' entries)',
+          tbl([{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}}], arch.expenses)
+        );
+      }
+    }
+  }
   return h;
 }
 function pgDat(){
@@ -6894,6 +7188,7 @@ function pgDat(){
   if(showTrial) h+='<button class="'+(tab==='trial'?'act':'')+'" onclick="window._dtab=\'trial\';renderPage()">Trial Balance</button>';
   if(showPrior) h+='<button class="'+(tab==='prior'?'act':'')+'" onclick="window._dtab=\'prior\';renderPage()">Prior Period P&amp;L</button>';
   if(showOpeningOld) h+='<button class="'+(tab==='opening'?'act':'')+'" onclick="window._dtab=\'opening\';renderPage()">Opening Balances (Old)</button>';
+  h+='<button class="'+(tab==='auditlock'?'act':'')+'" onclick="window._dtab=\'auditlock\';renderPage()">Audit Lock</button>';
   h+='</div>';
   if(isNew && tab==='overview' && !D.tbPosted && (!D.trialBalance || D.trialBalance.length===0)){
     h+='<div class="al ali"><div class="alt">New Business Setup</div><p>Since this is a new business, you don\'t need a Trial Balance. Just go to <b>Capital/Loans → Capital</b> and enter your <b>Initial Capital</b> (how much you\'re starting with, and whether it\'s in Cash or Bank). Then start recording your Sales, Purchases, and Expenses as they happen.</p><p style="margin-top:6px">If you do have prior balances to enter later (e.g. you took a loan before starting, or have opening stock), change "Business Stage" to "Existing business" in <b>Profile</b> to access Trial Balance.</p></div>';
@@ -6908,6 +7203,10 @@ function pgDat(){
   }
   if(tab==='opening' && showOpeningOld){
     h+=pgOpening();
+    return h;
+  }
+  if(tab==='auditlock'){
+    h+=pgAuditLock();
     return h;
   }
   var stats=[['Inventory',D.inventory.length],['Purchases',D.purchases.length],['Sales',D.sales.length],['Expenses',D.expenses.length],['Cash/Bank Entries',D.cashBook.length],['Loans',D.loans.length],['Debtors',D.debtors.length],['Creditors',D.creditors.length]];
@@ -7790,6 +8089,8 @@ function restoreAdvance(advanceId, amount, type, category, party, originalRecord
   });
 }
 function deleteSale(id){
+  var _s0=D.sales.find(function(x){return x.id===id;});
+  if(_s0 && blockIfAuditLocked(_s0.date,'delete this sale')) return;
   confirmDialog('Delete this sale? Stock and balances will be reversed.', function(){
     var idx=-1,i;for(i=0;i<D.sales.length;i++)if(D.sales[i].id===id){idx=i;break;}
     if(idx<0)return;
@@ -7816,6 +8117,7 @@ function deleteSale(id){
 function editSaleEntry(id){
   var s=D.sales.find(function(x){return x.id===id;});
   if(!s) return;
+  if(blockIfAuditLocked(s.date,'edit this sale')) return;
   confirmDialog('Edit this sale?\n\nItem: '+s.itemName+'\nDate: '+s.date+'\nQty: '+s.qty+' | Amount: '+fc(s.totalAmount||0)+'\n\nStock will be reversed temporarily.',
     function(){ window._editSaleId=id; renderPage(); go('sales'); });
 }
@@ -7890,6 +8192,8 @@ function saveEditSale(id){
 
 // ===== PURCHASE =====
 function deletePurchase(id){
+  var _p0=D.purchases.find(function(x){return x.id===id;});
+  if(_p0 && blockIfAuditLocked(_p0.date,'delete this purchase')) return;
   confirmDialog('Delete this purchase? Stock and balances will be reversed (average cost may shift).', function(){
     var idx=-1,i;for(i=0;i<D.purchases.length;i++)if(D.purchases[i].id===id){idx=i;break;}
     if(idx<0)return;
@@ -7918,6 +8222,8 @@ function deletePurchase(id){
   });
 }
 function editPurchaseEntry(id){
+  var _p1=D.purchases.find(function(x){return x.id===id;});
+  if(_p1 && blockIfAuditLocked(_p1.date,'edit this purchase')) return;
   var p=D.purchases.find(function(x){return x.id===id;});
   if(!p) return;
   confirmDialog('Edit this purchase?\n\nItem: '+p.itemName+'\nDate: '+p.date+'\nQty: '+p.qty+' | Amount: '+fc(p.amount||0)+'\n\nStock will be reversed temporarily.',
@@ -7989,6 +8295,8 @@ function saveEditPurchase(id){
 
 // ===== EXPENSES =====
 function deleteExpense(id){
+  var _e0=D.expenses.find(function(x){return x.id===id;});
+  if(_e0 && blockIfAuditLocked(_e0.date,'delete this expense')) return;
   confirmDialog('Delete this expense? Balance will be reversed.', function(){
     var idx=-1,i;for(i=0;i<D.expenses.length;i++)if(D.expenses[i].id===id){idx=i;break;}
     if(idx<0)return;
@@ -8003,6 +8311,8 @@ function deleteExpense(id){
   });
 }
 function editExpenseEntry(id){
+  var _e1=D.expenses.find(function(x){return x.id===id;});
+  if(_e1 && blockIfAuditLocked(_e1.date,'edit this expense')) return;
   var e=D.expenses.find(function(x){return x.id===id;});
   if(!e) return;
   confirmDialog('Edit this expense?\n\nCategory: '+(e.category||'')+' | Date: '+e.date+'\nAmount: '+fc(e.amount||0),
@@ -15254,7 +15564,7 @@ async function loadFullApp() {
   var saved=await ldAsync();
   // Use demo data if no real business data saved yet (businessName is empty)
   if(!saved.profile.businessName||saved.profile.businessName===''){
-    D=JSON.parse(JSON.stringify(_DEMO_DATA));
+    D=migrateData(JSON.parse(JSON.stringify(_DEMO_DATA)));
     D.profile.businessType=BIZ_TYPE;
   } else {
     D=migrateData(saved);
@@ -15378,6 +15688,14 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"How do I safely delete all my data?", tags:["delete all data","clear all data","danger zone","reset app data"], diag:false,
+ a:"Go to <b>Data</b> tab → scroll to the red <b>DANGER ZONE</b> → it lists exactly what gets erased (all sales, purchases, expenses, inventory, debtors, creditors, loans, fixed assets, drawings, capital, profile) → tap <b>Delete All Data</b> → type <b>DELETE</b> to confirm (the button stays disabled until you type it exactly). Back up first via Download Backup if there is any chance you will need this data again — this cannot be undone."},
+{q:"How to rectify entries before an audit, and prevent changes after?", tags:["audit lock","lock financial year","prevent editing after audit","rectify entries before audit","post audit no changes"], diag:false,
+ a:"Before your books are audited, you can freely edit or delete any Sale, Purchase or Expense as normal — there is no restriction. Once your auditor signs off a year, go to <b>Data → Audit Lock</b> → find that financial year → tap <b>Lock</b> and type <b>LOCK</b> to confirm. After locking, editing or deleting anything dated in that year is blocked with a clear message, so the books stay exactly as finalized. If a genuine correction is truly needed later, unlock the year first (a separate deliberate confirmation), make the fix, then lock it again."},
+{q:"How to archive a previous year and carry forward the closing balance as opening balance?", tags:["archive previous year","closing balance to opening balance","start new financial year","year end closing","carry forward balance"], diag:false,
+ a:"Go to <b>Data → Audit Lock</b> → a year must be <b>locked</b> first (audited) before it can be archived → tap <b>Archive [Year]</b> → review the summary shown (that year's Net Profit, and confirmation your Balance Sheet total will not change) → confirm. That year's Sales/Purchases/Expenses/Drawings/Cash entries move into an archived bucket, and their combined effect is folded into your carried-forward Opening Balance — exactly like a real year-end close. Nothing is deleted: view or download the archived year anytime via <b>Reports → Archived Years</b>."},
+{q:"How to download statements of previous years?", tags:["download previous year statements","previous year ledger","archived year download","past year account statement"], diag:false,
+ a:"If the year has not been archived yet, it is still part of your normal data — go to <b>Reports → Account Statements</b> as usual, any account shows its full history. If the year has been archived, go to <b>Reports → Archived Years</b> instead → select the year → view/print its Sales, Purchases and Expenses in full, with the same Share/Print options."},
 {q:"How to upload a full year bank statement month by month for reconciliation?", a:"Go to <b>Bank Recon</b> &rarr; upload your first month's statement (CSV/Excel/PDF) &rarr; then just upload the next month's file the same way &mdash; it automatically adds to the same reconciliation instead of replacing it, and skips any duplicate transactions if you accidentally re-upload a month. Keep going month by month to build up the full year. The <b>Statements loaded</b> list shows every file you've added so far, and <b>🗑 Clear All &amp; Start Fresh</b> resets it when you want to begin a new reconciliation.",tags:["upload full year statement","month by month reconciliation","multiple bank statements","accumulate statements"]},
 {q:"My full year data import isn't saving / data disappears after closing the app", a:"This is fixed. Earlier, large imports (a full year of transactions) could silently fail to save because the old storage had a small size limit (~5-10MB) that a full year of data can exceed. The app now saves to a much larger, more reliable storage (IndexedDB) with no realistic size limit, and any existing data is automatically carried over the first time you open the updated app &mdash; nothing is lost. If you still see a save warning, it means your device's storage itself is full or blocked (e.g. private/incognito mode) &mdash; free up space or try a normal browser window, and back up via <b>Data &rarr; Download Backup</b> regularly either way.",tags:["full year not saving","data disappears","import not working","storage full","data lost after closing"]},
 {q:"Is my Term Loan affordable? What does DSCR mean?", a:"Go to <b>Bank Loan Assessment &rarr; DSCR</b> tab. DSCR (Debt Service Coverage Ratio) measures whether your business's cash accrual can comfortably cover your Term Loan EMI + CC interest each year &mdash; banks generally want DSCR above 1.5&ndash;2.0. This tab shows your actual computed DSCR for both projected years with a clear ✅ Viable / ⚠️ Review verdict and the reasons behind it, based on your real Sales, Expenses, CC and Term Loan figures entered in Loan Details.",tags:["dscr","term loan viability","is loan affordable","debt service coverage ratio","loan assessment viability"]},
