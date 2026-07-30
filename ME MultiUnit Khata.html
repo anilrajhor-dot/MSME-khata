@@ -13117,13 +13117,20 @@ var BANK_RATIO_ROWS = [
   ]}
 ];
 function pgLABankRatios(la2){
-  var h = '<div class="al ali"><div class="alt">Bank Ratios (CMA-style Credit Appraisal)</div><p>Standard bank credit appraisal ratios — Liquidity, Leverage, Coverage, Solvency, Profitability, Turnover. Columns show whichever years you have data for: Historical Actuals (enter in the Historical Data tab), the current year Estimate (from your live recorded data), and the two Projected years (from the Projections you\'ve set up in Loan Details).</p></div>';
+  var h = '<div class="al ali"><div class="alt">Bank Ratios (CMA-style Credit Appraisal)</div><p>Standard bank credit appraisal ratios — Liquidity, Leverage, Coverage, Solvency, Profitability, Turnover. Columns show whichever years you have data for: Historical Actuals (auto-computed from your recorded transactions, or edited/saved in the Historical Data tab), the current year Estimate (from your live recorded data), and the two Projected years (from the Projections you\'ve set up in Loan Details).</p></div>';
 
   var cols = [];
-  var histN2 = D.historicalActuals && D.historicalActuals.yearN2;
-  var histN1 = D.historicalActuals && D.historicalActuals.yearN1;
-  if(histN2) cols.push({label:(histN2.label||'Actual')+'<br><small>Actual</small>', ratios:computeBankRatios(histN2)});
-  if(histN1) cols.push({label:(histN1.label||'Actual')+'<br><small>Actual</small>', ratios:computeBankRatios(histN1)});
+  var currentFY = getFYForDate(td());
+  var fyLabels = {yearN2: shiftFY(currentFY,-2), yearN1: shiftFY(currentFY,-1)};
+  var histN2 = (D.historicalActuals && D.historicalActuals.yearN2) || computeHistoricalFYFromLiveData(fyLabels.yearN2);
+  var histN1 = (D.historicalActuals && D.historicalActuals.yearN1) || computeHistoricalFYFromLiveData(fyLabels.yearN1);
+  var n2Saved = !!(D.historicalActuals && D.historicalActuals.yearN2);
+  var n1Saved = !!(D.historicalActuals && D.historicalActuals.yearN1);
+  if(histN2) cols.push({label:(histN2.label||fyLabels.yearN2)+'<br><small>Actual'+(n2Saved?'':' (auto)')+'</small>', ratios:computeBankRatios(histN2)});
+  if(histN1) cols.push({label:(histN1.label||fyLabels.yearN1)+'<br><small>Actual'+(n1Saved?'':' (auto)')+'</small>', ratios:computeBankRatios(histN1)});
+  if((histN2 && !n2Saved) || (histN1 && !n1Saved)){
+    h += '<div class="al ali" style="margin-top:-4px;margin-bottom:8px">Actual year(s) marked "(auto)" are calculated live from your transactions but not yet reviewed/saved — visit <b>Historical Data</b> tab to review, adjust any Balance Sheet fields, and Save for a permanent record.</div>';
+  }
 
   if(la2.s1<=0){
     h += '<div class="al alw">Enter Loan Details (CC/TL amounts, Sales Growth %) and tap Save & Calculate to see the Estimate and Projected columns.</div>';
@@ -14196,12 +14203,20 @@ function pgCFS() {
   // because Capital + Loan receipts in Financing Activities ARE the opening balance
   // For EXISTING business (TB posted): opening cash from Trial Balance
   var openCash = 0;
+  var _hasTBCashBank = false;
   if(D.tbPosted && D.trialBalance && D.trialBalance.length>0){
     // Existing business — opening cash+bank from Trial Balance
     (D.trialBalance||[]).forEach(function(r){
-      if(r.head==='cash'&&r.side==='dr') openCash += (+r.amount||0);
-      if(r.head==='bank'&&r.side==='dr') openCash += (+r.amount||0);
+      if(r.head==='cash'&&r.side==='dr'){ openCash += (+r.amount||0); _hasTBCashBank = true; }
+      if(r.head==='bank'&&r.side==='dr'){ openCash += (+r.amount||0); _hasTBCashBank = true; }
     });
+  }
+  if(!_hasTBCashBank && D.opening && D.opening.takenOn){
+    // Fall back to the simpler Opening Balance fields (Data → Opening Balances), which many
+    // existing-business setups use instead of a full Trial Balance. Guarded by takenOn being
+    // set, so a genuinely new business (Capital/Loan receipts ARE the opening balance, via
+    // Financing Activities below) isn't affected.
+    openCash = (+D.opening.cash||0) + (+D.opening.bank||0);
   }
   // Use getBalances() directly — pure cash+bank only (CC/OD excluded)
   var balances = getBalances();
