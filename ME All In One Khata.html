@@ -13345,8 +13345,12 @@ function pgLABankRatios(la2){
     cols.push({label:'Year 2<br><small>Proj</small>', ratios:computeBankRatios(getProjectedYearRatioData(la2,2))});
   }
 
+  var creditScoreNote = '<div class="al ali">🎯 Along with these ratios, banks also weigh the proprietor/partners\' personal credit history. You (or partners) can check your CIBIL credit score for free once a year, officially, at <a href="https://www.cibil.com/freecibilscore" target="_blank" style="color:#1565C0;font-weight:700">cibil.com/freecibilscore</a> — the only official free source under RBI rules. Third-party "free" score sites are not required and often exist to sell you products.</div>';
+  var formulaNote = '<div class="al ali">📐 Want to know how each ratio is calculated? Ask the Help chat (e.g. "DSCR formula", "debt equity ratio formula") for the exact formulas.</div>';
+
   if(cols.length===0){
     h += '<div class="al alw">No data available yet. Enter Historical Data and/or Loan Details first.</div>';
+    h += creditScoreNote + formulaNote;
     return h;
   }
 
@@ -13368,7 +13372,7 @@ function pgLABankRatios(la2){
   });
 
   h += '<div class="al ali">💡 For IRR (only required by most banks for proposals above ₹50 Cr), see the dedicated <b>BEP / IRR</b> tab.</div>';
-  h += '<div class="al ali">🎯 Along with these ratios, banks also weigh the proprietor/partners\' personal credit history. You (or partners) can check your CIBIL credit score for free once a year, officially, at <a href="https://www.cibil.com/freecibilscore" target="_blank" style="color:#1565C0;font-weight:700">cibil.com/freecibilscore</a> — the only official free source under RBI rules. Third-party "free" score sites are not required and often exist to sell you products.</div>';
+  h += creditScoreNote + formulaNote;
   h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print Bank Ratios','window.print()','#546E7A')+'</div>';
   return h;
 }
