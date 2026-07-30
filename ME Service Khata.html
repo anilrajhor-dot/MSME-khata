@@ -897,6 +897,39 @@ function expensesPayableBalances(){
 
 // ===== LOAN HELPERS =====
 function calcEMI(p,r,n){var m=r/1200;if(m===0)return p/n;return p*m*Math.pow(1+m,n)/(Math.pow(1+m,n)-1);}
+// Computes EMI for a loan with an optional Moratorium (grace) period at the start, where no
+// regular EMI is due. treatment='paid' means interest is serviced monthly during the moratorium
+// (principal stays unchanged); treatment='accrued' means interest is NOT paid during the
+// moratorium and instead compounds into the principal, so the post-moratorium EMI is computed on
+// this larger, capitalized principal.
+function addMonthsToDate(dateStr, months){
+  if(!dateStr || !months) return dateStr;
+  var d = new Date(dateStr+'T00:00:00');
+  d.setMonth(d.getMonth()+months);
+  return d.toISOString().slice(0,10);
+}
+function calcEMIWithMoratorium(principal, ratePct, totalTenureMonths, moratoriumMonths, treatment){
+  moratoriumMonths = Math.max(0, Math.min(moratoriumMonths||0, totalTenureMonths-1));
+  var monthlyRate = ratePct/1200;
+  var postMoratoriumTenure = totalTenureMonths - moratoriumMonths;
+  var moratoriumMonthlyInterest = principal * monthlyRate;
+  var effectivePrincipal = principal;
+  if(moratoriumMonths>0 && treatment==='accrued'){
+    effectivePrincipal = principal * Math.pow(1+monthlyRate, moratoriumMonths);
+  }
+  var emi = calcEMI(effectivePrincipal, ratePct, postMoratoriumTenure);
+  var totalMoratoriumInterestPaid = treatment==='paid' ? moratoriumMonthlyInterest*moratoriumMonths : 0;
+  var totalCapitalized = treatment==='accrued' ? (effectivePrincipal-principal) : 0;
+  return {
+    moratoriumMonths:moratoriumMonths, treatment:treatment,
+    moratoriumMonthlyInterest:moratoriumMonthlyInterest,
+    effectivePrincipal:effectivePrincipal,
+    postMoratoriumTenure:postMoratoriumTenure,
+    emi:emi,
+    totalMoratoriumInterestPaid:totalMoratoriumInterestPaid,
+    totalCapitalized:totalCapitalized
+  };
+}
 function daysBetween(d1,d2){var a=new Date(d1),b=new Date(d2);return Math.max(0,Math.round((b-a)/86400000));}
 // Provisional interest accrued since lastInterestDate, on outstandingBalance, at annual rate
 function loanAccruedInterest(loan){
@@ -3908,6 +3941,14 @@ function pgCap(){
         {l:'Bank/Lender',fn:function(r){return esc(r.bankName)+(r.accountNumber?'<div style="font-size:10px;color:#90A4AE">A/c: '+esc(r.accountNumber)+'</div>':'');}},
         {l:'Type',k:'loanType'},
         {l:'Rate%',k:'rate',r:1},
+        {l:'EMI',r:1,fn:function(r){
+          if(!r.emi) return '--';
+          var s=fc(r.emi);
+          if(r.moratoriumMonths>0){
+            s+='<div style="font-size:9px;color:#1565C0">after '+r.moratoriumMonths+'mo moratorium ('+(r.moratoriumTreatment==='accrued'?'accruing':'int. '+fc(r.moratoriumMonthlyInterest)+'/mo')+')</div>';
+          }
+          return s;
+        }},
         {l:'Outstanding',r:1,fn:function(r){
           if(r.undrawn) return '<span style="color:#FF8F00">Not drawn</span><div style="font-size:10px;color:#90A4AE">Sanctioned: '+fc(r.sanctionedAmount||0)+'</div>';
           return fc(r.outstandingBalance);
@@ -3953,6 +3994,10 @@ function pgCap(){
       inp('Loan / CC / OD Account Number (required)','l_acctnum','text','')+
       g2(inp('Loan Amount (₹)','l_a','number',0),inp('Interest Rate % p.a.','l_r','number',0))+
       g2(inp('Tenure (months, 0 if N/A)','l_t','number',0),inp('Sanction / Disbursement Date','l_d','date',td()))+
+      g2(inp('Moratorium / Grace Period (months, 0 if none)','l_morat','number',0),
+         sl('Interest During Moratorium','l_morat_treat',[{v:'paid',l:'Paid monthly (principal unchanged)'},{v:'accrued',l:'Accrued (added to principal)'}],'paid'))+
+      btn('👁 Preview EMI with Moratorium','previewLoanMoratorium()','#546E7A')+
+      '<div id="moratPreview" style="margin-top:8px"></div>'+
       inp('Outstanding Balance (₹) — total amount CURRENTLY OWED on this loan (for CC/OD, amount drawn so far, NOT the limit)','l_ob','number',0)+
       inp('Sanctioned Limit (₹) — only for Cash Credit / Overdraft','l_lim','number',0)+
       '<div id="ccodPreview"></div>'+
@@ -4414,6 +4459,22 @@ function deleteLoan(id){
     sv();renderPage();toast('Loan and all related entries removed.');
   });
 }
+function previewLoanMoratorium(){
+  var a=gvn('l_a'), r=gvn('l_r'), n=gvn('l_t'), morat=gvn('l_morat'), treat=gv('l_morat_treat')||'paid';
+  var el=document.getElementById('moratPreview');
+  if(!el) return;
+  if(!a || !r || !n){ el.innerHTML='<div class="al alw">Enter Loan Amount, Interest Rate and Tenure first.</div>'; return; }
+  if(!morat || morat<=0){ el.innerHTML='<div class="al ali">No moratorium — EMI: '+fc(calcEMI(a,r,n))+'/month for '+n+' months.</div>'; return; }
+  var res = calcEMIWithMoratorium(a, r, n, morat, treat);
+  var msg = '<div class="al ali"><b>During moratorium (first '+res.moratoriumMonths+' months):</b><br>';
+  if(treat==='paid'){
+    msg += 'Pay interest-only: '+fc(res.moratoriumMonthlyInterest)+'/month (principal stays at '+fc(a)+').<br>';
+  } else {
+    msg += 'No payment due — interest accrues and is added to principal.<br>Principal grows from '+fc(a)+' to '+fc(res.effectivePrincipal)+' by the end of the moratorium.<br>';
+  }
+  msg += '<br><b>After moratorium (remaining '+res.postMoratoriumTenure+' months):</b><br>Regular EMI: <b>'+fc(res.emi)+'</b>/month.</div>';
+  el.innerHTML = msg;
+}
 function addLoan(){
   var b=gv('l_b'),a=gvn('l_a'),lt=gv('l_type');
   if(!b){toast('Enter Lender Name','e');return;}
@@ -4421,7 +4482,10 @@ function addLoan(){
   if(!isCcOd && !a){toast('Enter Loan Amount','e');return;}
   var acctnum=gv('l_acctnum').trim();
   if(!acctnum){toast('Enter the Loan/CC/OD Account Number','e');return;}
-  var r=gvn('l_r'),n=isCcOd?0:gvn('l_t'),e=(!isCcOd && r && n)?calcEMI(a,r,n):0;
+  var r=gvn('l_r'),n=isCcOd?0:gvn('l_t');
+  var moratMonths=isCcOd?0:gvn('l_morat'), moratTreat=gv('l_morat_treat')||'paid';
+  var moratResult = (!isCcOd && r && n && moratMonths>0) ? calcEMIWithMoratorium(a,r,n,moratMonths,moratTreat) : null;
+  var e=(!isCcOd && r && n) ? (moratResult ? moratResult.emi : calcEMI(a,r,n)) : 0;
   var obRaw=gv('l_ob');
   var ob;
   if(isCcOd){
@@ -4446,6 +4510,10 @@ function addLoan(){
     outstandingBalance: undrawn ? 0 : ob,
     sanctionedAmount: ob,
     undrawn: undrawn,
+    moratoriumMonths: moratMonths||0,
+    moratoriumTreatment: moratTreat,
+    moratoriumMonthlyInterest: moratResult ? +moratResult.moratoriumMonthlyInterest.toFixed(2) : 0,
+    moratoriumEndDate: moratResult ? addMonthsToDate(gv('l_d')||td(), moratMonths) : null,
     sanctionedLimit:isCcOd?lim:0,lastInterestDate:gv('l_d')||td(),payments:[]};
   D.loans.push(loan);
   if(disb!=='none' && recv>0){
@@ -6432,10 +6500,75 @@ function renderStmtInterestResult(r){
 }
 
 function pgEMI(){
-  return card('EMI Calculator (What-if)',g2(inp('Loan Amount','em_p','number',100000),inp('Interest %','em_r','number',12))+g2(inp('Months','em_t','number',36),inp('Prepay Month#','em_pm','number',0))+inp('Prepay Amount','em_pa','number',0)+btn('Calculate EMI','calcEMI2()')+' '+btn('Full Schedule','genSched()','#546E7A')+'<div id="emi_res" style="margin-top:10px"></div><div id="emi_sc" style="margin-top:10px"></div>');
+  return card('EMI Calculator (What-if)',
+    g2(inp('Loan Amount','em_p','number',100000),inp('Interest %','em_r','number',12))+
+    g2(inp('Months','em_t','number',36),inp('Prepay Month#','em_pm','number',0))+
+    inp('Prepay Amount','em_pa','number',0)+
+    g2(inp('Moratorium / Grace Period (months, 0 if none)','em_morat','number',0),
+       sl('Interest During Moratorium','em_morat_treat',[{v:'paid',l:'Paid monthly (principal unchanged)'},{v:'accrued',l:'Accrued (added to principal)'}],'paid'))+
+    btn('Calculate EMI','calcEMI2()')+' '+btn('Full Schedule','genSched()','#546E7A')+
+    '<div id="emi_res" style="margin-top:10px"></div><div id="emi_sc" style="margin-top:10px"></div>');
 }
-function calcEMI2(){var p=gvn('em_p'),r=gvn('em_r'),n=gvn('em_t');if(!p||!n)return;var e=calcEMI(p,r,n),tot=e*n;var el=document.getElementById('emi_res');if(el)el.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-top:8px"><div style="background:#E8F5E9;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">Monthly EMI</div><div style="font-size:16px;font-weight:800;color:#2E7D32">'+fc(e)+'</div></div><div style="background:#FFEBEE;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">Total Interest</div><div style="font-size:16px;font-weight:800;color:#C62828">'+fc(tot-p)+'</div></div><div style="background:#E8EAF6;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">Total Payment</div><div style="font-size:16px;font-weight:800;color:#5C6BC0">'+fc(tot)+'</div></div></div>';}
-function genSched(){calcEMI2();var p=gvn('em_p'),r=gvn('em_r'),n=gvn('em_t'),pm=gvn('em_pm'),pa=gvn('em_pa'),m=r/1200,em2=m?p*m*Math.pow(1+m,n)/(Math.pow(1+m,n)-1):p/n,bal=p,rows=[],mo;for(mo=1;mo<=n;mo++){var it=bal*m,pr=em2-it,ex=0;if(mo===pm&&pa>0)ex=Math.min(pa,bal-pr);bal=Math.max(0,bal-pr-ex);rows.push({m:mo,em:em2,it:it,pr:pr,ex:ex,bal:bal});if(bal<=0)break;}var sc2=document.getElementById('emi_sc');if(sc2)sc2.innerHTML=tbl([{l:'#',fn:function(r){return r.m;}},{l:'EMI',r:1,fn:function(r){return fc(r.em);}},{l:'Principal',r:1,fn:function(r){return fc(r.pr);}},{l:'Interest',r:1,fn:function(r){return fc(r.it);}},{l:'Balance',r:1,fn:function(r){return fc(r.bal);}}],rows);}
+function calcEMI2(){
+  var p=gvn('em_p'),r=gvn('em_r'),n=gvn('em_t'),morat=gvn('em_morat'),treat=gv('em_morat_treat')||'paid';
+  if(!p||!n)return;
+  var el=document.getElementById('emi_res');
+  if(!el) return;
+  if(morat>0){
+    var res=calcEMIWithMoratorium(p,r,n,morat,treat);
+    var moratTotal = treat==='paid' ? res.totalMoratoriumInterestPaid : 0;
+    var postTotal = res.emi*res.postMoratoriumTenure;
+    var totalPayment = moratTotal + postTotal;
+    var totalInterest = totalPayment - p;
+    el.innerHTML='<div class="al ali" style="margin-bottom:8px">'+
+      '<b>Moratorium (first '+res.moratoriumMonths+' months):</b> '+
+      (treat==='paid' ? 'Pay '+fc(res.moratoriumMonthlyInterest)+'/month interest-only.' : 'No payment — principal grows to '+fc(res.effectivePrincipal)+' by the end.')+
+      '<br><b>After moratorium ('+res.postMoratoriumTenure+' months):</b> EMI of '+fc(res.emi)+'/month.</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-top:8px">'+
+      '<div style="background:#E8F5E9;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">EMI (post-moratorium)</div><div style="font-size:16px;font-weight:800;color:#2E7D32">'+fc(res.emi)+'</div></div>'+
+      '<div style="background:#FFEBEE;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">Total Interest</div><div style="font-size:16px;font-weight:800;color:#C62828">'+fc(totalInterest)+'</div></div>'+
+      '<div style="background:#E8EAF6;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">Total Payment</div><div style="font-size:16px;font-weight:800;color:#5C6BC0">'+fc(totalPayment)+'</div></div>'+
+      '</div>';
+    return;
+  }
+  var e=calcEMI(p,r,n),tot=e*n;
+  el.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-top:8px"><div style="background:#E8F5E9;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">Monthly EMI</div><div style="font-size:16px;font-weight:800;color:#2E7D32">'+fc(e)+'</div></div><div style="background:#FFEBEE;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">Total Interest</div><div style="font-size:16px;font-weight:800;color:#C62828">'+fc(tot-p)+'</div></div><div style="background:#E8EAF6;border-radius:8px;padding:9px"><div style="font-size:10px;color:#546E7A">Total Payment</div><div style="font-size:16px;font-weight:800;color:#5C6BC0">'+fc(tot)+'</div></div></div>';
+}
+function genSched(){
+  calcEMI2();
+  var p=gvn('em_p'),r=gvn('em_r'),n=gvn('em_t'),pm=gvn('em_pm'),pa=gvn('em_pa'),morat=gvn('em_morat'),treat=gv('em_morat_treat')||'paid';
+  var m=r/1200,rows=[],mo;
+  var sc2=document.getElementById('emi_sc');
+  if(!sc2) return;
+  var effectivePrincipal=p, postMoratTenure=n, moratMonths=0;
+  if(morat>0){
+    var res=calcEMIWithMoratorium(p,r,n,morat,treat);
+    moratMonths=res.moratoriumMonths; effectivePrincipal=res.effectivePrincipal; postMoratTenure=res.postMoratoriumTenure;
+    for(mo=1;mo<=moratMonths;mo++){
+      if(treat==='paid'){
+        rows.push({m:'M'+mo,em:res.moratoriumMonthlyInterest,it:res.moratoriumMonthlyInterest,pr:0,ex:0,bal:p,moratorium:true});
+      } else {
+        var accruedBal = p*Math.pow(1+m,mo);
+        rows.push({m:'M'+mo,em:0,it:accruedBal-(mo>1?p*Math.pow(1+m,mo-1):p),pr:0,ex:0,bal:accruedBal,moratorium:true});
+      }
+    }
+  }
+  var em2=m?effectivePrincipal*m*Math.pow(1+m,postMoratTenure)/(Math.pow(1+m,postMoratTenure)-1):effectivePrincipal/postMoratTenure,bal=effectivePrincipal;
+  for(mo=1;mo<=postMoratTenure;mo++){
+    var it=bal*m,pr=em2-it,ex=0;
+    if(mo===pm&&pa>0)ex=Math.min(pa,bal-pr);
+    bal=Math.max(0,bal-pr-ex);
+    rows.push({m:mo,em:em2,it:it,pr:pr,ex:ex,bal:bal,moratorium:false});
+    if(bal<=0)break;
+  }
+  sc2.innerHTML=tbl([
+    {l:'#',fn:function(r){return r.moratorium?'<span style="color:#1565C0;font-weight:700">'+r.m+'</span>':r.m;}},
+    {l:'EMI',r:1,fn:function(r){return r.moratorium&&!r.em?'—':fc(r.em);}},
+    {l:'Principal',r:1,fn:function(r){return r.moratorium?'—':fc(r.pr);}},
+    {l:'Interest',r:1,fn:function(r){return fc(r.it);}},
+    {l:'Balance',r:1,fn:function(r){return fc(r.bal);}}
+  ],rows);
+}
 // ===== OPENING BALANCE / TRIAL BALANCE SETUP =====
 function pgOpening(){
   var h='<div class="al alw"><div class="alt">This page has moved</div>'+
@@ -16050,6 +16183,8 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"How to calculate EMI with a moratorium (grace) period?", tags:["moratorium","grace period loan","moratorium emi","emi after moratorium","interest during moratorium"], diag:false,
+ a:"Both <b>Capital/Loans → Add Loan</b> and the <b>EMI Calculator</b> (Bank Calculators) now have a Moratorium field. Enter the grace period in months, and choose whether interest during that period is <b>Paid monthly</b> (you pay interest only, principal stays the same, EMI starts fresh after) or <b>Accrued</b> (no payment during the moratorium, interest compounds into the principal, so the EMI after moratorium is higher). Tap Preview (when adding a loan) or Full Schedule (in the calculator) to see the month-by-month breakdown before committing."},
 {q:"How to backup and restore a large full-year backup?", a:"Go to <b>Data → Download Backup</b> → tap the blue <b>Download as File</b> button (not the copy-paste option, which struggles with large data) → it saves a real .json file to your device, however large. To restore it later, use <b>Import Backup File</b> and select that file — there is no practical size limit; a full year of daily entries imports in a few seconds.",tags:["backup large data","restore large backup","full year backup","backup file size limit","download backup file"], diag:false},
 {q:"How do I safely delete all my data?", tags:["delete all data","clear all data","danger zone","reset app data"], diag:false,
  a:"Go to <b>Data</b> tab → scroll to the red <b>DANGER ZONE</b> → it lists exactly what gets erased (all sales, purchases, expenses, inventory, debtors, creditors, loans, fixed assets, drawings, capital, profile) → tap <b>Delete All Data</b> → type <b>DELETE</b> to confirm (the button stays disabled until you type it exactly). Back up first via Download Backup if there is any chance you will need this data again — this cannot be undone."},
