@@ -1878,20 +1878,7 @@ function renderDemo(){
         '</div>'+
         '</div>'+
       '</div>';
-    }).join('')+
-    '<div style="border:2px solid #C62828;border-radius:10px;padding:12px;margin-top:14px;background:#FFEBEE">'+
-      '<div style="font-size:13px;font-weight:800;color:#C62828;margin-bottom:6px">⚠️ DANGER ZONE</div>'+
-      '<div style="font-size:11px;color:#B71C1C;line-height:1.6;margin-bottom:10px">'+
-        '<b>Clear All Data</b> will permanently erase, with no way to undo:<br>'+
-        '• All Sales, Purchase and Expense entries<br>'+
-        '• All Inventory, Debtors and Creditors records<br>'+
-        '• All Loans, Fixed Assets and Drawings<br>'+
-        '• All Capital and Opening Balance entries<br>'+
-        '• Your Business Profile settings<br><br>'+
-        '<b>This cannot be reversed.</b> Take a backup first via <b>Download Backup</b> above if there is any chance you might need this data later.'+
-      '</div>'+
-      '<button onclick="clearAllData()" style="width:100%;padding:10px;background:#C62828;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🗑️ Delete All Data — Start Fresh</button>'+
-    '</div>'
+    }).join('')
   );
 }
 
@@ -3269,6 +3256,7 @@ function pgAIAdvisor(){
      'Stock turnover ratio',
      'What is my monthly CC & TL interest?',
      'Is my term loan affordable (DSCR)?',
+     'How healthy are my bank credit ratios?',
     ].map(function(q){
       return '<button onclick="askAI(\''+q.replace(/'/g,"\\'")+'\')" style="text-align:left;padding:7px 8px;background:#F3E5F5;border:1px solid #CE93D8;border-radius:8px;font-size:11px;color:#4A148C;cursor:pointer;line-height:1.3">'+q+'</button>';
     }).join('')+
@@ -3339,6 +3327,7 @@ function askAI(quickQ){
   }
 
   var systemPrompt='You are a friendly, practical business advisor for Indian MSME businesses. '+
+    'If the user asks what a financial/bank ratio means or how it is calculated (e.g. Current Ratio, DSCR, ICR, TOL/TNW, ROCE, FACR etc.), explain the formula clearly using standard definitions — the full set is also in Help (search "formula") and in Bank Loan Assessment -> Bank Ratios tab. If relevant to a loan discussion, you can mention that the proprietor/partners can check their personal CIBIL credit score for free once a year at cibil.com/freecibilscore (the only official free source under RBI rules) — do not recommend third-party "free" score sites. '+
     'You have access to the following REAL data from '+esc(D.profile.businessName||'this business')+':\n\n'+
     'Business: '+esc(D.profile.businessName)+' | Type: '+esc(D.profile.businessType)+' | Constitution: '+esc(D.profile.constitution)+'\n'+
     'Financial Summary:\n'+
@@ -7360,10 +7349,21 @@ function pgDat(){
   btn('⬆ Paste Backup to Restore','showImportModal()','#546E7A')+
   '<br><br>'+
   '<button onclick="triggerFileImport()" class="btn bfull" style="background:#546E7A;cursor:pointer">⬆ Import Backup File</button>'+
-  '<input type="file" id="json_file_inp" accept=".json,application/json" style="display:none;position:absolute;left:-9999px" onchange="impDat(event)">'+
-  '<br>'+
-  btn('🗑 Clear All Data','clrAll()','#C62828')
+  '<input type="file" id="json_file_inp" accept=".json,application/json" style="display:none;position:absolute;left:-9999px" onchange="impDat(event)">'
 );
+  h+='<div style="border:2px solid #C62828;border-radius:10px;padding:12px;margin-bottom:14px;background:#FFEBEE">'+
+      '<div style="font-size:13px;font-weight:800;color:#C62828;margin-bottom:6px">⚠️ DANGER ZONE</div>'+
+      '<div style="font-size:11px;color:#B71C1C;line-height:1.6;margin-bottom:10px">'+
+        '<b>Clear All Data</b> will permanently erase, with no way to undo:<br>'+
+        '• All Sales, Purchase and Expense entries<br>'+
+        '• All Inventory, Debtors and Creditors records<br>'+
+        '• All Loans, Fixed Assets and Drawings<br>'+
+        '• All Capital and Opening Balance entries<br>'+
+        '• Your Business Profile settings<br><br>'+
+        '<b>This cannot be reversed.</b> Take a backup first via <b>Download Backup</b> above if there is any chance you might need this data later.'+
+      '</div>'+
+      '<button onclick="clearAllData()" style="width:100%;padding:10px;background:#C62828;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🗑️ Delete All Data — Start Fresh</button>'+
+    '</div>';
   h+=card('Install on Phone','<div class="al ali"><b style="font-size:12px">Android (Chrome)</b><p style="font-size:11px;margin-top:4px">Menu ⋮ → Add to Home Screen</p></div><div class="al ali"><b style="font-size:12px">iPhone (Safari)</b><p style="font-size:11px;margin-top:4px">Share ↑ → Add to Home Screen</p></div><div class="al als"><b style="font-size:12px;color:#2E7D32">✅ Works Offline</b><p style="font-size:11px;margin-top:4px">Data saved on your device</p></div>');
   return h;
 }
@@ -7754,9 +7754,9 @@ function showImportModal(){
   ta.focus();
 }
 function clrAll(){
-  confirmDialog('Clear ALL data? This cannot be undone.', function(){
-    var keepType=D.profile.businessType;D=defD();D.profile.businessType=keepType;sv();window._dtab='overview';go('dashboard');toast('All data cleared!');
-  });
+  // Redirects to the properly-protected Danger Zone flow (type-DELETE-to-confirm) — kept only
+  // so any other reference to clrAll() in the app still goes through the safe path.
+  clearAllData();
 }
 // ===== TRIAL BALANCE (for existing businesses) =====
 var TB_HEADS = [
@@ -13498,6 +13498,7 @@ function pgLABankRatios(la2){
   });
 
   h += '<div class="al ali">💡 For IRR (only required by most banks for proposals above ₹50 Cr), see the dedicated <b>BEP / IRR</b> tab.</div>';
+  h += '<div class="al ali">🎯 Along with these ratios, banks also weigh the proprietor/partners\' personal credit history. You (or partners) can check your CIBIL credit score for free once a year, officially, at <a href="https://www.cibil.com/freecibilscore" target="_blank" style="color:#1565C0;font-weight:700">cibil.com/freecibilscore</a> — the only official free source under RBI rules. Third-party "free" score sites are not required and often exist to sell you products.</div>';
   h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print Bank Ratios','window.print()','#546E7A')+'</div>';
   return h;
 }
@@ -16418,6 +16419,26 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"Where can I check my credit score for free?", tags:["free credit score","cibil score check","check credit score","free cibil check"], diag:false,
+ a:"Go to <b>Bank Loan Assessment → Bank Ratios</b> tab — there's a link at the bottom to <b>cibil.com/freecibilscore</b>, the only official free source (one free CIBIL Score & Report per calendar year, under RBI rules). Be cautious of other \"free\" credit score sites — they're not the official source and often exist to sell you loans or subscriptions. Your business ratios in this app matter for a loan proposal, but banks also weigh the proprietor/partners' personal credit score."},
+{q:"What is the formula for Current Ratio and Liquidity ratios?", tags:["current ratio formula","liquidity ratio formula","current ratio excl tl"], diag:false,
+ a:"<b>Current Ratio</b> = Current Assets ÷ Current Liabilities.<br><b>Current Ratio excl. TL instalments</b> = Current Assets ÷ (Current Liabilities − TL Instalments Due within 1 Year). The second version shows liquidity without penalising you for the portion of your term loan that's simply due for normal repayment, not a short-term liability in the working-capital sense."},
+{q:"What are the formulas for Leverage ratios (Debt/Equity, TOL/TNW, BB/TNW)?", tags:["debt equity ratio formula","tol tnw formula","bb tnw formula","atnw formula","tnw formula","leverage ratio formula"], diag:false,
+ a:"<b>TNW</b> (Tangible Net Worth) = Capital + Reserves − Intangible Assets.<br><b>ATNW</b> (Adjusted TNW) = TNW + Quasi-Capital (unsecured loans from promoters/directors, if marked as Quasi-Equity on that loan).<br><b>TOL</b> (Total Outside Liabilities) = Total Liabilities − TNW.<br><b>Debt/Equity</b> = Total Debt ÷ TNW.<br><b>Debt/Equity (quasi-equity)</b> = (Total Debt − Quasi-Capital) ÷ ATNW.<br><b>TOL/TNW</b> = TOL ÷ TNW.<br><b>TOL/TNW (quasi-equity)</b> = (TOL − Quasi-Capital) ÷ ATNW.<br><b>TOL + Contingent Liabilities/ATNW</b> = (TOL − Quasi-Capital + Contingent Liabilities) ÷ ATNW.<br><b>BB/TNW</b> and <b>BB/ATNW</b> = Bank Borrowings (Total Debt) ÷ TNW or ATNW."},
+{q:"What are the formulas for Coverage ratios (FACR, ACR, Collateral Coverage)?", tags:["facr formula","acr formula","collateral coverage formula","fixed asset coverage ratio"], diag:false,
+ a:"<b>FACR</b> (Fixed Asset Coverage Ratio) = (Net Fixed Assets + Collateral Security Value) ÷ Term Loan Outstanding. Shows how well the term loan is backed by hard assets.<br><b>ACR</b> (Asset Coverage Ratio) = Total Tangible Assets ÷ Total Outside Liabilities.<br><b>Collateral Coverage Ratio</b> = Collateral Security Value ÷ Total Debt (your bank's exposure)."},
+{q:"What are the formulas for Solvency ratios (ICR, DSCR, EBITDA/Debt)?", tags:["icr formula","dscr formula","ebitda debt formula","interest coverage ratio formula"], diag:false,
+ a:"<b>ICR</b> (Interest Coverage Ratio) = EBITDA ÷ Interest Expense.<br><b>DSCR</b> (Debt Service Coverage Ratio) = (PAT + Depreciation + Interest) ÷ (Interest + TL Instalment due that year). Shows how many times your cash generation covers what you owe the bank that year.<br><b>EBITDA/Debt %</b> = EBITDA ÷ Total Debt × 100."},
+{q:"What are the formulas for Profitability ratios (ROE, ROA, ROCE, margins)?", tags:["roe formula","roa formula","roce formula","ebit formula","ebitda formula","net profit margin formula","gross profit margin formula","interest burden ratio","tax burden ratio","financial leverage formula"], diag:false,
+ a:"<b>EBIT</b> = EBITDA − Depreciation. <b>CE</b> (Capital Employed) = TNW + Term Loan Outstanding.<br><b>EBIT/Net Sales</b> and <b>Operating Profit Margin</b> = EBIT ÷ Net Sales × 100.<br><b>EBITDA/Net Sales</b> = EBITDA ÷ Net Sales × 100.<br><b>Asset Turnover</b> and <b>Net Sales/TTA</b> = Net Sales ÷ Total Tangible Assets.<br><b>Financial Leverage</b> = Total Tangible Assets ÷ TNW.<br><b>Interest Burden Ratio</b> = PBT ÷ EBIT.<br><b>Tax Burden Ratio</b> = PAT ÷ PBT.<br><b>Return on Equity</b> = PAT ÷ TNW × 100.<br><b>Return on Assets</b> = PAT ÷ Total Assets × 100.<br><b>ROCE</b> = EBIT ÷ Capital Employed × 100.<br><b>Gross Profit Margin</b> = (Net Sales − COGS) ÷ Net Sales × 100.<br><b>Net Profit Margin</b> = PAT ÷ Net Sales × 100.<br><b>PAT/EBIT</b> = PAT ÷ EBIT."},
+{q:"What are the formulas for Turnover ratios (Inventory, Receivable, Payable, days)?", tags:["inventory turnover formula","receivable turnover formula","payable turnover formula","break even point formula","inventory days formula","receivable days formula","creditor days formula"], diag:false,
+ a:"<b>Inventory Turnover</b> = Net Sales ÷ Inventory.<br><b>Receivable Turnover</b> = Gross Sales ÷ Receivables.<br><b>Payable Turnover</b> = COGS (or RM Consumption for Manufacturing) ÷ Creditors.<br><b>Break Even Point (ratio)</b> = BEP Sales ÷ Net Sales, where BEP Sales = Fixed Costs ÷ P/V Ratio (see BEP / IRR tab for the full workings).<br><b>Inventory Days</b> = Inventory ÷ Net Sales × 365.<br><b>Receivable Days</b> = Receivables ÷ Gross Sales × 365.<br><b>Creditor Days</b> = Creditors ÷ (RM Consumption or COGS) × 365."},
+{q:"What are the formulas for Adjusted Sales ratios (RM %, Power & Fuel %, Cost of Production %)?", tags:["adjusted sales formula","rm adj sales formula","power fuel formula","cost of production formula","cost of sales formula","bank finance current assets formula"], diag:false,
+ a:"All expressed as a % of Adjusted (Net) Sales: <b>RM/Adj. Sales</b> = Raw Material Consumption ÷ Net Sales × 100. <b>Spares/Adj. Sales</b>, <b>Power & Fuel/Adj. Sales</b>, <b>Other Mfg Expenses/Adj. Sales</b> follow the same pattern with their respective figures (Manufacturing units only). <b>Cost of Production/Adj. Sales</b> = (RM + Spares + Power & Fuel + Other Mfg Expenses) ÷ Net Sales × 100. <b>Cost of Sales/Adj. Sales</b> = COGS ÷ Net Sales × 100. <b>PBT/TTA %</b> = PBT ÷ Total Tangible Assets × 100. <b>Bank Finance/Current Assets %</b> = CC/OD Utilized ÷ Current Assets × 100."},
+{q:"How to see bank credit appraisal ratios (CMA-style)?", tags:["bank ratios","cma ratios","credit appraisal ratios","liquidity ratio","leverage ratio","current ratio","debt equity ratio","tol tnw","facr","icr","roce","turnover ratio"], diag:false,
+ a:"Go to <b>Bank Loan Assessment → Bank Ratios</b> tab. Shows the full set of ratios banks use for credit appraisal — Liquidity, Leverage, Coverage, Solvency, Profitability and Turnover — across up to 5 columns: 2 Actual historical years, this year's Estimate, and 2 Projected years. Fill in Loan Details first (CC/TL amounts, Sales Growth %) and Save & Calculate to see the Estimate and Projected columns."},
+{q:"How do the Actual historical years in Bank Ratios get filled in?", tags:["historical actual years","auto fill historical data","fy actual data","bank ratios historical"], diag:false,
+ a:"Go to <b>Bank Loan Assessment → Historical Data</b> tab. If your recorded transactions cover a prior year, almost everything is <b>auto-calculated from your own entries</b> (marked 🔄) — Sales, COGS, EBITDA, Inventory, Receivables, Creditors, Total Debt, Net Worth, Fixed Assets and more — including correctly reconstructing what was outstanding at that year-end, as long as debtor receipts and loan repayments were recorded through their proper Record Receipt/Payment screens. A few fields (Contingent Liabilities, Collateral Value, Bank Finance Utilized, TL Instalments Due) have no dated record in the app, so fill those in manually if known. If your business is less than 2 years old, leave it blank until you have that year's data."},
 {q:"How to add a loan with a moratorium (grace) period?", tags:["moratorium period","grace period loan","interest during moratorium","emi after moratorium","accrued interest loan"], diag:false,
  a:"Go to <b>Capital/Loans → Loans → Add New Loan</b> → fill in the usual Amount/Rate/Tenure → set <b>Moratorium / Grace Period</b> in months → choose whether interest during that period is <b>Paid monthly</b> (you pay interest-only each month, principal stays the same) or <b>Accrued</b> (no payment during moratorium, interest compounds into the principal instead). Tap <b>👁 Preview EMI with Moratorium</b> to see exactly what happens before saving — your regular EMI (calculated on the correct principal) starts automatically after the moratorium ends. The same Moratorium option is available in the <b>EMI Calculator</b> (Bank Calculators → EMI Calc) for what-if calculations, with a full month-by-month schedule showing the moratorium period separately from the regular EMI schedule."},
 {q:"How to calculate EMI with a moratorium (grace) period?", tags:["moratorium","grace period loan","moratorium emi","emi after moratorium","interest during moratorium"], diag:false,
