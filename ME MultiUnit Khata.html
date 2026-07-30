@@ -12845,7 +12845,6 @@ function computeHistoricalFYFromLiveData(fy){
   var sales = D.sales.filter(function(s){ return inRange(s.date); });
   var purchases = D.purchases.filter(function(p){ return inRange(p.date); });
   var expenses = D.expenses.filter(function(e){ return inRange(e.date); });
-  var cashBookInRange = D.cashBook.filter(function(c){ return inRange(c.date); });
   if(sales.length===0 && purchases.length===0 && expenses.length===0){
     return null; // no data recorded for this FY at all — leave for manual entry
   }
@@ -12878,19 +12877,66 @@ function computeHistoricalFYFromLiveData(fy){
     if(c.mode==='cash') cash += amt; else bank += amt;
   });
 
-  // Depreciation: assets that existed (purchased) by range.to
+  // Receivables/Creditors as of FY-end: D.debtors/D.creditors keep BOTH the original charge (positive)
+  // and any properly-recorded Receipt/Payment (negative, dated) — recordDebtorReceipt()/
+  // recordCreditorPayment() add a new dated entry rather than deleting the original, so summing
+  // everything dated up to the cutoff correctly reconstructs the historical balance.
+  var receivablesAsOf = D.debtors.filter(function(d){ return d.date && d.date<=range.to; })
+    .reduce(function(s,d){ return s+(+d.amount||0); }, 0);
+  var creditorsAsOf = D.creditors.filter(function(c){ return c.date && c.date<=range.to && (c.type||'supplier')==='supplier'; })
+    .reduce(function(s,c){ return s+(+c.amount||0); }, 0);
+
+  // Total Debt / Term Loan Outstanding as of FY-end: for loans sanctioned by the cutoff, subtract
+  // any dated principal repayments (loan.payments[]) made up to the cutoff from the sanctioned amount.
+  var totalDebtAsOf = 0, termLoanAsOf = 0, quasiCapitalAsOf = 0;
+  (D.loans||[]).forEach(function(l){
+    if(!l.sanctionDate || l.sanctionDate>range.to) return;
+    var principalPaid = (l.payments||[]).filter(function(p){ return p.date && p.date<=range.to; })
+      .reduce(function(s,p){ return s+(+p.principal||0); }, 0);
+    var obAsOf = Math.max(0, (+l.sanctionedAmount||l.amount||0) - principalPaid);
+    totalDebtAsOf += obAsOf;
+    if(!isCcOdLoan(l)) termLoanAsOf += obAsOf;
+    if(l.quasiEquity) quasiCapitalAsOf += obAsOf;
+  });
+
+  // Fixed Assets (net) as of FY-end: cost minus depreciation accrued from purchase date to cutoff
+  // (using each asset's own depRate, non-prorated per year — matching the app's own convention).
+  var fixedAssetsAsOf = 0;
+  (D.fixedAssets||[]).forEach(function(a){
+    if(!a.purchaseDate || a.purchaseDate>range.to) return;
+    var yearsElapsed = Math.max(0, (new Date(range.to)-new Date(a.purchaseDate))/(365*86400000));
+    var depAccrued = Math.min((+a.cost||0), (+a.cost||0)*(+a.depRate||0)/100*Math.ceil(yearsElapsed));
+    fixedAssetsAsOf += Math.max(0, (+a.cost||0)-depAccrued);
+  });
+
+  // Depreciation for THIS year only, and interest for THIS year only (P&L items)
   var dep = 0;
   (D.fixedAssets||[]).forEach(function(a){
     if(a.purchaseDate && a.purchaseDate<=range.to) dep += (+a.cost||0)*(+a.depRate||0)/100;
   });
-
-  // Interest: rough estimate using loans that existed by range.to and their rate
   var interest = 0;
   (D.loans||[]).forEach(function(l){
     if(l.sanctionDate && l.sanctionDate<=range.to) interest += (+l.outstandingBalance||0)*(+l.rate||0)/100;
   });
-
   var pbt = ebitda - dep - interest;
+
+  // TNW as of FY-end: Capital (initial+additional, assumed stable — not separately dated) +
+  // cumulative Net Profit from inception through cutoff - cumulative Drawings through cutoff.
+  var cumSalesToDate = D.sales.filter(function(s){return s.date<=range.to;}).reduce(function(s,x){return s+(x.totalAmount||0);},0);
+  var cumCogsToDate = D.sales.filter(function(s){return s.date<=range.to;}).reduce(function(s,x){return s+(x.cogs||0);},0);
+  var cumExpToDate = D.expenses.filter(function(e){return e.date<=range.to;}).reduce(function(s,x){return s+(x.amount||0);},0);
+  var cumNetProfitToDate = (cumSalesToDate-cumCogsToDate) - cumExpToDate;
+  var cumDrawingsToDate = (D.drawings||[]).filter(function(dw){return dw.date<=range.to;}).reduce(function(s,dw){return s+(+dw.amount||0);},0);
+  var capitalTotal = (+D.capital.initialCapital||0)+(+D.capital.additionalCapital||0);
+  var intangAsOf = (D.intangibleAssets||[]).filter(function(a){return a.purchaseDate && a.purchaseDate<=range.to;})
+    .reduce(function(s,a){return s+((+a.cost||0)-(+a.accumAmort||0));},0);
+  var tnwAsOf = capitalTotal + cumNetProfitToDate - cumDrawingsToDate - intangAsOf;
+
+  var currentAssetsAsOf = invValue + Math.max(0,receivablesAsOf) + cash + bank;
+  var currentLiabilitiesAsOf = Math.max(0,creditorsAsOf);
+  var totalTangibleAssetsAsOf = fixedAssetsAsOf + currentAssetsAsOf;
+  var totalAssetsAsOf = totalTangibleAssetsAsOf + intangAsOf;
+  var tolAsOf = totalAssetsAsOf - tnwAsOf;
 
   var rmConsumption=0, spares=0, powerFuel=0, otherMfgExpenses=0;
   if(isMfgBiz()){
@@ -12909,12 +12955,19 @@ function computeHistoricalFYFromLiveData(fy){
     inventory: invValue,
     rmConsumption: rmConsumption, spares: spares, powerFuel: powerFuel, otherMfgExpenses: otherMfgExpenses,
     costOfProduction: rmConsumption+spares+powerFuel+otherMfgExpenses, costOfSales: cogs,
-    // Not reliably reconstructable from transaction history alone — left blank for manual entry:
-    currentAssets:0, currentLiabilities:0, totalAssets:0, totalOutsideLiabilities:0, tlInstalmentsDue:0,
-    tnw:0, quasiCapital:0, totalDebt:0, termLoanOutstanding:0, fixedAssets:0, totalTangibleAssets:0,
-    receivables:0, creditors:0, bankFinanceUtilized:0, contingentLiabilities:0, collateralSecurityValue:0,
-    _autoFields: ['netSales','grossSales','cogs','ebitda','depreciation','interest','pbt','pat','inventory','rmConsumption','spares','powerFuel','otherMfgExpenses','costOfProduction','costOfSales'],
-    _manualFields: ['currentAssets','currentLiabilities','totalAssets','totalOutsideLiabilities','tlInstalmentsDue','tnw','quasiCapital','totalDebt','termLoanOutstanding','fixedAssets','totalTangibleAssets','receivables','creditors','bankFinanceUtilized','contingentLiabilities','collateralSecurityValue']
+    receivables: Math.max(0,receivablesAsOf), creditors: Math.max(0,creditorsAsOf),
+    totalDebt: totalDebtAsOf, termLoanOutstanding: termLoanAsOf, quasiCapital: quasiCapitalAsOf,
+    fixedAssets: fixedAssetsAsOf, tnw: tnwAsOf,
+    currentAssets: currentAssetsAsOf, currentLiabilities: currentLiabilitiesAsOf,
+    totalAssets: totalAssetsAsOf, totalTangibleAssets: totalTangibleAssetsAsOf, totalOutsideLiabilities: tolAsOf,
+    // Genuinely not reconstructable from transaction history (no dated log exists for these) —
+    // left for manual entry if known:
+    tlInstalmentsDue:0, bankFinanceUtilized:0, contingentLiabilities:0, collateralSecurityValue:0,
+    _autoFields: ['netSales','grossSales','cogs','ebitda','depreciation','interest','pbt','pat','inventory',
+      'rmConsumption','spares','powerFuel','otherMfgExpenses','costOfProduction','costOfSales',
+      'receivables','creditors','totalDebt','termLoanOutstanding','quasiCapital','fixedAssets','tnw',
+      'currentAssets','currentLiabilities','totalAssets','totalTangibleAssets','totalOutsideLiabilities'],
+    _manualFields: ['tlInstalmentsDue','bankFinanceUtilized','contingentLiabilities','collateralSecurityValue']
   };
 }
 function getCurrentYearRatioData(){
@@ -13115,7 +13168,7 @@ function shiftFY(fyLabel, delta){
 function pgLAHistorical(){
   var currentFY = getFYForDate(td());
   var fyLabels = {yearN2: shiftFY(currentFY,-2), yearN1: shiftFY(currentFY,-1)};
-  var h = '<div class="al ali"><div class="alt">Historical Actual Figures</div><p>Figures for the two years before the current year ('+fyLabels.yearN2+' and '+fyLabels.yearN1+'), used as the "Actual" columns in Bank Ratios. Where your recorded transactions cover that year, Sales/COGS/EBITDA/Inventory etc. are <b>auto-calculated from your own data</b> below — just review and Save. Balance Sheet items (Debtors, Creditors, Net Worth, Total Debt etc.) can\'t be reliably reconstructed from transaction history alone, so fill those in manually if you have them (e.g. from that year\'s finalized accounts) — otherwise leave as 0 and the ratios that need them will simply show as not available for that year. If your business is less than 2 years old, these will show as blank/manual entry — leave them blank until you have that year\'s data.</p></div>';
+  var h = '<div class="al ali"><div class="alt">Historical Actual Figures</div><p>Figures for the two years before the current year ('+fyLabels.yearN2+' and '+fyLabels.yearN1+'), used as the "Actual" columns in Bank Ratios. Where your recorded transactions cover that year, almost everything — Sales, COGS, EBITDA, Inventory, Receivables, Creditors, Total Debt, Net Worth, Fixed Assets and more — is <b>auto-calculated from your own recorded entries</b> (marked \ud83d\udd04 below), including correctly reconstructing what was actually outstanding at that year-end, as long as you recorded debtor receipts and loan repayments through their proper "Record Receipt/Payment" screens rather than only editing/deleting the original entries. Just review and Save. A few fields genuinely have no dated record in the app (Contingent Liabilities, Collateral Value, Bank Finance Utilized, TL Instalments Due) — fill those in manually if you have them. If your business is less than 2 years old, everything shows blank — leave it that way until you have that year\'s data.</p></div>';
   ['yearN2','yearN1'].forEach(function(yKey, idx){
     var saved = (D.historicalActuals && D.historicalActuals[yKey]);
     var autoData = saved ? null : computeHistoricalFYFromLiveData(fyLabels[yKey]);
