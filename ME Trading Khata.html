@@ -219,7 +219,8 @@ function defD(){
     customHSN:{},
     incomeTax:{ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false},
     gst:{enabled:false,gstin:'',type:'regular',defaultRate:18,supplyType:'intra',stateCode:''},
-    loanAssessment:{ccLimit:300000,tlAmount:100000,ccRate:8,tlRate:9,tlTenure:36,salesGrowth:20,stockDays:30,debtorDays:30,creditorDays:30,expGrowth:10,marginPctTurnover:25,marginPctTandon:25,useManual:false,manualSales:0,manualCogsP:70,manualExp:0}
+    loanAssessment:{ccLimit:300000,tlAmount:100000,ccRate:8,tlRate:9,tlTenure:36,salesGrowth:20,stockDays:30,debtorDays:30,creditorDays:30,expGrowth:10,marginPctTurnover:25,marginPctTandon:25,useManual:false,manualSales:0,manualCogsP:70,manualExp:0,contingentLiabilities:0,collateralSecurityValue:0},
+    historicalActuals:{yearN2:null,yearN1:null},
   };
 }
 // Shared migration: ensures all fields exist on a loaded/imported data object, mutates and returns d
@@ -248,6 +249,11 @@ function migrateData(d){
   if(!d.priorPeriod)d.priorPeriod={enabled:false,fromDate:'',toDate:'',sales:0,cogs:0,expenseByCat:{}};
   if(!d.auditLocks)d.auditLocks=[];
   if(!d.archivedYears)d.archivedYears={};
+  if(!d.historicalActuals)d.historicalActuals={yearN2:null,yearN1:null};
+  if(d.loanAssessment){
+    if(d.loanAssessment.contingentLiabilities===undefined)d.loanAssessment.contingentLiabilities=0;
+    if(d.loanAssessment.collateralSecurityValue===undefined)d.loanAssessment.collateralSecurityValue=0;
+  }
   if(!d.profile.businessStage) d.profile.businessStage = 'new';
   if(!d.security) d.security = {pinEnabled:false,pinHash:''};
   if(!d.bills) d.bills=[];
@@ -4009,6 +4015,7 @@ function pgCap(){
          sl('Interest During Moratorium','l_morat_treat',[{v:'paid',l:'Paid monthly (principal unchanged)'},{v:'accrued',l:'Accrued (added to principal)'}],'paid'))+
       btn('👁 Preview EMI with Moratorium','previewLoanMoratorium()','#546E7A')+
       '<div id="moratPreview" style="margin-top:8px"></div>'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#37474F;margin-bottom:8px"><input type="checkbox" id="l_quasi" style="width:auto"> This is an unsecured loan from a promoter/director/relative — treat as Quasi-Equity for bank ratio purposes (e.g. TOL/ATNW)</label>'+
       inp('Outstanding Balance (₹) — total amount CURRENTLY OWED on this loan (for CC/OD, amount drawn so far, NOT the limit)','l_ob','number',0)+
       inp('Sanctioned Limit (₹) — only for Cash Credit / Overdraft','l_lim','number',0)+
       '<div id="ccodPreview"></div>'+
@@ -4525,6 +4532,7 @@ function addLoan(){
     moratoriumTreatment: moratTreat,
     moratoriumMonthlyInterest: moratResult ? +moratResult.moratoriumMonthlyInterest.toFixed(2) : 0,
     moratoriumEndDate: moratResult ? addMonthsToDate(gv('l_d')||td(), moratMonths) : null,
+    quasiEquity: !!document.getElementById('l_quasi') && document.getElementById('l_quasi').checked,
     sanctionedLimit:isCcOd?lim:0,lastInterestDate:gv('l_d')||td(),payments:[]};
   D.loans.push(loan);
   if(disb!=='none' && recv>0){
@@ -12161,6 +12169,8 @@ function pgLoanAssess() {
   h += '<button class="'+(tab==='bepirr'?'act':'')+'" onclick="window._latab=\'bepirr\';renderPage()">BEP / IRR</button>';
   h += '<button class="'+(tab==='projcfs'?'act':'')+'" onclick="window._latab=\'projcfs\';renderPage()">Proj. Cash Flow</button>';
   h += '<button class="'+(tab==='monthlysched'?'act':'')+'" onclick="window._latab=\'monthlysched\';renderPage()">Monthly Interest</button>';
+  h += '<button class="'+(tab==='historical'?'act':'')+'" onclick="window._latab=\'historical\';renderPage()">Historical Data</button>';
+  h += '<button class="'+(tab==='bankratios'?'act':'')+'" onclick="window._latab=\'bankratios\';renderPage()">Bank Ratios</button>';
   h += '</div>';
 
   // Load saved assumptions or defaults
@@ -12229,6 +12239,15 @@ function pgLoanAssess() {
          inp('Expected Sales Growth % p.a.','la_sg','number',salesGrowth))+
       g2(inp('Expense Growth % p.a.','la_eg','number',expGrowth),'')+
       btn('💾 Save & Calculate','saveLoanAssess()','#2E7D32')
+    );
+
+    // --- Additional inputs for Bank Ratios (Contingent Liabilities, Collateral) ---
+    h += card('For Bank Ratio Analysis (optional but recommended)',
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Used in TOL/ATNW, FACR and Collateral Coverage ratios in the Bank Ratios tab.</div>'+
+      g2(inp('Contingent Liabilities (₹) — e.g. BG, LC outstanding','la_cl','number',D.loanAssessment.contingentLiabilities||0),
+         inp('Collateral Security Value (₹)','la_cs','number',D.loanAssessment.collateralSecurityValue||0))+
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:6px">To mark a loan as Quasi-Equity (unsecured loan from promoter/director), edit it in Capital/Loans → Loans.</div>'+
+      btn('💾 Save','saveLARatioInputs()','#546E7A')
     );
 
     // --- Base Figures Display ---
@@ -12833,6 +12852,16 @@ function pgLoanAssess() {
     return h;
   }
 
+  if (tab === 'historical') {
+    h += pgLAHistorical();
+    return h;
+  }
+
+  if (tab === 'bankratios') {
+    h += pgLABankRatios(la2);
+    return h;
+  }
+
   return h;
 }
 
@@ -12993,6 +13022,486 @@ function saveWCInputs(){
 function updateWCLive(){
   // Save all WC tab inputs and re-render to show recalculated figures
   saveWCInputs();
+}
+// ── Historical Actuals entry (for the 2 prior Actual years in Bank Ratios) ──
+var HIST_FIELDS = [
+  {k:'label', l:'Year Label (e.g. 2024)', type:'text'},
+  {k:'netSales', l:'Net Sales (₹)'},
+  {k:'grossSales', l:'Gross Sales (₹, before deductions)'},
+  {k:'cogs', l:'Cost of Goods Sold / Cost of Sales (₹)'},
+  {k:'ebitda', l:'EBITDA (₹)'},
+  {k:'depreciation', l:'Depreciation (₹)'},
+  {k:'interest', l:'Interest Expense (₹)'},
+  {k:'pbt', l:'Profit Before Tax — PBT (₹)'},
+  {k:'pat', l:'Profit After Tax — PAT (₹)'},
+  {k:'currentAssets', l:'Current Assets (₹)'},
+  {k:'currentLiabilities', l:'Current Liabilities (₹)'},
+  {k:'totalAssets', l:'Total Assets (₹)'},
+  {k:'totalOutsideLiabilities', l:'Total Outside Liabilities — TOL (₹)'},
+  {k:'tlInstalmentsDue', l:'TL Instalments Due within 1 Year (₹)'},
+  {k:'tnw', l:'Tangible Net Worth — TNW (₹)'},
+  {k:'quasiCapital', l:'Unsecured Loan treated as Quasi-Capital (₹)'},
+  {k:'totalDebt', l:'Total Debt / Bank Borrowings (₹)'},
+  {k:'termLoanOutstanding', l:'Term Loan Outstanding (₹)'},
+  {k:'fixedAssets', l:'Net Fixed Assets (₹)'},
+  {k:'totalTangibleAssets', l:'Total Tangible Assets — TTA (₹)'},
+  {k:'inventory', l:'Inventory (₹)'},
+  {k:'receivables', l:'Receivables (₹)'},
+  {k:'creditors', l:'Sundry Creditors (₹)'},
+  {k:'bankFinanceUtilized', l:'Bank Finance Utilized — CC/OD (₹)'},
+  {k:'contingentLiabilities', l:'Contingent Liabilities (₹)'},
+  {k:'collateralSecurityValue', l:'Collateral Security Value (₹)'}
+];
+var HIST_FIELDS_MFG = [
+  {k:'rmConsumption', l:'Raw Material Consumption (₹)'},
+  {k:'spares', l:'Spares & Stores Consumed (₹)'},
+  {k:'powerFuel', l:'Power & Fuel (₹)'},
+  {k:'otherMfgExpenses', l:'Other Manufacturing Expenses (₹)'},
+  {k:'costOfProduction', l:'Cost of Production (₹)'},
+  {k:'costOfSales', l:'Cost of Sales (₹)'}
+];
+function isMfgBiz(){
+  return BIZ_TYPE==='Manufacturing' || (D.profile && (D.profile.businessType==='Manufacturing' || D.profile.businessType==='Trading + Manufacturing'));
+}
+// ── Bank Ratios calculation engine ──
+// Takes a unified year-data object y (see HIST_FIELDS/HIST_FIELDS_MFG for the field list) and
+// returns every ratio from the bank's CMA-style sheet. Formulas follow standard bank credit
+// appraisal conventions (RBI/Tandon Committee style).
+function computeBankRatios(y){
+  var ebit = (y.ebitda||0) - (y.depreciation||0);
+  var atnw = (y.tnw||0) + (y.quasiCapital||0);
+  var debtAdj = (y.totalDebt||0) - (y.quasiCapital||0);
+  var tolAdj = (y.totalOutsideLiabilities||0) - (y.quasiCapital||0);
+  var ce = (y.tnw||0) + (y.termLoanOutstanding||0); // Capital Employed = Net Worth + Long-term Debt
+  var tta = y.totalTangibleAssets||0;
+  var div = function(a,b){ return b ? a/b : null; };
+  var pct = function(a,b){ var v=div(a,b); return v===null?null:v*100; };
+  var days = function(a,b){ var v=div(a,b); return v===null?null:v*365; };
+
+  var adjSales = y.netSales||0; // Adjusted Sales — assumes a pure manufacturing/trading unit;
+                                  // subtract any separately-tracked trading-segment sales if applicable
+
+  return {
+    // 1. Liquidity
+    currentRatio: div(y.currentAssets, y.currentLiabilities),
+    currentRatioExclTL: div(y.currentAssets, (y.currentLiabilities||0) - (y.tlInstalmentsDue||0)),
+    // 2. Leverage
+    debtEquity: div(y.totalDebt, y.tnw),
+    debtEquityQuasi: div(debtAdj, atnw),
+    tolTnw: div(y.totalOutsideLiabilities, y.tnw),
+    tolTnwQuasi: div(tolAdj, atnw),
+    tolContingentAtnw: div(tolAdj + (y.contingentLiabilities||0), atnw),
+    bbTnw: div(y.totalDebt, y.tnw),
+    bbAtnw: div(y.totalDebt, atnw),
+    // 3. Coverage
+    facr: div((y.fixedAssets||0) + (y.collateralSecurityValue||0), y.termLoanOutstanding),
+    acr: div(tta, y.totalOutsideLiabilities),
+    collateralCoverage: div(y.collateralSecurityValue, y.totalDebt),
+    // 4. Solvency
+    icr: div(y.ebitda, y.interest),
+    dscrSimple: div((y.pat||0)+(y.depreciation||0)+(y.interest||0), (y.interest||0)+(y.tlInstalmentsDue||0)),
+    ebitdaDebtPct: pct(y.ebitda, y.totalDebt),
+    // 5. Profitability
+    ebitNetSales: pct(ebit, y.netSales),
+    ebitdaNetSales: pct(y.ebitda, y.netSales),
+    assetTurnover: div(y.netSales, tta),
+    financialLeverage: div(tta, y.tnw),
+    operatingProfitMargin: pct(ebit, y.netSales),
+    interestBurden: div(y.pbt, ebit),
+    taxBurden: div(y.pat, y.pbt),
+    roe: pct(y.pat, y.tnw),
+    roa: pct(y.pat, y.totalAssets),
+    roce: pct(ebit, ce),
+    grossProfitMargin: pct((y.netSales||0)-(y.cogs||0), y.netSales),
+    netProfitMargin: pct(y.pat, y.netSales),
+    patEbit: div(y.pat, ebit),
+    // 6. Turnover
+    inventoryTurnover: div(y.netSales, y.inventory),
+    receivableTurnover: div(y.grossSales, y.receivables),
+    payableTurnover: div(isMfgBiz() ? y.rmConsumption : y.cogs, y.creditors),
+    bepRatio: (function(){
+      var fixedCosts = ((y.netSales||0)-(y.cogs||0)-(ebit)) + (y.interest||0); // Expenses + Interest
+      var pvRatio = y.netSales ? 1-((y.cogs||0)/y.netSales) : 0;
+      var bepSales = pvRatio>0 ? fixedCosts/pvRatio : 0;
+      return div(bepSales, y.netSales);
+    })(),
+    // Adjusted Sales based (image 2)
+    inventoryNetSalesPct: pct(y.inventory, y.netSales),
+    receivablesGrossSalesPct: pct(y.receivables, y.grossSales),
+    inventoryDays: days(y.inventory, y.netSales),
+    receivableDays: days(y.receivables, y.grossSales),
+    creditorDays: days(y.creditors, isMfgBiz() ? y.rmConsumption : y.cogs),
+    rmAdjSalesPct: pct(y.rmConsumption, adjSales),
+    sparesAdjSalesPct: pct(y.spares, adjSales),
+    powerFuelAdjSalesPct: pct(y.powerFuel, adjSales),
+    otherMfgExpAdjSalesPct: pct(y.otherMfgExpenses, adjSales),
+    costOfProductionAdjSalesPct: pct(y.costOfProduction, adjSales),
+    costOfSalesAdjSalesPct: pct(y.costOfSales, adjSales),
+    netSalesTTA: div(y.netSales, tta),
+    pbtTTAPct: pct(y.pbt, tta),
+    bankFinanceCAPct: pct(y.bankFinanceUtilized, y.currentAssets),
+    // raw figures carried through for display / debugging
+    _ebit: ebit, _atnw: atnw, _ce: ce
+  };
+}
+function fmtRatio(v, decimals, suffix){
+  if(v===null || v===undefined || isNaN(v)) return '—';
+  decimals = decimals===undefined?2:decimals;
+  suffix = suffix||'';
+  return v.toFixed(decimals)+suffix;
+}
+// ── Maps live/projected app data into the unified shape computeBankRatios() expects ──
+function annualDepreciationEstimate(){
+  var dep = 0;
+  (D.fixedAssets||[]).forEach(function(a){ if(!a.disposed) dep += (+a.cost||0)*(+a.depRate||0)/100; });
+  return dep;
+}
+function intangibleNetTotal(){
+  var net=0;
+  (D.intangibleAssets||[]).forEach(function(a){ if(!a.disposed) net += (+a.cost||0)-(+a.accumAmort||0); });
+  return net;
+}
+function fixedAssetsOnlyNet(){
+  var net=0;
+  (D.fixedAssets||[]).forEach(function(a){ if(!a.disposed) net += (+a.cost||0)-(+a.accumDep||0); });
+  return net;
+}
+// ── Auto-compute historical Actuals from the app's own recorded data, where possible ──
+// Reuses getFYForDate()/fyDateRange() (built for Audit Lock). P&L figures (Sales, COGS, EBITDA)
+// and Inventory/Cash/Bank can be accurately reconstructed for a past FY by filtering/replaying
+// dated transactions. Debtors, Creditors, TNW and Total Debt AS OF A PAST DATE cannot be
+// reliably reconstructed (the app only keeps their current outstanding balance, not a dated
+// history), so those are intentionally left blank for the user to fill in if known, rather than
+// showing a plausible-looking but potentially wrong number.
+function computeHistoricalFYFromLiveData(fy){
+  var range = fyDateRange(fy);
+  var inRange = function(d){ return d && d>=range.from && d<=range.to; };
+  var sales = D.sales.filter(function(s){ return inRange(s.date); });
+  var purchases = D.purchases.filter(function(p){ return inRange(p.date); });
+  var expenses = D.expenses.filter(function(e){ return inRange(e.date); });
+  var cashBookInRange = D.cashBook.filter(function(c){ return inRange(c.date); });
+  if(sales.length===0 && purchases.length===0 && expenses.length===0){
+    return null; // no data recorded for this FY at all — leave for manual entry
+  }
+  var netSales = sales.reduce(function(s,x){return s+(x.totalAmount||0);},0);
+  var cogs = sales.reduce(function(s,x){return s+(x.cogs||0);},0);
+  var totalExp = expenses.reduce(function(s,x){return s+(x.amount||0);},0);
+  var ebitda = (netSales-cogs) - totalExp;
+
+  // Inventory as of FY-end: replay purchases/sales for each item up to range.to
+  var invValue = 0;
+  D.inventory.forEach(function(it){
+    var qty=0, totalCost=0, avgCost=0;
+    var events = [];
+    D.purchases.forEach(function(p){ if(p.itemId===it.id && p.date<=range.to) events.push({date:p.date, type:'p', qty:p.qty, rate:p.rate}); });
+    D.sales.forEach(function(s){ if(s.itemId===it.id && s.date<=range.to) events.push({date:s.date, type:'s', qty:s.qty}); });
+    events.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
+    events.forEach(function(ev){
+      if(ev.type==='p'){ totalCost += ev.qty*ev.rate; qty += ev.qty; avgCost = qty>0?totalCost/qty:0; }
+      else { qty -= ev.qty; totalCost = qty*avgCost; if(qty<0){qty=0;totalCost=0;} }
+    });
+    invValue += totalCost;
+  });
+
+  // Cash/Bank as of FY-end: sum cashBook up to range.to + opening
+  var cash = +D.opening.cash||0, bank = +D.opening.bank||0;
+  D.cashBook.forEach(function(c){
+    if(c.date>range.to) return;
+    if(!c.mode || c.mode==='cc' || c.mode==='od') return;
+    var amt = c.type==='receipt' ? (c.amount||0) : -(c.amount||0);
+    if(c.mode==='cash') cash += amt; else bank += amt;
+  });
+
+  // Depreciation: assets that existed (purchased) by range.to
+  var dep = 0;
+  (D.fixedAssets||[]).forEach(function(a){
+    if(a.purchaseDate && a.purchaseDate<=range.to) dep += (+a.cost||0)*(+a.depRate||0)/100;
+  });
+
+  // Interest: rough estimate using loans that existed by range.to and their rate
+  var interest = 0;
+  (D.loans||[]).forEach(function(l){
+    if(l.sanctionDate && l.sanctionDate<=range.to) interest += (+l.outstandingBalance||0)*(+l.rate||0)/100;
+  });
+
+  var pbt = ebitda - dep - interest;
+
+  var rmConsumption=0, spares=0, powerFuel=0, otherMfgExpenses=0;
+  if(isMfgBiz()){
+    D.consumptions.forEach(function(c){ if(inRange(c.date)) rmConsumption += (+c.amount||0); });
+    expenses.forEach(function(e){
+      var cat=(e.category||'').toLowerCase();
+      if(cat.indexOf('spares')>-1) spares += (+e.amount||0);
+      else if(cat.indexOf('power')>-1 || cat.indexOf('fuel')>-1) powerFuel += (+e.amount||0);
+      else if(cat.indexOf('other manufacturing')>-1) otherMfgExpenses += (+e.amount||0);
+    });
+  }
+
+  return {
+    label: fy, netSales: netSales, grossSales: netSales, cogs: cogs,
+    ebitda: ebitda, depreciation: dep, interest: interest, pbt: pbt, pat: pbt,
+    inventory: invValue,
+    rmConsumption: rmConsumption, spares: spares, powerFuel: powerFuel, otherMfgExpenses: otherMfgExpenses,
+    costOfProduction: rmConsumption+spares+powerFuel+otherMfgExpenses, costOfSales: cogs,
+    // Not reliably reconstructable from transaction history alone — left blank for manual entry:
+    currentAssets:0, currentLiabilities:0, totalAssets:0, totalOutsideLiabilities:0, tlInstalmentsDue:0,
+    tnw:0, quasiCapital:0, totalDebt:0, termLoanOutstanding:0, fixedAssets:0, totalTangibleAssets:0,
+    receivables:0, creditors:0, bankFinanceUtilized:0, contingentLiabilities:0, collateralSecurityValue:0,
+    _autoFields: ['netSales','grossSales','cogs','ebitda','depreciation','interest','pbt','pat','inventory','rmConsumption','spares','powerFuel','otherMfgExpenses','costOfProduction','costOfSales'],
+    _manualFields: ['currentAssets','currentLiabilities','totalAssets','totalOutsideLiabilities','tlInstalmentsDue','tnw','quasiCapital','totalDebt','termLoanOutstanding','fixedAssets','totalTangibleAssets','receivables','creditors','bankFinanceUtilized','contingentLiabilities','collateralSecurityValue']
+  };
+}
+function getCurrentYearRatioData(){
+  var base = getLABase();
+  var fbase = getF();
+  var bs = getBS();
+  var intang = intangibleNetTotal();
+  var tnw = bs.netCap - intang;
+  var quasiCapital = 0, termLoanOutstanding = 0;
+  (D.loans||[]).forEach(function(l){
+    if(l.quasiEquity) quasiCapital += (+l.outstandingBalance||0);
+    if(!isCcOdLoan(l)) termLoanOutstanding += (+l.outstandingBalance||0);
+  });
+  var ccRate = D.loanAssessment.ccRate||0, tlRate = D.loanAssessment.tlRate||0;
+  var ccOutstanding = 0;
+  (D.loans||[]).forEach(function(l){ if(isCcOdLoan(l)) ccOutstanding += (+l.outstandingBalance||0); });
+  var interest = ccOutstanding*ccRate/100 + termLoanOutstanding*tlRate/100;
+  var dep = annualDepreciationEstimate();
+  var ebitda = base.gp - base.exp;
+  var pbt = ebitda - interest;
+  var pat = pbt; // MSME proprietorship/partnership: no separate corporate tax layer assumed unless Income Tax module says otherwise
+  var tol = bs.totalLiab - bs.netCap;
+  var creditors = 0; try{ creditors = totalCreditors(); }catch(e){}
+  var debtors = 0; try{ debtors = totalDebtors(); }catch(e){}
+  // Estimate TL instalments due within 1 year: annual EMI outflow minus that loan's own annual interest
+  var tlInstDue = 0;
+  (D.loans||[]).forEach(function(l){
+    if(isCcOdLoan(l) || !(l.outstandingBalance>0) || !(l.emi>0)) return;
+    var annualEMI = l.emi*12;
+    var annualInt = (+l.outstandingBalance||0)*(+l.rate||0)/100;
+    tlInstDue += Math.max(0, Math.min(annualEMI-annualInt, l.outstandingBalance));
+  });
+  var rmConsumption = 0, spares=0, powerFuel=0, otherMfgExpenses=0;
+  if(isMfgBiz()){
+    (D.consumptions||[]).forEach(function(c){ rmConsumption += (+c.amount||0); });
+    (D.expenses||[]).forEach(function(e){
+      var cat=(e.category||'').toLowerCase();
+      if(cat.indexOf('spares')>-1) spares += (+e.amount||0);
+      else if(cat.indexOf('power')>-1 || cat.indexOf('fuel')>-1) powerFuel += (+e.amount||0);
+      else if(cat.indexOf('other manufacturing')>-1) otherMfgExpenses += (+e.amount||0);
+    });
+  }
+  return {
+    netSales: base.sales, grossSales: base.sales, cogs: base.cogs,
+    ebitda: ebitda, depreciation: dep, interest: interest, pbt: pbt, pat: pat,
+    currentAssets: bs.currentAssets, currentLiabilities: bs.currentLiab, totalAssets: bs.totalAssets,
+    totalOutsideLiabilities: tol, tlInstalmentsDue: tlInstDue,
+    tnw: tnw, quasiCapital: quasiCapital, totalDebt: bs.loans, termLoanOutstanding: termLoanOutstanding,
+    fixedAssets: fixedAssetsOnlyNet(), totalTangibleAssets: bs.totalAssets - intang,
+    inventory: fbase.cs, receivables: debtors, creditors: creditors,
+    bankFinanceUtilized: ccOutstanding,
+    contingentLiabilities: D.loanAssessment.contingentLiabilities||0,
+    collateralSecurityValue: D.loanAssessment.collateralSecurityValue||0,
+    rmConsumption: rmConsumption, spares: spares, powerFuel: powerFuel, otherMfgExpenses: otherMfgExpenses,
+    costOfProduction: rmConsumption+spares+powerFuel+otherMfgExpenses, costOfSales: base.cogs
+  };
+}
+function getProjectedYearRatioData(la2, yearNum){
+  var sales = yearNum===1?la2.s1:la2.s2;
+  var cogs = yearNum===1?la2.c1:la2.c2;
+  var gp = yearNum===1?la2.g1:la2.g2;
+  var exp = yearNum===1?la2.e1:la2.e2;
+  var ccInt = yearNum===1?la2.ccInt1:la2.ccInt2;
+  var tlInt = yearNum===1?la2.tlInt1:la2.tlInt2;
+  var ebitda = yearNum===1?la2.ebit1:la2.ebit2;
+  var np = yearNum===1?la2.np1:la2.np2;
+  var cur = getCurrentYearRatioData(); // balance-sheet base carried forward (best available estimate)
+  var termLoanOb = yearNum===1 ? (cur.termLoanOutstanding) : la2.tlObY2;
+  var dep = cur.depreciation;
+  var pbt = ebitda - ccInt - tlInt;
+  var tlInstDueProj = la2.emi>0 ? Math.max(0, Math.min(la2.emi*12-tlInt, termLoanOb)) : 0;
+  return {
+    netSales: sales, grossSales: sales, cogs: cogs,
+    ebitda: ebitda, depreciation: dep, interest: ccInt+tlInt, pbt: pbt, pat: pbt,
+    currentAssets: cur.currentAssets, currentLiabilities: cur.currentLiabilities, totalAssets: cur.totalAssets,
+    totalOutsideLiabilities: cur.totalOutsideLiabilities, tlInstalmentsDue: tlInstDueProj,
+    tnw: cur.tnw + np, quasiCapital: cur.quasiCapital, totalDebt: cur.totalDebt, termLoanOutstanding: termLoanOb,
+    fixedAssets: cur.fixedAssets, totalTangibleAssets: cur.totalTangibleAssets,
+    inventory: cur.inventory, receivables: cur.receivables, creditors: cur.creditors,
+    bankFinanceUtilized: cur.bankFinanceUtilized,
+    contingentLiabilities: cur.contingentLiabilities, collateralSecurityValue: cur.collateralSecurityValue,
+    rmConsumption: cur.rmConsumption, spares: cur.spares, powerFuel: cur.powerFuel, otherMfgExpenses: cur.otherMfgExpenses,
+    costOfProduction: cur.costOfProduction, costOfSales: cogs
+  };
+}
+// ── Bank Ratios display table ──
+var BANK_RATIO_ROWS = [
+  {cat:'1. LIQUIDITY RATIO', rows:[
+    {l:'Current Ratio', k:'currentRatio', d:2},
+    {l:'Current Ratio excl. TL instalments due within 1yr', k:'currentRatioExclTL', d:2}
+  ]},
+  {cat:'2. LEVERAGE RATIO', rows:[
+    {l:'Debt/Equity Ratio', k:'debtEquity', d:2},
+    {l:'Debt/Equity Ratio (quasi-equity as part of TNW)', k:'debtEquityQuasi', d:2},
+    {l:'TOL/TNW Ratio', k:'tolTnw', d:2},
+    {l:'TOL/TNW with unsecured loan as quasi capital', k:'tolTnwQuasi', d:2},
+    {l:'TOL + Contingent Liabilities/ATNW', k:'tolContingentAtnw', d:2},
+    {l:'BB/TNW', k:'bbTnw', d:2},
+    {l:'BB/ATNW', k:'bbAtnw', d:2}
+  ]},
+  {cat:'3. COVERAGE RATIO', rows:[
+    {l:'FACR (Incl Coll. Sec)', k:'facr', d:2},
+    {l:'ACR', k:'acr', d:2},
+    {l:'Collateral Coverage Ratio (for our exposure)', k:'collateralCoverage', d:2}
+  ]},
+  {cat:'4. SOLVENCY RATIO', rows:[
+    {l:'ICR (EBITDA / Interest Expenses)', k:'icr', d:2},
+    {l:'DSCR', k:'dscrSimple', d:2},
+    {l:'EBITDA/Debt %', k:'ebitdaDebtPct', d:2, s:'%'}
+  ]},
+  {cat:'5. PROFITABILITY RATIO', rows:[
+    {l:'EBIT/Net Sales', k:'ebitNetSales', d:2, s:'%'},
+    {l:'EBITDA/Net Sales', k:'ebitdaNetSales', d:2, s:'%'},
+    {l:'Asset Turnover (Sales/TTA)', k:'assetTurnover', d:2},
+    {l:'Financial Leverage (TTA/TNW)', k:'financialLeverage', d:2},
+    {l:'Operating Profit Margin (EBIT/Sales)', k:'operatingProfitMargin', d:2, s:'%'},
+    {l:'Interest Burden Ratio (PBT/EBIT)', k:'interestBurden', d:2},
+    {l:'Tax Burden Ratio (PAT/PBT)', k:'taxBurden', d:2},
+    {l:'Return on Equity % (PAT/TNW)', k:'roe', d:2, s:'%'},
+    {l:'Return on Assets (PAT/Total Assets) %', k:'roa', d:2, s:'%'},
+    {l:'ROCE (EBIT/CE)', k:'roce', d:2, s:'%'},
+    {l:'Gross Profit Margin %', k:'grossProfitMargin', d:2, s:'%'},
+    {l:'Net Profit Margin %', k:'netProfitMargin', d:2, s:'%'},
+    {l:'PAT/EBIT', k:'patEbit', d:2}
+  ]},
+  {cat:'6. TURNOVER RATIO', rows:[
+    {l:'Inventory Turnover Ratio (Net Sales/Inventory)', k:'inventoryTurnover', d:2},
+    {l:'Receivable Turnover Ratio (Gross Sales/Receivables)', k:'receivableTurnover', d:2},
+    {l:'Payable Turnover Ratio', k:'payableTurnover', d:2},
+    {l:'Break Even Point (as ratio of Sales)', k:'bepRatio', d:2},
+  ]},
+  {cat:'ADJUSTED SALES RATIOS', rows:[
+    {l:'Total Inventory/Net Sales %', k:'inventoryNetSalesPct', d:2, s:'%'},
+    {l:'Receivables/Gross Sales %', k:'receivablesGrossSalesPct', d:2, s:'%'},
+    {l:'Inventory to Net Sales (days)', k:'inventoryDays', d:0},
+    {l:'Receivables to Gross Sales (days)', k:'receivableDays', d:0},
+    {l:'Sundry Creditors/RM Consumption (days)', k:'creditorDays', d:0},
+    {l:'RM/Adj. Sales (%)', k:'rmAdjSalesPct', d:2, s:'%', mfg:true},
+    {l:'Spares/Adj. Sales (%)', k:'sparesAdjSalesPct', d:2, s:'%', mfg:true},
+    {l:'Power & Fuel/Adj. Sales (%)', k:'powerFuelAdjSalesPct', d:2, s:'%', mfg:true},
+    {l:'Other Mfg Expenses/Adj. Sales (%)', k:'otherMfgExpAdjSalesPct', d:2, s:'%', mfg:true},
+    {l:'Cost of Production/Adj. Sales (%)', k:'costOfProductionAdjSalesPct', d:2, s:'%', mfg:true},
+    {l:'Cost of Sales/Adj. Sales (%)', k:'costOfSalesAdjSalesPct', d:2, s:'%'},
+    {l:'Net Sales/Total Tangible Assets (times)', k:'netSalesTTA', d:2},
+    {l:'PBT/Total Tangible Assets (%)', k:'pbtTTAPct', d:2, s:'%'},
+    {l:'Bank Finance/Current Assets (%)', k:'bankFinanceCAPct', d:2, s:'%'}
+  ]}
+];
+function pgLABankRatios(la2){
+  var h = '<div class="al ali"><div class="alt">Bank Ratios (CMA-style Credit Appraisal)</div><p>Standard bank credit appraisal ratios — Liquidity, Leverage, Coverage, Solvency, Profitability, Turnover. Columns show whichever years you have data for: Historical Actuals (enter in the Historical Data tab), the current year Estimate (from your live recorded data), and the two Projected years (from the Projections you\'ve set up in Loan Details).</p></div>';
+
+  var cols = [];
+  var histN2 = D.historicalActuals && D.historicalActuals.yearN2;
+  var histN1 = D.historicalActuals && D.historicalActuals.yearN1;
+  if(histN2) cols.push({label:(histN2.label||'Actual')+'<br><small>Actual</small>', ratios:computeBankRatios(histN2)});
+  if(histN1) cols.push({label:(histN1.label||'Actual')+'<br><small>Actual</small>', ratios:computeBankRatios(histN1)});
+
+  if(la2.s1<=0){
+    h += '<div class="al alw">Enter Loan Details (CC/TL amounts, Sales Growth %) and tap Save & Calculate to see the Estimate and Projected columns.</div>';
+  } else {
+    var curData = getCurrentYearRatioData();
+    cols.push({label:'This Year<br><small>Estimate</small>', ratios:computeBankRatios(curData)});
+    cols.push({label:'Year 1<br><small>Proj</small>', ratios:computeBankRatios(getProjectedYearRatioData(la2,1))});
+    cols.push({label:'Year 2<br><small>Proj</small>', ratios:computeBankRatios(getProjectedYearRatioData(la2,2))});
+  }
+
+  if(cols.length===0){
+    h += '<div class="al alw">No data available yet. Enter Historical Data and/or Loan Details first.</div>';
+    return h;
+  }
+
+  BANK_RATIO_ROWS.forEach(function(section){
+    var rowsToShow = section.rows.filter(function(r){ return !r.mfg || isMfgBiz(); });
+    if(!rowsToShow.length) return;
+    var tableHtml = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+      '<thead><tr><th style="text-align:left;padding:5px 8px;background:#1565C0;color:#fff;position:sticky;left:0">Ratio</th>'+
+      cols.map(function(c){ return '<th style="text-align:right;padding:5px 8px;background:#1565C0;color:#fff;min-width:70px">'+c.label+'</th>'; }).join('')+
+      '</tr></thead><tbody>'+
+      rowsToShow.map(function(r,i){
+        return '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'">'+
+          '<td style="padding:5px 8px;position:sticky;left:0;background:inherit">'+r.l+'</td>'+
+          cols.map(function(c){ return '<td style="text-align:right;padding:5px 8px">'+fmtRatio(c.ratios[r.k], r.d, r.s)+'</td>'; }).join('')+
+          '</tr>';
+      }).join('')+
+      '</tbody></table></div>';
+    h += card(section.cat, tableHtml);
+  });
+
+  h += '<div class="al ali">💡 For IRR (only required by most banks for proposals above ₹50 Cr), see the dedicated <b>BEP / IRR</b> tab.</div>';
+  h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print Bank Ratios','window.print()','#546E7A')+'</div>';
+  return h;
+}
+function shiftFY(fyLabel, delta){
+  var startYear = +fyLabel.replace('FY','').split('-')[0];
+  var ny = startYear+delta;
+  return 'FY'+ny+'-'+String(ny+1).slice(2);
+}
+function pgLAHistorical(){
+  var currentFY = getFYForDate(td());
+  var fyLabels = {yearN2: shiftFY(currentFY,-2), yearN1: shiftFY(currentFY,-1)};
+  var h = '<div class="al ali"><div class="alt">Historical Actual Figures</div><p>Figures for the two years before the current year ('+fyLabels.yearN2+' and '+fyLabels.yearN1+'), used as the "Actual" columns in Bank Ratios. Where your recorded transactions cover that year, Sales/COGS/EBITDA/Inventory etc. are <b>auto-calculated from your own data</b> below — just review and Save. Balance Sheet items (Debtors, Creditors, Net Worth, Total Debt etc.) can\'t be reliably reconstructed from transaction history alone, so fill those in manually if you have them (e.g. from that year\'s finalized accounts) — otherwise leave as 0 and the ratios that need them will simply show as not available for that year. If your business is less than 2 years old, these will show as blank/manual entry — leave them blank until you have that year\'s data.</p></div>';
+  ['yearN2','yearN1'].forEach(function(yKey, idx){
+    var saved = (D.historicalActuals && D.historicalActuals[yKey]);
+    var autoData = saved ? null : computeHistoricalFYFromLiveData(fyLabels[yKey]);
+    var existing = saved || autoData || {};
+    var autoFieldSet = {};
+    (autoData && autoData._autoFields || []).forEach(function(k){ autoFieldSet[k]=true; });
+    var label = (idx===0 ? 'Actual Year (2 years ago)' : 'Actual Year (1 year ago)') + ' — '+fyLabels[yKey];
+    var banner = saved
+      ? '<div class="al als" style="margin-bottom:8px">Saved values shown below — edit and re-save if needed.</div>'
+      : (autoData
+          ? '<div class="al als" style="margin-bottom:8px">✅ Sales/COGS/EBITDA/Inventory etc. auto-calculated from your recorded '+fyLabels[yKey]+' transactions (marked 🔄 below). Fill in the remaining Balance Sheet fields manually, then Save.</div>'
+          : '<div class="al ali" style="margin-bottom:8px">No recorded transactions found for '+fyLabels[yKey]+' — enter figures manually if this business existed and you have that year\'s data, or leave as 0/blank if not applicable.</div>');
+    if(!existing.label) existing.label = fyLabels[yKey];
+    var fields = HIST_FIELDS.map(function(f){
+      var isAuto = autoFieldSet[f.k];
+      var lbl = f.l + (isAuto ? ' 🔄 auto' : '');
+      return inp(lbl, 'h_'+yKey+'_'+f.k, f.type||'number', existing[f.k]!==undefined?existing[f.k]:(f.type==='text'?'':0));
+    }).join('');
+    if(isMfgBiz()){
+      fields += HIST_FIELDS_MFG.map(function(f){
+        var isAuto = autoFieldSet[f.k];
+        var lbl = f.l + (isAuto ? ' 🔄 auto' : '');
+        return inp(lbl, 'h_'+yKey+'_'+f.k, 'number', existing[f.k]!==undefined?existing[f.k]:0);
+      }).join('');
+    }
+    h += card(label, banner + fields + btn('💾 Save '+label, 'saveHistoricalYear(\''+yKey+'\')', '#2E7D32'));
+  });
+  return h;
+}
+function saveHistoricalYear(yKey){
+  var data = {};
+  HIST_FIELDS.forEach(function(f){
+    var id = 'h_'+yKey+'_'+f.k;
+    data[f.k] = f.type==='text' ? gv(id) : gvn(id);
+  });
+  if(isMfgBiz()){
+    HIST_FIELDS_MFG.forEach(function(f){
+      var id = 'h_'+yKey+'_'+f.k;
+      data[f.k] = gvn(id);
+    });
+  }
+  if(!D.historicalActuals) D.historicalActuals = {yearN2:null, yearN1:null};
+  D.historicalActuals[yKey] = data;
+  sv();
+  toast('Saved. View it in the Bank Ratios tab.');
+  renderPage();
+}
+function saveLARatioInputs(){
+  D.loanAssessment.contingentLiabilities = gvn('la_cl');
+  D.loanAssessment.collateralSecurityValue = gvn('la_cs');
+  sv();
+  toast('Saved for Bank Ratio calculations.');
 }
 function saveLoanAssess() {
   D.loanAssessment = {
@@ -15841,6 +16350,8 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"How to add a loan with a moratorium (grace) period?", tags:["moratorium period","grace period loan","interest during moratorium","emi after moratorium","accrued interest loan"], diag:false,
+ a:"Go to <b>Capital/Loans → Loans → Add New Loan</b> → fill in the usual Amount/Rate/Tenure → set <b>Moratorium / Grace Period</b> in months → choose whether interest during that period is <b>Paid monthly</b> (you pay interest-only each month, principal stays the same) or <b>Accrued</b> (no payment during moratorium, interest compounds into the principal instead). Tap <b>👁 Preview EMI with Moratorium</b> to see exactly what happens before saving — your regular EMI (calculated on the correct principal) starts automatically after the moratorium ends. The same Moratorium option is available in the <b>EMI Calculator</b> (Bank Calculators → EMI Calc) for what-if calculations, with a full month-by-month schedule showing the moratorium period separately from the regular EMI schedule."},
 {q:"How to calculate EMI with a moratorium (grace) period?", tags:["moratorium","grace period loan","moratorium emi","emi after moratorium","interest during moratorium"], diag:false,
  a:"Both <b>Capital/Loans → Add Loan</b> and the <b>EMI Calculator</b> (Bank Calculators) now have a Moratorium field. Enter the grace period in months, and choose whether interest during that period is <b>Paid monthly</b> (you pay interest only, principal stays the same, EMI starts fresh after) or <b>Accrued</b> (no payment during the moratorium, interest compounds into the principal, so the EMI after moratorium is higher). Tap Preview (when adding a loan) or Full Schedule (in the calculator) to see the month-by-month breakdown before committing."},
 {q:"How to backup and restore a large full-year backup?", a:"Go to <b>Data → Download Backup</b> → tap the blue <b>Download as File</b> button (not the copy-paste option, which struggles with large data) → it saves a real .json file to your device, however large. To restore it later, use <b>Import Backup File</b> and select that file — there is no practical size limit; a full year of daily entries imports in a few seconds.",tags:["backup large data","restore large backup","full year backup","backup file size limit","download backup file"], diag:false},
