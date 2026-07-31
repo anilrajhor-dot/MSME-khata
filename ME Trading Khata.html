@@ -7351,6 +7351,13 @@ function pgDat(){
   '<button onclick="triggerFileImport()" class="btn bfull" style="background:#546E7A;cursor:pointer">⬆ Import Backup File</button>'+
   '<input type="file" id="json_file_inp" accept=".json,application/json" style="display:none;position:absolute;left:-9999px" onchange="impDat(event)">'
 );
+  h+=card('Export to Tally',
+    '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Exports all Sales, Purchases, Expenses, Receipts, Payments, Loan entries and Drawings as Tally vouchers, with Ledgers auto-created (Customers, Suppliers, Expense heads, Bank, Cash, Capital, Loans). <b>Test with a backup/duplicate Tally company first</b> before importing into your live company — always keep a Tally backup before any import.</div>'+
+    '<button onclick="downloadTallyXML()" class="btn bfull" style="background:#1565C0;cursor:pointer;margin-bottom:8px">📤 Download Tally XML (Direct Import)</button>'+
+    '<div style="font-size:10px;color:#78909C;margin-bottom:8px">Downloads 2 files: a Ledgers file (Customers, Suppliers, Bank, Cash, Capital, Loans, Expense heads) and a Vouchers file. In Tally: Gateway of Tally → Import Data → import the <b>Ledgers file first</b>, then the <b>Vouchers file</b> — ledgers must exist before vouchers can reference them.</div>'+
+    '<button onclick="downloadTallyCSV()" class="btn bfull" style="background:#546E7A;cursor:pointer">📊 Download Day Book (Excel/CSV for Review)</button>'+
+    '<div style="font-size:10px;color:#78909C;margin-top:4px">A plain Dr/Cr listing of every transaction — useful for your CA to review, or to manually re-key, without touching Tally directly.</div>'
+  );
   h+='<div style="border:2px solid #C62828;border-radius:10px;padding:12px;margin-bottom:14px;background:#FFEBEE">'+
       '<div style="font-size:13px;font-weight:800;color:#C62828;margin-bottom:6px">⚠️ DANGER ZONE</div>'+
       '<div style="font-size:11px;color:#B71C1C;line-height:1.6;margin-bottom:10px">'+
@@ -7615,6 +7622,214 @@ function _importFromDataPlain(jsonText){
   }
 }
 
+// ── Export to Tally (XML for direct import, CSV/Excel for manual review) ──
+// XML structure follows TallyPrime's official documented schema (help.tallysolutions.com/sample-xml).
+// Sign convention: Debit entries use ISDEEMEDPOSITIVE=Yes with a NEGATIVE amount; Credit entries
+// use ISDEEMEDPOSITIVE=No with a POSITIVE amount — this is Tally's own internal convention, not
+// a mistake. Each voucher's Dr and Cr amounts are verified to match before export.
+function escXml(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function tallyDateFmt(dateStr){
+  return (dateStr||'').replace(/-/g,'');
+}
+function buildTallyExportData(){
+  var ledgers = {}; // name -> parent group
+  var vouchers = [];
+  var warnings = [];
+  function ensureLedger(name, parent){
+    if(name && !ledgers[name]) ledgers[name] = parent;
+  }
+  ensureLedger('Cash', 'Cash-in-Hand');
+  (D.bankAccounts||[]).forEach(function(b){ ensureLedger(b.name||'Bank', 'Bank Accounts'); });
+  ensureLedger('Sales Account', 'Sales Accounts');
+  ensureLedger('Purchase Account', 'Purchase Accounts');
+  ensureLedger('Capital Account', 'Capital Account');
+  ensureLedger('Drawings', 'Capital Account');
+  ensureLedger('Interest Paid', 'Indirect Expenses');
+  (D.expenseCategories||[]).forEach(function(c){ ensureLedger(c, 'Indirect Expenses'); });
+
+  function bankLedgerFor(id){
+    var b=(D.bankAccounts||[]).find(function(x){return x.id===id;});
+    return b ? (b.name||'Bank') : 'Bank';
+  }
+  function cashOrBank(mode, bankAccountId){
+    if(mode==='cash') return 'Cash';
+    if(mode==='bank'||mode==='upi') return bankLedgerFor(bankAccountId);
+    return 'Cash';
+  }
+  var vchNo = 1;
+  function addVoucher(date, vchType, narration, entries){
+    if(!date){ warnings.push('Skipped an entry with no date: '+narration); return; }
+    var totalDr=0, totalCr=0;
+    entries.forEach(function(e){ if(e.dr) totalDr+=e.amount; else totalCr+=e.amount; });
+    if(Math.abs(totalDr-totalCr)>0.02){
+      warnings.push('Skipped unbalanced entry ('+narration+'): Dr '+totalDr.toFixed(2)+' vs Cr '+totalCr.toFixed(2));
+      return;
+    }
+    var lines = entries.map(function(e){
+      return '<LEDGERENTRIES.LIST><LEDGERNAME>'+escXml(e.ledger)+'</LEDGERNAME>'+
+        '<ISDEEMEDPOSITIVE>'+(e.dr?'Yes':'No')+'</ISDEEMEDPOSITIVE>'+
+        (e.isParty?'<ISPARTYLEDGER>Yes</ISPARTYLEDGER>':'')+
+        '<AMOUNT>'+(e.dr?'-':'')+e.amount.toFixed(2)+'</AMOUNT></LEDGERENTRIES.LIST>';
+    }).join('');
+    vouchers.push({date:date, type:vchType, narration:narration, entries:entries,
+      xml:'<VOUCHER><DATE>'+tallyDateFmt(date)+'</DATE><VOUCHERTYPENAME>'+escXml(vchType)+'</VOUCHERTYPENAME>'+
+      '<VOUCHERNUMBER>'+(vchNo++)+'</VOUCHERNUMBER><PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>'+
+      '<ISINVOICE>No</ISINVOICE><NARRATION>'+escXml(narration)+'</NARRATION>'+lines+'</VOUCHER>'});
+  }
+
+  (D.sales||[]).forEach(function(s){
+    var partyLedger, isParty=false;
+    if(s.paymentMode==='credit'){ ensureLedger(s.customerName||'Customer','Sundry Debtors'); partyLedger=s.customerName||'Customer'; isParty=true; }
+    else partyLedger = cashOrBank(s.paymentMode, s.bankAccountId);
+    addVoucher(s.date, 'Sales', 'Sale: '+(s.itemName||'')+(s.customerName?' to '+s.customerName:''), [
+      {ledger:partyLedger, dr:true, amount:s.totalAmount||0, isParty:isParty},
+      {ledger:'Sales Account', dr:false, amount:s.totalAmount||0}
+    ]);
+  });
+
+  (D.purchases||[]).forEach(function(p){
+    var partyLedger, isParty=false;
+    if(p.paymentMode==='credit'){ ensureLedger(p.supplier||'Supplier','Sundry Creditors'); partyLedger=p.supplier||'Supplier'; isParty=true; }
+    else partyLedger = cashOrBank(p.paymentMode, p.bankAccountId);
+    addVoucher(p.date, 'Purchase', 'Purchase: '+(p.itemName||'')+(p.supplier?' from '+p.supplier:''), [
+      {ledger:'Purchase Account', dr:true, amount:p.amount||0},
+      {ledger:partyLedger, dr:false, amount:p.amount||0, isParty:isParty}
+    ]);
+  });
+
+  (D.expenses||[]).forEach(function(e){
+    var partyLedger = cashOrBank(e.paymentMode==='credit'?'cash':e.paymentMode, e.bankAccountId);
+    addVoucher(e.date, 'Payment', (e.category||'Expense')+(e.desc?': '+e.desc:''), [
+      {ledger:e.category||'Miscellaneous', dr:true, amount:e.amount||0},
+      {ledger:partyLedger, dr:false, amount:e.amount||0}
+    ]);
+  });
+
+  (D.debtors||[]).filter(function(d){return d.amount<0;}).forEach(function(d){
+    ensureLedger(d.name||'Customer','Sundry Debtors');
+    addVoucher(d.date, 'Receipt', 'Receipt from '+(d.name||'Customer'), [
+      {ledger:'Cash', dr:true, amount:Math.abs(d.amount)},
+      {ledger:d.name||'Customer', dr:false, amount:Math.abs(d.amount), isParty:true}
+    ]);
+  });
+
+  (D.creditors||[]).filter(function(c){return c.amount<0 && (c.type||'supplier')==='supplier';}).forEach(function(c){
+    ensureLedger(c.name||'Supplier','Sundry Creditors');
+    addVoucher(c.date, 'Payment', 'Payment to '+(c.name||'Supplier'), [
+      {ledger:c.name||'Supplier', dr:true, amount:Math.abs(c.amount), isParty:true},
+      {ledger:'Cash', dr:false, amount:Math.abs(c.amount)}
+    ]);
+  });
+
+  (D.loans||[]).forEach(function(l){
+    var loanLedger = (l.bankName||'Bank')+' Loan';
+    ensureLedger(loanLedger, 'Loans (Liability)');
+    if(l.sanctionedAmount>0 && l.sanctionDate){
+      addVoucher(l.sanctionDate, 'Receipt', 'Loan Disbursed: '+(l.bankName||''), [
+        {ledger:'Cash', dr:true, amount:l.sanctionedAmount},
+        {ledger:loanLedger, dr:false, amount:l.sanctionedAmount}
+      ]);
+    }
+    (l.payments||[]).forEach(function(p){
+      var entries=[{ledger:loanLedger, dr:true, amount:+p.principal||0}];
+      if(p.interest>0) entries.push({ledger:'Interest Paid', dr:true, amount:+p.interest||0});
+      entries.push({ledger:'Cash', dr:false, amount:(+p.principal||0)+(+p.interest||0)});
+      addVoucher(p.date, 'Payment', 'Loan EMI: '+(l.bankName||''), entries);
+    });
+  });
+
+  (D.drawings||[]).forEach(function(dr){
+    addVoucher(dr.date, 'Payment', 'Drawings'+(dr.desc?': '+dr.desc:''), [
+      {ledger:'Drawings', dr:true, amount:dr.amount||0},
+      {ledger:'Cash', dr:false, amount:dr.amount||0}
+    ]);
+  });
+
+  var capitalTotal = (+D.capital.initialCapital||0)+(+D.capital.additionalCapital||0);
+  if(capitalTotal>0 && D.opening && D.opening.takenOn){
+    addVoucher(D.opening.takenOn, 'Receipt', 'Capital Introduced', [
+      {ledger:'Cash', dr:true, amount:capitalTotal},
+      {ledger:'Capital Account', dr:false, amount:capitalTotal}
+    ]);
+  }
+
+  vouchers.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
+  return {ledgers:ledgers, vouchers:vouchers, warnings:warnings};
+}
+function generateTallyXML(){
+  var data = buildTallyExportData();
+  var ledgerXml = Object.keys(data.ledgers).map(function(name){
+    var ob = 0;
+    if(name==='Cash') ob = +D.opening.cash||0;
+    else { var ba=(D.bankAccounts||[])[0]; if(ba && ba.name===name) ob = +D.opening.bank||0; }
+    return '<LEDGER Action="Create"><NAME>'+escXml(name)+'</NAME><PARENT>'+escXml(data.ledgers[name])+'</PARENT>'+
+      (ob?('<OPENINGBALANCE>'+ob.toFixed(2)+'</OPENINGBALANCE>'):'')+'</LEDGER>';
+  }).join('');
+  var voucherXml = data.vouchers.map(function(v){ return v.xml; }).join('');
+  var mastersXml = '<?xml version="1.0" encoding="UTF-8"?>\n'+
+    '<ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA>'+
+    '<REQUESTDESC><REPORTNAME>All Masters</REPORTNAME></REQUESTDESC>'+
+    '<REQUESTDATA><TALLYMESSAGE xmlns:UDF="TallyUDF">'+ledgerXml+'</TALLYMESSAGE></REQUESTDATA>'+
+    '</IMPORTDATA></BODY></ENVELOPE>';
+  var vouchersXml = '<?xml version="1.0" encoding="UTF-8"?>\n'+
+    '<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Import</TALLYREQUEST><TYPE>Data</TYPE><ID>Vouchers</ID></HEADER>'+
+    '<BODY><DESC></DESC><DATA><TALLYMESSAGE>'+voucherXml+'</TALLYMESSAGE></DATA></BODY></ENVELOPE>';
+  return {mastersXml:mastersXml, vouchersXml:vouchersXml, warnings:data.warnings, voucherCount:data.vouchers.length, ledgerCount:Object.keys(data.ledgers).length};
+}
+function generateTallyCSV(){
+  var data = buildTallyExportData();
+  var rows = [['Date','Voucher Type','Narration','Dr Ledger','Dr Amount','Cr Ledger','Cr Amount']];
+  data.vouchers.forEach(function(v){
+    var drs = v.entries.filter(function(e){return e.dr;});
+    var crs = v.entries.filter(function(e){return !e.dr;});
+    var maxRows = Math.max(drs.length, crs.length);
+    for(var i=0;i<maxRows;i++){
+      rows.push([
+        v.date, i===0?v.type:'', i===0?v.narration:'',
+        drs[i]?drs[i].ledger:'', drs[i]?drs[i].amount.toFixed(2):'',
+        crs[i]?crs[i].ledger:'', crs[i]?crs[i].amount.toFixed(2):''
+      ]);
+    }
+  });
+  var csv = rows.map(function(r){
+    return r.map(function(c){ var s=String(c==null?'':c); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(',');
+  }).join('\n');
+  return {csv:csv, warnings:data.warnings, voucherCount:data.vouchers.length};
+}
+function downloadTallyXML(){
+  var result = generateTallyXML();
+  if(result.voucherCount===0){ toast('No transactions to export yet.','e'); return; }
+  var bizSlug = (D.profile.businessName||'Business').replace(/[^a-z0-9]/gi,'_');
+  function dl(content, filename){
+    var blob = new Blob([content], {type:'application/xml'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href=url; a.download=filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},5000);
+  }
+  dl(result.mastersXml, 'Tally_1_Ledgers_'+bizSlug+'_'+td()+'.xml');
+  setTimeout(function(){
+    dl(result.vouchersXml, 'Tally_2_Vouchers_'+bizSlug+'_'+td()+'.xml');
+  }, 400);
+  var msg = 'Downloaded 2 files: Ledgers ('+result.ledgerCount+') and Vouchers ('+result.voucherCount+'). Import the Ledgers file FIRST in Tally, then the Vouchers file.';
+  if(result.warnings.length) msg += ' ('+result.warnings.length+' entries skipped — check browser console for details.)';
+  if(result.warnings.length) console.warn('Tally export warnings:', result.warnings);
+  toast(msg);
+}
+function downloadTallyCSV(){
+  var result = generateTallyCSV();
+  if(result.voucherCount===0){ toast('No transactions to export yet.','e'); return; }
+  var blob = new Blob(['\uFEFF'+result.csv], {type:'text/csv'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href=url; a.download='DayBook_'+(D.profile.businessName||'Business').replace(/[^a-z0-9]/gi,'_')+'_'+td()+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},5000);
+  toast(result.voucherCount+' transactions exported to CSV.');
+}
 function triggerFileImport(){
   // Create fresh input element each time — more reliable on iOS Safari PWA
   var inp=document.getElementById('json_file_inp');
@@ -16423,6 +16638,8 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"Can I export my data to Tally?", tags:["export to tally","tally export","tally xml","tally import","tallyprime","day book excel"], diag:false,
+ a:"Yes — go to <b>Data</b> tab → <b>Export to Tally</b> card. Two options: <b>Download Tally XML</b> gives you 2 files (Ledgers, then Vouchers) for direct import into TallyPrime via Gateway of Tally → Import Data — import the Ledgers file first, then the Vouchers file. It covers all your Sales, Purchases, Expenses, Receipts, Payments, Loan entries and Drawings, with ledgers (Customers, Suppliers, Bank, Cash, Capital, Loans, Expense heads) auto-created. <b>Download Day Book (Excel/CSV)</b> gives a plain Dr/Cr listing for your CA to review or manually re-key, without touching Tally directly. Always test the XML import into a backup/duplicate Tally company first, and keep a Tally backup before importing into your live company."},
 {q:"Where can I check my credit score for free?", tags:["free credit score","cibil score check","check credit score","free cibil check"], diag:false,
  a:"Go to <b>Bank Loan Assessment → Bank Ratios</b> tab — there's a link at the bottom to <b>cibil.com/freecibilscore</b>, the only official free source (one free CIBIL Score & Report per calendar year, under RBI rules). Be cautious of other \"free\" credit score sites — they're not the official source and often exist to sell you loans or subscriptions. Your business ratios in this app matter for a loan proposal, but banks also weigh the proprietor/partners' personal credit score."},
 {q:"What is the formula for Current Ratio and Liquidity ratios?", tags:["current ratio formula","liquidity ratio formula","current ratio excl tl"], diag:false,
@@ -16489,7 +16706,8 @@ var _FAQ_STOP={"how":1,"to":1,"a":1,"an":1,"the":1,"is":1,"are":1,"my":1,"i":1,"
 function _faqWords(s){ return (s||'').toLowerCase().replace(/[^a-z0-9&\s]/g,' ').split(/\s+/).filter(function(w){return w.length>1 && !_FAQ_STOP[w];}); }
 function _faqAllData(){ return (_FAQ_DATA||[]).concat(_EXTRA_FAQ_DATA||[]); }
 
-var _FAQ_DIAG_INTENT = /difference|mismatch|discrepanc|tally|tallying|not match|doesn.?t match|dont match|not equal|not correct|not right|incorrect|imbalance|not adding up|not add up|not reconcil|out of balance|not balanc/i;
+var _FAQ_DIAG_INTENT_RAW = /difference|mismatch|discrepanc|tally|tallying|not match|doesn.?t match|dont match|not equal|not correct|not right|incorrect|imbalance|not adding up|not add up|not reconcil|out of balance|not balanc/i;
+var _FAQ_TALLY_SOFTWARE = /tally\s*(prime|erp|xml)|(export|import).{0,15}\btally\b|\btally\b.{0,15}(export|import)/i;
 
 function _faqAnswerFor(text){
   var raw=(text||'').toLowerCase().trim().replace(/[^a-z\s]/g,'');
@@ -16498,7 +16716,7 @@ function _faqAnswerFor(text){
   var q=' '+(text||'').toLowerCase()+' ';
   var qWords=_faqWords(text);
   var qSet={}; qWords.forEach(function(w){qSet[w]=true;});
-  var diagIntent=_FAQ_DIAG_INTENT.test(text);
+  var diagIntent=_FAQ_DIAG_INTENT_RAW.test(text) && !_FAQ_TALLY_SOFTWARE.test(text);
   var best=null,bestScore=0;
   var _FAQ_FILLER = {"not":1,"matching":1,"match":1,"matches":1,"mismatch":1,"difference":1,"tally":1,"tallying":1,"wrong":1,"correct":1,"incorrect":1,"discrepancy":1,"gap":1,"equal":1,"reconcile":1,"reconciliation":1,"statement":1,"amount":1,"value":1,"balance":1,"looks":1,"seems":1,"showing":1,"show":1,"differ":1,"balancing":1,"add":1,"enter":1,"record":1,"new":1,"edit":1,"view":1,"see":1,"kaise":1,"karen":1,"karna":1};
   _faqAllData().forEach(function(item){
