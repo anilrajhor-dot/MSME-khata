@@ -7457,15 +7457,18 @@ function expDatEncrypted(){
   _passwordPrompt('🔒 Set Backup Password', 'Choose a password to encrypt this backup. You will need this exact password to restore it later — write it down somewhere safe! There is no way to recover a lost password.', function(pw, done){
     encryptBackupText(JSON.stringify(D,null,2), pw).then(function(enc){
       done();
-      showBackupModal(enc, 'Accounts_'+td()+'_encrypted.json');
+      showBackupModal(enc, bizFileSlug()+'_'+td()+'_encrypted.json');
       toast('🔒 Encrypted backup created. Remember your password — it cannot be recovered if lost!','w');
     }).catch(function(e){ done('Encryption failed: '+e.message); });
   });
 }
 
+function bizFileSlug(){
+  return (D.profile.businessName||'Business').replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_').replace(/^_|_$/g,'') || 'Business';
+}
 function expDat(){
   var b=JSON.stringify(D,null,2);
-  showBackupModal(b,'Accounts_'+td()+'.json');
+  showBackupModal(b,bizFileSlug()+'_'+td()+'.json');
 }
 
 function showBackupModal(content, filename){
@@ -7801,7 +7804,7 @@ function generateTallyCSV(){
 function downloadTallyXML(){
   var result = generateTallyXML();
   if(result.voucherCount===0){ toast('No transactions to export yet.','e'); return; }
-  var bizSlug = (D.profile.businessName||'Business').replace(/[^a-z0-9]/gi,'_');
+  var bizSlug = bizFileSlug();
   function dl(content, filename){
     var blob = new Blob([content], {type:'application/xml'});
     var url = URL.createObjectURL(blob);
@@ -7825,7 +7828,7 @@ function downloadTallyCSV(){
   var blob = new Blob(['\uFEFF'+result.csv], {type:'text/csv'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
-  a.href=url; a.download='DayBook_'+(D.profile.businessName||'Business').replace(/[^a-z0-9]/gi,'_')+'_'+td()+'.csv';
+  a.href=url; a.download='DayBook_'+bizFileSlug()+'_'+td()+'.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(function(){URL.revokeObjectURL(url);},5000);
   toast(result.voucherCount+' transactions exported to CSV.');
@@ -13191,8 +13194,14 @@ function pgCMA(){
     '</div>';
 
   var tab = window._cmatab||'formI';
-  var tabs = [['formI','Form I: Limits'],['formII','Form II: Operating Stmt'],['formIII','Form III: Balance Sheet'],['formIV','Form IV: MPBF'],['formV','Form V: Fund Flow'],['formVI','Form VI: Ratios']];
+  var tabs = [['formI','Form I: Limits'],['formII','Form II: Operating Stmt'],['formIII','Form III: Balance Sheet'],['formIV','Form IV: MPBF'],['formV','Form V: Fund Flow'],['formVI','Form VI: Ratios'],['letter','Request Letter']];
   h += '<div class="tabbar">'+tabs.map(function(t){ return '<button class="'+(tab===t[0]?'act':'')+'" onclick="window._cmatab=\''+t[0]+'\';renderPage()">'+t[1]+'</button>'; }).join('')+'</div>';
+
+  if(tab==='letter'){
+    h += pgCMALetter(mode);
+    h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print Letter','window.print()','#546E7A')+'</div>';
+    return h;
+  }
 
   var cols = getCMAYearColumns();
   if(cols.length===0){
@@ -13368,6 +13377,127 @@ function pgCMAFormVI(cols){
     h += card(section.cat, tableHtml);
   });
   return h;
+}
+function generateCMALetterDraft(mode){
+  var p = D.profile;
+  var la = D.loanAssessment;
+  var bankName = window._letterBankName || (D.loans && D.loans[0] && D.loans[0].bankName) || '[Bank Name]';
+  var branch = window._letterBranch || '[Branch Name / Address]';
+  var ccLimit = +la.ccLimit||0, tlLimit = +la.tlAmount||0;
+  var existingLoans = (D.loans||[]);
+  var existingCC = existingLoans.filter(isCcOdLoan).reduce(function(s,l){return s+(+l.sanctionedLimit||0);},0);
+  var existingTL = existingLoans.filter(function(l){return !isCcOdLoan(l);}).reduce(function(s,l){return s+(+l.outstandingBalance||0);},0);
+  var cur = null; try{ cur = getCurrentYearRatioData(); }catch(e){}
+  var la2 = null; try{ la2 = getFreshLA2(); }catch(e){}
+
+  var subjectAction = mode==='enhancement' ? 'Enhancement of Existing' : 'Sanction of';
+  var facilityParts = [];
+  if(ccLimit>0) facilityParts.push('Cash Credit / Working Capital limit of '+fc(ccLimit));
+  if(tlLimit>0) facilityParts.push('Term Loan of '+fc(tlLimit));
+  var facilityText = facilityParts.length ? facilityParts.join(' and ') : '[credit facility amount]';
+
+  var lines = [];
+  lines.push(td());
+  lines.push('');
+  lines.push('To,');
+  lines.push('The Branch Manager,');
+  lines.push(bankName);
+  lines.push(branch);
+  lines.push('');
+  lines.push('Subject: Request for '+subjectAction+' '+(ccLimit>0&&tlLimit>0?'Cash Credit and Term Loan':(ccLimit>0?'Cash Credit / Working Capital':'Term Loan'))+' Facility');
+  lines.push('');
+  lines.push('Dear Sir/Madam,');
+  lines.push('');
+  var constitutionText = p.constitution||'[Constitution]';
+  var article = /^[aeiou]/i.test(constitutionText) ? 'an' : 'a';
+  lines.push('We, '+(p.businessName||'[Business Name]')+', '+article+' '+constitutionText+' engaged in the '+(p.businessType||'[Business Type]')+' business'+(p.commencementDate?(' since '+p.commencementDate):'')+', respectfully submit our request for '+(mode==='enhancement'?'enhancement of our existing credit facility':'sanction of a fresh credit facility')+' with your esteemed bank/branch.');
+  lines.push('');
+  if(mode==='enhancement'){
+    lines.push('We currently avail the following facilities with your bank:');
+    if(existingCC>0) lines.push('  • Cash Credit / Working Capital limit: '+fc(existingCC));
+    if(existingTL>0) lines.push('  • Term Loan outstanding: '+fc(existingTL));
+    lines.push('');
+    lines.push('Owing to the growth in our business volume, we now request an enhancement to '+facilityText+'.');
+  } else {
+    lines.push('We request sanction of '+facilityText+' to support our business requirements.');
+  }
+  lines.push('');
+  lines.push('Purpose: [working capital requirements to support growing sales / acquisition of fixed assets for business expansion — please edit as applicable]');
+  lines.push('');
+  if(cur){
+    lines.push('A brief financial snapshot of our business:');
+    lines.push('  • Net Sales (current year): '+fc(cur.netSales));
+    lines.push('  • Net Profit (current year): '+fc(cur.pat));
+    lines.push('  • Tangible Net Worth: '+fc(cur.tnw));
+    if(la2 && la2.s1>0){
+      lines.push('  • Projected Net Sales (next year): '+fc(la2.s1));
+    }
+    lines.push('');
+  }
+  lines.push('We enclose our CMA Data (Operating Statement, Balance Sheet, MPBF working, Fund Flow and Ratio Analysis), along with other requisite documents, for your kind perusal and appraisal.');
+  lines.push('');
+  lines.push('We assure you of our commitment to servicing this facility promptly and request you to kindly process our application at the earliest, extending your valued support.');
+  lines.push('');
+  lines.push('Thanking you,');
+  lines.push('');
+  lines.push('Yours faithfully,');
+  lines.push('');
+  lines.push('For '+(p.businessName||'[Business Name]'));
+  lines.push('');
+  lines.push('');
+  lines.push('('+(p.ownerName||'[Proprietor/Partner/Director Name]')+')');
+  lines.push((p.constitution==='Individual'||p.constitution==='Proprietorship')?'Proprietor':'Partner / Director');
+  return lines.join('\n');
+}
+function pgCMALetter(mode){
+  if(window._letterText===undefined || window._letterText===null){
+    window._letterText = generateCMALetterDraft(mode);
+  }
+  var h = '<div class="al ali"><div class="alt">Request Letter to Bank</div><p>Auto-drafted from your business profile, loan details and CMA figures — fully editable below before printing or copying. Fill in the Bank Name/Branch, adjust the Purpose line, and review before sending.</p></div>';
+  h += card('Bank Details',
+    g2(inp('Bank Name','letter_bank','text',window._letterBankName||((D.loans&&D.loans[0]&&D.loans[0].bankName)||'')),
+       inp('Branch / Address','letter_branch','text',window._letterBranch||''))+
+    btn('🔄 Regenerate Draft from Data','regenerateCMALetter()','#546E7A')
+  );
+  h += card('Letter (editable)',
+    '<textarea id="cma_letter_ta" style="width:100%;height:60vh;font-family:inherit;font-size:13px;padding:10px;box-sizing:border-box;border:1px solid #BBDEFB;border-radius:8px;white-space:pre-wrap" onchange="window._letterText=this.value">'+esc(window._letterText)+'</textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'+
+    btn('📋 Copy Text','copyCMALetter()','#546E7A')+
+    btn('⬇ Download as File','downloadCMALetter()','#1565C0')+
+    '</div>'
+  );
+  return h;
+}
+function regenerateCMALetter(){
+  window._letterBankName = gv('letter_bank');
+  window._letterBranch = gv('letter_branch');
+  window._letterText = generateCMALetterDraft(window._cmaMode||'sanction');
+  renderPage();
+  toast('Draft regenerated.');
+}
+function copyCMALetter(){
+  var ta = document.getElementById('cma_letter_ta');
+  var text = ta ? ta.value : (window._letterText||'');
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text);
+      toast('Letter copied! Paste into WhatsApp, Email, or Word.');
+    } else {
+      ta.select(); document.execCommand('copy');
+      toast('Letter copied!');
+    }
+  }catch(e){ toast('Could not copy — please select and copy manually.','e'); }
+}
+function downloadCMALetter(){
+  var ta = document.getElementById('cma_letter_ta');
+  var text = ta ? ta.value : (window._letterText||'');
+  var blob = new Blob([text], {type:'text/plain'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'Bank_Request_Letter_'+bizFileSlug()+'_'+td()+'.txt';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},5000);
+  toast('Letter downloaded.');
 }
 function getLABase() {
   var la = D.loanAssessment || {};
@@ -16927,6 +17057,8 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"How to generate a request letter to the bank for loan sanction or enhancement?", tags:["bank request letter","loan application letter","sanction letter","enhancement letter","letter to bank manager"], diag:false,
+ a:"Go to <b>CMA Data → Request Letter</b> tab. It auto-drafts a formal letter using your business profile, Loan Details (CC/TL amounts requested), and current-year financial highlights — choose <b>New Sanction</b> or <b>Enhancement</b> at the top of CMA Data first, since the letter wording changes accordingly. Fill in the Bank Name and Branch, then edit the letter text directly (it's a normal editable box — adjust the Purpose line, add any specific details) before using <b>Copy</b>, <b>Download</b>, or <b>Print</b>."},
 {q:"What is CMA Data and how do I generate it?", tags:["cma data","cma report","credit monitoring arrangement","bank cma format","mpbf","fund flow statement","sanction enhancement"], diag:false,
  a:"Go to the <b>CMA Data</b> menu — a dedicated, bank-ready report auto-generated from your recorded transactions, Historical Data and Loan Details projections. Choose <b>New Sanction</b> or <b>Enhancement</b> at the top, then work through the 6 forms: <b>Form I</b> (existing & proposed credit facilities), <b>Form II</b> (Operating Statement/P&L), <b>Form III</b> (Balance Sheet analysis), <b>Form IV</b> (MPBF — Maximum Permissible Bank Finance, Tandon Method II, plus the Nayak Turnover Method for MSME), <b>Form V</b> (Fund Flow Statement), and <b>Form VI</b> (Ratio Analysis). Use <b>Print CMA Report</b> at the bottom to generate a submission-ready copy. Fill in Historical Data and Loan Details first (in Bank Loan Assessment) for all 5 columns — 2 Actual years, this year's Estimate, and 2 Projected years — to populate."},
 {q:"Can I export my data to Tally?", tags:["export to tally","tally export","tally xml","tally import","tallyprime","day book excel"], diag:false,
