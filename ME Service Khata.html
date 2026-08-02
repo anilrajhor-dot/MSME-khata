@@ -13322,6 +13322,281 @@ function laRow(label, v0, v1, v2, bold, indent, highlight) {
 }
 
 // Get annualized base figures from actual data
+function getFreshLA2(){
+  var la = D.loanAssessment;
+  var useManual = la.useManual;
+  var manualSales = +la.manualSales||0, manualCogsP = +la.manualCogsP||0, manualExp = +la.manualExp||0;
+  var base = useManual && manualSales > 0
+    ? {sales:manualSales, cogs:Math.round(manualSales*manualCogsP/100), gp:Math.round(manualSales*(1-manualCogsP/100)), exp:manualExp, np:Math.round(manualSales*(1-manualCogsP/100))-manualExp, days:365, isManual:true}
+    : getLABase();
+  return getLAProjections(base, +la.ccLimit||0, +la.tlAmount||0, +la.ccRate||0, +la.tlRate||0, +la.tlTenure||0, +la.salesGrowth||0, +la.expGrowth||0, +la.stockDays||0, +la.debtorDays||0, +la.creditorDays||0);
+}
+// ── CMA Data: MPBF as per 2nd Method of Lending (matches standard bank CMA sheet row-by-row) ──
+// TCA = Total Current Assets. TCL(excl. bank borrowings) = Other Current Liabilities.
+// Row4 WCG = TCA - TCL.  Row5 MinMargin = 25% of TCA.  Row6 Actual/Projected NWC (long-term-funded).
+// Row7 = WCG - ActualNWC.  Row8 = WCG - MinMargin (= 75% of TCA - TCL).  MPBF = lower of Row7/Row8.
+function computeMPBFFull(y){
+  var tca = y.currentAssets||0;
+  var tclExclBank = y.currentLiabilities||0; // already excludes CC/OD in this app's data model
+  var wcg = tca - tclExclBank;
+  var minMargin = 0.25*tca;
+  var actualNWC = tca - tclExclBank - (y.bankFinanceUtilized||0);
+  var row7 = wcg - actualNWC;
+  var row8 = wcg - minMargin;
+  var mpbf = Math.min(row7, row8);
+  return {netSales:y.netSales||0, tca:tca, tcl:tclExclBank, wcg:wcg, minMargin:minMargin, actualNWC:actualNWC,
+          row7:row7, row8:row8, mpbf:mpbf};
+}
+// Turnover Method (Nayak Committee) — for MSME borrowers with aggregate WC limits up to ₹5 Cr.
+// WC required = 25% of projected turnover; borrower margin = 5% of turnover; bank finance = 20% of turnover (80% of the 25%).
+function computeNayakMethod(y){
+  var sales = y.netSales||0;
+  var wcRequired = 0.25*sales;
+  var eligibleBankFinance = 0.80*wcRequired; // = 20% of sales
+  return {sales:sales, wcRequired:wcRequired, eligibleBankFinance:eligibleBankFinance};
+}
+// Fund Flow Statement — Sources & Uses of Funds between two consecutive years
+function computeFundFlow(prevY, curY){
+  var netProfit = curY.pat||0;
+  var depreciation = curY.depreciation||0;
+  var increaseInCapital = Math.max(0, (curY.tnw - (curY.pat||0)) - (prevY.tnw - (prevY.pat||0)));
+  var increaseInTermLoan = Math.max(0, curY.termLoanOutstanding - prevY.termLoanOutstanding);
+  var sources = netProfit + depreciation + increaseInCapital + increaseInTermLoan;
+
+  var increaseInFixedAssets = Math.max(0, (curY.fixedAssets + (curY.depreciation||0)) - prevY.fixedAssets);
+  var decreaseInTermLoan = Math.max(0, prevY.termLoanOutstanding - curY.termLoanOutstanding);
+  var increaseInNWC = Math.max(0, (curY.currentAssets - curY.currentLiabilities - (curY.bankFinanceUtilized||0)) - (prevY.currentAssets - prevY.currentLiabilities - (prevY.bankFinanceUtilized||0)));
+  var uses = increaseInFixedAssets + decreaseInTermLoan + increaseInNWC;
+
+  return {netProfit:netProfit, depreciation:depreciation, increaseInCapital:increaseInCapital, increaseInTermLoan:increaseInTermLoan, sources:sources,
+          increaseInFixedAssets:increaseInFixedAssets, decreaseInTermLoan:decreaseInTermLoan, increaseInNWC:increaseInNWC, uses:uses,
+          netSurplusDeficit:sources-uses};
+}
+function getCMAYearColumns(){
+  var cols = [];
+  var currentFY = getFYForDate(td());
+  var fyLabels = {yearN2: shiftFY(currentFY,-2), yearN1: shiftFY(currentFY,-1)};
+  var histN2 = (D.historicalActuals && D.historicalActuals.yearN2) || computeHistoricalFYFromLiveData(fyLabels.yearN2);
+  var histN1 = (D.historicalActuals && D.historicalActuals.yearN1) || computeHistoricalFYFromLiveData(fyLabels.yearN1);
+  var n2Saved = !!(D.historicalActuals && D.historicalActuals.yearN2);
+  var n1Saved = !!(D.historicalActuals && D.historicalActuals.yearN1);
+  if(histN2) cols.push({label:(histN2.label||fyLabels.yearN2), sub:'Actual'+(n2Saved?'':' (auto)'), y:histN2});
+  if(histN1) cols.push({label:(histN1.label||fyLabels.yearN1), sub:'Actual'+(n1Saved?'':' (auto)'), y:histN1});
+  var la2 = getFreshLA2();
+  if(la2.s1>0){
+    cols.push({label:'This Year', sub:'Estimate', y:getCurrentYearRatioData()});
+    cols.push({label:'Year 1', sub:'Proj', y:getProjectedYearRatioData(la2,1)});
+    cols.push({label:'Year 2', sub:'Proj', y:getProjectedYearRatioData(la2,2)});
+  }
+  return cols;
+}
+function cmaTable(title, rows, cols, note){
+  var tableHtml = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr><th style="text-align:left;padding:5px 8px;background:#1565C0;color:#fff;position:sticky;left:0">Particulars</th>'+
+    cols.map(function(c){ return '<th style="text-align:right;padding:5px 8px;background:#1565C0;color:#fff;min-width:70px">'+esc(c.label)+'<br><small>'+esc(c.sub)+'</small></th>'; }).join('')+
+    '</tr></thead><tbody>'+
+    rows.map(function(r,i){
+      if(r.section) return '<tr style="background:#E3EEFC"><td colspan="'+(cols.length+1)+'" style="padding:5px 8px;font-weight:800;color:#1565C0">'+esc(r.label)+'</td></tr>';
+      return '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+(r.bold?';font-weight:800':'')+'">'+
+        '<td style="padding:5px 8px;position:sticky;left:0;background:inherit'+(r.indent?';padding-left:20px':'')+'">'+esc(r.label)+'</td>'+
+        cols.map(function(c){
+          var v = r.get(c.y, c);
+          return '<td style="text-align:right;padding:5px 8px">'+(v===null||v===undefined?'—':(r.pct?fmtRatio(v,2,'%'):(r.raw?v:fc(v))))+'</td>';
+        }).join('')+
+        '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+  return card(title, (note?('<div class="al ali" style="margin-bottom:8px">'+note+'</div>'):'')+tableHtml);
+}
+function pgCMA(){
+  var h = '<div class="al ali"><div class="alt">📋 CMA Data — Bank-Ready Credit Monitoring Arrangement Report</div>'+
+    '<p>Standard bank CMA format (RBI/Tandon Committee based), auto-generated from your recorded transactions, Historical Data and Projections — the same data used in Bank Loan Assessment, presented the way your bank expects to see it.</p></div>';
+
+  var mode = window._cmaMode||'sanction';
+  h += '<div style="display:flex;gap:8px;margin-bottom:12px">'+
+    '<button onclick="window._cmaMode=\'sanction\';renderPage()" style="flex:1;padding:10px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(mode==='sanction'?'#1565C0':'#E3EEFC')+';color:'+(mode==='sanction'?'#fff':'#1565C0')+'">New Sanction</button>'+
+    '<button onclick="window._cmaMode=\'enhancement\';renderPage()" style="flex:1;padding:10px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(mode==='enhancement'?'#1565C0':'#E3EEFC')+';color:'+(mode==='enhancement'?'#fff':'#1565C0')+'">Enhancement</button>'+
+    '</div>';
+
+  var tab = window._cmatab||'formI';
+  var tabs = [['formI','Form I: Limits'],['formII','Form II: Operating Stmt'],['formIII','Form III: Balance Sheet'],['formIV','Form IV: MPBF'],['formV','Form V: Fund Flow'],['formVI','Form VI: Ratios']];
+  h += '<div class="tabbar">'+tabs.map(function(t){ return '<button class="'+(tab===t[0]?'act':'')+'" onclick="window._cmatab=\''+t[0]+'\';renderPage()">'+t[1]+'</button>'; }).join('')+'</div>';
+
+  var cols = getCMAYearColumns();
+  if(cols.length===0){
+    h += '<div class="al alw">No data available yet. Go to <b>Bank Loan Assessment → Historical Data</b> and/or <b>Loan Details</b> first, then return here.</div>';
+    return h;
+  }
+
+  if(tab==='formI') h += pgCMAFormI(mode);
+  else if(tab==='formII') h += pgCMAFormII(cols);
+  else if(tab==='formIII') h += pgCMAFormIII(cols);
+  else if(tab==='formIV') h += pgCMAFormIV(cols, mode);
+  else if(tab==='formV') h += pgCMAFormV(cols);
+  else if(tab==='formVI') h += pgCMAFormVI(cols);
+
+  h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print CMA Report','window.print()','#546E7A')+'</div>';
+  return h;
+}
+function pgCMAFormI(mode){
+  var h = '';
+  h += card('Applicant Particulars',
+    '<div class="fsr"><span>Business Name</span><span style="font-weight:700">'+esc(D.profile.businessName||'-')+'</span></div>'+
+    '<div class="fsr"><span>Constitution</span><span>'+esc(D.profile.constitution||'-')+'</span></div>'+
+    '<div class="fsr"><span>Business Type</span><span>'+esc(D.profile.businessType||'-')+'</span></div>'+
+    '<div class="fsr"><span>PAN</span><span>'+esc(D.profile.pan||'-')+'</span></div>'+
+    '<div class="fsr"><span>GSTIN</span><span>'+esc(D.profile.gst||'-')+'</span></div>'+
+    '<div class="fsr"><span>Commencement Date</span><span>'+esc(D.profile.commencementDate||'-')+'</span></div>'
+  );
+
+  var existingRows = (D.loans||[]).map(function(l){
+    var kind = isCcOdLoan(l) ? 'Cash Credit / OD' : 'Term Loan';
+    return '<tr><td style="padding:5px 8px">'+esc(l.bankName||'-')+'</td><td style="padding:5px 8px">'+kind+'</td>'+
+      '<td style="padding:5px 8px;text-align:right">'+fc(l.sanctionedLimit||l.sanctionedAmount||l.amount||0)+'</td>'+
+      '<td style="padding:5px 8px;text-align:right">'+fc(l.outstandingBalance||0)+'</td>'+
+      '<td style="padding:5px 8px;text-align:right">'+(l.rate||0)+'%</td></tr>';
+  }).join('');
+  h += card('Form I — Particulars of Existing Credit Facilities',
+    (existingRows ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+      '<thead><tr style="background:#1565C0;color:#fff"><th style="text-align:left;padding:5px 8px">Bank</th><th style="text-align:left;padding:5px 8px">Facility</th>'+
+      '<th style="text-align:right;padding:5px 8px">Sanctioned</th><th style="text-align:right;padding:5px 8px">Outstanding</th><th style="text-align:right;padding:5px 8px">Rate</th></tr></thead>'+
+      '<tbody>'+existingRows+'</tbody></table></div>'
+      : '<div class="al ali">No existing loans recorded (add them in Capital/Loans → Loans if applicable).</div>')
+  );
+
+  var la = D.loanAssessment;
+  var proposedLabel = mode==='enhancement' ? 'Enhanced Limit Requested' : 'Proposed Limit';
+  h += card('Form I — '+proposedLabel+' (from Loan Details)',
+    '<div class="fsr"><span>Proposed CC/WC Limit</span><span style="font-weight:700">'+fc(la.ccLimit||0)+'</span></div>'+
+    '<div class="fsr"><span>Proposed Term Loan</span><span style="font-weight:700">'+fc(la.tlAmount||0)+'</span></div>'+
+    '<div class="fsr"><span>Total Proposed Exposure</span><span style="font-weight:700">'+fc((+la.ccLimit||0)+(+la.tlAmount||0))+'</span></div>'+
+    '<div style="font-size:11px;color:#546E7A;margin-top:6px">Edit these in <b>Bank Loan Assessment → Loan Details</b>.</div>'
+  );
+  return h;
+}
+function pgCMAFormII(cols){
+  var rows = [
+    {label:'Net Sales', get:function(y){return y.netSales;}, bold:true},
+    {label:'Cost of Goods Sold / Cost of Sales', get:function(y){return y.cogs;}, indent:true},
+    {label:'Gross Profit', get:function(y){return (y.netSales||0)-(y.cogs||0);}, bold:true},
+    {label:'Operating Expenses (excl. Interest & Depreciation)', get:function(y){return (y.ebitda!==undefined && y.netSales!==undefined) ? ((y.netSales-y.cogs)-y.ebitda) : null;}, indent:true},
+    {label:'EBITDA (Operating Profit)', get:function(y){return y.ebitda;}, bold:true},
+    {label:'Depreciation', get:function(y){return y.depreciation;}, indent:true},
+    {label:'EBIT', get:function(y){return (y.ebitda||0)-(y.depreciation||0);}},
+    {label:'Interest', get:function(y){return y.interest;}, indent:true},
+    {label:'Profit Before Tax (PBT)', get:function(y){return y.pbt;}, bold:true},
+    {label:'Profit After Tax (PAT)', get:function(y){return y.pat;}, bold:true},
+    {label:'Cash Accruals (PAT + Depreciation)', get:function(y){return (y.pat||0)+(y.depreciation||0);}, bold:true}
+  ];
+  return cmaTable('Form II — Operating Statement (Profit & Loss)', rows, cols,
+    'This app currently tracks 2 years of Historical Actuals + Estimate + 2 Projected years. Standard bank CMA formats often extend to 5 years — a future enhancement.');
+}
+function pgCMAFormIII(cols){
+  var rows = [
+    {label:'LIABILITIES', section:true},
+    {label:'Bank Borrowings (CC/OD, short-term)', get:function(y){return y.bankFinanceUtilized;}},
+    {label:'Sundry Creditors & Other Current Liab.', get:function(y){return y.currentLiabilities;}},
+    {label:'Total Current Liabilities', get:function(y){return (y.currentLiabilities||0)+(y.bankFinanceUtilized||0);}, bold:true},
+    {label:'Term Loans Outstanding', get:function(y){return y.termLoanOutstanding;}},
+    {label:'Total Outside Liabilities (TOL)', get:function(y){return y.totalOutsideLiabilities;}, bold:true},
+    {label:'Tangible Net Worth (TNW)', get:function(y){return y.tnw;}, bold:true},
+    {label:'TOTAL LIABILITIES', get:function(y){return y.totalAssets;}, bold:true},
+    {label:'ASSETS', section:true},
+    {label:'Inventory / Stock', get:function(y){return y.inventory;}},
+    {label:'Receivables', get:function(y){return y.receivables;}},
+    {label:'Other Current Assets (incl. Cash & Bank)', get:function(y){return Math.max(0,(y.currentAssets||0)-(y.inventory||0)-(y.receivables||0));}},
+    {label:'Total Current Assets', get:function(y){return y.currentAssets;}, bold:true},
+    {label:'Net Fixed Assets', get:function(y){return y.fixedAssets;}},
+    {label:'TOTAL ASSETS', get:function(y){return y.totalAssets;}, bold:true},
+    {label:'Net Working Capital (TCA − TCL)', get:function(y){return (y.currentAssets||0)-(y.currentLiabilities||0)-(y.bankFinanceUtilized||0);}, bold:true},
+    {label:'Current Ratio', get:function(y){return (y.currentLiabilities||0)+(y.bankFinanceUtilized||0)>0 ? (y.currentAssets||0)/((y.currentLiabilities||0)+(y.bankFinanceUtilized||0)) : null;}, raw:true}
+  ];
+  return cmaTable('Form III — Analysis of Balance Sheet', rows, cols);
+}
+function pgCMAFormIV(cols, mode){
+  var la = D.loanAssessment;
+  var proposedCC = +la.ccLimit||0;
+  var mpbfRows = [
+    {label:'1. Net Sales', get:function(y){return computeMPBFFull(y).netSales;}},
+    {label:'2. Total Current Assets (TCA)', get:function(y){return computeMPBFFull(y).tca;}},
+    {label:'3. Total Current Liab. (excl. Bank Borrowings)', get:function(y){return computeMPBFFull(y).tcl;}},
+    {label:'4. Working Capital Gap (2−3)', get:function(y){return computeMPBFFull(y).wcg;}, bold:true},
+    {label:'5. Minimum Required Margin (25% of TCA)', get:function(y){return computeMPBFFull(y).minMargin;}},
+    {label:'6. Actual / Projected NWC', get:function(y){return computeMPBFFull(y).actualNWC;}},
+    {label:'7. (4 − 6)', get:function(y){return computeMPBFFull(y).row7;}},
+    {label:'8. (4 − 5)', get:function(y){return computeMPBFFull(y).row8;}},
+    {label:'9. MPBF — lower of Row 7 or Row 8', get:function(y){return computeMPBFFull(y).mpbf;}, bold:true}
+  ];
+  var h = cmaTable('Form IV — MPBF (2nd Method of Lending, Tandon Committee)', mpbfRows, cols,
+    'Method II is the stricter, more commonly used Tandon approach — it requires 25% of Total Current Assets (not just the gap) as the borrower\'s own long-term margin.');
+
+  var nayakRows = [
+    {label:'a. Projected/Estimated Sales', get:function(y){return computeNayakMethod(y).sales;}},
+    {label:'b. Working Capital Required (25% of Sales)', get:function(y){return computeNayakMethod(y).wcRequired;}},
+    {label:'c. Eligible Bank Finance (80% of b, i.e. 20% of Sales)', get:function(y){return computeNayakMethod(y).eligibleBankFinance;}, bold:true}
+  ];
+  h += cmaTable('Turnover Method (Nayak Committee — for MSME limits up to ₹5 Cr)', nayakRows, cols,
+    'Applicable for MSME borrowers with aggregate working capital limits up to ₹5 crore. Bank sanctions the HIGHER of this and the MPBF Method II figure, typically capped by the amount actually requested.');
+
+  var estCol = cols.filter(function(c){return c.sub==='Estimate';})[0];
+  if(estCol){
+    var mpbfEst = computeMPBFFull(estCol.y).mpbf;
+    var nayakEst = computeNayakMethod(estCol.y).eligibleBankFinance;
+    var recommended = Math.max(mpbfEst, nayakEst);
+    var final = Math.min(recommended, proposedCC>0?proposedCC:recommended);
+    h += card('Recommended '+(mode==='enhancement'?'Enhanced':'Sanction')+' Amount (This Year Estimate)',
+      '<div class="fsr"><span>MPBF (Method II)</span><span>'+fc(mpbfEst)+'</span></div>'+
+      '<div class="fsr"><span>Turnover Method (Nayak)</span><span>'+fc(nayakEst)+'</span></div>'+
+      '<div class="fsr"><span>Higher of the two</span><span>'+fc(recommended)+'</span></div>'+
+      (proposedCC>0?'<div class="fsr"><span>Amount Requested</span><span>'+fc(proposedCC)+'</span></div>':'')+
+      fsr('➤ Recommended Amount (lower of eligible vs requested)', final, 1, 0, 1, '#1565C0')
+    );
+  }
+  return h;
+}
+function pgCMAFormV(cols){
+  var pairs = [];
+  for(var i=0;i<cols.length-1;i++) pairs.push({from:cols[i], to:cols[i+1]});
+  if(pairs.length===0) return '<div class="al ali">Need at least 2 years of data to compute Fund Flow.</div>';
+  var ffCols = pairs.map(function(p){ return {label:p.from.label+' → '+p.to.label, sub:'', ff: computeFundFlow(p.from.y, p.to.y)}; });
+  var rows = [
+    {label:'SOURCES OF FUNDS', section:true},
+    {label:'Net Profit (PAT)', get:function(_,c){return c.ff.netProfit;}},
+    {label:'Add: Depreciation', get:function(_,c){return c.ff.depreciation;}},
+    {label:'Increase in Capital/Reserves', get:function(_,c){return c.ff.increaseInCapital;}},
+    {label:'Increase in Term Loan', get:function(_,c){return c.ff.increaseInTermLoan;}},
+    {label:'Total Sources', get:function(_,c){return c.ff.sources;}, bold:true},
+    {label:'USES OF FUNDS', section:true},
+    {label:'Increase in Fixed Assets (Capex)', get:function(_,c){return c.ff.increaseInFixedAssets;}},
+    {label:'Decrease in Term Loan (Repayment)', get:function(_,c){return c.ff.decreaseInTermLoan;}},
+    {label:'Increase in Net Working Capital', get:function(_,c){return c.ff.increaseInNWC;}},
+    {label:'Total Uses', get:function(_,c){return c.ff.uses;}, bold:true},
+    {label:'Net Surplus / (Deficit)', get:function(_,c){return c.ff.netSurplusDeficit;}, bold:true}
+  ];
+  return cmaTable('Form V — Fund Flow Statement (Sources & Application of Funds)', rows, ffCols,
+    'Shows year-over-year movement of long-term funds. Sources should broadly match Uses; banks check that capex is funded from long-term sources, not short-term CC.');
+}
+function pgCMAFormVI(cols){
+  var h = '';
+  BANK_RATIO_ROWS.forEach(function(section){
+    var rowsToShow = section.rows.filter(function(r){ return !r.mfg || isMfgBiz(); });
+    if(!rowsToShow.length) return;
+    var ratioCols = cols.map(function(c){ return {label:c.label, sub:c.sub, ratios:computeBankRatios(c.y)}; });
+    var tableHtml = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+      '<thead><tr><th style="text-align:left;padding:5px 8px;background:#1565C0;color:#fff;position:sticky;left:0">Ratio</th>'+
+      ratioCols.map(function(c){ return '<th style="text-align:right;padding:5px 8px;background:#1565C0;color:#fff;min-width:70px">'+esc(c.label)+'<br><small>'+esc(c.sub)+'</small></th>'; }).join('')+
+      '</tr></thead><tbody>'+
+      rowsToShow.map(function(r,i){
+        return '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'">'+
+          '<td style="padding:5px 8px;position:sticky;left:0;background:inherit">'+r.l+'</td>'+
+          ratioCols.map(function(c){ return '<td style="text-align:right;padding:5px 8px">'+fmtRatio(c.ratios[r.k], r.d, r.s)+'</td>'; }).join('')+
+          '</tr>';
+      }).join('')+
+      '</tbody></table></div>';
+    h += card(section.cat, tableHtml);
+  });
+  return h;
+}
 function getLABase() {
   var la = D.loanAssessment || {};
   // New unit mode: return manual figures directly (no annualization needed)
@@ -16578,8 +16853,8 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 // ===== NAVIGATION & RENDER =====
 var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',reminders:'Payment Reminders',margin:'Margin Settings',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
-var NAV_ALL = ['profile','dashboard','capital','inventory','purchase','sales','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Margin Settings',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
+var NAV_ALL = ['profile','dashboard','capital','inventory','purchase','sales','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
 var BN_PAGES = ['dashboard','sales','purchase','financials','data'];
 var BN_ICONS = ['🏠','🏷️','🛒','📄','⚙️'];
 
@@ -16613,7 +16888,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
+  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
 }
@@ -16993,6 +17268,8 @@ function exportAllReportsPDF(){
 
 
 var _EXTRA_FAQ_DATA=[
+{q:"What is CMA Data and how do I generate it?", tags:["cma data","cma report","credit monitoring arrangement","bank cma format","mpbf","fund flow statement","sanction enhancement"], diag:false,
+ a:"Go to the <b>CMA Data</b> menu — a dedicated, bank-ready report auto-generated from your recorded transactions, Historical Data and Loan Details projections. Choose <b>New Sanction</b> or <b>Enhancement</b> at the top, then work through the 6 forms: <b>Form I</b> (existing & proposed credit facilities), <b>Form II</b> (Operating Statement/P&L), <b>Form III</b> (Balance Sheet analysis), <b>Form IV</b> (MPBF — Maximum Permissible Bank Finance, Tandon Method II, plus the Nayak Turnover Method for MSME), <b>Form V</b> (Fund Flow Statement), and <b>Form VI</b> (Ratio Analysis). Use <b>Print CMA Report</b> at the bottom to generate a submission-ready copy. Fill in Historical Data and Loan Details first (in Bank Loan Assessment) for all 5 columns — 2 Actual years, this year's Estimate, and 2 Projected years — to populate."},
 {q:"Can I export my data to Tally?", tags:["export to tally","tally export","tally xml","tally import","tallyprime","day book excel"], diag:false,
  a:"Yes — go to <b>Data</b> tab → <b>Export to Tally</b> card. Two options: <b>Download Tally XML</b> gives you 2 files (Ledgers, then Vouchers) for direct import into TallyPrime via Gateway of Tally → Import Data — import the Ledgers file first, then the Vouchers file. It covers all your Sales, Purchases, Expenses, Receipts, Payments, Loan entries and Drawings, with ledgers (Customers, Suppliers, Bank, Cash, Capital, Loans, Expense heads) auto-created. <b>Download Day Book (Excel/CSV)</b> gives a plain Dr/Cr listing for your CA to review or manually re-key, without touching Tally directly. Always test the XML import into a backup/duplicate Tally company first, and keep a Tally backup before importing into your live company."},
 {q:"Where can I check my credit score for free?", tags:["free credit score","cibil score check","check credit score","free cibil check"], diag:false,
