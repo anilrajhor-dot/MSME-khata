@@ -223,7 +223,21 @@ function defD(){
     customHSN:{},
     incomeTax:{ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false},
     gst:{enabled:false,gstin:'',type:'regular',defaultRate:18,supplyType:'intra',stateCode:''},
-    loanAssessment:{ccLimit:300000,tlAmount:100000,ccRate:8,tlRate:9,tlTenure:36,salesGrowth:20,stockDays:30,debtorDays:30,creditorDays:30,expGrowth:10,marginPctTurnover:25,marginPctTandon:25,useManual:false,manualSales:0,manualCogsP:70,manualExp:0,contingentLiabilities:0,collateralSecurityValue:0},
+    loanAssessment:{ccLimit:300000,tlAmount:100000,ccRate:8,tlRate:9,tlTenure:36,salesGrowth:20,stockDays:30,debtorDays:30,creditorDays:30,expGrowth:10,marginPctTurnover:25,marginPctTandon:25,useManual:false,manualSales:0,manualCogsP:70,manualExp:0,contingentLiabilities:0,collateralSecurityValue:0,tlMoratorium:0,tlMoratoriumTreatment:'paid'},
+    cmaProfile:{
+      phone:'', unitAddress:'', officeAddress:'', udyamNo:'',
+      bankName:'', bankBranch:'', internalCreditRating:'', lastFYDate:'',
+      creditSector:'MSME', msmeCategory:'Micro', activity:'', typeOfIndustries:'',
+      greenfield:'No', exportUnit:'No',
+      bankChargesPct:0.5, withdrawalPct:10,
+      landCost:0, buildingCost:0, machineryCost:0, furnitureCost:0, vehiclesCost:0, electrificationCost:0, miscAssetsCost:0, subsidyAmount:0,
+      idcPct:0, contingenciesPct:3, preliminaryExpPct:2,
+      cgtmseCoverage:'No', cgtmseCategory:'General', cgtmseCoveragePct:75, cgtmseFeePct:1.35, thirdPartyGuarantee:'No',
+      existingTLInstallmentAnnual:0,
+      installedCapacityQty:0, utilisationPct:0, productionQty:0, salesPerUnit:0, shiftOperation:'Single Shift', workingDaysPerYear:300,
+      powerRequirementPerUnit:0, skilledLabor:0, nonSkilledLabor:0, adminStaff:0,
+      depRateBuilding:10, depRateMachinery:15, depRateFurniture:10, depRateVehicles:15, depRateElectrification:15, depRateMiscFA:40, amortRatePreliminary:20
+    },
     historicalActuals:{yearN2:null,yearN1:null},
   };
 }
@@ -254,9 +268,27 @@ function migrateData(d){
   if(!d.auditLocks)d.auditLocks=[];
   if(!d.archivedYears)d.archivedYears={};
   if(!d.historicalActuals)d.historicalActuals={yearN2:null,yearN1:null};
+  if(!d.cmaProfile)d.cmaProfile={
+    phone:'', unitAddress:'', officeAddress:'', udyamNo:'',
+    bankName:'', bankBranch:'', internalCreditRating:'', lastFYDate:'',
+    creditSector:'MSME', msmeCategory:'Micro', activity:'', typeOfIndustries:'',
+    greenfield:'No', exportUnit:'No',
+    bankChargesPct:0.5, withdrawalPct:10,
+    landCost:0, buildingCost:0, machineryCost:0, furnitureCost:0, vehiclesCost:0, electrificationCost:0, miscAssetsCost:0, subsidyAmount:0,
+    idcPct:0, contingenciesPct:3, preliminaryExpPct:2,
+    cgtmseCoverage:'No', cgtmseCategory:'General', cgtmseCoveragePct:75, cgtmseFeePct:1.35, thirdPartyGuarantee:'No',
+    existingTLInstallmentAnnual:0,
+    installedCapacityQty:0, utilisationPct:0, productionQty:0, salesPerUnit:0, shiftOperation:'Single Shift', workingDaysPerYear:300,
+    powerRequirementPerUnit:0, skilledLabor:0, nonSkilledLabor:0, adminStaff:0,
+    depRateBuilding:10, depRateMachinery:15, depRateFurniture:10, depRateVehicles:15, depRateElectrification:15, depRateMiscFA:40, amortRatePreliminary:20
+  };
+  if(d.cmaProfile.vehiclesCost===undefined)d.cmaProfile.vehiclesCost=0;
+  if(d.cmaProfile.subsidyAmount===undefined)d.cmaProfile.subsidyAmount=0;
   if(d.loanAssessment){
     if(d.loanAssessment.contingentLiabilities===undefined)d.loanAssessment.contingentLiabilities=0;
     if(d.loanAssessment.collateralSecurityValue===undefined)d.loanAssessment.collateralSecurityValue=0;
+    if(d.loanAssessment.tlMoratorium===undefined)d.loanAssessment.tlMoratorium=0;
+    if(d.loanAssessment.tlMoratoriumTreatment===undefined)d.loanAssessment.tlMoratoriumTreatment='paid';
   }
   if(!d.profile.businessStage) d.profile.businessStage = 'new';
   if(!d.security) d.security = {pinEnabled:false,pinHash:''};
@@ -12131,6 +12163,8 @@ function pgLoanAssess() {
          inp('TL Interest Rate % p.a.','la_tlr','number',tlRate))+
       g2(inp('TL Tenure (months)','la_tlt','number',tlTenure),
          inp('Expected Sales Growth % p.a.','la_sg','number',salesGrowth))+
+      g2(inp('TL Moratorium / Holiday Period (months)','la_tlmorat','number',D.loanAssessment.tlMoratorium||0),
+         sl('Interest During Moratorium','la_tlmorat_treat',[{v:'paid',l:'Paid monthly'},{v:'accrued',l:'Accrued (added to principal)'}],D.loanAssessment.tlMoratoriumTreatment||'paid'))+
       g2(inp('Expense Growth % p.a.','la_eg','number',expGrowth),'')+
       btn('💾 Save & Calculate','saveLoanAssess()','#2E7D32')
     );
@@ -12869,9 +12903,33 @@ function pgCMA(){
     '<button onclick="window._cmaMode=\'enhancement\';renderPage()" style="flex:1;padding:10px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(mode==='enhancement'?'#1565C0':'#E3EEFC')+';color:'+(mode==='enhancement'?'#fff':'#1565C0')+'">Enhancement</button>'+
     '</div>';
 
-  var tab = window._cmatab||'formI';
-  var tabs = [['formI','Form I: Limits'],['formII','Form II: Operating Stmt'],['formIII','Form III: Balance Sheet'],['formIV','Form IV: MPBF'],['formV','Form V: Fund Flow'],['formVI','Form VI: Ratios'],['letter','Request Letter']];
+  var tab = window._cmatab||'reference';
+  var tabs = [['reference','Reference / KYC'],['copmof','Cost of Project'],['deprec','Depreciation'],['emisched','EMI Schedule'],['formI','Form I: Limits'],['formII','Form II: Operating Stmt'],['formIII','Form III: Balance Sheet'],['formIV','Form IV: MPBF'],['formV','Form V: Fund Flow'],['formVI','Form VI: Ratios'],['holdingnorm','Holding Norms'],['finind','Financial Indicators'],['nwctnw','NWC/TNW Movement'],['benchmark','Benchmark'],['letter','Request Letter']];
   h += '<div class="tabbar">'+tabs.map(function(t){ return '<button class="'+(tab===t[0]?'act':'')+'" onclick="window._cmatab=\''+t[0]+'\';renderPage()">'+t[1]+'</button>'; }).join('')+'</div>';
+
+  if(tab==='reference'){
+    h += pgCMAReference();
+    h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print','window.print()','#546E7A')+'</div>';
+    return h;
+  }
+
+  if(tab==='copmof'){
+    h += pgCMACOPMOF(mode);
+    h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print','window.print()','#546E7A')+'</div>';
+    return h;
+  }
+
+  if(tab==='deprec'){
+    h += pgCMADepreciation();
+    h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print','window.print()','#546E7A')+'</div>';
+    return h;
+  }
+
+  if(tab==='emisched'){
+    h += pgCMAEMISchedule();
+    h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print','window.print()','#546E7A')+'</div>';
+    return h;
+  }
 
   if(tab==='letter'){
     h += pgCMALetter(mode);
@@ -12891,8 +12949,353 @@ function pgCMA(){
   else if(tab==='formIV') h += pgCMAFormIV(cols, mode);
   else if(tab==='formV') h += pgCMAFormV(cols);
   else if(tab==='formVI') h += pgCMAFormVI(cols);
+  else if(tab==='holdingnorm') h += pgCMAHoldingNorms(cols);
+  else if(tab==='finind') h += pgCMAFinInd(cols);
+  else if(tab==='nwctnw') h += pgCMANWCTNW(cols);
+  else if(tab==='benchmark') h += pgCMABenchmark(cols);
 
   h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print CMA Report','window.print()','#546E7A')+'</div>';
+  return h;
+}
+function cmaYellow(lbl, id, val, type){
+  type = type||'text';
+  var v = (val===undefined||val===null)?'':val;
+  return '<div class="fg" style="margin-bottom:8px"><label style="font-size:11px;color:#546E7A">'+esc(lbl)+'</label>'+
+    '<input type="'+type+'" id="'+id+'" value="'+esc(v)+'" style="width:100%;padding:8px;border-radius:6px;border:1.5px solid #F9C846;background:#FFF9DB;font-size:13px;box-sizing:border-box">'+
+    '</div>';
+}
+function cmaAutoRow(lbl, val){
+  return '<div class="fsr"><span>'+esc(lbl)+'</span><span style="font-weight:700;color:#37474F">'+esc(val===undefined||val===null||val===''?'—':val)+'</span></div>';
+}
+function pgCMAReference(){
+  var p = D.profile, la = D.loanAssessment, cp = D.cmaProfile;
+  var h = '<div class="al ali"><div class="alt">Reference Sheet — Applicant Profile & Project Parameters</div>'+
+    '<p><span style="background:#FFF9DB;border:1px solid #F9C846;padding:1px 6px;border-radius:4px">Yellow fields</span> are manual entry — fill in what applies (leave blank/0 if not applicable, e.g. a non-greenfield case doesn\'t need Cost of Project). Everything else below is pulled automatically from your Profile, Loans and Loan Details.</p></div>';
+
+  h += card('Applicant Details (auto)',
+    cmaAutoRow('Entity Name', p.businessName)+
+    cmaAutoRow('Constitution', p.constitution)+
+    cmaAutoRow('PAN No', p.pan)+
+    cmaAutoRow('GST No', p.gst)+
+    cmaAutoRow('Business Type', p.businessType)+
+    cmaAutoRow('Commencement Date', p.commencementDate)
+  );
+
+  h += card('Applicant Details (manual)',
+    cmaYellow('Phone / Mobile No.','cp_phone',cp.phone)+
+    cmaYellow('Email','cp_email',p.email)+
+    cmaYellow('Unit Address','cp_unitAddress',cp.unitAddress)+
+    cmaYellow('Office Address','cp_officeAddress',cp.officeAddress)+
+    cmaYellow('Udyam No','cp_udyamNo',cp.udyamNo)
+  );
+
+  h += card('Banking Details (manual)',
+    cmaYellow('Name of Bank','cp_bankName',cp.bankName)+
+    cmaYellow('Name and Address of Bank Branch','cp_bankBranch',cp.bankBranch)+
+    cmaYellow('Internal Credit Rating','cp_internalCreditRating',cp.internalCreditRating)+
+    cmaYellow('Date of Last FY (Audited/Non-Audited)','cp_lastFYDate',cp.lastFYDate,'date')
+  );
+
+  h += card('Business Classification (manual)',
+    cmaYellow('Credit Sector','cp_creditSector',cp.creditSector)+
+    sl('MSME Category','cp_msmeCategory',[{v:'Micro',l:'Micro'},{v:'Small',l:'Small'},{v:'Medium',l:'Medium'}],cp.msmeCategory)+
+    cmaYellow('Activity','cp_activity',cp.activity)+
+    cmaYellow('Type of Industries','cp_typeOfIndustries',cp.typeOfIndustries)+
+    sl('Greenfield (Y/N)','cp_greenfield',[{v:'No',l:'No'},{v:'Yes',l:'Yes'}],cp.greenfield)+
+    sl('Export Unit','cp_exportUnit',[{v:'No',l:'No'},{v:'Yes',l:'Yes'}],cp.exportUnit)
+  );
+
+  h += card('Loan Parameters (auto, from Loan Details)',
+    cmaAutoRow('Sales Growth %', (la.salesGrowth||0)+'%')+
+    cmaAutoRow('WC-Interest %', (la.ccRate||0)+'%')+
+    cmaAutoRow('TL-Interest %', (la.tlRate||0)+'%')+
+    cmaAutoRow('Margin %', (la.marginPctTandon||0)+'%')+
+    cmaAutoRow('Repayment (Mos)', la.tlTenure||0)
+  );
+  h += card('Loan Parameters (manual)',
+    cmaYellow('Bank Charges %','cp_bankChargesPct',cp.bankChargesPct,'number')+
+    cmaYellow('Withdrawal %','cp_withdrawalPct',cp.withdrawalPct,'number')
+  );
+
+  h += card('Cost of Project — Fixed Assets (manual, ₹ Lakh — leave 0 if not a greenfield/expansion project)',
+    cmaYellow('Land Cost','cp_landCost',cp.landCost,'number')+
+    cmaYellow('Building Cost','cp_buildingCost',cp.buildingCost,'number')+
+    cmaYellow('Machinery','cp_machineryCost',cp.machineryCost,'number')+
+    cmaYellow('Furniture & Fixture','cp_furnitureCost',cp.furnitureCost,'number')+
+    cmaYellow('Vehicles','cp_vehiclesCost',cp.vehiclesCost,'number')+
+    cmaYellow('Electrification','cp_electrificationCost',cp.electrificationCost,'number')+
+    cmaYellow('Misc Assets','cp_miscAssetsCost',cp.miscAssetsCost,'number')+
+    cmaYellow('IDC %','cp_idcPct',cp.idcPct,'number')+
+    cmaYellow('Contingencies %','cp_contingenciesPct',cp.contingenciesPct,'number')+
+    cmaYellow('Preliminary & Prepayment Exp %','cp_preliminaryExpPct',cp.preliminaryExpPct,'number')+
+    cmaYellow('Subsidy Amount (₹ Lakh, if any)','cp_subsidyAmount',cp.subsidyAmount,'number')
+  );
+
+  h += card('Collateral & CGTMSE',
+    cmaAutoRow('Collateral Security Value (auto, from Loan Details)', fc(la.collateralSecurityValue||0))+
+    sl('CGTMSE Coverage','cp_cgtmseCoverage',[{v:'No',l:'No'},{v:'Yes',l:'Yes'}],cp.cgtmseCoverage)+
+    cmaYellow('CGTMSE Category','cp_cgtmseCategory',cp.cgtmseCategory)+
+    cmaYellow('CGTMSE Coverage %','cp_cgtmseCoveragePct',cp.cgtmseCoveragePct,'number')+
+    cmaYellow('CGTMSE Fee Rate %','cp_cgtmseFeePct',cp.cgtmseFeePct,'number')+
+    sl('Third Party Guarantee','cp_thirdPartyGuarantee',[{v:'No',l:'No'},{v:'Yes',l:'Yes'}],cp.thirdPartyGuarantee)
+  );
+
+  h += card('Existing / Proposed Limits (auto, from Loan Details)',
+    cmaAutoRow('WC Limit Requested', fc(la.ccLimit||0))+
+    cmaAutoRow('TL Requested', fc(la.tlAmount||0))
+  );
+  h += card('Existing / Proposed Limits (manual)',
+    cmaYellow('Existing TL Installment (annual)','cp_existingTLInstallmentAnnual',cp.existingTLInstallmentAnnual,'number')
+  );
+
+  h += card('Capacity & Operations (manual — mainly for Manufacturing/project cases)',
+    cmaYellow('Installed / Proposed Capacity (Qty)','cp_installedCapacityQty',cp.installedCapacityQty,'number')+
+    cmaYellow('Utilised / Proposed Utilisation (%)','cp_utilisationPct',cp.utilisationPct,'number')+
+    cmaYellow('Actual / Proposed Production (Qty)','cp_productionQty',cp.productionQty,'number')+
+    cmaYellow('Sales per Unit','cp_salesPerUnit',cp.salesPerUnit,'number')+
+    cmaYellow('Shift Operation','cp_shiftOperation',cp.shiftOperation)+
+    cmaYellow('Number of Working Days in a Year','cp_workingDaysPerYear',cp.workingDaysPerYear,'number')+
+    cmaYellow('Power Requirement (per unit)','cp_powerRequirementPerUnit',cp.powerRequirementPerUnit,'number')+
+    cmaYellow('Skilled Labor','cp_skilledLabor',cp.skilledLabor,'number')+
+    cmaYellow('Non-Skilled Labor','cp_nonSkilledLabor',cp.nonSkilledLabor,'number')+
+    cmaYellow('Admin Staff','cp_adminStaff',cp.adminStaff,'number')
+  );
+
+  h += card('Depreciation Rates (manual — standard rates pre-filled, adjust if needed)',
+    cmaYellow('Building %','cp_depRateBuilding',cp.depRateBuilding,'number')+
+    cmaYellow('Plant & Machinery %','cp_depRateMachinery',cp.depRateMachinery,'number')+
+    cmaYellow('Furniture & Fixtures %','cp_depRateFurniture',cp.depRateFurniture,'number')+
+    cmaYellow('Vehicles %','cp_depRateVehicles',cp.depRateVehicles,'number')+
+    cmaYellow('Electrification %','cp_depRateElectrification',cp.depRateElectrification,'number')+
+    cmaYellow('Misc FA (incl. computers) %','cp_depRateMiscFA',cp.depRateMiscFA,'number')+
+    cmaYellow('Amortization — Preliminary Exp %','cp_amortRatePreliminary',cp.amortRatePreliminary,'number')
+  );
+
+  h += btn('💾 Save Reference Sheet','saveCMAReference()','#2E7D32');
+  return h;
+}
+function saveCMAReference(){
+  var cp = D.cmaProfile;
+  var fields = ['phone','unitAddress','officeAddress','udyamNo','bankName','bankBranch','internalCreditRating','lastFYDate',
+    'creditSector','msmeCategory','activity','typeOfIndustries','greenfield','exportUnit',
+    'bankChargesPct','withdrawalPct','landCost','buildingCost','machineryCost','furnitureCost','vehiclesCost','electrificationCost','miscAssetsCost','subsidyAmount',
+    'idcPct','contingenciesPct','preliminaryExpPct','cgtmseCoverage','cgtmseCategory','cgtmseCoveragePct','cgtmseFeePct','thirdPartyGuarantee',
+    'existingTLInstallmentAnnual','installedCapacityQty','utilisationPct','productionQty','salesPerUnit','shiftOperation','workingDaysPerYear',
+    'powerRequirementPerUnit','skilledLabor','nonSkilledLabor','adminStaff',
+    'depRateBuilding','depRateMachinery','depRateFurniture','depRateVehicles','depRateElectrification','depRateMiscFA','amortRatePreliminary'];
+  var numericFields = ['bankChargesPct','withdrawalPct','landCost','buildingCost','machineryCost','furnitureCost','electrificationCost','miscAssetsCost',
+    'idcPct','contingenciesPct','preliminaryExpPct','cgtmseCoveragePct','cgtmseFeePct','existingTLInstallmentAnnual',
+    'installedCapacityQty','utilisationPct','productionQty','salesPerUnit','workingDaysPerYear','powerRequirementPerUnit','skilledLabor','nonSkilledLabor','adminStaff',
+    'depRateBuilding','depRateMachinery','depRateFurniture','depRateVehicles','depRateElectrification','depRateMiscFA','amortRatePreliminary'];
+  fields.forEach(function(f){
+    var el = document.getElementById('cp_'+f);
+    if(!el) return;
+    cp[f] = numericFields.indexOf(f)>-1 ? (+el.value||0) : el.value;
+  });
+  var emailEl = document.getElementById('cp_email');
+  if(emailEl) D.profile.email = emailEl.value;
+  sv();
+  toast('Reference Sheet saved.');
+}
+// ── Full-tenure Term Loan schedule, moratorium-aware, with real calendar dates ──
+// Used to build the Yearly Consolidation view (Year -> Total EMI/Interest/Principal/Closing Balance)
+function buildFullTLScheduleWithMoratorium(principal, ratePct, totalTenureMonths, moratoriumMonths, treatment, startDateStr){
+  if(!(principal>0) || !(totalTenureMonths>0)) return [];
+  var monthlyRate = ratePct/1200;
+  var res = calcEMIWithMoratorium(principal, ratePct, totalTenureMonths, moratoriumMonths||0, treatment||'paid');
+  var rows = [];
+  var d = startDateStr ? new Date(startDateStr+'T00:00:00') : new Date();
+  var bal = principal;
+  for(var m=1; m<=res.moratoriumMonths; m++){
+    d = new Date(d.getFullYear(), d.getMonth()+1, d.getDate());
+    if(treatment==='accrued'){
+      var newBal = bal*(1+monthlyRate);
+      rows.push({date:d, emi:0, interest:newBal-bal, principal:0, balance:newBal});
+      bal = newBal;
+    } else {
+      var intOnly = bal*monthlyRate;
+      rows.push({date:d, emi:intOnly, interest:intOnly, principal:0, balance:bal});
+    }
+  }
+  bal = res.effectivePrincipal;
+  for(var m2=1; m2<=res.postMoratoriumTenure; m2++){
+    d = new Date(d.getFullYear(), d.getMonth()+1, d.getDate());
+    var interest = bal*monthlyRate;
+    var principalPaid = Math.min(res.emi-interest, bal);
+    bal = Math.max(0, bal-principalPaid);
+    rows.push({date:d, emi:res.emi, interest:interest, principal:principalPaid, balance:bal});
+    if(bal<=0) break;
+  }
+  return rows;
+}
+function pgCMAEMISchedule(){
+  var la = D.loanAssessment;
+  var tlAmount = +la.tlAmount||0, tlRate = +la.tlRate||0, tlTenure = +la.tlTenure||0;
+  var moratorium = +la.tlMoratorium||0, treatment = la.tlMoratoriumTreatment||'paid';
+  if(!(tlAmount>0) || !(tlTenure>0)){
+    return '<div class="al alw">Enter Term Loan Amount, Rate and Tenure in Loan Details first.</div>';
+  }
+  var startDate = td();
+  var schedule = buildFullTLScheduleWithMoratorium(tlAmount, tlRate, tlTenure, moratorium, treatment, startDate);
+  var byYear = {};
+  var order = [];
+  schedule.forEach(function(r){
+    var y = r.date.getFullYear();
+    if(!byYear[y]){ byYear[y] = {emi:0, interest:0, principal:0, balance:0}; order.push(y); }
+    byYear[y].emi += r.emi;
+    byYear[y].interest += r.interest;
+    byYear[y].principal += r.principal;
+    byYear[y].balance = r.balance; // last value in the year = closing balance
+  });
+  var rows = order.map(function(y){
+    var v = byYear[y];
+    return '<tr><td style="padding:5px 8px">'+y+'</td>'+
+      '<td style="text-align:right;padding:5px 8px">'+fc(v.emi)+'</td>'+
+      '<td style="text-align:right;padding:5px 8px">'+fc(v.interest)+'</td>'+
+      '<td style="text-align:right;padding:5px 8px">'+fc(v.principal)+'</td>'+
+      '<td style="text-align:right;padding:5px 8px">'+fc(v.balance)+'</td></tr>';
+  }).join('');
+  var h = card('Term Loan — Yearly Consolidation (Proposed, from Loan Details)',
+    '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Principal '+fc(tlAmount)+' @ '+tlRate+'% for '+tlTenure+' months'+(moratorium>0?(', with a '+moratorium+'-month moratorium ('+(treatment==='accrued'?'interest accruing into principal':'interest paid monthly')+')'):'')+'.</div>'+
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr style="background:#1565C0;color:#fff"><th style="text-align:left;padding:5px 8px">Year</th><th style="text-align:right;padding:5px 8px">Total EMI</th>'+
+    '<th style="text-align:right;padding:5px 8px">Total Interest</th><th style="text-align:right;padding:5px 8px">Total Principal</th><th style="text-align:right;padding:5px 8px">Closing Balance</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table></div>'
+  );
+  h += '<div class="al ali">For the full month-by-month breakdown, see <b>Bank Loan Assessment → Monthly Interest</b>. This view groups the same schedule into calendar years, matching how banks typically present a CMA repayment schedule.</div>';
+  return h;
+}
+function pgCMADepreciation(){
+  var cp = D.cmaProfile;
+  var categories = [
+    {label:'Land', cost:+cp.landCost||0, rate:0},
+    {label:'Building', cost:+cp.buildingCost||0, rate:+cp.depRateBuilding||0},
+    {label:'Machinery', cost:+cp.machineryCost||0, rate:+cp.depRateMachinery||0},
+    {label:'Furniture & Fixture', cost:+cp.furnitureCost||0, rate:+cp.depRateFurniture||0},
+    {label:'Vehicles', cost:+cp.vehiclesCost||0, rate:+cp.depRateVehicles||0},
+    {label:'Electrification', cost:+cp.electrificationCost||0, rate:+cp.depRateElectrification||0},
+    {label:'Misc Assets (incl. computers)', cost:+cp.miscAssetsCost||0, rate:+cp.depRateMiscFA||0}
+  ];
+  var totalFA = categories.reduce(function(s,c){return s+c.cost;},0);
+  if(totalFA===0){
+    return '<div class="al ali">No Cost of Project entered yet — fill in Fixed Asset costs in the Reference Sheet to see a depreciation projection here.</div>';
+  }
+  var numYears = 8;
+  var startYear = new Date().getFullYear()+1;
+
+  categories.forEach(function(c){
+    c.deps = []; c.balances = [];
+    var bal = c.cost;
+    for(var y=0;y<numYears;y++){
+      var dep = bal*c.rate/100;
+      bal = Math.max(0, bal-dep);
+      c.deps.push(dep); c.balances.push(bal);
+    }
+  });
+
+  // Preliminary & Prepayment Expenses — amortized on Straight Line Method, not WDV
+  var prelimCost = totalFA*(+cp.preliminaryExpPct||0)/100;
+  var prelimAmorts = []; var prelimBal = prelimCost;
+  var slmAmort = prelimCost*(+cp.amortRatePreliminary||0)/100;
+  for(var y=0;y<numYears;y++){
+    var a = Math.min(slmAmort, prelimBal);
+    prelimBal -= a;
+    prelimAmorts.push(a);
+  }
+
+  var yearHeaders = []; for(var y=0;y<numYears;y++) yearHeaders.push(startYear+y);
+
+  var h = card('Depreciation Schedule (₹ Lakh, Written Down Value method)',
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'+
+    '<thead><tr style="background:#1565C0;color:#fff"><th style="text-align:left;padding:4px 6px;position:sticky;left:0;background:#1565C0">Category</th><th style="text-align:right;padding:4px 6px">Rate</th>'+
+    yearHeaders.map(function(y){return '<th style="text-align:right;padding:4px 6px">'+y+'</th>';}).join('')+
+    '</tr></thead><tbody>'+
+    categories.map(function(c,i){
+      var depRow = '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'"><td style="padding:4px 6px;position:sticky;left:0;background:inherit">'+c.label+' — Dep.</td><td style="text-align:right;padding:4px 6px">'+c.rate+'%</td>'+
+        c.deps.map(function(d){return '<td style="text-align:right;padding:4px 6px">'+d.toFixed(2)+'</td>';}).join('')+'</tr>';
+      var nfaRow = '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'"><td style="padding:4px 6px;position:sticky;left:0;background:inherit;padding-left:16px;color:#78909C">Net Fixed Assets</td><td></td>'+
+        c.balances.map(function(b){return '<td style="text-align:right;padding:4px 6px;color:#78909C">'+b.toFixed(2)+'</td>';}).join('')+'</tr>';
+      return depRow+nfaRow;
+    }).join('')+
+    '<tr style="font-weight:800;background:#E3EEFC"><td style="padding:4px 6px;position:sticky;left:0;background:#E3EEFC">Total Depreciation</td><td></td>'+
+    yearHeaders.map(function(y,i){
+      var total = categories.reduce(function(s,c){return s+c.deps[i];},0);
+      return '<td style="text-align:right;padding:4px 6px">'+total.toFixed(2)+'</td>';
+    }).join('')+'</tr>'+
+    '<tr style="font-weight:700"><td style="padding:4px 6px;position:sticky;left:0;background:inherit">Amortization — Preliminary Exp</td><td style="text-align:right;padding:4px 6px">'+(+cp.amortRatePreliminary||0)+'%</td>'+
+    prelimAmorts.map(function(a){return '<td style="text-align:right;padding:4px 6px">'+a.toFixed(2)+'</td>';}).join('')+'</tr>'+
+    '</tbody></table></div>'
+  );
+  h += '<div class="al ali">Written Down Value (WDV) method — each year\'s depreciation is the rate applied to the previous year\'s closing balance, so it declines over time. Preliminary & Prepayment Expenses are amortized on a Straight Line basis instead (equal amount each year until written off), matching standard practice. Rates are editable in the Reference Sheet.</div>';
+  return h;
+}
+function pgCMACOPMOF(mode){
+  var cp = D.cmaProfile, la = D.loanAssessment;
+  var L = 100000; // 1 Lakh, since these figures are entered/shown in ₹ Lakh (matching bank convention)
+  var items = [
+    {label:'Land', cost:cp.landCost, marginPct:100},
+    {label:'Building', cost:cp.buildingCost, marginPct:25},
+    {label:'Machinery', cost:cp.machineryCost, marginPct:25},
+    {label:'Furniture & Fixture', cost:cp.furnitureCost, marginPct:25},
+    {label:'Vehicles', cost:cp.vehiclesCost, marginPct:25},
+    {label:'Electrification', cost:cp.electrificationCost, marginPct:25},
+    {label:'Misc Assets (incl. computers)', cost:cp.miscAssetsCost, marginPct:25}
+  ];
+  var totalFA = items.reduce(function(s,i){return s+(+i.cost||0);},0);
+  items.push({label:'IDC (Interest During Construction)', cost:totalFA*(+cp.idcPct||0)/100, marginPct:100});
+  items.push({label:'Contingencies', cost:totalFA*(+cp.contingenciesPct||0)/100, marginPct:100});
+  items.push({label:'Preliminary & Prepayment Exp', cost:totalFA*(+cp.preliminaryExpPct||0)/100, marginPct:100});
+
+  // Margin for Working Capital: from the MPBF working (current year), converted to Lakh
+  var curY = null; try{ curY = getCurrentYearRatioData(); }catch(e){}
+  var marginForWC = curY ? Math.max(0, computeMPBFFull(curY).minMargin)/L : 0;
+  items.push({label:'Margin for Working Capital', cost:marginForWC, marginPct:100});
+
+  items.forEach(function(i){ i.marginAmt = (+i.cost||0)*i.marginPct/100; i.loanAmt = (+i.cost||0)-i.marginAmt; });
+  var totalCost = items.reduce(function(s,i){return s+(+i.cost||0);},0);
+  var totalMargin = items.reduce(function(s,i){return s+i.marginAmt;},0);
+  var totalLoanFromItems = items.reduce(function(s,i){return s+i.loanAmt;},0);
+
+  var rows = items.map(function(i){
+    return '<tr><td style="padding:5px 8px">'+i.label+'</td>'+
+      '<td style="text-align:right;padding:5px 8px">'+i.cost.toFixed(2)+'</td>'+
+      '<td style="text-align:right;padding:5px 8px">'+i.marginPct+'%</td>'+
+      '<td style="text-align:right;padding:5px 8px">'+i.marginAmt.toFixed(2)+'</td>'+
+      '<td style="text-align:right;padding:5px 8px">'+i.loanAmt.toFixed(2)+'</td></tr>';
+  }).join('');
+  var h = card('Cost of Project (₹ Lakh)',
+    (totalCost===0 ? '<div class="al ali">No Cost of Project entered — this section applies mainly to greenfield/expansion cases. Fill in Fixed Asset costs in the Reference Sheet if applicable.</div>' : '')+
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr style="background:#1565C0;color:#fff"><th style="text-align:left;padding:5px 8px">Particulars</th><th style="text-align:right;padding:5px 8px">Cost Price</th>'+
+    '<th style="text-align:right;padding:5px 8px">Margin %</th><th style="text-align:right;padding:5px 8px">Margin Amt</th><th style="text-align:right;padding:5px 8px">Loan Amt</th></tr></thead>'+
+    '<tbody>'+rows+
+    '<tr style="font-weight:800;background:#E3EEFC"><td style="padding:5px 8px">Total Cost of Project</td>'+
+    '<td style="text-align:right;padding:5px 8px">'+totalCost.toFixed(2)+'</td><td></td>'+
+    '<td style="text-align:right;padding:5px 8px">'+totalMargin.toFixed(2)+'</td>'+
+    '<td style="text-align:right;padding:5px 8px">'+totalLoanFromItems.toFixed(2)+'</td></tr>'+
+    '</tbody></table></div>'
+  );
+
+  // Means of Finance — always reconciled to exactly match Total Cost of Project
+  var unsecuredLoan = (D.loans||[]).filter(function(l){return l.quasiEquity;}).reduce(function(s,l){return s+(+l.outstandingBalance||0);},0)/L;
+  var subsidy = (+cp.subsidyAmount||0);
+  var termLoanProposed = (+la.tlAmount||0)/L;
+  var capital = Math.max(0, totalCost - unsecuredLoan - subsidy - termLoanProposed);
+  var mofRows = [
+    {label:'Capital', amt:capital},
+    {label:'Unsecured Loan (from promoters/directors, marked Quasi-Equity)', amt:unsecuredLoan},
+    {label:'Subsidy', amt:subsidy},
+    {label:'Term Loan', amt:termLoanProposed}
+  ];
+  var mofTotal = mofRows.reduce(function(s,r){return s+r.amt;},0);
+  h += card('Means of Finance (₹ Lakh)',
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr style="background:#1565C0;color:#fff"><th style="text-align:left;padding:5px 8px">Source</th><th style="text-align:right;padding:5px 8px">Amount</th></tr></thead>'+
+    '<tbody>'+mofRows.map(function(r){ return '<tr><td style="padding:5px 8px">'+r.label+'</td><td style="text-align:right;padding:5px 8px">'+r.amt.toFixed(2)+'</td></tr>'; }).join('')+
+    '<tr style="font-weight:800;background:#E3EEFC"><td style="padding:5px 8px">Total Means of Finance</td><td style="text-align:right;padding:5px 8px">'+mofTotal.toFixed(2)+'</td></tr>'+
+    '</tbody></table></div>'+
+    '<div class="al als" style="margin-top:8px">✅ Total Means of Finance exactly matches Total Cost of Project ('+totalCost.toFixed(2)+' Lakh) — Capital is calculated as the balancing figure once Unsecured Loan, Subsidy and Term Loan are accounted for.</div>'
+  );
   return h;
 }
 function pgCMAFormI(mode){
@@ -12932,6 +13335,18 @@ function pgCMAFormI(mode){
   return h;
 }
 function pgCMAFormII(cols){
+  var tradingRows = [
+    {label:'Opening Stock', get:function(y){return y.openingStock;}},
+    {label:'Add: Purchases', get:function(y){return y.purchases;}},
+    {label:'Less: Closing Stock', get:function(y){return -(y.inventory||0);}},
+    {label:'Cost of Goods Sold', get:function(y){return y.cogs;}, bold:true},
+    {label:'Sales', get:function(y){return y.netSales;}, bold:true},
+    {label:'Less: Cost of Goods Sold', get:function(y){return -(y.cogs||0);}},
+    {label:'GROSS PROFIT', get:function(y){return (y.netSales||0)-(y.cogs||0);}, bold:true}
+  ];
+  var h = cmaTable('Trading Account', tradingRows, cols,
+    'Classic Trading Account build-up. Opening Stock for the first available year comes from your Opening Balance; for later years it carries forward from the prior year\'s Closing Stock. <b>Purchases here is a derived balancing figure</b> (Opening Stock + Purchases − Closing Stock = COGS), computed to exactly match the COGS and Stock values used throughout this report — it may differ slightly from a literal sum of purchase transactions if item costing methods vary. For Projected years, stock is additionally assumed held constant.');
+
   var rows = [
     {label:'Net Sales', get:function(y){return y.netSales;}, bold:true},
     {label:'Cost of Goods Sold / Cost of Sales', get:function(y){return y.cogs;}, indent:true},
@@ -12945,8 +13360,9 @@ function pgCMAFormII(cols){
     {label:'Profit After Tax (PAT)', get:function(y){return y.pat;}, bold:true},
     {label:'Cash Accruals (PAT + Depreciation)', get:function(y){return (y.pat||0)+(y.depreciation||0);}, bold:true}
   ];
-  return cmaTable('Form II — Operating Statement (Profit & Loss)', rows, cols,
+  h += cmaTable('Form II — Operating Statement (Profit & Loss)', rows, cols,
     'This app currently tracks 2 years of Historical Actuals + Estimate + 2 Projected years. Standard bank CMA formats often extend to 5 years — a future enhancement.');
+  return h;
 }
 function pgCMAFormIII(cols){
   var rows = [
@@ -13032,6 +13448,209 @@ function pgCMAFormV(cols){
   ];
   return cmaTable('Form V — Fund Flow Statement (Sources & Application of Funds)', rows, ffCols,
     'Shows year-over-year movement of long-term funds. Sources should broadly match Uses; banks check that capex is funded from long-term sources, not short-term CC.');
+}
+function getBenchmarkThresholds(category){
+  var t = {
+    msmeSmall: {currentRatio:1.0, der:4, dscr:1.25, icr:1.5, acr:1.33, tolAtnw:5, exposureTnw:0.25},
+    msmeLarge: {currentRatio:1.1, der:3, dscr:1.25, icr:1.5, acr:1.33, tolAtnw:5, exposureTnw:0.25},
+    others: {currentRatio:1.33, der:3, dscr:1.5, icr:2, acr:1.5, tolAtnw:4, exposureTnw:0.25}
+  };
+  return t[category]||t.msmeSmall;
+}
+function pgCMABenchmark(cols){
+  var la = D.loanAssessment;
+  var totalExposure = (+la.ccLimit||0)+(+la.tlAmount||0);
+  var isMSME = (D.cmaProfile.creditSector||'MSME')==='MSME';
+  var category = !isMSME ? 'others' : (totalExposure<=10000000?'msmeSmall':'msmeLarge');
+  var thresh = getBenchmarkThresholds(category);
+  var categoryLabel = !isMSME?'Others (Non-MSME)':(totalExposure<=10000000?'MSME (≤₹1 Cr exposure)':'MSME (>₹1 Cr exposure)');
+
+  var rows = [
+    {label:'Current Ratio', key:'currentRatio', bench:thresh.currentRatio, higherBetter:true},
+    {label:'Debt/Equity Ratio', key:'debtEquity', bench:thresh.der, higherBetter:false},
+    {label:'DSCR', key:'dscrSimple', bench:thresh.dscr, higherBetter:true},
+    {label:'ICR', key:'icr', bench:thresh.icr, higherBetter:true},
+    {label:'ACR', key:'acr', bench:thresh.acr, higherBetter:true},
+    {label:'TOL/ATNW', key:'tolTnwQuasi', bench:thresh.tolAtnw, higherBetter:false}
+  ];
+
+  var h = card('Benchmark Category (auto)',
+    cmaAutoRow('Applicable Category', categoryLabel)+
+    cmaAutoRow('Total Proposed Exposure (CC + TL)', fc(totalExposure))
+  );
+
+  var tableHtml = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr><th style="text-align:left;padding:5px 8px;background:#1565C0;color:#fff;position:sticky;left:0">Ratio</th><th style="text-align:right;padding:5px 8px;background:#1565C0;color:#fff">Benchmark</th>'+
+    cols.map(function(c){ return '<th style="text-align:center;padding:5px 8px;background:#1565C0;color:#fff;min-width:60px">'+esc(c.label)+'<br><small>'+esc(c.sub)+'</small></th>'; }).join('')+
+    '</tr></thead><tbody>'+
+    rows.map(function(r,i){
+      return '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'">'+
+        '<td style="padding:5px 8px;position:sticky;left:0;background:inherit">'+r.label+'</td>'+
+        '<td style="text-align:right;padding:5px 8px;font-weight:700">'+r.bench+'</td>'+
+        cols.map(function(c){
+          var ratios = computeBankRatios(c.y);
+          var v = ratios[r.key];
+          if(v===null||v===undefined) return '<td style="text-align:center;padding:5px 8px">—</td>';
+          var pass = r.higherBetter ? v>=r.bench : v<=r.bench;
+          var color = pass?'#2E7D32':'#C62828';
+          var icon = pass?'🟢':'🔴';
+          return '<td style="text-align:center;padding:5px 8px;color:'+color+';font-weight:700">'+icon+' '+v.toFixed(2)+'</td>';
+        }).join('')+
+        '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+  h += card('Ratios vs. Bank Benchmark', tableHtml);
+  h += '<div class="al ali">🟢 = meets or exceeds the typical bank benchmark for this category. 🔴 = below benchmark, which a credit officer would likely query or ask you to explain. These reflect common industry conventions — your specific bank may apply different thresholds.</div>';
+  return h;
+}
+function pgCMANWCTNW(cols){
+  var la = D.loanAssessment, cp = D.cmaProfile;
+  var pairs = [];
+  for(var i=0;i<cols.length-1;i++) pairs.push({from:cols[i], to:cols[i+1]});
+
+  var h = '';
+  if(pairs.length===0){
+    h += '<div class="al ali">Need at least 2 years of data to show NWC/TNW movement.</div>';
+  } else {
+    var moveCols = pairs.map(function(p){
+      var ff = computeFundFlow(p.from.y, p.to.y);
+      var openNWC = (p.from.y.currentAssets||0)-((p.from.y.currentLiabilities||0)+(p.from.y.bankFinanceUtilized||0));
+      var closeNWC = (p.to.y.currentAssets||0)-((p.to.y.currentLiabilities||0)+(p.to.y.bankFinanceUtilized||0));
+      var openTNW = p.from.y.tnw||0;
+      var closeTNW = p.to.y.tnw||0;
+      var intangibles = (p.to.y.totalAssets||0)-(p.to.y.totalTangibleAssets||0);
+      return {label:p.to.label, sub:p.to.sub, ff:ff, openNWC:openNWC, closeNWC:closeNWC,
+        openTNW:openTNW, closeTNW:closeTNW, intangibles:intangibles, quasi:p.to.y.quasiCapital||0};
+    });
+
+    var nwcRows = [
+      {label:'Opening NWC', get:function(_,c){return c.openNWC;}},
+      {label:'+ Long Term Sources', get:function(_,c){return c.ff.sources;}},
+      {label:'− Long Term Uses', get:function(_,c){return -c.ff.uses;}},
+      {label:'= Surplus / (Deficit)', get:function(_,c){return c.ff.netSurplusDeficit;}, bold:true},
+      {label:'Closing NWC', get:function(_,c){return c.closeNWC;}, bold:true}
+    ];
+    h += cmaTable('Build-up of Net Working Capital', nwcRows, moveCols,
+      'Reuses the same Sources/Uses figures as Form V (Fund Flow). Closing NWC should equal Opening NWC + Surplus/(Deficit).');
+
+    var tnwRows = [
+      {label:'Opening TNW', get:function(_,c){return c.openTNW;}},
+      {label:'+ Retained Profit (PAT this year)', get:function(_,c){return c.ff.netProfit;}},
+      {label:'+/− Net Capital Movement (incl. Drawings)', get:function(_,c){return (c.closeTNW-c.openTNW)-c.ff.netProfit;}},
+      {label:'Closing TNW', get:function(_,c){return c.closeTNW;}, bold:true},
+      {label:'+ Unsecured Loans (Quasi-Equity)', get:function(_,c){return c.quasi;}},
+      {label:'= Adjusted TNW', get:function(_,c){return c.closeTNW+c.quasi;}, bold:true}
+    ];
+    h += cmaTable('Movement on Tangible Net Worth', tnwRows, moveCols,
+      'Retained Profit is this year\'s actual PAT. Net Capital Movement is the balancing figure (capital introduced less drawings) needed to reconcile Opening to Closing TNW exactly.');
+  }
+
+  // Security Coverage — single-year snapshot per column
+  var secCols = cols.map(function(c){
+    var primary = c.y.totalTangibleAssets||0;
+    var collateral = +la.collateralSecurityValue||0;
+    var cgtmse = (cp.cgtmseCoverage==='Yes') ? (+la.tlAmount||0)*(+cp.cgtmseCoveragePct||0)/100 : 0;
+    var total = primary+collateral+cgtmse;
+    var termLoan = c.y.termLoanOutstanding||0;
+    var totalCredit = termLoan+(c.y.bankFinanceUtilized||0);
+    return {label:c.label, sub:c.sub, primary:primary, collateral:collateral, cgtmse:cgtmse, total:total,
+      termLoan:termLoan, totalCredit:totalCredit,
+      facr: termLoan>0?total/termLoan:null, acr: totalCredit>0?total/totalCredit:null};
+  });
+  var secRows = [
+    {label:'Primary Security (≈ Total Tangible Assets)', get:function(_,c){return c.primary;}},
+    {label:'Collateral', get:function(_,c){return c.collateral;}},
+    {label:'CGTMSE Cover', get:function(_,c){return c.cgtmse;}},
+    {label:'Total Security', get:function(_,c){return c.total;}, bold:true},
+    {label:'Term Loan Outstanding', get:function(_,c){return c.termLoan;}},
+    {label:'FACR (Total Security / Term Loan)', get:function(_,c){return c.facr;}, raw:true, fmt:true},
+    {label:'Total Credit Facilities (TL + WC)', get:function(_,c){return c.totalCredit;}},
+    {label:'ACR (Total Security / Total Credit)', get:function(_,c){return c.acr;}, raw:true, fmt:true}
+  ];
+  var secTableHtml = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr><th style="text-align:left;padding:5px 8px;background:#1565C0;color:#fff;position:sticky;left:0">Particulars</th>'+
+    secCols.map(function(c){ return '<th style="text-align:right;padding:5px 8px;background:#1565C0;color:#fff;min-width:70px">'+esc(c.label)+'<br><small>'+esc(c.sub)+'</small></th>'; }).join('')+
+    '</tr></thead><tbody>'+
+    secRows.map(function(r,i){
+      return '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+(r.bold?';font-weight:800':'')+'">'+
+        '<td style="padding:5px 8px;position:sticky;left:0;background:inherit">'+r.label+'</td>'+
+        secCols.map(function(c){
+          var v = r.get(null,c);
+          if(v===null||v===undefined) return '<td style="text-align:right;padding:5px 8px">—</td>';
+          return '<td style="text-align:right;padding:5px 8px">'+(r.fmt?v.toFixed(2):fc(v))+'</td>';
+        }).join('')+
+        '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+  h += card('Security Coverage (FACR / ACR)', secTableHtml);
+  h += '<div class="al ali">Primary Security is approximated as Total Tangible Assets (standard practice where specific hypothecated assets aren\'t separately tracked). CGTMSE Cover only applies if enabled in the Reference Sheet.</div>';
+  return h;
+}
+function pgCMAFinInd(cols){
+  var grossBlock = 0; (D.fixedAssets||[]).forEach(function(a){ if(!a.disposed) grossBlock += (+a.cost||0); });
+  var rows = [
+    {n:'1', label:'Paid-Up Capital', get:function(y){return (+D.capital.initialCapital||0)+(+D.capital.additionalCapital||0);}},
+    {n:'2', label:'Reserves & Surplus', get:function(y){return (y.tnw||0)-((+D.capital.initialCapital||0)+(+D.capital.additionalCapital||0));}},
+    {n:'3', label:'Intangible Assets', get:function(y){return (y.totalAssets||0)-(y.totalTangibleAssets||0);}},
+    {n:'4', label:'Tangible Net Worth', get:function(y){return y.tnw;}, bold:true},
+    {n:'5', label:'Adjusted TNW (4+7)', get:function(y){return (y.tnw||0)+(y.quasiCapital||0);}, bold:true},
+    {n:'6', label:'Long Term Liabilities (net of 7 below)', get:function(y){return Math.max(0,(y.totalOutsideLiabilities||0)-(y.currentLiabilities||0)-(y.bankFinanceUtilized||0)-(y.quasiCapital||0));}},
+    {n:'7', label:'Unsecured Loans from Promoters/Family', get:function(y){return y.quasiCapital;}},
+    {n:'8', label:'Capital Employed (4+6+7)', get:function(y){return (y.tnw||0)+(y.totalOutsideLiabilities||0)-(y.currentLiabilities||0)-(y.bankFinanceUtilized||0);}, bold:true},
+    {n:'9', label:'Total Outside Liabilities', get:function(y){return y.totalOutsideLiabilities;}, bold:true},
+    {n:'10', label:'Gross Block', get:function(y){return grossBlock;}},
+    {n:'10A', label:'Net Block', get:function(y){return y.fixedAssets;}},
+    {n:'11', label:'Investments in Subsidiaries/Associates', get:function(y){return 0;}},
+    {n:'12', label:'Non-Current Assets', get:function(y){return 0;}},
+    {n:'13', label:'Current Assets', get:function(y){return y.currentAssets;}},
+    {n:'14', label:'Current Liabilities', get:function(y){return (y.currentLiabilities||0)+(y.bankFinanceUtilized||0);}},
+    {n:'15', label:'Net Working Capital (13-14)', get:function(y){return (y.currentAssets||0)-((y.currentLiabilities||0)+(y.bankFinanceUtilized||0));}, bold:true},
+    {n:'16', label:'Net Sales / Revenue', get:function(y){return y.netSales;}, bold:true},
+    {n:'17', label:'Gross Profit', get:function(y){return (y.netSales||0)-(y.cogs||0);}},
+    {n:'18', label:'EBITDA', get:function(y){return y.ebitda;}},
+    {n:'19', label:'Net Profit Before Tax', get:function(y){return y.pbt;}},
+    {n:'20', label:'Net Profit After Tax (Retained Profit)', get:function(y){return y.pat;}, bold:true},
+    {n:'21', label:'Depreciation', get:function(y){return y.depreciation;}},
+    {n:'22', label:'Cash Accruals', get:function(y){return (y.pat||0)+(y.depreciation||0);}, bold:true},
+    {n:'23', label:'Long Term Sources (= 8)', get:function(y){return (y.tnw||0)+(y.totalOutsideLiabilities||0)-(y.currentLiabilities||0)-(y.bankFinanceUtilized||0);}},
+    {n:'24', label:'Long Term Uses (10A+11+12)', get:function(y){return (y.fixedAssets||0);}},
+    {n:'25', label:'Surplus/Deficit (should tally with 15)', get:function(y){return ((y.tnw||0)+(y.totalOutsideLiabilities||0)-(y.currentLiabilities||0)-(y.bankFinanceUtilized||0))-(y.fixedAssets||0);}, bold:true},
+    {n:'26', label:'Dividends', get:function(y){return 0;}}
+  ];
+  var tableHtml = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr><th style="text-align:left;padding:5px 8px;background:#1565C0;color:#fff;position:sticky;left:0">#</th><th style="text-align:left;padding:5px 8px;background:#1565C0;color:#fff">Financial Indicator</th>'+
+    cols.map(function(c){ return '<th style="text-align:right;padding:5px 8px;background:#1565C0;color:#fff;min-width:70px">'+esc(c.label)+'<br><small>'+esc(c.sub)+'</small></th>'; }).join('')+
+    '</tr></thead><tbody>'+
+    rows.map(function(r,i){
+      return '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+(r.bold?';font-weight:800':'')+'">'+
+        '<td style="padding:5px 8px;position:sticky;left:0;background:inherit">'+r.n+'</td>'+
+        '<td style="padding:5px 8px">'+r.label+'</td>'+
+        cols.map(function(c){ var v=r.get(c.y); return '<td style="text-align:right;padding:5px 8px">'+(v===null||v===undefined?'—':fc(v))+'</td>'; }).join('')+
+        '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+  var h = card('Financial Indicators — Consolidated Summary', tableHtml);
+  h += '<div class="al ali">A one-page consolidated view pulling together the key figures from Operating Statement, Balance Sheet, MPBF and Fund Flow — the same numbered format banks use for a quick appraisal read. Row 25 (Surplus/Deficit) should equal Row 15 (NWC) — this is a useful internal consistency check. Gross Block uses your current total Fixed Asset cost across all years, since per-year historical gross block isn\'t separately tracked.</div>';
+  return h;
+}
+function pgCMAHoldingNorms(cols){
+  var rows = [
+    {label:'Inventory / Stock — Holding (Months)', raw:true, get:function(y){ var r=computeBankRatios(y); var m=r.inventoryDays!==null&&r.inventoryDays!==undefined ? r.inventoryDays/30 : null; return m===null?null:m.toFixed(2); }},
+    {label:'Receivables — Holding (Months)', raw:true, get:function(y){ var r=computeBankRatios(y); var m=r.receivableDays!==null&&r.receivableDays!==undefined ? r.receivableDays/30 : null; return m===null?null:m.toFixed(2); }},
+    {label:'Sundry Creditors — Holding (Months)', raw:true, get:function(y){ var r=computeBankRatios(y); var m=r.creditorDays!==null&&r.creditorDays!==undefined ? r.creditorDays/30 : null; return m===null?null:m.toFixed(2); }}
+  ];
+  var valueRows = [
+    {label:'Inventory / Stock Value', get:function(y){return y.inventory;}},
+    {label:'Receivables Value', get:function(y){return y.receivables;}},
+    {label:'Sundry Creditors Value', get:function(y){return y.creditors;}}
+  ];
+  var h = cmaTable('Holding Norms — Months of Holding', rows, cols,
+    'Shows how many months of the relevant flow (Sales for Inventory/Receivables, Consumption for Creditors) is currently tied up as a balance — a key input banks use to judge whether working capital levels are reasonable. Converted from the day-based figures already in Bank Ratios → Adjusted Sales.');
+  h += cmaTable('Underlying Values (₹)', valueRows, cols);
+  if(isMfgBiz()){
+    h += '<div class="al ali">For Manufacturing, your specimen further splits Inventory into Raw Material (Indigenous/Imported), Work-in-Progress, Finished Goods and Stores & Spares separately. This app currently tracks total Inventory as one figure — a granular WIP/Finished-Goods split would need production-stage tracking not yet built.</div>';
+  }
+  return h;
 }
 function pgCMAFormVI(cols){
   var h = '';
@@ -13579,8 +14198,23 @@ function computeHistoricalFYFromLiveData(fy){
     });
   }
 
+  var purchasesSummed = purchases.reduce(function(s,x){return s+(x.amount||0);},0);
+  // Opening stock (start of this FY): replay purchases/sales up to the day BEFORE this FY started
+  var openingStockValue = 0;
+  D.inventory.forEach(function(it){
+    var qty=0, totalCost=0, avgCost=0;
+    var events = [];
+    D.purchases.forEach(function(p){ if(p.itemId===it.id && p.date<range.from) events.push({date:p.date, type:'p', qty:p.qty, rate:p.rate}); });
+    D.sales.forEach(function(s){ if(s.itemId===it.id && s.date<range.from) events.push({date:s.date, type:'s', qty:s.qty}); });
+    events.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
+    events.forEach(function(ev){
+      if(ev.type==='p'){ totalCost += ev.qty*ev.rate; qty += ev.qty; avgCost = qty>0?totalCost/qty:0; }
+      else { qty -= ev.qty; totalCost = qty*avgCost; if(qty<0){qty=0;totalCost=0;} }
+    });
+    openingStockValue += totalCost;
+  });
   return {
-    label: fy, netSales: netSales, grossSales: netSales, cogs: cogs,
+    label: fy, netSales: netSales, grossSales: netSales, cogs: cogs, purchases: cogs+invValue-openingStockValue, openingStock: openingStockValue,
     ebitda: ebitda, depreciation: dep, interest: interest, pbt: pbt, pat: pbt,
     inventory: invValue,
     rmConsumption: rmConsumption, spares: spares, powerFuel: powerFuel, otherMfgExpenses: otherMfgExpenses,
@@ -13617,7 +14251,7 @@ function getCurrentYearRatioData(){
   var interest = ccOutstanding*ccRate/100 + termLoanOutstanding*tlRate/100;
   var dep = annualDepreciationEstimate();
   var ebitda = base.gp - base.exp;
-  var pbt = ebitda - interest;
+  var pbt = ebitda - dep - interest;
   var pat = pbt; // MSME proprietorship/partnership: no separate corporate tax layer assumed unless Income Tax module says otherwise
   var tol = bs.totalLiab - bs.netCap;
   var creditors = 0; try{ creditors = totalCreditors(); }catch(e){}
@@ -13640,8 +14274,10 @@ function getCurrentYearRatioData(){
       else if(cat.indexOf('other manufacturing')>-1) otherMfgExpenses += (+e.amount||0);
     });
   }
+  var openingStockCur = (+D.opening.stock||0);
+  var derivedPurchases = base.cogs + fbase.cs - openingStockCur;
   return {
-    netSales: base.sales, grossSales: base.sales, cogs: base.cogs,
+    netSales: base.sales, grossSales: base.sales, cogs: base.cogs, purchases: derivedPurchases, openingStock: openingStockCur,
     ebitda: ebitda, depreciation: dep, interest: interest, pbt: pbt, pat: pat,
     currentAssets: bs.currentAssets, currentLiabilities: bs.currentLiab, totalAssets: bs.totalAssets,
     totalOutsideLiabilities: tol, tlInstalmentsDue: tlInstDue,
@@ -13663,19 +14299,36 @@ function getProjectedYearRatioData(la2, yearNum){
   var ccInt = yearNum===1?la2.ccInt1:la2.ccInt2;
   var tlInt = yearNum===1?la2.tlInt1:la2.tlInt2;
   var ebitda = yearNum===1?la2.ebit1:la2.ebit2;
-  var np = yearNum===1?la2.np1:la2.np2;
+  var np1 = la2.np1||0, np2 = la2.np2||0;
+  var np = yearNum===1?np1:np2;
   var cur = getCurrentYearRatioData(); // balance-sheet base carried forward (best available estimate)
-  var termLoanOb = yearNum===1 ? (cur.termLoanOutstanding) : la2.tlObY2;
   var dep = cur.depreciation;
-  var pbt = ebitda - ccInt - tlInt;
+  // Term Loan Outstanding: la2.tlObY2 is actually the balance AFTER Year 1's amortization (i.e. Year 1's
+  // year-end / Year 2's year-start balance) — computed elsewhere from the real EMI schedule.
+  var tlObAfterY1 = la2.tlObY2||0;
+  var y2Principal = la2.emi>0 ? Math.max(0, la2.emi*12-tlInt) : 0;
+  var termLoanOb = yearNum===1 ? tlObAfterY1 : Math.max(0, tlObAfterY1-y2Principal);
+  var pbt = ebitda - dep - ccInt - tlInt;
   var tlInstDueProj = la2.emi>0 ? Math.max(0, Math.min(la2.emi*12-tlInt, termLoanOb)) : 0;
+  // Retained profit accumulates as additional working capital (Cash/Bank) — without this, Total
+  // Assets stays frozen while TNW grows from retained profit, eventually forcing computed
+  // liabilities negative. Cumulative through Year 2 so both projected years stay consistent.
+  var cumulativeRetained = yearNum===1 ? np1 : (np1+np2);
+  var currentAssetsProj = cur.currentAssets + cumulativeRetained;
+  var totalAssetsProj = cur.totalAssets + cumulativeRetained;
+  var totalTangibleAssetsProj = cur.totalTangibleAssets + cumulativeRetained;
+  var tnwProj = cur.tnw + np;
+  var totalOutsideLiabProj = totalAssetsProj - tnwProj;
   return {
     netSales: sales, grossSales: sales, cogs: cogs,
+    // Stock is held frozen across projected years in this model, so Opening = Closing and
+    // Purchases exactly funds COGS for the year — a reasonable simplification, not a tracked fact.
+    purchases: cogs, openingStock: cur.inventory,
     ebitda: ebitda, depreciation: dep, interest: ccInt+tlInt, pbt: pbt, pat: pbt,
-    currentAssets: cur.currentAssets, currentLiabilities: cur.currentLiabilities, totalAssets: cur.totalAssets,
-    totalOutsideLiabilities: cur.totalOutsideLiabilities, tlInstalmentsDue: tlInstDueProj,
-    tnw: cur.tnw + np, quasiCapital: cur.quasiCapital, totalDebt: cur.totalDebt, termLoanOutstanding: termLoanOb,
-    fixedAssets: cur.fixedAssets, totalTangibleAssets: cur.totalTangibleAssets,
+    currentAssets: currentAssetsProj, currentLiabilities: cur.currentLiabilities, totalAssets: totalAssetsProj,
+    totalOutsideLiabilities: totalOutsideLiabProj, tlInstalmentsDue: tlInstDueProj,
+    tnw: tnwProj, quasiCapital: cur.quasiCapital, totalDebt: cur.totalDebt-(cur.termLoanOutstanding-termLoanOb), termLoanOutstanding: termLoanOb,
+    fixedAssets: cur.fixedAssets, totalTangibleAssets: totalTangibleAssetsProj,
     inventory: cur.inventory, receivables: cur.receivables, creditors: cur.creditors,
     bankFinanceUtilized: cur.bankFinanceUtilized,
     contingentLiabilities: cur.contingentLiabilities, collateralSecurityValue: cur.collateralSecurityValue,
@@ -13881,7 +14534,11 @@ function saveLoanAssess() {
     useManual:   D.loanAssessment ? (D.loanAssessment.useManual || false) : false,
     manualSales: gvn('la_ms') || (D.loanAssessment ? (+D.loanAssessment.manualSales||0) : 0),
     manualCogsP: gvn('la_mcp') || (D.loanAssessment ? (+D.loanAssessment.manualCogsP||70) : 70),
-    manualExp:   gvn('la_me')  || (D.loanAssessment ? (+D.loanAssessment.manualExp||0)   : 0)
+    manualExp:   gvn('la_me')  || (D.loanAssessment ? (+D.loanAssessment.manualExp||0)   : 0),
+    contingentLiabilities: D.loanAssessment ? (+D.loanAssessment.contingentLiabilities||0) : 0,
+    collateralSecurityValue: D.loanAssessment ? (+D.loanAssessment.collateralSecurityValue||0) : 0,
+    tlMoratorium: gvn('la_tlmorat'),
+    tlMoratoriumTreatment: gv('la_tlmorat_treat')||'paid'
   };
   sv();
   window._latab = 'projections';
