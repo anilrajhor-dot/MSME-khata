@@ -12276,6 +12276,127 @@ function promptDialog(message, defaultValue, onSubmit){
 // Computes DSCR, projected P&L and Balance Sheet for 2 years
 // Works with live data from D (the app's data object)
 
+function renderBEPIRR(la2){
+  var h='';
+  var tlAmount = +D.loanAssessment.tlAmount||0, ccLimit = +D.loanAssessment.ccLimit||0, ccRate = +D.loanAssessment.ccRate||9;
+  // Check if projections are available
+    if(la2.s1 <= 0){
+      h += card('BEP / IRR — Data Required',
+        '<div class="al alw">To calculate Break Even Point and IRR, please first:</div>'+
+        '<ol style="font-size:13px;line-height:2;padding-left:20px">'+
+        '<li>Go to <b>Loan Details</b> tab and enter CC/TL amounts and Sales Growth %</li>'+
+        '<li>For a new business, toggle to <b>New Unit</b> mode and enter projected sales and costs</li>'+
+        '<li>Tap <b>Save & Calculate</b></li>'+
+        '<li>Come back to this tab</li>'+
+        '</ol>'
+      );
+      return h;
+    }
+    // ── BEP & IRR ──
+    var bepSales = la2.s1, bepCogs = la2.c1, bepExp = la2.e1;
+    var bepInt = la2.ccInt1 + la2.tlInt1;
+    // Fixed Costs = Expenses + Interest (these do not vary with sales)
+    var fixedCosts = bepExp + bepInt;
+    // Variable Costs = COGS (varies with sales)
+    var vcRatio = bepSales > 0 ? bepCogs / bepSales : 0;
+    // Contribution = Sales - Variable Costs; P/V Ratio = Contribution/Sales
+    var pvRatio = 1 - vcRatio;
+    // BEP (Sales value) = Fixed Costs / P/V Ratio
+    var bepValue = pvRatio > 0 ? Math.round(fixedCosts / pvRatio) : 0;
+    var bepPct = bepSales > 0 ? (bepValue / bepSales * 100) : 0;
+    var marginOfSafety = bepSales - bepValue;
+    var mosPct = bepSales > 0 ? (marginOfSafety / bepSales * 100) : 0;
+
+    h += card('Break Even Point (BEP) — Year 1',
+      '<div class="al ali" style="margin-bottom:8px">BEP is the sales level at which the business makes neither profit nor loss. Sales above BEP = profit zone. Calculated as: Fixed Costs ÷ P/V Ratio (Contribution/Sales).</div>'+
+      '<div style="overflow-x:auto"><table><thead><tr>'+
+      '<th style="text-align:left">Particulars</th><th style="text-align:right">Amount</th></tr></thead><tbody>'+
+      '<tr><td style="padding:5px 8px">Projected Sales (Year 1)</td><td style="text-align:right;padding:5px 8px">'+fc(bepSales)+'</td></tr>'+
+      '<tr><td style="padding:5px 8px;color:#546E7A;padding-left:18px">Less: Variable Costs (COGS)</td><td style="text-align:right;padding:5px 8px;color:#546E7A">'+fc(bepCogs)+'</td></tr>'+
+      '<tr style="background:rgba(0,0,0,.04)"><td style="padding:5px 8px;font-weight:700">Contribution</td><td style="text-align:right;padding:5px 8px;font-weight:700">'+fc(bepSales-bepCogs)+'</td></tr>'+
+      '<tr><td style="padding:5px 8px;color:#546E7A">P/V Ratio (Contribution ÷ Sales)</td><td style="text-align:right;padding:5px 8px;color:#546E7A">'+(pvRatio*100).toFixed(1)+'%</td></tr>'+
+      '<tr><td style="padding:5px 8px;font-weight:700">Fixed Costs (Expenses + Interest)</td><td style="text-align:right;padding:5px 8px;font-weight:700">'+fc(fixedCosts)+'</td></tr>'+
+      '<tr><td style="padding:5px 8px;color:#546E7A;padding-left:18px">  Operating Expenses</td><td style="text-align:right;padding:5px 8px;color:#546E7A">'+fc(bepExp)+'</td></tr>'+
+      '<tr><td style="padding:5px 8px;color:#546E7A;padding-left:18px">  Loan Interest</td><td style="text-align:right;padding:5px 8px;color:#546E7A">'+fc(bepInt)+'</td></tr>'+
+      '</tbody></table></div>'+
+      '<div class="kg" style="margin-top:12px">'+
+      '<div class="ki"><div class="kl">BEP (Sales Value)</div><div class="kv" style="color:#C62828">'+fc(bepValue)+'</div></div>'+
+      '<div class="ki"><div class="kl">BEP as % of Projected Sales</div><div class="kv" style="color:'+(bepPct<70?'#2E7D32':'#C62828')+'">'+bepPct.toFixed(1)+'%</div></div>'+
+      '<div class="ki"><div class="kl">Margin of Safety</div><div class="kv" style="color:#2E7D32">'+fc(marginOfSafety)+'</div></div>'+
+      '<div class="ki"><div class="kl">Margin of Safety %</div><div class="kv" style="color:#2E7D32">'+mosPct.toFixed(1)+'%</div></div>'+
+      '</div>'+
+      '<div class="al '+(bepPct < 70 ? 'als' : bepPct < 90 ? 'alw' : 'ald')+'" style="margin-top:8px">'+
+      (bepPct < 70
+        ? '✅ BEP is '+bepPct.toFixed(0)+'% of projected sales — good margin of safety. Even if sales fall, the business can still cover costs.'
+        : bepPct < 90
+          ? '⚠️ BEP is '+bepPct.toFixed(0)+'% of sales. Limited margin of safety — business needs to achieve close to projected sales to remain profitable.'
+          : '❌ BEP exceeds 90% of projected sales. Very little margin of safety. Reduce fixed costs or improve contribution margin before submitting loan proposal.')+
+      '</div>'
+    );
+
+    // ── IRR ──
+    // Investment = Own Capital + Total Loan
+    var totalCapital = (+(D.capital&&D.capital.initialCapital)||0) + (+(D.capital&&D.capital.additionalCapital)||0);
+    var totalLoan = tlAmount + ccLimit;
+    var totalInvestment = totalCapital + totalLoan;
+    // Cash flows: Year 0 = -totalInvestment, Year 1 = NP+Dep+Interest (EBITDA), Year 2 = same, terminal = ~3x Y2
+    var cf0 = -totalInvestment;
+    var cf1 = la2.ebit1;   // EBITDA Year 1
+    var cf2 = la2.ebit2;   // EBITDA Year 2
+    var cf3 = la2.ebit2 * 1.2; // Year 3 estimate (20% growth)
+
+    // IRR via Newton-Raphson
+    function npv(rate, cfs) {
+      return cfs.reduce(function(acc, cf, t) { return acc + cf / Math.pow(1+rate, t); }, 0);
+    }
+    function calcIRR(cfs) {
+      var rate = 0.2;
+      for(var i=0;i<100;i++){
+        var n = npv(rate, cfs);
+        var dn = cfs.reduce(function(acc,cf,t){ return t>0 ? acc - t*cf/Math.pow(1+rate,t+1) : acc; }, 0);
+        if(Math.abs(dn) < 1e-10) break;
+        var newRate = rate - n/dn;
+        if(newRate < -0.99) newRate = -0.99;
+        rate = newRate;
+        if(Math.abs(n) < 0.01) break;
+      }
+      return isNaN(rate) ? null : rate;
+    }
+    var cfs = [cf0, cf1, cf2, cf3];
+    var irr = totalInvestment > 0 && cf1 > 0 ? calcIRR(cfs) : null;
+    var irrPct = irr !== null ? irr * 100 : null;
+    var npvAt12 = totalInvestment > 0 ? Math.round(npv(0.12, cfs)) : 0; // NPV at 12% hurdle rate
+
+    h += card('Internal Rate of Return (IRR)',
+      '<div class="al ali" style="margin-bottom:8px">IRR is the annualized rate of return on total investment (Owner Capital + Loan). Cash flows used: Year 0 = Total Investment outflow, Years 1-3 = EBITDA (operating cash generation). IRR > Cost of Capital means the project is viable.</div>'+
+      '<div style="overflow-x:auto"><table><thead><tr>'+
+      '<th style="text-align:left">Year</th><th style="text-align:right">Cash Flow</th><th style="text-align:left;padding-left:12px">Remarks</th>'+
+      '</tr></thead><tbody>'+
+      '<tr><td style="padding:5px 8px">Year 0</td><td style="text-align:right;padding:5px 8px;color:#C62828">'+fc(cf0)+'</td><td style="padding:5px 8px 5px 12px;font-size:11px;color:#546E7A">Total Investment (Capital + Loan)</td></tr>'+
+      '<tr><td style="padding:5px 8px">Year 1</td><td style="text-align:right;padding:5px 8px;color:#2E7D32">+'+fc(cf1)+'</td><td style="padding:5px 8px 5px 12px;font-size:11px;color:#546E7A">EBITDA (NP + Interest)</td></tr>'+
+      '<tr><td style="padding:5px 8px">Year 2</td><td style="text-align:right;padding:5px 8px;color:#2E7D32">+'+fc(cf2)+'</td><td style="padding:5px 8px 5px 12px;font-size:11px;color:#546E7A">EBITDA Year 2</td></tr>'+
+      '<tr><td style="padding:5px 8px">Year 3</td><td style="text-align:right;padding:5px 8px;color:#2E7D32">+'+fc(cf3)+'</td><td style="padding:5px 8px 5px 12px;font-size:11px;color:#546E7A">Estimated (20% growth on Yr 2)</td></tr>'+
+      '</tbody></table></div>'+
+      '<div class="kg" style="margin-top:12px">'+
+      '<div class="ki"><div class="kl">Total Investment</div><div class="kv">'+fc(totalInvestment)+'</div></div>'+
+      '<div class="ki"><div class="kl">IRR</div><div class="kv" style="color:'+(irrPct!==null?(irrPct>12?'#2E7D32':irrPct>8?'#E65100':'#C62828'):'#546E7A')+';font-size:20px;font-weight:700">'+(irrPct!==null?irrPct.toFixed(1)+'%':'N/A')+'</div></div>'+
+      '<div class="ki"><div class="kl">NPV @ 12% Hurdle Rate</div><div class="kv" style="color:'+(npvAt12>=0?'#2E7D32':'#C62828')+'">'+fc(npvAt12)+'</div></div>'+
+      '<div class="ki"><div class="kl">Cost of Borrowing</div><div class="kv" style="color:#546E7A">~'+(ccRate||9).toFixed(1)+'% p.a.</div></div>'+
+      '</div>'+
+      (irrPct !== null
+        ? '<div class="al '+(irrPct>12?'als':irrPct>8?'alw':'ald')+'" style="margin-top:8px">'+
+          (irrPct > 12
+            ? '✅ IRR of '+irrPct.toFixed(1)+'% exceeds the 12% hurdle rate. The investment generates good returns and can service the loan comfortably.'
+            : irrPct > 8
+              ? '⚠️ IRR of '+irrPct.toFixed(1)+'% is moderate. Returns are adequate but improve sales or margins for a stronger proposal.'
+              : '❌ IRR of '+irrPct.toFixed(1)+'% is below acceptable levels. Revise projections — increase sales, reduce costs, or reduce loan amount.')+
+          '</div>'
+        : '<div class="al alw" style="margin-top:8px">Unable to compute IRR — ensure loan amounts and projections are entered in Loan Details tab.</div>')+
+      '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print BEP / IRR','window.print()','#546E7A')+'</div>'
+    );
+    return h;
+}
+
 function pgLoanAssess() {
   var tab = window._latab || 'inputs';
   var h = '<div class="tabs">';
@@ -12675,121 +12796,7 @@ function pgLoanAssess() {
   }
 
   if (tab === 'bepirr') {
-    // Check if projections are available
-    if(la2.s1 <= 0){
-      h += card('BEP / IRR — Data Required',
-        '<div class="al alw">To calculate Break Even Point and IRR, please first:</div>'+
-        '<ol style="font-size:13px;line-height:2;padding-left:20px">'+
-        '<li>Go to <b>Loan Details</b> tab and enter CC/TL amounts and Sales Growth %</li>'+
-        '<li>For a new business, toggle to <b>New Unit</b> mode and enter projected sales and costs</li>'+
-        '<li>Tap <b>Save & Calculate</b></li>'+
-        '<li>Come back to this tab</li>'+
-        '</ol>'
-      );
-      return h;
-    }
-    // ── BEP & IRR ──
-    var bepSales = la2.s1, bepCogs = la2.c1, bepExp = la2.e1;
-    var bepInt = la2.ccInt1 + la2.tlInt1;
-    // Fixed Costs = Expenses + Interest (these do not vary with sales)
-    var fixedCosts = bepExp + bepInt;
-    // Variable Costs = COGS (varies with sales)
-    var vcRatio = bepSales > 0 ? bepCogs / bepSales : 0;
-    // Contribution = Sales - Variable Costs; P/V Ratio = Contribution/Sales
-    var pvRatio = 1 - vcRatio;
-    // BEP (Sales value) = Fixed Costs / P/V Ratio
-    var bepValue = pvRatio > 0 ? Math.round(fixedCosts / pvRatio) : 0;
-    var bepPct = bepSales > 0 ? (bepValue / bepSales * 100) : 0;
-    var marginOfSafety = bepSales - bepValue;
-    var mosPct = bepSales > 0 ? (marginOfSafety / bepSales * 100) : 0;
-
-    h += card('Break Even Point (BEP) — Year 1',
-      '<div class="al ali" style="margin-bottom:8px">BEP is the sales level at which the business makes neither profit nor loss. Sales above BEP = profit zone. Calculated as: Fixed Costs ÷ P/V Ratio (Contribution/Sales).</div>'+
-      '<div style="overflow-x:auto"><table><thead><tr>'+
-      '<th style="text-align:left">Particulars</th><th style="text-align:right">Amount</th></tr></thead><tbody>'+
-      '<tr><td style="padding:5px 8px">Projected Sales (Year 1)</td><td style="text-align:right;padding:5px 8px">'+fc(bepSales)+'</td></tr>'+
-      '<tr><td style="padding:5px 8px;color:#546E7A;padding-left:18px">Less: Variable Costs (COGS)</td><td style="text-align:right;padding:5px 8px;color:#546E7A">'+fc(bepCogs)+'</td></tr>'+
-      '<tr style="background:rgba(0,0,0,.04)"><td style="padding:5px 8px;font-weight:700">Contribution</td><td style="text-align:right;padding:5px 8px;font-weight:700">'+fc(bepSales-bepCogs)+'</td></tr>'+
-      '<tr><td style="padding:5px 8px;color:#546E7A">P/V Ratio (Contribution ÷ Sales)</td><td style="text-align:right;padding:5px 8px;color:#546E7A">'+(pvRatio*100).toFixed(1)+'%</td></tr>'+
-      '<tr><td style="padding:5px 8px;font-weight:700">Fixed Costs (Expenses + Interest)</td><td style="text-align:right;padding:5px 8px;font-weight:700">'+fc(fixedCosts)+'</td></tr>'+
-      '<tr><td style="padding:5px 8px;color:#546E7A;padding-left:18px">  Operating Expenses</td><td style="text-align:right;padding:5px 8px;color:#546E7A">'+fc(bepExp)+'</td></tr>'+
-      '<tr><td style="padding:5px 8px;color:#546E7A;padding-left:18px">  Loan Interest</td><td style="text-align:right;padding:5px 8px;color:#546E7A">'+fc(bepInt)+'</td></tr>'+
-      '</tbody></table></div>'+
-      '<div class="kg" style="margin-top:12px">'+
-      '<div class="ki"><div class="kl">BEP (Sales Value)</div><div class="kv" style="color:#C62828">'+fc(bepValue)+'</div></div>'+
-      '<div class="ki"><div class="kl">BEP as % of Projected Sales</div><div class="kv" style="color:'+(bepPct<70?'#2E7D32':'#C62828')+'">'+bepPct.toFixed(1)+'%</div></div>'+
-      '<div class="ki"><div class="kl">Margin of Safety</div><div class="kv" style="color:#2E7D32">'+fc(marginOfSafety)+'</div></div>'+
-      '<div class="ki"><div class="kl">Margin of Safety %</div><div class="kv" style="color:#2E7D32">'+mosPct.toFixed(1)+'%</div></div>'+
-      '</div>'+
-      '<div class="al '+(bepPct < 70 ? 'als' : bepPct < 90 ? 'alw' : 'ald')+'" style="margin-top:8px">'+
-      (bepPct < 70
-        ? '✅ BEP is '+bepPct.toFixed(0)+'% of projected sales — good margin of safety. Even if sales fall, the business can still cover costs.'
-        : bepPct < 90
-          ? '⚠️ BEP is '+bepPct.toFixed(0)+'% of sales. Limited margin of safety — business needs to achieve close to projected sales to remain profitable.'
-          : '❌ BEP exceeds 90% of projected sales. Very little margin of safety. Reduce fixed costs or improve contribution margin before submitting loan proposal.')+
-      '</div>'
-    );
-
-    // ── IRR ──
-    // Investment = Own Capital + Total Loan
-    var totalCapital = (+(D.capital&&D.capital.initialCapital)||0) + (+(D.capital&&D.capital.additionalCapital)||0);
-    var totalLoan = tlAmount + ccLimit;
-    var totalInvestment = totalCapital + totalLoan;
-    // Cash flows: Year 0 = -totalInvestment, Year 1 = NP+Dep+Interest (EBITDA), Year 2 = same, terminal = ~3x Y2
-    var cf0 = -totalInvestment;
-    var cf1 = la2.ebit1;   // EBITDA Year 1
-    var cf2 = la2.ebit2;   // EBITDA Year 2
-    var cf3 = la2.ebit2 * 1.2; // Year 3 estimate (20% growth)
-
-    // IRR via Newton-Raphson
-    function npv(rate, cfs) {
-      return cfs.reduce(function(acc, cf, t) { return acc + cf / Math.pow(1+rate, t); }, 0);
-    }
-    function calcIRR(cfs) {
-      var rate = 0.2;
-      for(var i=0;i<100;i++){
-        var n = npv(rate, cfs);
-        var dn = cfs.reduce(function(acc,cf,t){ return t>0 ? acc - t*cf/Math.pow(1+rate,t+1) : acc; }, 0);
-        if(Math.abs(dn) < 1e-10) break;
-        var newRate = rate - n/dn;
-        if(newRate < -0.99) newRate = -0.99;
-        rate = newRate;
-        if(Math.abs(n) < 0.01) break;
-      }
-      return isNaN(rate) ? null : rate;
-    }
-    var cfs = [cf0, cf1, cf2, cf3];
-    var irr = totalInvestment > 0 && cf1 > 0 ? calcIRR(cfs) : null;
-    var irrPct = irr !== null ? irr * 100 : null;
-    var npvAt12 = totalInvestment > 0 ? Math.round(npv(0.12, cfs)) : 0; // NPV at 12% hurdle rate
-
-    h += card('Internal Rate of Return (IRR)',
-      '<div class="al ali" style="margin-bottom:8px">IRR is the annualized rate of return on total investment (Owner Capital + Loan). Cash flows used: Year 0 = Total Investment outflow, Years 1-3 = EBITDA (operating cash generation). IRR > Cost of Capital means the project is viable.</div>'+
-      '<div style="overflow-x:auto"><table><thead><tr>'+
-      '<th style="text-align:left">Year</th><th style="text-align:right">Cash Flow</th><th style="text-align:left;padding-left:12px">Remarks</th>'+
-      '</tr></thead><tbody>'+
-      '<tr><td style="padding:5px 8px">Year 0</td><td style="text-align:right;padding:5px 8px;color:#C62828">'+fc(cf0)+'</td><td style="padding:5px 8px 5px 12px;font-size:11px;color:#546E7A">Total Investment (Capital + Loan)</td></tr>'+
-      '<tr><td style="padding:5px 8px">Year 1</td><td style="text-align:right;padding:5px 8px;color:#2E7D32">+'+fc(cf1)+'</td><td style="padding:5px 8px 5px 12px;font-size:11px;color:#546E7A">EBITDA (NP + Interest)</td></tr>'+
-      '<tr><td style="padding:5px 8px">Year 2</td><td style="text-align:right;padding:5px 8px;color:#2E7D32">+'+fc(cf2)+'</td><td style="padding:5px 8px 5px 12px;font-size:11px;color:#546E7A">EBITDA Year 2</td></tr>'+
-      '<tr><td style="padding:5px 8px">Year 3</td><td style="text-align:right;padding:5px 8px;color:#2E7D32">+'+fc(cf3)+'</td><td style="padding:5px 8px 5px 12px;font-size:11px;color:#546E7A">Estimated (20% growth on Yr 2)</td></tr>'+
-      '</tbody></table></div>'+
-      '<div class="kg" style="margin-top:12px">'+
-      '<div class="ki"><div class="kl">Total Investment</div><div class="kv">'+fc(totalInvestment)+'</div></div>'+
-      '<div class="ki"><div class="kl">IRR</div><div class="kv" style="color:'+(irrPct!==null?(irrPct>12?'#2E7D32':irrPct>8?'#E65100':'#C62828'):'#546E7A')+';font-size:20px;font-weight:700">'+(irrPct!==null?irrPct.toFixed(1)+'%':'N/A')+'</div></div>'+
-      '<div class="ki"><div class="kl">NPV @ 12% Hurdle Rate</div><div class="kv" style="color:'+(npvAt12>=0?'#2E7D32':'#C62828')+'">'+fc(npvAt12)+'</div></div>'+
-      '<div class="ki"><div class="kl">Cost of Borrowing</div><div class="kv" style="color:#546E7A">~'+(ccRate||9).toFixed(1)+'% p.a.</div></div>'+
-      '</div>'+
-      (irrPct !== null
-        ? '<div class="al '+(irrPct>12?'als':irrPct>8?'alw':'ald')+'" style="margin-top:8px">'+
-          (irrPct > 12
-            ? '✅ IRR of '+irrPct.toFixed(1)+'% exceeds the 12% hurdle rate. The investment generates good returns and can service the loan comfortably.'
-            : irrPct > 8
-              ? '⚠️ IRR of '+irrPct.toFixed(1)+'% is moderate. Returns are adequate but improve sales or margins for a stronger proposal.'
-              : '❌ IRR of '+irrPct.toFixed(1)+'% is below acceptable levels. Revise projections — increase sales, reduce costs, or reduce loan amount.')+
-          '</div>'
-        : '<div class="al alw" style="margin-top:8px">Unable to compute IRR — ensure loan amounts and projections are entered in Loan Details tab.</div>')+
-      '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print BEP / IRR','window.print()','#546E7A')+'</div>'
-    );
+    h += renderBEPIRR(la2);
     return h;
   }
 
@@ -13095,8 +13102,8 @@ function pgCMA(){
     '</div>';
 
   var tab = window._cmatab||'reference';
-  var tabs = [['reference','Reference / KYC'],['copmof','Cost of Project'],['deprec','Depreciation'],['emisched','EMI Schedule'],['formI','Form I: Limits'],['formII','Form II: Operating Stmt'],['formIII','Form III: Balance Sheet'],['formIV','Form IV: MPBF'],['formV','Form V: Fund Flow'],['formVI','Form VI: Ratios'],['holdingnorm','Holding Norms'],['finind','Financial Indicators'],['nwctnw','NWC/TNW Movement'],['benchmark','Benchmark'],['letter','Request Letter']];
-  h += '<div class="tabbar">'+tabs.map(function(t){ return '<button class="'+(tab===t[0]?'act':'')+'" onclick="window._cmatab=\''+t[0]+'\';renderPage()">'+t[1]+'</button>'; }).join('')+'</div>';
+  var tabs = [['reference','Reference / KYC'],['copmof','Cost of Project'],['deprec','Depreciation'],['emisched','EMI Schedule'],['formI','Form I: Limits'],['formII','Form II: Operating Stmt'],['formIII','Form III: Balance Sheet'],['formIV','Form IV: MPBF'],['formV','Form V: Fund Flow'],['formVI','Form VI: Ratios'],['holdingnorm','Holding Norms'],['finind','Financial Indicators'],['nwctnw','NWC/TNW Movement'],['bepirr','BEP / IRR'],['variance','Variance Check'],['benchmark','Benchmark'],['letter','Request Letter']];
+  h += '<div class="tabs">'+tabs.map(function(t){ return '<button class="'+(tab===t[0]?'act':'')+'" onclick="window._cmatab=\''+t[0]+'\';renderPage()">'+t[1]+'</button>'; }).join('')+'</div>';
 
   if(tab==='reference'){
     h += pgCMAReference();
@@ -13122,6 +13129,11 @@ function pgCMA(){
     return h;
   }
 
+  if(tab==='bepirr'){
+    h += pgCMABEPIRR();
+    return h;
+  }
+
   if(tab==='letter'){
     h += pgCMALetter(mode);
     h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print Letter','window.print()','#546E7A')+'</div>';
@@ -13143,6 +13155,7 @@ function pgCMA(){
   else if(tab==='holdingnorm') h += pgCMAHoldingNorms(cols);
   else if(tab==='finind') h += pgCMAFinInd(cols);
   else if(tab==='nwctnw') h += pgCMANWCTNW(cols);
+  else if(tab==='variance') h += pgCMAVariance(cols);
   else if(tab==='benchmark') h += pgCMABenchmark(cols);
 
   h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print CMA Report','window.print()','#546E7A')+'</div>';
@@ -13692,6 +13705,85 @@ function pgCMABenchmark(cols){
     '</tbody></table></div>';
   h += card('Ratios vs. Bank Benchmark', tableHtml);
   h += '<div class="al ali">🟢 = meets or exceeds the typical bank benchmark for this category. 🔴 = below benchmark, which a credit officer would likely query or ask you to explain. These reflect common industry conventions — your specific bank may apply different thresholds.</div>';
+  return h;
+}
+function pgCMABEPIRR(){
+  var la2 = getFreshLA2();
+  return renderBEPIRR(la2);
+}
+function pgCMAVariance(cols){
+  var threshold = window._varThreshold || 25;
+  var pairs = [];
+  for(var i=0;i<cols.length-1;i++) pairs.push({from:cols[i], to:cols[i+1]});
+  if(pairs.length===0){
+    return '<div class="al ali">Need at least 2 years of data to check variance.</div>';
+  }
+
+  var metrics = [
+    {label:'Net Sales', get:function(y){return y.netSales;}, kind:'amount'},
+    {label:'Gross Profit', get:function(y){return (y.netSales||0)-(y.cogs||0);}, kind:'amount'},
+    {label:'EBITDA', get:function(y){return y.ebitda;}, kind:'amount'},
+    {label:'PAT', get:function(y){return y.pat;}, kind:'amount'},
+    {label:'Tangible Net Worth', get:function(y){return y.tnw;}, kind:'amount'},
+    {label:'Total Debt', get:function(y){return y.totalDebt;}, kind:'amount'},
+    {label:'Inventory', get:function(y){return y.inventory;}, kind:'amount'},
+    {label:'Receivables', get:function(y){return y.receivables;}, kind:'amount'},
+    {label:'Creditors', get:function(y){return y.creditors;}, kind:'amount'},
+    {label:'Current Ratio', get:function(y){var r=computeBankRatios(y);return r.currentRatio;}, kind:'ratio'},
+    {label:'Debt/Equity Ratio', get:function(y){var r=computeBankRatios(y);return r.debtEquity;}, kind:'ratio'},
+    {label:'DSCR', get:function(y){var r=computeBankRatios(y);return r.dscrSimple;}, kind:'ratio'},
+    {label:'ICR', get:function(y){var r=computeBankRatios(y);return r.icr;}, kind:'ratio'},
+    {label:'Net Profit Margin %', get:function(y){var r=computeBankRatios(y);return r.netProfitMargin;}, kind:'ratio'},
+    {label:'Inventory Days', get:function(y){var r=computeBankRatios(y);return r.inventoryDays;}, kind:'days'},
+    {label:'Receivable Days', get:function(y){var r=computeBankRatios(y);return r.receivableDays;}, kind:'days'},
+    {label:'Creditor Days', get:function(y){var r=computeBankRatios(y);return r.creditorDays;}, kind:'days'}
+  ];
+
+  var flagCount = 0;
+  var rows = metrics.map(function(m){
+    var cells = pairs.map(function(p){
+      var oldV = m.get(p.from.y), newV = m.get(p.to.y);
+      if(oldV===null||oldV===undefined||newV===null||newV===undefined || Math.abs(oldV)<0.01){
+        return {pct:null, oldV:oldV, newV:newV};
+      }
+      var pct = ((newV-oldV)/Math.abs(oldV))*100;
+      var flagged = Math.abs(pct)>threshold;
+      if(flagged) flagCount++;
+      return {pct:pct, oldV:oldV, newV:newV, flagged:flagged};
+    });
+    return {label:m.label, kind:m.kind, cells:cells};
+  });
+
+  var h = '<div class="al ali"><div class="alt">Variance Check</div><p>Scans Sales, Profitability, Balance Sheet and Ratio figures across each pair of consecutive years and flags any swing larger than the threshold below — a quick way to spot numbers worth double-checking before submission, or that a credit officer is likely to query.</p></div>';
+  h += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">'+
+    '<label style="font-size:12px;color:#546E7A">Flag changes larger than:</label>'+
+    [15,25,50].map(function(t){
+      return '<button onclick="window._varThreshold='+t+';renderPage()" style="padding:6px 12px;border-radius:6px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(threshold===t?'#1565C0':'#E3EEFC')+';color:'+(threshold===t?'#fff':'#1565C0')+'">'+t+'%</button>';
+    }).join('')+
+    '</div>';
+
+  h += '<div class="al '+(flagCount>0?'alw':'als')+'" style="margin-bottom:12px">'+
+    (flagCount>0 ? '⚠️ '+flagCount+' metric-year change(s) exceed '+threshold+'% — flagged in red below.' : '✅ No swings larger than '+threshold+'% found across the metrics checked.')+
+    '</div>';
+
+  var tableHtml = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr><th style="text-align:left;padding:5px 8px;background:#1565C0;color:#fff;position:sticky;left:0">Metric</th>'+
+    pairs.map(function(p){ return '<th style="text-align:right;padding:5px 8px;background:#1565C0;color:#fff;min-width:90px">'+esc(p.from.label)+' → '+esc(p.to.label)+'</th>'; }).join('')+
+    '</tr></thead><tbody>'+
+    rows.map(function(r,i){
+      return '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'">'+
+        '<td style="padding:5px 8px;position:sticky;left:0;background:inherit">'+r.label+'</td>'+
+        r.cells.map(function(c){
+          if(c.pct===null) return '<td style="text-align:right;padding:5px 8px;color:#B0BEC5">—</td>';
+          var color = c.flagged ? '#C62828' : '#37474F';
+          var icon = c.flagged ? '⚠️ ' : '';
+          return '<td style="text-align:right;padding:5px 8px;color:'+color+(c.flagged?';font-weight:800':'')+'">'+icon+(c.pct>=0?'+':'')+c.pct.toFixed(1)+'%</td>';
+        }).join('')+
+        '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+  h += card('Year-over-Year % Change', tableHtml);
+  h += '<div class="al ali">A large swing isn\'t necessarily wrong — a new loan, a bulk purchase, or a genuine sales jump can all cause this. But it\'s exactly the kind of number a bank credit officer will ask about, so it\'s worth having your explanation ready.</div>';
   return h;
 }
 function pgCMANWCTNW(cols){
