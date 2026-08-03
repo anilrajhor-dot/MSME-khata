@@ -236,7 +236,22 @@ function defD(){
       existingTLInstallmentAnnual:0,
       installedCapacityQty:0, utilisationPct:0, productionQty:0, salesPerUnit:0, shiftOperation:'Single Shift', workingDaysPerYear:300,
       powerRequirementPerUnit:0, skilledLabor:0, nonSkilledLabor:0, adminStaff:0,
-      depRateBuilding:10, depRateMachinery:15, depRateFurniture:10, depRateVehicles:15, depRateElectrification:15, depRateMiscFA:40, amortRatePreliminary:20
+      depRateBuilding:10, depRateMachinery:15, depRateFurniture:10, depRateVehicles:15, depRateElectrification:15, depRateMiscFA:40, amortRatePreliminary:20,
+      wipOpening:0, wipClosing:0
+    },
+    cmaBenchmarks:{
+      currentRatio:{micro:1.0, small:1.0, medium:1.1, others:1.33},
+      quickRatio:{micro:0.7, small:0.7, medium:0.8, others:1.0},
+      der:{micro:4, small:4, medium:3, others:3},
+      tolTnw:{micro:5, small:5, medium:4.5, others:4},
+      dscr:{micro:1.25, small:1.25, medium:1.25, others:1.5},
+      icr:{micro:1.5, small:1.5, medium:1.5, others:2},
+      acr:{micro:1.33, small:1.33, medium:1.33, others:1.5},
+      tolAtnw:{micro:5, small:5, medium:5, others:4},
+      netProfitMargin:{micro:3, small:3, medium:4, others:5},
+      roce:{micro:10, small:10, medium:12, others:15},
+      inventoryDays:{micro:90, small:75, medium:60, others:45},
+      receivableDays:{micro:60, small:60, medium:45, others:30}
     },
     historicalActuals:{yearN2:null,yearN1:null},
   };
@@ -280,10 +295,27 @@ function migrateData(d){
     existingTLInstallmentAnnual:0,
     installedCapacityQty:0, utilisationPct:0, productionQty:0, salesPerUnit:0, shiftOperation:'Single Shift', workingDaysPerYear:300,
     powerRequirementPerUnit:0, skilledLabor:0, nonSkilledLabor:0, adminStaff:0,
-    depRateBuilding:10, depRateMachinery:15, depRateFurniture:10, depRateVehicles:15, depRateElectrification:15, depRateMiscFA:40, amortRatePreliminary:20
+    depRateBuilding:10, depRateMachinery:15, depRateFurniture:10, depRateVehicles:15, depRateElectrification:15, depRateMiscFA:40, amortRatePreliminary:20,
+    wipOpening:0, wipClosing:0
   };
   if(d.cmaProfile.vehiclesCost===undefined)d.cmaProfile.vehiclesCost=0;
   if(d.cmaProfile.subsidyAmount===undefined)d.cmaProfile.subsidyAmount=0;
+  if(d.cmaProfile.wipOpening===undefined)d.cmaProfile.wipOpening=0;
+  if(d.cmaProfile.wipClosing===undefined)d.cmaProfile.wipClosing=0;
+  if(!d.cmaBenchmarks)d.cmaBenchmarks={
+    currentRatio:{micro:1.0, small:1.0, medium:1.1, others:1.33},
+    quickRatio:{micro:0.7, small:0.7, medium:0.8, others:1.0},
+    der:{micro:4, small:4, medium:3, others:3},
+    tolTnw:{micro:5, small:5, medium:4.5, others:4},
+    dscr:{micro:1.25, small:1.25, medium:1.25, others:1.5},
+    icr:{micro:1.5, small:1.5, medium:1.5, others:2},
+    acr:{micro:1.33, small:1.33, medium:1.33, others:1.5},
+    tolAtnw:{micro:5, small:5, medium:5, others:4},
+    netProfitMargin:{micro:3, small:3, medium:4, others:5},
+    roce:{micro:10, small:10, medium:12, others:15},
+    inventoryDays:{micro:90, small:75, medium:60, others:45},
+    receivableDays:{micro:60, small:60, medium:45, others:30}
+  };
   if(d.loanAssessment){
     if(d.loanAssessment.contingentLiabilities===undefined)d.loanAssessment.contingentLiabilities=0;
     if(d.loanAssessment.collateralSecurityValue===undefined)d.loanAssessment.collateralSecurityValue=0;
@@ -12478,6 +12510,10 @@ function pgLoanAssess() {
       g2(inp('TL Moratorium / Holiday Period (months)','la_tlmorat','number',D.loanAssessment.tlMoratorium||0),
          sl('Interest During Moratorium','la_tlmorat_treat',[{v:'paid',l:'Paid monthly'},{v:'accrued',l:'Accrued (added to principal)'}],D.loanAssessment.tlMoratoriumTreatment||'paid'))+
       g2(inp('Expense Growth % p.a.','la_eg','number',expGrowth),'')+
+      g2(inp('Stock Holding Period (days)','la_sd','number',D.loanAssessment.stockDays||0),
+         inp('Debtor / Receivable Period (days)','la_dd','number',D.loanAssessment.debtorDays||0))+
+      g2(inp('Creditor Payment Period (days)','la_cd','number',D.loanAssessment.creditorDays||0),'')+
+      '<div style="font-size:11px;color:#546E7A;margin:-4px 0 8px 2px">Used to project Inventory, Receivables and Creditors for future years — also editable in Bank Loan Assessment → WC Limit.</div>'+
       btn('💾 Save & Calculate','saveLoanAssess()','#2E7D32')
     );
 
@@ -13102,7 +13138,7 @@ function pgCMA(){
     '</div>';
 
   var tab = window._cmatab||'reference';
-  var tabs = [['reference','Reference / KYC'],['copmof','Cost of Project'],['deprec','Depreciation'],['emisched','EMI Schedule'],['formI','Form I: Limits'],['formII','Form II: Operating Stmt'],['formIII','Form III: Balance Sheet'],['formIV','Form IV: MPBF'],['formV','Form V: Fund Flow'],['formVI','Form VI: Ratios'],['holdingnorm','Holding Norms'],['finind','Financial Indicators'],['nwctnw','NWC/TNW Movement'],['bepirr','BEP / IRR'],['variance','Variance Check'],['benchmark','Benchmark'],['letter','Request Letter']];
+  var tabs = [['reference','Input File'],['copmof','Cost of Project'],['deprec','Depreciation'],['emisched','EMI Schedule'],['formI','Form I: Limits'],['formII','Form II: Operating Stmt'],['formIII','Form III: Balance Sheet'],['formIV','Form IV: MPBF'],['formV','Form V: Fund Flow'],['formVI','Form VI: Ratios'],['holdingnorm','Holding Norms'],['finind','Financial Indicators'],['nwctnw','NWC/TNW Movement'],['bepirr','BEP / IRR'],['variance','Variance Check'],['benchmark','Benchmark'],['letter','Request Letter']];
   h += '<div class="tabs">'+tabs.map(function(t){ return '<button class="'+(tab===t[0]?'act':'')+'" onclick="window._cmatab=\''+t[0]+'\';renderPage()">'+t[1]+'</button>'; }).join('')+'</div>';
 
   if(tab==='reference'){
@@ -13171,10 +13207,55 @@ function cmaYellow(lbl, id, val, type){
 function cmaAutoRow(lbl, val){
   return '<div class="fsr"><span>'+esc(lbl)+'</span><span style="font-weight:700;color:#37474F">'+esc(val===undefined||val===null||val===''?'—':val)+'</span></div>';
 }
+function downloadInputFileJSON(){
+  var payload = {_type:'ME_Khata_CMA_InputFile', _version:1, cmaProfile:D.cmaProfile};
+  var blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'CMA_Input_File_'+bizFileSlug()+'_'+td()+'.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},5000);
+  toast('Input File downloaded — edit and re-upload anytime.');
+}
+function triggerInputFileUpload(){
+  var inp = document.getElementById('cma_input_file_upload');
+  if(inp) inp.click();
+}
+function handleInputFileUpload(event){
+  var file = event.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      var payload = JSON.parse(e.target.result);
+      var incoming = payload.cmaProfile || payload; // allow raw cmaProfile object too
+      if(!incoming || typeof incoming !== 'object'){ toast('File does not look like a valid Input File.','e'); return; }
+      Object.keys(D.cmaProfile).forEach(function(key){
+        if(incoming[key] !== undefined) D.cmaProfile[key] = incoming[key];
+      });
+      sv();
+      toast('Input File uploaded and applied.');
+      renderPage();
+    }catch(err){
+      toast('Could not read that file — make sure it is a valid Input File JSON.','e');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = ''; // allow re-uploading the same filename later
+}
 function pgCMAReference(){
   var p = D.profile, la = D.loanAssessment, cp = D.cmaProfile;
-  var h = '<div class="al ali"><div class="alt">Reference Sheet — Applicant Profile & Project Parameters</div>'+
+  var h = '<div class="al ali"><div class="alt">Input File — Applicant Profile & Project Parameters</div>'+
     '<p><span style="background:#FFF9DB;border:1px solid #F9C846;padding:1px 6px;border-radius:4px">Yellow fields</span> are manual entry — fill in what applies (leave blank/0 if not applicable, e.g. a non-greenfield case doesn\'t need Cost of Project). Everything else below is pulled automatically from your Profile, Loans and Loan Details.</p></div>';
+
+  h += card('Upload / Download Input File',
+    '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Download the current Input File as JSON, edit it on a computer (or have your CA fill it in), then upload it back here — faster than typing 30+ fields on a phone.</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+    btn('⬇ Download Input File','downloadInputFileJSON()','#546E7A')+
+    btn('⬆ Upload Input File','triggerInputFileUpload()','#1565C0')+
+    '</div>'+
+    '<input type="file" id="cma_input_file_upload" accept=".json,application/json" style="display:none" onchange="handleInputFileUpload(event)">'
+  );
 
   h += card('Applicant Details (auto)',
     cmaAutoRow('Entity Name', p.businessName)+
@@ -13182,15 +13263,15 @@ function pgCMAReference(){
     cmaAutoRow('PAN No', p.pan)+
     cmaAutoRow('GST No', p.gst)+
     cmaAutoRow('Business Type', p.businessType)+
-    cmaAutoRow('Commencement Date', p.commencementDate)
+    cmaAutoRow('Commencement Date', p.commencementDate)+
+    cmaAutoRow('Phone / Mobile No.', p.mobile)+
+    cmaAutoRow('Udyam No', p.udyam)+
+    cmaAutoRow('Office / Registered Address', p.address)
   );
 
   h += card('Applicant Details (manual)',
-    cmaYellow('Phone / Mobile No.','cp_phone',cp.phone)+
     cmaYellow('Email','cp_email',p.email)+
-    cmaYellow('Unit Address','cp_unitAddress',cp.unitAddress)+
-    cmaYellow('Office Address','cp_officeAddress',cp.officeAddress)+
-    cmaYellow('Udyam No','cp_udyamNo',cp.udyamNo)
+    cmaYellow('Unit / Factory Address (if different from above)','cp_unitAddress',cp.unitAddress)
   );
 
   h += card('Banking Details (manual)',
@@ -13235,6 +13316,13 @@ function pgCMAReference(){
     cmaYellow('Subsidy Amount (₹ Lakh, if any)','cp_subsidyAmount',cp.subsidyAmount,'number')
   );
 
+  if(isMfgBiz()){
+    h += card('Work-in-Process (manual, ₹ — this app doesn\'t track WIP as a running balance, so enter your best estimate)',
+      cmaYellow('Opening WIP','cp_wipOpening',cp.wipOpening,'number')+
+      cmaYellow('Closing WIP','cp_wipClosing',cp.wipClosing,'number')
+    );
+  }
+
   h += card('Collateral & CGTMSE',
     cmaAutoRow('Collateral Security Value (auto, from Loan Details)', fc(la.collateralSecurityValue||0))+
     sl('CGTMSE Coverage','cp_cgtmseCoverage',[{v:'No',l:'No'},{v:'Yes',l:'Yes'}],cp.cgtmseCoverage)+
@@ -13244,12 +13332,11 @@ function pgCMAReference(){
     sl('Third Party Guarantee','cp_thirdPartyGuarantee',[{v:'No',l:'No'},{v:'Yes',l:'Yes'}],cp.thirdPartyGuarantee)
   );
 
-  h += card('Existing / Proposed Limits (auto, from Loan Details)',
-    cmaAutoRow('WC Limit Requested', fc(la.ccLimit||0))+
-    cmaAutoRow('TL Requested', fc(la.tlAmount||0))
-  );
-  h += card('Existing / Proposed Limits (manual)',
-    cmaYellow('Existing TL Installment (annual)','cp_existingTLInstallmentAnnual',cp.existingTLInstallmentAnnual,'number')
+  var existingTLAnnualInstallment = (D.loans||[]).filter(function(l){return !isCcOdLoan(l);}).reduce(function(s,l){return s+(+l.emi||0)*12;},0);
+  h += card('Existing / Proposed Limits (auto)',
+    cmaAutoRow('WC Limit Requested (from Loan Details)', fc(la.ccLimit||0))+
+    cmaAutoRow('TL Requested (from Loan Details)', fc(la.tlAmount||0))+
+    cmaAutoRow('Existing TL Installment (annual, from recorded loans)', fc(existingTLAnnualInstallment))
   );
 
   h += card('Capacity & Operations (manual — mainly for Manufacturing/project cases)',
@@ -13284,13 +13371,13 @@ function saveCMAReference(){
     'creditSector','msmeCategory','activity','typeOfIndustries','greenfield','exportUnit',
     'bankChargesPct','withdrawalPct','landCost','buildingCost','machineryCost','furnitureCost','vehiclesCost','electrificationCost','miscAssetsCost','subsidyAmount',
     'idcPct','contingenciesPct','preliminaryExpPct','cgtmseCoverage','cgtmseCategory','cgtmseCoveragePct','cgtmseFeePct','thirdPartyGuarantee',
-    'existingTLInstallmentAnnual','installedCapacityQty','utilisationPct','productionQty','salesPerUnit','shiftOperation','workingDaysPerYear',
+    'installedCapacityQty','utilisationPct','productionQty','salesPerUnit','shiftOperation','workingDaysPerYear',
     'powerRequirementPerUnit','skilledLabor','nonSkilledLabor','adminStaff',
-    'depRateBuilding','depRateMachinery','depRateFurniture','depRateVehicles','depRateElectrification','depRateMiscFA','amortRatePreliminary'];
-  var numericFields = ['bankChargesPct','withdrawalPct','landCost','buildingCost','machineryCost','furnitureCost','electrificationCost','miscAssetsCost',
-    'idcPct','contingenciesPct','preliminaryExpPct','cgtmseCoveragePct','cgtmseFeePct','existingTLInstallmentAnnual',
+    'depRateBuilding','depRateMachinery','depRateFurniture','depRateVehicles','depRateElectrification','depRateMiscFA','amortRatePreliminary','wipOpening','wipClosing'];
+  var numericFields = ['bankChargesPct','withdrawalPct','landCost','buildingCost','machineryCost','furnitureCost','vehiclesCost','electrificationCost','miscAssetsCost','subsidyAmount',
+    'idcPct','contingenciesPct','preliminaryExpPct','cgtmseCoveragePct','cgtmseFeePct',
     'installedCapacityQty','utilisationPct','productionQty','salesPerUnit','workingDaysPerYear','powerRequirementPerUnit','skilledLabor','nonSkilledLabor','adminStaff',
-    'depRateBuilding','depRateMachinery','depRateFurniture','depRateVehicles','depRateElectrification','depRateMiscFA','amortRatePreliminary'];
+    'depRateBuilding','depRateMachinery','depRateFurniture','depRateVehicles','depRateElectrification','depRateMiscFA','amortRatePreliminary','wipOpening','wipClosing'];
   fields.forEach(function(f){
     var el = document.getElementById('cp_'+f);
     if(!el) return;
@@ -13551,6 +13638,17 @@ function pgCMAFormII(cols){
   var h = cmaTable('Trading Account', tradingRows, cols,
     'Classic Trading Account build-up. Opening Stock for the first available year comes from your Opening Balance; for later years it carries forward from the prior year\'s Closing Stock. <b>Purchases here is a derived balancing figure</b> (Opening Stock + Purchases − Closing Stock = COGS), computed to exactly match the COGS and Stock values used throughout this report — it may differ slightly from a literal sum of purchase transactions if item costing methods vary. For Projected years, stock is additionally assumed held constant.');
 
+  var compositionRows = [
+    {label:'Domestic Sales', get:function(y){return y.domesticSales;}},
+    {label:'Export Sales', get:function(y){return y.exportSales;}},
+    {label:'Total Sales', get:function(y){return y.netSales;}, bold:true},
+    {label:'Indigenous Purchases', get:function(y){return y.indigenousPurchases;}},
+    {label:'Imported Purchases', get:function(y){return y.importedPurchases;}},
+    {label:'Total Purchases', get:function(y){return y.purchases;}, bold:true}
+  ];
+  h += cmaTable('Sales & Purchases Composition', compositionRows, cols,
+    'Domestic/Export marked per sale (Sales entry → Export checkbox), Indigenous/Imported marked per purchase (Purchase entry → Imported checkbox). Historical and current-year figures are your actual recorded mix; Projected years apply the current year\'s export/import ratio forward.');
+
   var rows = [
     {label:'Net Sales', get:function(y){return y.netSales;}, bold:true},
     {label:'Cost of Goods Sold / Cost of Sales', get:function(y){return y.cogs;}, indent:true},
@@ -13588,7 +13686,11 @@ function pgCMAFormIII(cols){
     {label:'Net Working Capital (TCA − TCL)', get:function(y){return (y.currentAssets||0)-(y.currentLiabilities||0)-(y.bankFinanceUtilized||0);}, bold:true},
     {label:'Current Ratio', get:function(y){return (y.currentLiabilities||0)+(y.bankFinanceUtilized||0)>0 ? (y.currentAssets||0)/((y.currentLiabilities||0)+(y.bankFinanceUtilized||0)) : null;}, raw:true}
   ];
-  return cmaTable('Form III — Analysis of Balance Sheet', rows, cols);
+  var h = cmaTable('Form III — Analysis of Balance Sheet', rows, cols);
+  if(isMfgBiz() && ((+D.cmaProfile.wipOpening||0)>0 || (+D.cmaProfile.wipClosing||0)>0)){
+    h += '<div class="al ali">📝 Memo: Work-in-Process — Opening '+fc(+D.cmaProfile.wipOpening||0)+', Closing '+fc(+D.cmaProfile.wipClosing||0)+' (manual estimate from Reference Sheet). Not separately tracked by this app, so it is <b>not included</b> in Inventory/Total Current Assets above — add it in manually if your bank wants WIP shown as a distinct line.</div>';
+  }
+  return h;
 }
 function pgCMAFormIV(cols, mode){
   var la = D.loanAssessment;
@@ -13653,59 +13755,121 @@ function pgCMAFormV(cols){
   return cmaTable('Form V — Fund Flow Statement (Sources & Application of Funds)', rows, ffCols,
     'Shows year-over-year movement of long-term funds. Sources should broadly match Uses; banks check that capex is funded from long-term sources, not short-term CC.');
 }
-function getBenchmarkThresholds(category){
-  var t = {
-    msmeSmall: {currentRatio:1.0, der:4, dscr:1.25, icr:1.5, acr:1.33, tolAtnw:5, exposureTnw:0.25},
-    msmeLarge: {currentRatio:1.1, der:3, dscr:1.25, icr:1.5, acr:1.33, tolAtnw:5, exposureTnw:0.25},
-    others: {currentRatio:1.33, der:3, dscr:1.5, icr:2, acr:1.5, tolAtnw:4, exposureTnw:0.25}
-  };
-  return t[category]||t.msmeSmall;
+function getApplicableBenchmarkCategory(){
+  var cp = D.cmaProfile;
+  if((cp.creditSector||'MSME')!=='MSME') return 'others';
+  var m = (cp.msmeCategory||'Micro').toLowerCase();
+  return (m==='micro'||m==='small'||m==='medium') ? m : 'micro';
+}
+var BENCHMARK_RATIO_DEFS = [
+  {cat:'Liquidity', rows:[
+    {key:'currentRatio', label:'Current Ratio', higherBetter:true, d:2},
+    {key:'quickRatio', label:'Quick Ratio', higherBetter:true, d:2}
+  ]},
+  {cat:'Leverage', rows:[
+    {key:'der', label:'Debt/Equity Ratio', higherBetter:false, d:2},
+    {key:'tolTnw', label:'TOL/TNW', higherBetter:false, d:2},
+    {key:'tolAtnw', label:'TOL/ATNW (incl. Quasi)', higherBetter:false, d:2}
+  ]},
+  {cat:'Coverage', rows:[
+    {key:'acr', label:'ACR (Asset Coverage Ratio)', higherBetter:true, d:2}
+  ]},
+  {cat:'Solvency', rows:[
+    {key:'dscr', label:'DSCR', higherBetter:true, d:2},
+    {key:'icr', label:'ICR (Interest Coverage)', higherBetter:true, d:2}
+  ]},
+  {cat:'Profitability', rows:[
+    {key:'netProfitMargin', label:'Net Profit Margin %', higherBetter:true, d:1, isPct:true},
+    {key:'roce', label:'ROCE %', higherBetter:true, d:1, isPct:true}
+  ]},
+  {cat:'Turnover', rows:[
+    {key:'inventoryDays', label:'Inventory Days', higherBetter:false, d:0},
+    {key:'receivableDays', label:'Receivable Days', higherBetter:false, d:0}
+  ]}
+];
+function getBankRatioValueForKey(y, key){
+  var r = computeBankRatios(y);
+  var map = {currentRatio:'currentRatio', quickRatio:'quickRatio', der:'debtEquity', tolTnw:'tolTnw',
+    tolAtnw:'tolTnwQuasi', acr:'acr', dscr:'dscrSimple', icr:'icr', netProfitMargin:'netProfitMargin',
+    roce:'roce', inventoryDays:'inventoryDays', receivableDays:'receivableDays'};
+  return r[map[key]||key];
 }
 function pgCMABenchmark(cols){
-  var la = D.loanAssessment;
-  var totalExposure = (+la.ccLimit||0)+(+la.tlAmount||0);
-  var isMSME = (D.cmaProfile.creditSector||'MSME')==='MSME';
-  var category = !isMSME ? 'others' : (totalExposure<=10000000?'msmeSmall':'msmeLarge');
-  var thresh = getBenchmarkThresholds(category);
-  var categoryLabel = !isMSME?'Others (Non-MSME)':(totalExposure<=10000000?'MSME (≤₹1 Cr exposure)':'MSME (>₹1 Cr exposure)');
+  var bm = D.cmaBenchmarks;
+  var applicable = getApplicableBenchmarkCategory();
+  var categoryLabels = {micro:'Micro', small:'Small', medium:'Medium', others:'Others (Non-MSME)'};
 
-  var rows = [
-    {label:'Current Ratio', key:'currentRatio', bench:thresh.currentRatio, higherBetter:true},
-    {label:'Debt/Equity Ratio', key:'debtEquity', bench:thresh.der, higherBetter:false},
-    {label:'DSCR', key:'dscrSimple', bench:thresh.dscr, higherBetter:true},
-    {label:'ICR', key:'icr', bench:thresh.icr, higherBetter:true},
-    {label:'ACR', key:'acr', bench:thresh.acr, higherBetter:true},
-    {label:'TOL/ATNW', key:'tolTnwQuasi', bench:thresh.tolAtnw, higherBetter:false}
-  ];
-
-  var h = card('Benchmark Category (auto)',
-    cmaAutoRow('Applicable Category', categoryLabel)+
-    cmaAutoRow('Total Proposed Exposure (CC + TL)', fc(totalExposure))
+  var h = card('Applicable Category (auto, from Input File)',
+    cmaAutoRow('Credit Sector', D.cmaProfile.creditSector)+
+    cmaAutoRow('MSME Category', D.cmaProfile.msmeCategory)+
+    cmaAutoRow('Applicable Benchmark Column', categoryLabels[applicable])
   );
 
-  var tableHtml = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
-    '<thead><tr><th style="text-align:left;padding:5px 8px;background:#1565C0;color:#fff;position:sticky;left:0">Ratio</th><th style="text-align:right;padding:5px 8px;background:#1565C0;color:#fff">Benchmark</th>'+
-    cols.map(function(c){ return '<th style="text-align:center;padding:5px 8px;background:#1565C0;color:#fff;min-width:60px">'+esc(c.label)+'<br><small>'+esc(c.sub)+'</small></th>'; }).join('')+
-    '</tr></thead><tbody>'+
-    rows.map(function(r,i){
-      return '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'">'+
+  // ── Editable Benchmark Policy table, grouped by ratio category ──
+  var policyHtml = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr><th style="text-align:left;padding:5px 8px;background:#1565C0;color:#fff;position:sticky;left:0">Ratio</th>'+
+    '<th style="text-align:center;padding:5px 8px;background:#1565C0;color:#fff">Micro</th>'+
+    '<th style="text-align:center;padding:5px 8px;background:#1565C0;color:#fff">Small</th>'+
+    '<th style="text-align:center;padding:5px 8px;background:#1565C0;color:#fff">Medium</th>'+
+    '<th style="text-align:center;padding:5px 8px;background:#1565C0;color:#fff">Others</th>'+
+    '</tr></thead><tbody>';
+  BENCHMARK_RATIO_DEFS.forEach(function(section){
+    policyHtml += '<tr style="background:#E3EEFC"><td colspan="5" style="padding:5px 8px;font-weight:800;color:#1565C0">'+section.cat+'</td></tr>';
+    section.rows.forEach(function(r,i){
+      var v = bm[r.key]||{};
+      policyHtml += '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'">'+
         '<td style="padding:5px 8px;position:sticky;left:0;background:inherit">'+r.label+'</td>'+
-        '<td style="text-align:right;padding:5px 8px;font-weight:700">'+r.bench+'</td>'+
-        cols.map(function(c){
-          var ratios = computeBankRatios(c.y);
-          var v = ratios[r.key];
-          if(v===null||v===undefined) return '<td style="text-align:center;padding:5px 8px">—</td>';
-          var pass = r.higherBetter ? v>=r.bench : v<=r.bench;
-          var color = pass?'#2E7D32':'#C62828';
-          var icon = pass?'🟢':'🔴';
-          return '<td style="text-align:center;padding:5px 8px;color:'+color+';font-weight:700">'+icon+' '+v.toFixed(2)+'</td>';
+        ['micro','small','medium','others'].map(function(c){
+          return '<td style="padding:3px"><input type="number" step="0.01" id="bm_'+r.key+'_'+c+'" value="'+(v[c]!==undefined?v[c]:'')+'" style="width:100%;padding:5px;border-radius:5px;border:1.5px solid #F9C846;background:#FFF9DB;font-size:12px;box-sizing:border-box;text-align:center"></td>';
         }).join('')+
         '</tr>';
-    }).join('')+
-    '</tbody></table></div>';
-  h += card('Ratios vs. Bank Benchmark', tableHtml);
-  h += '<div class="al ali">🟢 = meets or exceeds the typical bank benchmark for this category. 🔴 = below benchmark, which a credit officer would likely query or ask you to explain. These reflect common industry conventions — your specific bank may apply different thresholds.</div>';
+    });
+  });
+  policyHtml += '</tbody></table></div>';
+  h += card('Benchmark Policy (editable — adjust if your bank\'s policy differs)', policyHtml+
+    '<div style="margin-top:10px">'+btn('💾 Save Benchmark Policy','saveCMABenchmarks()','#2E7D32')+'</div>');
+
+  // ── Actual vs Applicable Benchmark, across all year columns ──
+  var actualHtml = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr><th style="text-align:left;padding:5px 8px;background:#1565C0;color:#fff;position:sticky;left:0">Ratio</th><th style="text-align:right;padding:5px 8px;background:#1565C0;color:#fff">Benchmark ('+categoryLabels[applicable]+')</th>'+
+    cols.map(function(c){ return '<th style="text-align:center;padding:5px 8px;background:#1565C0;color:#fff;min-width:60px">'+esc(c.label)+'<br><small>'+esc(c.sub)+'</small></th>'; }).join('')+
+    '</tr></thead><tbody>';
+  BENCHMARK_RATIO_DEFS.forEach(function(section){
+    actualHtml += '<tr style="background:#E3EEFC"><td colspan="'+(cols.length+2)+'" style="padding:5px 8px;font-weight:800;color:#1565C0">'+section.cat+'</td></tr>';
+    section.rows.forEach(function(r,i){
+      var threshold = (bm[r.key]||{})[applicable];
+      actualHtml += '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'">'+
+        '<td style="padding:5px 8px;position:sticky;left:0;background:inherit">'+r.label+'</td>'+
+        '<td style="text-align:right;padding:5px 8px;font-weight:700">'+(threshold!==undefined?threshold:'—')+'</td>'+
+        cols.map(function(c){
+          var v = getBankRatioValueForKey(c.y, r.key);
+          if(v===null||v===undefined||threshold===undefined) return '<td style="text-align:center;padding:5px 8px">—</td>';
+          var pass = r.higherBetter ? v>=threshold : v<=threshold;
+          var color = pass?'#2E7D32':'#C62828';
+          var icon = pass?'🟢':'🔴';
+          return '<td style="text-align:center;padding:5px 8px;color:'+color+';font-weight:700">'+icon+' '+v.toFixed(r.d)+(r.isPct?'%':'')+'</td>';
+        }).join('')+
+        '</tr>';
+    });
+  });
+  actualHtml += '</tbody></table></div>';
+  h += card('Actual vs. Applicable Benchmark', actualHtml);
+  h += '<div class="al ali">🟢 = meets or exceeds the benchmark for your applicable category (auto-detected from Credit Sector + MSME Category in the Reference Sheet). 🔴 = below benchmark. Edit the Benchmark Policy table above if your bank uses different thresholds.</div>';
   return h;
+}
+function saveCMABenchmarks(){
+  var bm = D.cmaBenchmarks;
+  BENCHMARK_RATIO_DEFS.forEach(function(section){
+    section.rows.forEach(function(r){
+      if(!bm[r.key]) bm[r.key] = {};
+      ['micro','small','medium','others'].forEach(function(c){
+        var el = document.getElementById('bm_'+r.key+'_'+c);
+        if(el) bm[r.key][c] = (+el.value||0);
+      });
+    });
+  });
+  sv();
+  toast('Benchmark policy saved.');
 }
 function pgCMABEPIRR(){
   var la2 = getFreshLA2();
@@ -13720,15 +13884,39 @@ function pgCMAVariance(cols){
   }
 
   var metrics = [
+    {section:true, label:'TRADING ACCOUNT / P&L'},
+    {label:'Opening Stock', get:function(y){return y.openingStock;}, kind:'amount'},
+    {label:'Purchases', get:function(y){return y.purchases;}, kind:'amount'},
+    {label:'Closing Stock', get:function(y){return y.inventory;}, kind:'amount'},
+    {label:'Cost of Goods Sold', get:function(y){return y.cogs;}, kind:'amount'},
     {label:'Net Sales', get:function(y){return y.netSales;}, kind:'amount'},
     {label:'Gross Profit', get:function(y){return (y.netSales||0)-(y.cogs||0);}, kind:'amount'},
+    {label:'Operating Expenses', get:function(y){return (y.netSales!==undefined&&y.ebitda!==undefined)?((y.netSales-y.cogs)-y.ebitda):null;}, kind:'amount'},
     {label:'EBITDA', get:function(y){return y.ebitda;}, kind:'amount'},
+    {label:'Depreciation', get:function(y){return y.depreciation;}, kind:'amount'},
+    {label:'EBIT', get:function(y){return (y.ebitda||0)-(y.depreciation||0);}, kind:'amount'},
+    {label:'Interest', get:function(y){return y.interest;}, kind:'amount'},
+    {label:'PBT', get:function(y){return y.pbt;}, kind:'amount'},
     {label:'PAT', get:function(y){return y.pat;}, kind:'amount'},
-    {label:'Tangible Net Worth', get:function(y){return y.tnw;}, kind:'amount'},
+    {label:'Cash Accruals', get:function(y){return (y.pat||0)+(y.depreciation||0);}, kind:'amount'},
+
+    {section:true, label:'BALANCE SHEET — LIABILITIES'},
+    {label:'Bank Borrowings (CC/OD)', get:function(y){return y.bankFinanceUtilized;}, kind:'amount'},
+    {label:'Sundry Creditors & Other CL', get:function(y){return y.currentLiabilities;}, kind:'amount'},
+    {label:'Sundry Creditors (detail)', get:function(y){return y.creditors;}, kind:'amount'},
+    {label:'Term Loans Outstanding', get:function(y){return y.termLoanOutstanding;}, kind:'amount'},
     {label:'Total Debt', get:function(y){return y.totalDebt;}, kind:'amount'},
+    {label:'Total Outside Liabilities', get:function(y){return y.totalOutsideLiabilities;}, kind:'amount'},
+    {label:'Tangible Net Worth', get:function(y){return y.tnw;}, kind:'amount'},
+
+    {section:true, label:'BALANCE SHEET — ASSETS'},
     {label:'Inventory', get:function(y){return y.inventory;}, kind:'amount'},
     {label:'Receivables', get:function(y){return y.receivables;}, kind:'amount'},
-    {label:'Creditors', get:function(y){return y.creditors;}, kind:'amount'},
+    {label:'Total Current Assets', get:function(y){return y.currentAssets;}, kind:'amount'},
+    {label:'Net Fixed Assets', get:function(y){return y.fixedAssets;}, kind:'amount'},
+    {label:'Total Assets', get:function(y){return y.totalAssets;}, kind:'amount'},
+
+    {section:true, label:'KEY RATIOS'},
     {label:'Current Ratio', get:function(y){var r=computeBankRatios(y);return r.currentRatio;}, kind:'ratio'},
     {label:'Debt/Equity Ratio', get:function(y){var r=computeBankRatios(y);return r.debtEquity;}, kind:'ratio'},
     {label:'DSCR', get:function(y){var r=computeBankRatios(y);return r.dscrSimple;}, kind:'ratio'},
@@ -13741,6 +13929,7 @@ function pgCMAVariance(cols){
 
   var flagCount = 0;
   var rows = metrics.map(function(m){
+    if(m.section) return {section:true, label:m.label};
     var cells = pairs.map(function(p){
       var oldV = m.get(p.from.y), newV = m.get(p.to.y);
       if(oldV===null||oldV===undefined||newV===null||newV===undefined || Math.abs(oldV)<0.01){
@@ -13771,6 +13960,7 @@ function pgCMAVariance(cols){
     pairs.map(function(p){ return '<th style="text-align:right;padding:5px 8px;background:#1565C0;color:#fff;min-width:90px">'+esc(p.from.label)+' → '+esc(p.to.label)+'</th>'; }).join('')+
     '</tr></thead><tbody>'+
     rows.map(function(r,i){
+      if(r.section) return '<tr style="background:#E3EEFC"><td colspan="'+(pairs.length+1)+'" style="padding:5px 8px;font-weight:800;color:#1565C0;position:sticky;left:0;background:#E3EEFC">'+r.label+'</td></tr>';
       return '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'">'+
         '<td style="padding:5px 8px;position:sticky;left:0;background:inherit">'+r.label+'</td>'+
         r.cells.map(function(c){
@@ -14283,6 +14473,7 @@ function computeBankRatios(y){
     // 1. Liquidity
     currentRatio: div(y.currentAssets, y.currentLiabilities),
     currentRatioExclTL: div(y.currentAssets, (y.currentLiabilities||0) - (y.tlInstalmentsDue||0)),
+    quickRatio: div((y.currentAssets||0)-(y.inventory||0), y.currentLiabilities),
     // 2. Leverage
     debtEquity: div(y.totalDebt, y.tnw),
     debtEquityQuasi: div(debtAdj, atnw),
@@ -14381,6 +14572,10 @@ function computeHistoricalFYFromLiveData(fy){
     return null; // no data recorded for this FY at all — leave for manual entry
   }
   var netSales = sales.reduce(function(s,x){return s+(x.totalAmount||0);},0);
+  var exportSales = sales.filter(function(s){return s.isExport;}).reduce(function(s,x){return s+(x.totalAmount||0);},0);
+  var domesticSales = netSales - exportSales;
+  var importedPurchases = purchases.filter(function(p){return p.isImported;}).reduce(function(s,x){return s+(x.amount||0);},0);
+  var indigenousPurchases = purchases.reduce(function(s,x){return s+(x.amount||0);},0) - importedPurchases;
   var cogs = sales.reduce(function(s,x){return s+(x.cogs||0);},0);
   var totalExp = expenses.reduce(function(s,x){return s+(x.amount||0);},0);
   var ebitda = (netSales-cogs) - totalExp;
@@ -14498,6 +14693,7 @@ function computeHistoricalFYFromLiveData(fy){
   });
   return {
     label: fy, netSales: netSales, grossSales: netSales, cogs: cogs, purchases: cogs+invValue-openingStockValue, openingStock: openingStockValue,
+    exportSales: exportSales, domesticSales: domesticSales, importedPurchases: importedPurchases, indigenousPurchases: indigenousPurchases,
     ebitda: ebitda, depreciation: dep, interest: interest, pbt: pbt, pat: pbt,
     inventory: invValue,
     rmConsumption: rmConsumption, spares: spares, powerFuel: powerFuel, otherMfgExpenses: otherMfgExpenses,
@@ -14559,8 +14755,14 @@ function getCurrentYearRatioData(){
   }
   var openingStockCur = (+D.opening.stock||0);
   var derivedPurchases = base.cogs + fbase.cs - openingStockCur;
+  var annualizeFactor = fbase.ts>0 ? (base.sales/fbase.ts) : 1;
+  var exportSalesCur = (fbase.salesByType && fbase.salesByType.export ? fbase.salesByType.export : 0) * annualizeFactor;
+  var domesticSalesCur = base.sales - exportSalesCur;
+  var importedPurchasesCur = (fbase.purchasesByType && fbase.purchasesByType.imported ? fbase.purchasesByType.imported : 0) * annualizeFactor;
+  var indigenousPurchasesCur = derivedPurchases - importedPurchasesCur;
   return {
     netSales: base.sales, grossSales: base.sales, cogs: base.cogs, purchases: derivedPurchases, openingStock: openingStockCur,
+    exportSales: exportSalesCur, domesticSales: domesticSalesCur, importedPurchases: importedPurchasesCur, indigenousPurchases: indigenousPurchasesCur,
     ebitda: ebitda, depreciation: dep, interest: interest, pbt: pbt, pat: pat,
     currentAssets: bs.currentAssets, currentLiabilities: bs.currentLiab, totalAssets: bs.totalAssets,
     totalOutsideLiabilities: tol, tlInstalmentsDue: tlInstDue,
@@ -14602,11 +14804,17 @@ function getProjectedYearRatioData(la2, yearNum){
   var totalTangibleAssetsProj = cur.totalTangibleAssets + cumulativeRetained;
   var tnwProj = cur.tnw + np;
   var totalOutsideLiabProj = totalAssetsProj - tnwProj;
+  var exportRatio = cur.netSales>0 ? (cur.exportSales||0)/cur.netSales : 0;
+  var importRatio = cur.purchases>0 ? (cur.importedPurchases||0)/cur.purchases : 0;
+  var exportSalesProj = sales*exportRatio;
+  var importedPurchasesProj = cogs*importRatio;
   return {
     netSales: sales, grossSales: sales, cogs: cogs,
     // Stock is held frozen across projected years in this model, so Opening = Closing and
     // Purchases exactly funds COGS for the year — a reasonable simplification, not a tracked fact.
     purchases: cogs, openingStock: cur.inventory,
+    exportSales: exportSalesProj, domesticSales: sales-exportSalesProj,
+    importedPurchases: importedPurchasesProj, indigenousPurchases: cogs-importedPurchasesProj,
     ebitda: ebitda, depreciation: dep, interest: ccInt+tlInt, pbt: pbt, pat: pbt,
     currentAssets: currentAssetsProj, currentLiabilities: cur.currentLiabilities, totalAssets: totalAssetsProj,
     totalOutsideLiabilities: totalOutsideLiabProj, tlInstalmentsDue: tlInstDueProj,
@@ -14808,9 +15016,9 @@ function saveLoanAssess() {
     tlRate:    gvn('la_tlr'),
     tlTenure:  gvn('la_tlt'),
     salesGrowth: gvn('la_sg'),
-    stockDays:   D.loanAssessment ? (D.loanAssessment.stockDays||0) : 0,
-    debtorDays:  D.loanAssessment ? (D.loanAssessment.debtorDays||0) : 0,
-    creditorDays:D.loanAssessment ? (D.loanAssessment.creditorDays||0) : 0,
+    stockDays:   document.getElementById('la_sd') ? gvn('la_sd') : (D.loanAssessment ? (D.loanAssessment.stockDays||0) : 0),
+    debtorDays:  document.getElementById('la_dd') ? gvn('la_dd') : (D.loanAssessment ? (D.loanAssessment.debtorDays||0) : 0),
+    creditorDays:document.getElementById('la_cd') ? gvn('la_cd') : (D.loanAssessment ? (D.loanAssessment.creditorDays||0) : 0),
     expGrowth:   gvn('la_eg'),
     marginPctTurnover: D.loanAssessment ? (D.loanAssessment.marginPctTurnover !== undefined ? D.loanAssessment.marginPctTurnover : 25) : 25,
     marginPctTandon:   D.loanAssessment ? (D.loanAssessment.marginPctTandon   !== undefined ? D.loanAssessment.marginPctTandon   : 25) : 25,
@@ -18803,7 +19011,7 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 // ===== NAVIGATION & RENDER =====
 var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',production:'उत्पादन',consumption:'उपभोग',bizmanager:'व्यवसाय प्रबंधक',interunit:'अंतर-इकाई स्थानांतरण',template:'डेटा टेम्पलेट'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Margin Settings',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template'};
 function getNavAll(){
   var biz = getBizType();
   var base = ['bizmanager','profile','dashboard','capital','inventory'];
