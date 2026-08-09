@@ -191,6 +191,10 @@ function defD(){
     sales:[],
     salesReturns:[],
     purchaseReturns:[],
+    provisions:[],
+    journalEntries:[],
+    stockStatements:[],
+    stockStatementSettings:{stockMarginPct:25, debtorMarginPct:40},
     consumptions:[],
     productions:[],
     expenses:[],
@@ -347,6 +351,10 @@ function migrateData(d){
   if(!d.sales)d.sales=[];
   if(!d.salesReturns)d.salesReturns=[];
   if(!d.purchaseReturns)d.purchaseReturns=[];
+  if(!d.provisions)d.provisions=[];
+  if(!d.journalEntries)d.journalEntries=[];
+  if(!d.stockStatements)d.stockStatements=[];
+  if(!d.stockStatementSettings)d.stockStatementSettings={stockMarginPct:25, debtorMarginPct:40};
   if(!d.consumptions)d.consumptions=[];
   if(!d.productions)d.productions=[];
   for(var si=0;si<d.sales.length;si++){ if(d.sales[si].isExport===undefined) d.sales[si].isExport=false; }
@@ -946,6 +954,59 @@ function debtorBalances(){
   var out=[];for(i=0;i<order.length;i++)if(Math.abs(m[order[i]])>0.005)out.push({name:order[i],balance:m[order[i]]});
   return out;
 }
+// ── Ageing Analysis (FIFO: receipts/payments apply against the oldest outstanding invoice first) ──
+function computeAgeingForParty(entries, asOfDate){
+  asOfDate = asOfDate || td();
+  var sorted = entries.slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  var invoices = [];
+  sorted.forEach(function(e){
+    var amt = +e.amount||0;
+    if(amt>0){
+      invoices.push({date:e.date, remaining:amt});
+    } else {
+      var toApply = Math.abs(amt);
+      for(var i=0;i<invoices.length && toApply>0.005;i++){
+        if(invoices[i].remaining<=0.005) continue;
+        var apply = Math.min(invoices[i].remaining, toApply);
+        invoices[i].remaining -= apply;
+        toApply -= apply;
+      }
+    }
+  });
+  var buckets = {current:0, d30:0, d60:0, d90plus:0, oldestDate:null};
+  invoices.forEach(function(inv){
+    if(inv.remaining<=0.005) return;
+    var days = daysBetween(inv.date, asOfDate);
+    if(!buckets.oldestDate || inv.date<buckets.oldestDate) buckets.oldestDate = inv.date;
+    if(days<=30) buckets.current += inv.remaining;
+    else if(days<=60) buckets.d30 += inv.remaining;
+    else if(days<=90) buckets.d60 += inv.remaining;
+    else buckets.d90plus += inv.remaining;
+  });
+  return buckets;
+}
+function debtorAgeing(){
+  var byName = {};
+  D.debtors.forEach(function(d){ var nm=d.name||'Customer'; (byName[nm]=byName[nm]||[]).push(d); });
+  var out = [];
+  Object.keys(byName).forEach(function(nm){
+    var ageing = computeAgeingForParty(byName[nm]);
+    var total = ageing.current+ageing.d30+ageing.d60+ageing.d90plus;
+    if(total>0.005) out.push({name:nm, total:total, ageing:ageing});
+  });
+  return out.sort(function(a,b){return b.total-a.total;});
+}
+function creditorAgeing(){
+  var byName = {};
+  D.creditors.filter(function(c){return (c.type||'supplier')==='supplier';}).forEach(function(c){ var nm=c.name||'Supplier'; (byName[nm]=byName[nm]||[]).push(c); });
+  var out = [];
+  Object.keys(byName).forEach(function(nm){
+    var ageing = computeAgeingForParty(byName[nm]);
+    var total = ageing.current+ageing.d30+ageing.d60+ageing.d90plus;
+    if(total>0.005) out.push({name:nm, total:total, ageing:ageing});
+  });
+  return out.sort(function(a,b){return b.total-a.total;});
+}
 function creditorBalances(){
   var m={},order=[],i;
   for(i=0;i<D.creditors.length;i++){
@@ -1142,7 +1203,7 @@ function getF(){
   });
 
   var dr=totalDebtors(),cr=totalCreditors(),expPayable=totalExpensesPayable();
-  var oa=(+D.otherAssets||0), ol=(+D.otherLiab||0);
+  var oa=(+D.otherAssets||0), ol=(+D.otherLiab||0)+unsettledProvisionsTotal();
   return{ts:ts,tc:tc,os:os,tp:tp,cs:cs,csIndig:csIndig,csImp:csImp,gp:gp,te:te,np:gp-indirectExpenses,directExpenses:directExpenses,indirectExpenses:indirectExpenses,cap:cap,ltl:ltl,stl:stl,cb:cb,bb:bb,dr:dr,cr:cr,expPayable:expPayable,oa:oa,ol:ol,salesByType:salesByType,purchasesByType:purchasesByType,advToSuppliers:advToSuppliers,advPrepaidExp:advPrepaidExp,advFromCustomers:advFromCustomers,salesReturnsTotal:salesReturnsTotal,salesReturnsCogs:salesReturnsCogs,purchaseReturnsTotal:purchaseReturnsTotal};
 }
 
@@ -5181,6 +5242,311 @@ function pgSal(){
 //          'paid_supplier' (Purchase settles Advances Paid to Suppliers),
 //          'paid_expense' (Expense settles Prepaid Expenses)
 // ===== SALES / PURCHASE RETURNS =====
+// ===== JOURNAL VOUCHER =====
+// ===== MONTHLY STOCK STATEMENT (for CC/OD banks) =====
+function pgStockStatement(){
+  var added = autoGenerateMissingStockStatements();
+  var h = '<div class="al ali"><div class="alt">📊 Monthly Stock Statement</div>'+
+    '<p>Auto-prepared at month-end for your bank\'s CC/OD monitoring — Stock, Debtors, Creditors and Drawing Power, computed from your actual recorded transactions as of each month-end.'+
+    (added>0?' <b>'+added+' new month(s) just generated.</b>':'')+'</p></div>';
+
+  var s = D.stockStatementSettings || {stockMarginPct:25, debtorMarginPct:40};
+  h += card('Margin Settings (editable — matches your bank\'s policy)',
+    g2(inp('Margin on Stock %','ss_stock_margin','number',s.stockMarginPct),
+       inp('Margin on Debtors %','ss_debtor_margin','number',s.debtorMarginPct))+
+    '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Changing this recalculates all statements below using the new margins.</div>'+
+    btn('💾 Save & Recalculate','saveStockStatementSettings()','#546E7A')
+  );
+
+  var stmts = D.stockStatements.slice().sort(function(a,b){return b.date.localeCompare(a.date);});
+  if(stmts.length===0){
+    h += '<div class="al ali">No completed months yet — statements are generated automatically once a full month has passed since you started using this app.</div>';
+    return h;
+  }
+
+  var cols = [{l:'Month-End',k:'date'},
+    {l:'Stock',r:1,fn:function(r){return fc(r.stock);}},
+    {l:'Debtors',r:1,fn:function(r){return fc(r.receivables);}},
+    {l:'Creditors',r:1,fn:function(r){return fc(r.creditors);}},
+    {l:'Drawing Power',r:1,fn:function(r){return fc(r.drawingPower);}},
+    {l:'CC O/s',r:1,fn:function(r){return fc(r.ccOutstanding);}},
+    {l:'Status',fn:function(r){
+      var shortfall = r.ccOutstanding - r.drawingPower;
+      if(shortfall>1) return '<span style="color:#C62828;font-weight:800">⚠️ Shortfall '+fc(shortfall)+'</span>';
+      return '<span style="color:#2E7D32;font-weight:700">✅ OK</span>';
+    }}];
+  setLedgerShareData('Monthly Stock Statement — '+(D.profile.businessName||''), cols, stmts,
+    ['Business: '+(D.profile.businessName||''), 'Margin on Stock: '+s.stockMarginPct+'%', 'Margin on Debtors: '+s.debtorMarginPct+'%']);
+  h += card('Statement Register', tbl(cols, stmts) + ledgerActionButtons());
+
+  var shortfallMonths = stmts.filter(function(r){ return (r.ccOutstanding-r.drawingPower)>1; });
+  if(shortfallMonths.length>0){
+    h += '<div class="al alw">⚠️ '+shortfallMonths.length+' month(s) show CC Outstanding exceeding Drawing Power — your bank may flag this. Review stock/debtor levels or discuss with your branch.</div>';
+  }
+  return h;
+}
+function saveStockStatementSettings(){
+  var stockM = gvn('ss_stock_margin'), debtorM = gvn('ss_debtor_margin');
+  D.stockStatementSettings = {stockMarginPct:stockM, debtorMarginPct:debtorM};
+  // Recalculate all existing statements with the new margins
+  D.stockStatements.forEach(function(r){
+    r.stockMarginPct = stockM; r.debtorMarginPct = debtorM;
+    r.drawingPower = computeDrawingPower({stock:r.stock, receivables:r.receivables, creditors:r.creditors});
+  });
+  sv();
+  toast('Margins saved — all statements recalculated.');
+  renderPage();
+}
+function pgDebtCred(){
+  var tab = window._dcTab||'ageing';
+  var h = '<div class="tabs">'+
+    '<button class="'+(tab==='ageing'?'act':'')+'" onclick="window._dcTab=\'ageing\';renderPage()">Ageing Analysis</button>'+
+    '<button class="'+(tab==='debtors'?'act':'')+'" onclick="window._dcTab=\'debtors\';renderPage()">Debtors</button>'+
+    '<button class="'+(tab==='creditors'?'act':'')+'" onclick="window._dcTab=\'creditors\';renderPage()">Creditors</button>'+
+    '</div>';
+
+  if(tab==='ageing'){
+    var creditDays = +(D.settings&&D.settings.creditDays)||30;
+    var drAgeing = debtorAgeing();
+    var crAgeing = creditorAgeing();
+    var drTotal = drAgeing.reduce(function(s,d){return s+d.total;},0);
+    var crTotal = crAgeing.reduce(function(s,c){return s+c.total;},0);
+    var overdueDr = drAgeing.filter(function(d){return d.ageing.d30+d.ageing.d60+d.ageing.d90plus>0.005;});
+
+    h += '<div class="sg">'+sc('Total Debtors',fc(drTotal),'#1565C0','')+sc('Total Creditors',fc(crTotal),'#C62828','')+'</div>';
+
+    if(overdueDr.length>0){
+      h += '<div class="al alw" style="margin-bottom:10px">⚠️ '+overdueDr.length+' customer(s) have amounts overdue beyond your '+creditDays+'-day credit period. See the red/orange columns below.</div>';
+    }
+
+    function ageingTable(title, rows, isDebtor){
+      if(rows.length===0) return card(title, '<div class="al ali">Nothing outstanding.</div>');
+      var tableHtml = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'+
+        '<thead><tr><th style="text-align:left;padding:5px 6px;background:#1565C0;color:#fff;position:sticky;left:0">Party</th>'+
+        '<th style="text-align:right;padding:5px 6px;background:#2E7D32;color:#fff">0-30d</th>'+
+        '<th style="text-align:right;padding:5px 6px;background:#F9A825;color:#fff">31-60d</th>'+
+        '<th style="text-align:right;padding:5px 6px;background:#EF6C00;color:#fff">61-90d</th>'+
+        '<th style="text-align:right;padding:5px 6px;background:#C62828;color:#fff">90d+</th>'+
+        '<th style="text-align:right;padding:5px 6px;background:#37474F;color:#fff">Total</th></tr></thead><tbody>'+
+        rows.map(function(r,i){
+          return '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'">'+
+            '<td style="padding:5px 6px;position:sticky;left:0;background:inherit">'+esc(r.name)+'</td>'+
+            '<td style="text-align:right;padding:5px 6px">'+(r.ageing.current>0?fc(r.ageing.current):'—')+'</td>'+
+            '<td style="text-align:right;padding:5px 6px'+(r.ageing.d30>0?';color:#F9A825;font-weight:700':'')+'">'+(r.ageing.d30>0?fc(r.ageing.d30):'—')+'</td>'+
+            '<td style="text-align:right;padding:5px 6px'+(r.ageing.d60>0?';color:#EF6C00;font-weight:700':'')+'">'+(r.ageing.d60>0?fc(r.ageing.d60):'—')+'</td>'+
+            '<td style="text-align:right;padding:5px 6px'+(r.ageing.d90plus>0?';color:#C62828;font-weight:800':'')+'">'+(r.ageing.d90plus>0?fc(r.ageing.d90plus):'—')+'</td>'+
+            '<td style="text-align:right;padding:5px 6px;font-weight:700">'+fc(r.total)+'</td>'+
+            '</tr>';
+        }).join('')+
+        '</tbody></table></div>';
+      return card(title, tableHtml);
+    }
+    h += ageingTable('Debtors Ageing', drAgeing, true);
+    h += ageingTable('Creditors Ageing', crAgeing, false);
+    h += '<div class="al ali">Ageing uses FIFO — each receipt/payment is applied against the oldest outstanding invoice first, matching standard accounting practice. Credit period: '+creditDays+' days (change in Data → Settings).</div>';
+  } else if(tab==='debtors'){
+    var i;
+    if(window._drForm==='add'){
+      h+=card('Add Debtor (Existing Balance)',
+        '<div class="al alw">Note: Adding a debtor here without a matching Trial Balance entry will create a difference in the Balance Sheet equal to this amount (since it adds an asset without an offsetting source). If this debtor was already part of your Opening Trial Balance, use that instead. Use this only for debtors that arose after you started using this app but were missed.</div>'+
+        g2(inp('Customer Name','nd_name','text',''),inp('Outstanding Amount','nd_amt','number',0))+
+        g2(inp('Date','nd_date','date',td()),inp('ID / Mobile / Village (for identification)','nd_id','text',''))+
+        btn('Add Debtor','addManualDebtor()','#2E7D32')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
+      );
+      return h;
+    }
+    if(window._drForm==='receipt'){
+      var dbList=debtorBalances();
+      var dOpts=[];for(i=0;i<dbList.length;i++)dOpts.push({v:dbList[i].name,l:dbList[i].name+' (Due: '+fc(dbList[i].balance)+')'});
+      if(dOpts.length===0)dOpts.push({v:'',l:'-- No debtors --'});
+      h+=card('Record Receipt from Debtor',
+        sl('Debtor Name','rd_name',dOpts,dOpts[0]?dOpts[0].v:'')+
+        g2(inp('Amount Received','rd_amt','number',0),inp('Date','rd_date','date',td()))+
+        inp('ID / Mobile / Village (optional — to confirm correct party)','rd_id','text','')+
+        payModeSel('rd_mode','cash')+
+        btn('Record Receipt','recordDebtorReceipt()','#2E7D32')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
+      );
+      return h;
+    }
+    var dList=debtorBalances();
+    var dtot=0;for(i=0;i<dList.length;i++)dtot+=dList[i].balance;
+    h+=card('Sundry Debtors (Receivable)',
+      tbl([
+        {l:'Customer',fn:function(r){
+          var pid='';
+          if(D.partyCodes&&D.partyCodes['partyid:'+r.name.trim().toLowerCase()])
+            pid=D.partyCodes['partyid:'+r.name.trim().toLowerCase()];
+          return esc(r.name)+(pid?'<br><span style="font-size:10px;color:#1565C0;font-weight:700">'+esc(pid)+'</span>':'');
+        }},
+        {l:'Balance Due',r:1,fn:function(r){return fc(r.balance);},c:function(r){return r.balance>0?'#C62828':'#2E7D32';}}
+      ],dList)+
+      '<div style="text-align:right;font-weight:700;padding:7px;color:'+(dtot>0?'#C62828':'#2E7D32')+'">Total: '+fc(dtot)+'</div>'
+    );
+    h+=btn('+ Add Debtor','window._drForm=\'add\';renderPage()','#546E7A')+' '+btn('Record Receipt','window._drForm=\'receipt\';renderPage()','#2E7D32');
+    h+='<div style="height:10px"></div>';
+    var dTxns=[].concat(D.debtors).reverse();
+    h+=card('Debtor Transaction History',tbl([
+      {l:'Date',k:'date'},
+      {l:'Customer',fn:function(r){
+        var pid=r.partyId||(D.partyCodes&&D.partyCodes['partyid:'+r.name.trim().toLowerCase()])||'';
+        return esc(r.name)+(pid?' <span style="font-size:10px;color:#1565C0;font-weight:700">['+esc(pid)+']</span>':'');
+      }},
+      {l:'Reference',k:'ref'},
+      {l:'Amount',r:1,fn:function(r){return fc(r.amount);},c:function(r){return r.amount>=0?'#C62828':'#2E7D32';}}
+    ],dTxns));
+    h+='<div class="al ali">Red amounts = increase in what they owe you (Debit). Green = receipt / decrease.</div>';
+  } else {
+    var j;
+    if(window._drForm==='addc'){
+      h+=card('Add Creditor (Existing Balance)',
+        '<div class="al alw">Note: Adding a creditor here without a matching Trial Balance entry will create a difference in the Balance Sheet equal to this amount. If this creditor was already part of your Opening Trial Balance, use that instead. Use this only for creditors that arose after you started using this app but were missed.</div>'+
+        g2(inp('Supplier Name','nc_name','text',''),inp('Outstanding Amount','nc_amt','number',0))+
+        g2(inp('Date','nc_date','date',td()),inp('ID / Mobile / Village (for identification)','nc_id','text',''))+
+        btn('Add Creditor','addManualCreditor()','#C62828')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
+      );
+      return h;
+    }
+    if(window._drForm==='payment'){
+      var cbList=creditorBalances();
+      var cOpts=[];for(j=0;j<cbList.length;j++)cOpts.push({v:cbList[j].name,l:cbList[j].name+' (Due: '+fc(cbList[j].balance)+')'});
+      if(cOpts.length===0)cOpts.push({v:'',l:'-- No creditors --'});
+      h+=card('Record Payment to Creditor',
+        sl('Creditor Name','cp_name',cOpts,cOpts[0]?cOpts[0].v:'')+
+        g2(inp('Amount Paid','cp_amt','number',0),inp('Date','cp_date','date',td()))+
+        payModeSel('cp_mode','cash')+
+        btn('Record Payment','recordCreditorPayment()','#C62828')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
+      );
+      return h;
+    }
+    var cList=creditorBalances();
+    var ctot=0;for(j=0;j<cList.length;j++)ctot+=cList[j].balance;
+    h+=card('Sundry Creditors (Payable)',
+      tbl([
+        {l:'Supplier',fn:function(r){
+          var pid='';
+          if(D.partyCodes&&D.partyCodes['partyid:'+r.name.trim().toLowerCase()])
+            pid=D.partyCodes['partyid:'+r.name.trim().toLowerCase()];
+          return esc(r.name)+(pid?'<br><span style="font-size:10px;color:#1565C0;font-weight:700">'+esc(pid)+'</span>':'');
+        }},
+        {l:'Balance Due',r:1,fn:function(r){return fc(r.balance);},c:function(r){return r.balance>0?'#C62828':'#2E7D32';}}
+      ],cList)+
+      '<div style="text-align:right;font-weight:700;padding:7px;color:'+(ctot>0?'#C62828':'#2E7D32')+'">Total: '+fc(ctot)+'</div>'
+    );
+    h+=btn('+ Add Creditor','window._drForm=\'addc\';renderPage()','#546E7A')+' '+btn('Record Payment','window._drForm=\'payment\';renderPage()','#C62828');
+    h+='<div style="height:10px"></div>';
+    var cTxns=[].concat(D.creditors).filter(function(c){return (c.type||'supplier')==='supplier';}).reverse();
+    h+=card('Creditor Transaction History',tbl([
+      {l:'Date',k:'date'},
+      {l:'Supplier',fn:function(r){
+        var pid=r.partyId||(D.partyCodes&&D.partyCodes['partyid:'+r.name.trim().toLowerCase()])||'';
+        return esc(r.name)+(pid?' <span style="font-size:10px;color:#1565C0;font-weight:700">['+esc(pid)+']</span>':'');
+      }},
+      {l:'Reference',k:'ref'},
+      {l:'Amount',r:1,fn:function(r){return fc(r.amount);},c:function(r){return r.amount>=0?'#C62828':'#2E7D32';}}
+    ],cTxns));
+    h+='<div class="al ali">Red amounts = increase in what you owe them (Credit). Green = payment / decrease.</div>';
+  }
+  return h;
+}
+function pgJournal(){
+  var tab = window._jvTab||'provision';
+  var h = '<div class="tabs">'+
+    '<button class="'+(tab==='provision'?'act':'')+'" onclick="window._jvTab=\'provision\';renderPage()">Provision / Accrual</button>'+
+    '<button class="'+(tab==='prepay'?'act':'')+'" onclick="window._jvTab=\'prepay\';renderPage()">Prepayment</button>'+
+    '<button class="'+(tab==='rectify'?'act':'')+'" onclick="window._jvTab=\'rectify\';renderPage()">Rectification</button>'+
+    '<button class="'+(tab==='register'?'act':'')+'" onclick="window._jvTab=\'register\';renderPage()">Journal Register</button>'+
+    '</div>';
+
+  if(tab==='provision'){
+    h += card('Record a Provision / Accrued Expense',
+      '<div class="al ali" style="margin-bottom:10px">Use this when an expense has been INCURRED but not yet PAID (e.g. this month\'s electricity bill, not yet received) — it books the expense now (correct accrual accounting) and tracks the amount owed as a liability until you actually pay it.</div>'+
+      g2(inp('Date','jv_prov_date','date',td()),sl('Expense Category','jv_prov_cat',D.expenseCategories,D.expenseCategories[0]))+
+      inp('Description','jv_prov_desc','text','')+
+      inp('Amount','jv_prov_amt','number','')+
+      btn('📝 Record Provision','submitProvision()','#546E7A')
+    );
+    var unsettled = D.provisions.filter(function(p){return !p.settled;});
+    if(unsettled.length){
+      h += card('Unsettled Provisions (awaiting payment)',
+        tbl([{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'Description',k:'description'},
+          {l:'Amount',r:1,fn:function(r){return fc(r.amount);}},
+          {l:'',fn:function(r){return '<button onclick="promptSettleProvision(\''+r.id+'\')" style="padding:5px 10px;background:#2E7D32;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">Settle</button>';}}
+        ], unsettled)
+      );
+    }
+  } else if(tab==='prepay'){
+    h += card('Prepayments',
+      '<div class="al ali">Prepayments (paying an expense in advance — e.g. 6 months\' insurance upfront) are handled through <b>Cash/Bank → Advances → Advance Paid for Expense (Prepaid)</b> — the same tested flow already used for advances to suppliers and from customers. When the expense is actually due, settle it there against the matching Expense entry.</div>'+
+      btn('Go to Cash/Bank → Advances','go(\'cashbank\')','#1565C0')
+    );
+  } else if(tab==='rectify'){
+    var acctOptions = RECTIFICATION_ACCOUNTS.map(function(a){return {v:a,l:a};}).concat(
+      D.expenseCategories.map(function(c){return {v:'EXP:'+c, l:c+' (Expense)'};})
+    );
+    h += card('Rectification Entry',
+      '<div class="al ali" style="margin-bottom:10px">Correct a genuine mistake — e.g. an expense booked under the wrong category, or a capital/drawings entry that needs adjusting. Debit and Credit must be different accounts, and the amounts always balance automatically (Dr = Cr by construction).</div>'+
+      g2(inp('Date','jv_rec_date','date',td()),inp('Amount','jv_rec_amt','number',''))+
+      inp('Narration / Reason','jv_rec_narr','text','')+
+      g2(sl('Debit Account','jv_rec_dr',acctOptions,''),sl('Credit Account','jv_rec_cr',acctOptions,''))+
+      btn('📝 Post Rectification','submitRectification()','#546E7A')
+    );
+  } else {
+    var allEntries = D.journalEntries.slice().reverse();
+    h += card('Journal Register',
+      (allEntries.length ? tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return r.type.replace('_',' ');}},
+        {l:'Narration',k:'narration'},{l:'Dr',k:'drAccount'},{l:'Cr',k:'crAccount'},
+        {l:'Amount',r:1,fn:function(r){return fc(r.amount);}}], allEntries)
+        : '<div class="al ali">No journal entries recorded yet.</div>')
+    );
+  }
+  return h;
+}
+function submitProvision(){
+  var date=gv('jv_prov_date')||td(), cat=gv('jv_prov_cat'), desc=gv('jv_prov_desc'), amt=gvn('jv_prov_amt');
+  if(addProvision(date, cat, desc, amt)){
+    toast('Provision recorded — expense booked, amount tracked as owed until settled.');
+    renderPage();
+  }
+}
+function promptSettleProvision(provId){
+  var prov = D.provisions.find(function(p){return p.id===provId;});
+  if(!prov) return;
+  var modal = document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = '<div style="background:#fff;border-radius:12px;padding:16px;max-width:340px;width:100%">'+
+    '<div style="font-weight:800;margin-bottom:10px">Settle Provision: '+esc(prov.description)+' ('+fc(prov.amount)+')</div>'+
+    '<label style="font-size:12px;color:#546E7A">Payment Date</label>'+
+    '<input type="date" id="jv_settle_date" value="'+td()+'" style="width:100%;padding:9px;border:1px solid #BBDEFB;border-radius:8px;margin:4px 0 10px;box-sizing:border-box">'+
+    '<label style="font-size:12px;color:#546E7A">Payment Mode</label>'+
+    '<select id="jv_settle_mode" style="width:100%;padding:9px;border:1px solid #BBDEFB;border-radius:8px;margin:4px 0 12px;box-sizing:border-box"><option value="cash">Cash</option><option value="bank">Bank</option></select>'+
+    '<div style="display:flex;gap:8px"><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="flex:1;padding:10px;background:#E0E0E0;border:none;border-radius:8px;cursor:pointer">Cancel</button>'+
+    '<button onclick="confirmSettleProvision(\''+provId+'\')" style="flex:1;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer">Confirm</button></div>'+
+    '</div>';
+  document.body.appendChild(modal);
+}
+function confirmSettleProvision(provId){
+  var mode = gv('jv_settle_mode')||'cash', date = gv('jv_settle_date')||td();
+  if(settleProvision(provId, mode, date)){
+    toast('Provision settled — cash/bank reduced, liability cleared.');
+    document.querySelectorAll('div[style*="position: fixed"]').forEach(function(m){ if(m.style.zIndex==='9999') m.remove(); });
+    renderPage();
+  }
+}
+function submitRectification(){
+  var date=gv('jv_rec_date')||td(), narr=gv('jv_rec_narr'), drRaw=gv('jv_rec_dr'), crRaw=gv('jv_rec_cr'), amt=gvn('jv_rec_amt');
+  var drIsExp = drRaw.indexOf('EXP:')===0, crIsExp = crRaw.indexOf('EXP:')===0;
+  var drAccount = drIsExp ? drRaw.slice(4) : drRaw;
+  var crAccount = crIsExp ? crRaw.slice(4) : crRaw;
+  if(postRectificationJournal(date, narr, drAccount, crAccount, amt, drIsExp, crIsExp)){
+    toast('Rectification posted.');
+    renderPage();
+  }
+}
+// Dropdown to optionally settle this transaction against an existing advance.
+// advType: 'received' (Sales settles Advances Received from Customers),
+//          'paid_supplier' (Purchase settles Advances Paid to Suppliers),
+//          'paid_expense' (Expense settles Prepaid Expenses)
+// ===== SALES / PURCHASE RETURNS =====
 function pgReturns(){
   var tab = window._retTab||'salesret';
   var h = '<div class="tabs">'+
@@ -5379,6 +5745,73 @@ function addPurchaseReturn(purchaseId, returnQty, date, notes){
   D.purchaseReturns.push({id:uid(), date:date, originalPurchaseId:purchaseId, supplierName:p.supplierName, itemId:p.itemId,
     itemName:p.itemName, qty:returnQty, rate:p.rate, amount:returnAmount, isImported:p.isImported||false,
     paymentMode:p.paymentMode, notes:notes||''});
+  sv();
+  return true;
+}
+// ── Journal Voucher: Provisions / Accruals ──
+// A Provision recognizes an expense NOW (P&L impact immediate, matching accrual accounting)
+// while the cash hasn't moved yet — tracked as a liability until settled. When later paid,
+// settlement only moves cash and clears the liability; it does NOT create a second expense
+// (the expense was already recognized when the provision was created).
+function addProvision(date, category, description, amount){
+  if(!(amount>0)){ toast('Enter a valid amount','e'); return false; }
+  if(!category){ toast('Select an expense category','e'); return false; }
+  date = date||td();
+  var expenseId = uid();
+  D.expenses.push({id:expenseId, date:date, category:category, amount:amount, paymentMode:'none', desc:'Provision: '+(description||category)});
+  var provId = uid();
+  D.provisions.push({id:provId, date:date, category:category, description:description||category, amount:amount, expenseId:expenseId, settled:false, settledDate:null});
+  D.journalEntries.push({id:uid(), date:date, type:'provision', narration:'Provision created: '+(description||category), drAccount:category+' (Expense)', crAccount:'Provisions (Liability)', amount:amount});
+  sv();
+  return true;
+}
+function settleProvision(provId, mode, date){
+  var prov = null; for(var i=0;i<D.provisions.length;i++) if(D.provisions[i].id===provId){ prov=D.provisions[i]; break; }
+  if(!prov){ toast('Provision not found','e'); return false; }
+  if(prov.settled){ toast('Already settled','e'); return false; }
+  date = date||td();
+  postCB(mode,'payment',prov.amount,prov.description,'Provision Settled: '+prov.description,date);
+  prov.settled = true; prov.settledDate = date;
+  D.journalEntries.push({id:uid(), date:date, type:'provision_settlement', narration:'Provision settled (paid): '+prov.description, drAccount:'Provisions (Liability)', crAccount:mode==='cash'?'Cash':'Bank', amount:prov.amount});
+  sv();
+  return true;
+}
+function unsettledProvisionsTotal(){
+  var t=0; (D.provisions||[]).forEach(function(p){ if(!p.settled) t+=(+p.amount||0); });
+  return t;
+}
+// ── Journal Voucher: Rectification ──
+// A constrained Dr/Cr entry between the "safe" accounts this app tracks directly (Cash, Bank,
+// Capital, Drawings, a named Expense Category). Debtors/Creditors/Loans are deliberately excluded
+// here since they have their own dedicated, tested entry flows — routing corrections through those
+// screens keeps balances consistent, rather than allowing a free-form edit that could conflict.
+var RECTIFICATION_ACCOUNTS = ['Cash','Bank','Capital','Drawings']; // Expense categories are added dynamically in the UI
+function postRectificationJournal(date, narration, drAccount, crAccount, amount, drIsExpenseCategory, crIsExpenseCategory){
+  if(!(amount>0)){ toast('Enter a valid amount','e'); return false; }
+  if(!drAccount || !crAccount){ toast('Select both accounts','e'); return false; }
+  if(drAccount===crAccount){ toast('Debit and Credit accounts must be different','e'); return false; }
+  date = date||td();
+  function postSide(account, isExpenseCategory, isDebit){
+    if(isExpenseCategory){
+      // Debit to an expense category = the expense increases. Credit to an expense category
+      // (reducing a wrongly-booked expense) is posted as a negative expense entry.
+      D.expenses.push({id:uid(), date:date, category:account, amount:isDebit?amount:-amount, paymentMode:'none', desc:'Rectification: '+narration});
+      return;
+    }
+    if(account==='Cash') postCB('cash', isDebit?'receipt':'payment', amount, 'Rectification', narration, date);
+    else if(account==='Bank') postCB('bank', isDebit?'receipt':'payment', amount, 'Rectification', narration, date);
+    else if(account==='Capital'){
+      if(isDebit) D.capital.additionalCapital = (+D.capital.additionalCapital||0) - amount; // Dr Capital reduces it
+      else D.capital.additionalCapital = (+D.capital.additionalCapital||0) + amount; // Cr Capital increases it
+    }
+    else if(account==='Drawings'){
+      if(isDebit) D.drawings.push({id:uid(), date:date, amount:amount, notes:'Rectification: '+narration});
+      else D.drawings.push({id:uid(), date:date, amount:-amount, notes:'Rectification (reversal): '+narration});
+    }
+  }
+  postSide(drAccount, drIsExpenseCategory, true);
+  postSide(crAccount, crIsExpenseCategory, false);
+  D.journalEntries.push({id:uid(), date:date, type:'rectification', narration:narration, drAccount:drAccount, crAccount:crAccount, amount:amount});
   sv();
   return true;
 }
@@ -5629,14 +6062,15 @@ function pgCB(){
   ;
 
   // Transaction register with filter by account
-  var filterOpts=[{v:'all',l:'All Transactions'},{v:'cash',l:'Cash'}];
-  for(var fi=0;fi<acctBalances.length;fi++) filterOpts.push({v:'bank:'+acctBalances[fi].id,l:acctBalances[fi].name});
+  var filterOpts=[{v:'all',l:'All Transactions'},{v:'cash',l:'💵 Cash Book'}];
+  for(var fi=0;fi<acctBalances.length;fi++) filterOpts.push({v:'bank:'+acctBalances[fi].id,l:'🏦 '+acctBalances[fi].name});
   var filter = window._cbFilter || 'all';
   var cbFrom = window._cbFrom || '';
   var cbTo = window._cbTo || '';
-  var filterSelHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:8px"><div class="fg"><label>From Date</label><input type="date" id="cb_from" value="'+esc(cbFrom)+'" onchange="window._cbFrom=this.value;renderPage()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px"></div><div class="fg"><label>To Date</label><input type="date" id="cb_to" value="'+esc(cbTo)+'" onchange="window._cbTo=this.value;renderPage()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px"></div></div>'+(cbFrom||cbTo?'<div style="margin-bottom:8px">'+btn('Clear Dates','window._cbFrom=\'\';window._cbTo=\'\';renderPage()','#546E7A')+'</div>':'')+'<div class="fg"><label>Show</label><select onchange="window._cbFilter=this.value;renderPage()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;font-family:sans-serif;background:#fff;color:#0D2137">'+
-    filterOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===filter?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
-    '</select></div>';
+  var filterSelHtml = '<div class="tabs">'+filterOpts.map(function(o){
+    return '<button class="'+(o.v===filter?'act':'')+'" onclick="window._cbFilter=\''+o.v+'\';renderPage()">'+esc(o.l)+'</button>';
+  }).join('')+'</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:8px"><div class="fg"><label>From Date</label><input type="date" id="cb_from" value="'+esc(cbFrom)+'" onchange="window._cbFrom=this.value;renderPage()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px"></div><div class="fg"><label>To Date</label><input type="date" id="cb_to" value="'+esc(cbTo)+'" onchange="window._cbTo=this.value;renderPage()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px"></div></div>'+(cbFrom||cbTo?'<div style="margin-bottom:8px">'+btn('Clear Dates','window._cbFrom=\'\';window._cbTo=\'\';renderPage()','#546E7A')+'</div>':'');
   h+=card('Transaction Register', filterSelHtml);
 
   var rows;
@@ -5657,7 +6091,7 @@ function pgCB(){
     var runBal=(+D.opening.cash||0);
     rows.forEach(function(r){ runBal += (r.type==='receipt'?r.amount:-r.amount); r._bal=runBal; });
     rows=rows.slice().reverse();
-    h+=card('Cash Transactions (Opening: '+fc(D.opening.cash||0)+')',tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r.type==='receipt'?'#2E7D32':'#C62828')+';font-weight:700">'+r.type+'</span>';}},{l:'Party',k:'party'},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}],rows));
+    h+=card('Cash Book (Opening: '+fc(D.opening.cash||0)+')',tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r.type==='receipt'?'#2E7D32':'#C62828')+';font-weight:700">'+r.type+'</span>';}},{l:'Party',k:'party'},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}],rows));
   } else if(filter.indexOf('bank:')===0){
     var accId=filter.slice(5);
     var acctName='Bank Account';
@@ -5667,7 +6101,7 @@ function pgCB(){
     var runBal2=openBal;
     rows.forEach(function(r){ runBal2 += (r.type==='receipt'?r.amount:-r.amount); r._bal=runBal2; });
     rows=rows.slice().reverse();
-    h+=card(esc(acctName)+' Transactions (Opening: '+fc(openBal)+')',tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r.type==='receipt'?'#2E7D32':'#C62828')+';font-weight:700">'+r.type+'</span>';}},{l:'Party',k:'party'},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}],rows));
+    h+=card(esc(acctName)+' Bank Book (Opening: '+fc(openBal)+')',tbl([{l:'Date',k:'date'},{l:'Type',fn:function(r){return '<span style="color:'+(r.type==='receipt'?'#2E7D32':'#C62828')+';font-weight:700">'+r.type+'</span>';}},{l:'Party',k:'party'},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Balance',r:1,fn:function(r){return fc(r._bal);}}],rows));
     if(rows.length===0) h+='<div class="al ali">No transactions recorded for '+esc(acctName)+' yet.</div>';
   }
 
@@ -6929,6 +7363,45 @@ function pgAna(){
   return h;
 }
 // ===== REPORTS =====
+// ── Ledger download & share (used by any account statement — bank, cash, loan, debtor, creditor, item) ──
+function tableToShareText(title, cols, rows, extraLines){
+  var lines = [title, ''];
+  if(extraLines && extraLines.length) lines = lines.concat(extraLines, ['']);
+  lines.push(cols.map(function(c){return c.l;}).join(' | '));
+  rows.forEach(function(r){
+    lines.push(cols.map(function(c){
+      var v = c.fn ? c.fn(r) : r[c.k];
+      return String(v==null?'':v).replace(/<[^>]*>/g,'');
+    }).join(' | '));
+  });
+  return lines.join('\n');
+}
+async function shareOrCopyText(title, text){
+  if(navigator.share){
+    try{ await navigator.share({title:title, text:text}); return; }catch(e){ if(e && e.name==='AbortError') return; /* else fall through to copy */ }
+  }
+  try{
+    await navigator.clipboard.writeText(text);
+    toast('📋 Copied to clipboard — paste it into WhatsApp, Email, etc.');
+  }catch(e){
+    toast('Could not share automatically. Use 🖨 Print / Download PDF instead.','e');
+  }
+}
+function setLedgerShareData(title, cols, rows, extraLines){
+  window._currentLedgerShareData = {title:title, cols:cols, rows:rows, extraLines:extraLines};
+}
+function shareCurrentLedger(){
+  var d = window._currentLedgerShareData;
+  if(!d){ toast('Nothing to share yet','e'); return; }
+  shareOrCopyText(d.title, tableToShareText(d.title, d.cols, d.rows, d.extraLines));
+}
+function ledgerActionButtons(){
+  return '<div style="text-align:right;margin-top:8px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">'+
+    btn('📤 Share','shareCurrentLedger()','#2E7D32')+
+    btn('🖨 Print / Download PDF','window.print()','#546E7A')+
+    '</div>';
+}
+
 function pgRep(){
   var tab=window._rtab||'daybook';
   var tabs=[{id:'daybook',l:'Day Book'},{id:'purchase',l:'Purchase'},{id:'sales',l:'Sales'},{id:'stock',l:'Stock'},{id:'expense',l:'Expense'},{id:'loan',l:'Loans'},{id:'statements',l:'Account Statements'},{id:'debtors',l:'Debtors'},{id:'creditors',l:'Creditors'},{id:'otheritems',l:'Other Items'},{id:'bills',l:'Bills'},{id:'itempl',l:'Item P&L'},{id:'monthlypl',l:'Monthly P&L'},{id:'budget',l:'Budget vs Actual'},{id:'fullyear',l:'Full Year P&L'},{id:'archived',l:'Archived Years'}];
@@ -13487,11 +13960,12 @@ function pgCMA(){
   var mode = window._cmaMode||'sanction';
   h += '<div style="display:flex;gap:8px;margin-bottom:12px">'+
     '<button onclick="window._cmaMode=\'sanction\';renderPage()" style="flex:1;padding:10px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(mode==='sanction'?'#1565C0':'#E3EEFC')+';color:'+(mode==='sanction'?'#fff':'#1565C0')+'">New Sanction</button>'+
+    '<button onclick="window._cmaMode=\'renewal\';renderPage()" style="flex:1;padding:10px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(mode==='renewal'?'#1565C0':'#E3EEFC')+';color:'+(mode==='renewal'?'#fff':'#1565C0')+'">Renewal</button>'+
     '<button onclick="window._cmaMode=\'enhancement\';renderPage()" style="flex:1;padding:10px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(mode==='enhancement'?'#1565C0':'#E3EEFC')+';color:'+(mode==='enhancement'?'#fff':'#1565C0')+'">Enhancement</button>'+
     '</div>';
 
   var tab = window._cmatab||'reference';
-  var tabs = [['reference','Input File'],['copmof','Cost of Project'],['deprec','Depreciation'],['emisched','EMI Schedule'],['formI','Form I: Limits'],['formII','Form II: Operating Stmt'],['formIII','Form III: Balance Sheet'],['formIV','Form IV: MPBF'],['formV','Form V: Fund Flow'],['formVI','Form VI: Ratios'],['holdingnorm','Holding Norms'],['finind','Financial Indicators'],['nwctnw','NWC/TNW Movement'],['bepirr','BEP / IRR'],['variance','Variance Check'],['benchmark','Benchmark'],['letter','Request Letter']];
+  var tabs = [['reference','Input File'],['copmof','Cost of Project'],['deprec','Depreciation'],['emisched','EMI Schedule'],['formI','Form I: Limits'],['formII','Form II: Operating Stmt'],['formIII','Form III: Balance Sheet'],['formIV','Form IV: MPBF'],['formV','Form V: Fund Flow'],['formVI','Form VI: Ratios'],['holdingnorm','Holding Norms'],['finind','Financial Indicators'],['nwctnw','NWC/TNW Movement'],['bepirr','BEP / IRR'],['variance','Variance Check'],['benchmark','Benchmark'],['application','Application Form'],['letter','Request Letter']];
   h += '<div class="tabs">'+tabs.map(function(t){ return '<button class="'+(tab===t[0]?'act':'')+'" onclick="window._cmatab=\''+t[0]+'\';renderPage()">'+t[1]+'</button>'; }).join('')+'</div>';
 
   if(tab==='reference'){
@@ -13520,6 +13994,12 @@ function pgCMA(){
 
   if(tab==='bepirr'){
     h += pgCMABEPIRR();
+    return h;
+  }
+
+  if(tab==='application'){
+    h += pgCMAApplication(mode);
+    h += '<div style="text-align:right;margin-top:8px">'+btn('🖨 Print Application','window.print()','#546E7A')+'</div>';
     return h;
   }
 
@@ -14570,6 +15050,83 @@ function generateCMALetterDraft(mode){
   lines.push((p.constitution==='Individual'||p.constitution==='Proprietorship')?'Proprietor':'Partner / Director');
   return lines.join('\n');
 }
+function pgCMAApplication(mode){
+  var p = D.profile, la = D.loanAssessment, cp = D.cmaProfile;
+  var modeLabels = {sanction:'Sanction of New', renewal:'Renewal of Existing', enhancement:'Enhancement of Existing'};
+  var h = '<div class="al ali"><div class="alt">Application for '+modeLabels[mode]+' Credit Facilities</div>'+
+    '<p>A structured facility-wise application, compiled from your Reference Sheet, Loan Details and CMA figures — for '+modeLabels[mode].toLowerCase()+' facilities. Print or share this alongside your CMA Data report.</p></div>';
+
+  h += card('1. Applicant Details',
+    cmaAutoRow('Entity Name', p.businessName)+
+    cmaAutoRow('Constitution', p.constitution)+
+    cmaAutoRow('PAN', p.pan)+cmaAutoRow('GST', p.gst)+
+    cmaAutoRow('Business Activity', cp.activity||p.businessType)+
+    cmaAutoRow('Commencement Date', p.commencementDate)+
+    cmaAutoRow('Udyam No', p.udyam)+
+    cmaAutoRow('Bank / Branch', (cp.bankName||'—')+' / '+(cp.bankBranch||'—'))
+  );
+
+  var existingLoans = (D.loans||[]);
+  if((mode==='renewal'||mode==='enhancement') && existingLoans.length>0){
+    var exRows = existingLoans.map(function(l){
+      var kind = isCcOdLoan(l) ? 'Cash Credit / OD' : 'Term Loan';
+      return '<tr><td style="padding:5px 8px">'+esc(l.bankName||'-')+'</td><td style="padding:5px 8px">'+kind+'</td>'+
+        '<td style="padding:5px 8px;text-align:right">'+fc(l.sanctionedLimit||l.sanctionedAmount||l.amount||0)+'</td>'+
+        '<td style="padding:5px 8px;text-align:right">'+fc(l.outstandingBalance||0)+'</td>'+
+        '<td style="padding:5px 8px;text-align:right">'+(l.rate||0)+'%</td></tr>';
+    }).join('');
+    h += card('2. Existing Facilities',
+      '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+      '<thead><tr style="background:#1565C0;color:#fff"><th style="text-align:left;padding:5px 8px">Bank</th><th style="text-align:left;padding:5px 8px">Facility</th>'+
+      '<th style="text-align:right;padding:5px 8px">Sanctioned</th><th style="text-align:right;padding:5px 8px">Outstanding</th><th style="text-align:right;padding:5px 8px">Rate</th></tr></thead>'+
+      '<tbody>'+exRows+'</tbody></table></div>'
+    );
+  }
+
+  var facilityRows = [];
+  if(la.ccLimit>0) facilityRows.push({type:'Cash Credit / Working Capital', amount:la.ccLimit, rate:la.ccRate, tenure:'Repayable on Demand (annual review)', purpose:'To meet working capital requirements for stock and receivables'});
+  if(la.tlAmount>0) facilityRows.push({type:'Term Loan', amount:la.tlAmount, rate:la.tlRate, tenure:la.tlTenure+' months'+(la.tlMoratorium>0?' (incl. '+la.tlMoratorium+' month moratorium)':''), purpose:cp.greenfield==='Yes'?'Acquisition of fixed assets for new/expansion project':'Acquisition of fixed assets for business use'});
+  var facTableRows = facilityRows.map(function(f){
+    return '<tr><td style="padding:5px 8px">'+f.type+'</td><td style="padding:5px 8px;text-align:right">'+fc(f.amount)+'</td>'+
+      '<td style="padding:5px 8px;text-align:right">'+f.rate+'%</td><td style="padding:5px 8px">'+f.tenure+'</td>'+
+      '<td style="padding:5px 8px;font-size:11px">'+f.purpose+'</td></tr>';
+  }).join('');
+  h += card((mode==='enhancement'?'3. Enhanced':(mode==='renewal'?'3. Renewed':'2. Facilities')) +' Applied For',
+    (facilityRows.length ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+      '<thead><tr style="background:#1565C0;color:#fff"><th style="text-align:left;padding:5px 8px">Facility</th><th style="text-align:right;padding:5px 8px">Amount</th>'+
+      '<th style="text-align:right;padding:5px 8px">Rate</th><th style="text-align:left;padding:5px 8px">Tenure</th><th style="text-align:left;padding:5px 8px">Purpose</th></tr></thead>'+
+      '<tbody>'+facTableRows+'</tbody></table></div>'+
+      '<div style="font-size:11px;color:#546E7A;margin-top:6px">Amounts editable in Bank Loan Assessment → Loan Details.</div>'
+      : '<div class="al alw">No facility amount set — enter CC/TL amounts in Bank Loan Assessment → Loan Details first.</div>')
+  );
+
+  h += card('4. Security Offered',
+    cmaAutoRow('Collateral Security Value', fc(la.collateralSecurityValue||0))+
+    cmaAutoRow('CGTMSE Coverage', cp.cgtmseCoverage||'No')+
+    (cp.cgtmseCoverage==='Yes' ? cmaAutoRow('CGTMSE Coverage %', (cp.cgtmseCoveragePct||0)+'%') : '')+
+    cmaAutoRow('Primary Security', 'Hypothecation of stock and book debts'+(la.tlAmount>0?', and the assets financed under the Term Loan':''))
+  );
+
+  var cur = null; try{ cur = getCurrentYearRatioData(); }catch(e){}
+  if(cur){
+    var ratios = computeBankRatios(cur);
+    h += card('5. Financial Highlights (Current Year Estimate)',
+      cmaAutoRow('Net Sales', fc(cur.netSales))+
+      cmaAutoRow('Net Profit (PAT)', fc(cur.pat))+
+      cmaAutoRow('Tangible Net Worth', fc(cur.tnw))+
+      cmaAutoRow('Current Ratio', ratios.currentRatio!==null&&ratios.currentRatio!==undefined?ratios.currentRatio.toFixed(2):'—')+
+      cmaAutoRow('DSCR', ratios.dscrSimple!==null&&ratios.dscrSimple!==undefined?ratios.dscrSimple.toFixed(2):'—')+
+      '<div style="font-size:11px;color:#546E7A;margin-top:6px">Full workings in the CMA Data → Form II-VI tabs, enclosed separately.</div>'
+    );
+  }
+
+  h += card('6. Declaration',
+    '<div style="font-size:12px;line-height:1.7">We hereby declare that the information furnished above and in the enclosed CMA Data is true and correct to the best of our knowledge and belief. We undertake to utilize the facility strictly for the purpose stated, and to submit stock statements, financial statements and other information as required by the Bank from time to time.</div>'+
+    '<div style="margin-top:20px;font-size:12px">Place: _______________&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Date: '+td()+'</div>'+
+    '<div style="margin-top:30px;text-align:right;font-size:12px">Signature of Applicant<br>('+(p.ownerName||'________________')+')</div>'
+  );
+  return h;
+}
 function pgCMALetter(mode){
   if(window._letterText===undefined || window._letterText===null){
     window._letterText = generateCMALetterDraft(mode);
@@ -14824,9 +15381,9 @@ function computeBankRatios(y){
 
   return {
     // 1. Liquidity
-    currentRatio: div(y.currentAssets, y.currentLiabilities),
+    currentRatio: div(y.currentAssets, (y.currentLiabilities||0)+(y.bankFinanceUtilized||0)),
     currentRatioExclTL: div(y.currentAssets, (y.currentLiabilities||0) - (y.tlInstalmentsDue||0)),
-    quickRatio: div((y.currentAssets||0)-(y.inventory||0), y.currentLiabilities),
+    quickRatio: div((y.currentAssets||0)-(y.inventory||0), (y.currentLiabilities||0)+(y.bankFinanceUtilized||0)),
     // 2. Leverage
     debtEquity: div(y.totalDebt, y.tnw),
     debtEquityQuasi: div(debtAdj, atnw),
@@ -14915,6 +15472,97 @@ function fixedAssetsOnlyNet(){
 // reliably reconstructed (the app only keeps their current outstanding balance, not a dated
 // history), so those are intentionally left blank for the user to fill in if known, rather than
 // showing a plausible-looking but potentially wrong number.
+// ── Reconstruct Stock/Debtors/Creditors/Cash/Bank as of ANY given date ──
+// Same logic as the FY-boundary reconstruction used for CMA Historical Data, generalized to work
+// for any cutoff date — used for Monthly Stock Statements, but reusable anywhere a bank-appraisal
+// or as-of-date figure is needed.
+// ── Monthly Stock Statement (for CC/OD limit monitoring — banks require this every month) ──
+function getCompletedMonthEnds(){
+  var startDateStr = D.profile.commencementDate;
+  if(!startDateStr){
+    var allDates = D.sales.map(function(s){return s.date;}).concat(D.purchases.map(function(p){return p.date;})).filter(Boolean).sort();
+    startDateStr = allDates[0] || td();
+  }
+  var start = new Date(startDateStr+'T00:00:00');
+  var today = new Date(td()+'T00:00:00');
+  var dates = [];
+  var d = new Date(start.getFullYear(), start.getMonth(), 1);
+  var curMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  while(d < curMonthStart){
+    var monthEnd = new Date(d.getFullYear(), d.getMonth()+1, 0);
+    dates.push(monthEnd.toISOString().slice(0,10));
+    d = new Date(d.getFullYear(), d.getMonth()+1, 1);
+  }
+  return dates;
+}
+function computeDrawingPower(bal){
+  var s = D.stockStatementSettings || {stockMarginPct:25, debtorMarginPct:40};
+  var stockMargin = bal.stock*(s.stockMarginPct/100);
+  var debtorMargin = bal.receivables*(s.debtorMarginPct/100);
+  var dp = Math.max(0,(bal.stock-stockMargin)) + Math.max(0,(bal.receivables-debtorMargin)) - bal.creditors;
+  return Math.max(0, dp);
+}
+function autoGenerateMissingStockStatements(){
+  var existing = {}; (D.stockStatements||[]).forEach(function(s){ existing[s.date]=true; });
+  var monthEnds = getCompletedMonthEnds();
+  var added = 0;
+  monthEnds.forEach(function(me){
+    if(existing[me]) return;
+    var bal = computeBalancesAsOfDate(me);
+    if(bal.stock===0 && bal.receivables===0 && bal.creditors===0 && bal.cash===0 && bal.bank===0) return; // no activity yet by this date
+    var s = D.stockStatementSettings || {stockMarginPct:25, debtorMarginPct:40};
+    D.stockStatements.push({
+      id:uid(), date:me, stock:bal.stock, receivables:bal.receivables, creditors:bal.creditors,
+      stockMarginPct:s.stockMarginPct, debtorMarginPct:s.debtorMarginPct,
+      drawingPower:computeDrawingPower(bal), ccOutstanding:bal.ccOutstanding, autoGenerated:true
+    });
+    added++;
+  });
+  if(added>0) sv();
+  return added;
+}
+function computeBalancesAsOfDate(asOfDate){
+  var invValue = 0;
+  D.inventory.forEach(function(it){
+    var qty=0, totalCost=0, avgCost=0;
+    var events = [];
+    D.purchases.forEach(function(p){ if(p.itemId===it.id && p.date<=asOfDate) events.push({date:p.date, type:'p', qty:p.qty, rate:p.rate}); });
+    D.sales.forEach(function(s){ if(s.itemId===it.id && s.date<=asOfDate) events.push({date:s.date, type:'s', qty:s.qty}); });
+    events.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
+    events.forEach(function(ev){
+      if(ev.type==='p'){ totalCost += ev.qty*ev.rate; qty += ev.qty; avgCost = qty>0?totalCost/qty:0; }
+      else { qty -= ev.qty; totalCost = qty*avgCost; if(qty<0){qty=0;totalCost=0;} }
+    });
+    invValue += totalCost;
+  });
+
+  var cash = +D.opening.cash||0, bank = +D.opening.bank||0;
+  D.cashBook.forEach(function(c){
+    if(c.date>asOfDate) return;
+    if(!c.mode || c.mode==='cc' || c.mode==='od') return;
+    var amt = c.type==='receipt' ? (c.amount||0) : -(c.amount||0);
+    if(c.mode==='cash') cash += amt; else bank += amt;
+  });
+
+  var receivablesAsOf = D.debtors.filter(function(d){ return d.date && d.date<=asOfDate; })
+    .reduce(function(s,d){ return s+(+d.amount||0); }, 0);
+  var creditorsAsOf = D.creditors.filter(function(c){ return c.date && c.date<=asOfDate && (c.type||'supplier')==='supplier'; })
+    .reduce(function(s,c){ return s+(+c.amount||0); }, 0);
+
+  var ccOutstandingAsOf = 0;
+  D.loans.forEach(function(l){
+    if(!isCcOdLoan(l)) return;
+    var bal = 0;
+    (l.payments||[]).forEach(function(p){ if(p.date<=asOfDate) bal = p.balance; });
+    if((l.payments||[]).length===0 || (l.payments[0] && l.payments[0].date>asOfDate)) bal = l.sanctionedAmount||l.amount||0;
+    ccOutstandingAsOf += bal;
+  });
+
+  return {
+    stock: invValue, receivables: Math.max(0,receivablesAsOf), creditors: Math.max(0,creditorsAsOf),
+    cash: cash, bank: bank, ccOutstanding: ccOutstandingAsOf
+  };
+}
 function computeHistoricalFYFromLiveData(fy){
   var range = fyDateRange(fy);
   var inRange = function(d){ return d && d>=range.from && d<=range.to; };
@@ -17932,8 +18580,8 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 // ===== NAVIGATION & RENDER =====
 var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
-var NAV_ALL = ['profile','dashboard','capital','inventory','purchase','sales','returns','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',stockstmt:'Stock Statement',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
+var NAV_ALL = ['profile','dashboard','capital','inventory','purchase','sales','returns','journal','debtcred','stockstmt','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
 var BN_PAGES = ['dashboard','sales','purchase','financials','data'];
 var BN_ICONS = ['🏠','🏷️','🛒','📄','⚙️'];
 
@@ -17967,7 +18615,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
+  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,stockstmt:pgStockStatement,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
 }
