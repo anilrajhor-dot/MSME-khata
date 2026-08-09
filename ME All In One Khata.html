@@ -193,6 +193,8 @@ function defD(){
     inventory:[],
     purchases:[],
     sales:[],
+    salesReturns:[],
+    purchaseReturns:[],
     expenses:[],
     cashBook:[],
     debtors:[],
@@ -341,6 +343,8 @@ function migrateData(d){
     if(d.inventory[ii].importedAvgCost===undefined) d.inventory[ii].importedAvgCost=0;
   }
   if(!d.sales)d.sales=[];
+  if(!d.salesReturns)d.salesReturns=[];
+  if(!d.purchaseReturns)d.purchaseReturns=[];
   for(var si=0;si<d.sales.length;si++){ if(d.sales[si].isExport===undefined) d.sales[si].isExport=false; }
   if(!d.purchases)d.purchases=[];
   for(var pi=0;pi<d.purchases.length;pi++){ if(d.purchases[pi].isImported===undefined) d.purchases[pi].isImported=false; }
@@ -1023,6 +1027,11 @@ function getF(){
     else purchasesByType.indigenous+=D.purchases[i].amount;
   }
   for(i=0;i<D.expenses.length;i++)te+=D.expenses[i].amount;
+  var salesReturnsTotal=0, salesReturnsCogs=0;
+  (D.salesReturns||[]).forEach(function(r){ salesReturnsTotal+=(+r.amount||0); salesReturnsCogs+=(+r.cogs||0); });
+  var purchaseReturnsTotal=0;
+  (D.purchaseReturns||[]).forEach(function(r){ purchaseReturnsTotal+=(+r.amount||0); });
+  ts -= salesReturnsTotal; tc -= salesReturnsCogs; tp -= purchaseReturnsTotal;
   cap=(D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+((D.capital.initialCapital||0)===0?(+D.opening.capital||0):0);
   var totalDrawings=0;(D.drawings||[]).forEach(function(d){totalDrawings+=(+d.amount||0);});cap-=totalDrawings;
   for(i=0;i<D.loans.length;i++)ltl+=(+D.loans[i].outstandingBalance||0);
@@ -1038,7 +1047,7 @@ function getF(){
     else if(a.type==='received') advFromCustomers+=amt;
   });
   var oa=(+D.otherAssets||0), ol=(+D.otherLiab||0);
-  return{ts:ts,tc:tc,os:os,tp:tp,cs:cs,csIndig:csIndig,csImp:csImp,gp:gp,te:te,np:gp-te,cap:cap,ltl:ltl,stl:stl,cb:cb,bb:bb,dr:dr,cr:cr,expPayable:expPayable,oa:oa,ol:ol,salesByType:salesByType,purchasesByType:purchasesByType,advToSuppliers:advToSuppliers,advPrepaidExp:advPrepaidExp,advFromCustomers:advFromCustomers};
+  return{ts:ts,tc:tc,os:os,tp:tp,cs:cs,csIndig:csIndig,csImp:csImp,gp:gp,te:te,np:gp-te,cap:cap,ltl:ltl,stl:stl,cb:cb,bb:bb,dr:dr,cr:cr,expPayable:expPayable,oa:oa,ol:ol,salesByType:salesByType,purchasesByType:purchasesByType,advToSuppliers:advToSuppliers,advPrepaidExp:advPrepaidExp,advFromCustomers:advFromCustomers,salesReturnsTotal:salesReturnsTotal,salesReturnsCogs:salesReturnsCogs,purchaseReturnsTotal:purchaseReturnsTotal};
 }
 
 function getBS(){
@@ -5024,6 +5033,83 @@ function pgSal(){
 // advType: 'received' (Sales settles Advances Received from Customers),
 //          'paid_supplier' (Purchase settles Advances Paid to Suppliers),
 //          'paid_expense' (Expense settles Prepaid Expenses)
+// ===== SALES / PURCHASE RETURNS =====
+function pgReturns(){
+  var tab = window._retTab||'salesret';
+  var h = '<div class="tabs">'+
+    '<button class="'+(tab==='salesret'?'act':'')+'" onclick="window._retTab=\'salesret\';renderPage()">Sales Return</button>'+
+    '<button class="'+(tab==='purchret'?'act':'')+'" onclick="window._retTab=\'purchret\';renderPage()">Purchase Return</button>'+
+    '<button class="'+(tab==='register'?'act':'')+'" onclick="window._retTab=\'register\';renderPage()">Returns Register</button>'+
+    '</div>';
+
+  if(tab==='salesret'){
+    // Recent sales with remaining returnable qty > 0
+    var candidates = D.sales.slice().reverse().filter(function(s){
+      return s.paymentMode!=='advance' && ((s.qty||0)-alreadyReturnedQtyForSale(s.id))>0.0001;
+    }).slice(0,100);
+    h += card('Record a Sales Return',
+      '<div class="al ali" style="margin-bottom:10px">Select the original sale, enter the quantity being returned. Stock is restored, and the customer is refunded (cash/bank) or their outstanding balance reduced (credit sales) automatically.</div>'+
+      sl('Original Sale','ret_sale_id', candidates.map(function(s){
+        var rem = (s.qty||0)-alreadyReturnedQtyForSale(s.id);
+        return {v:s.id, l:s.date+' — '+s.customerName+' — '+s.itemName+' (qty '+fmt(s.qty)+', returnable '+fmt(rem)+', '+fc(s.sellingPrice)+'/unit)'};
+      }), '')+
+      inp('Return Quantity','ret_sale_qty','number','')+
+      inp('Return Date','ret_sale_date','date',td())+
+      inp('Reason / Notes (optional)','ret_sale_notes','text','')+
+      btn('↩ Record Sales Return','submitSalesReturn()','#C62828')
+    );
+  } else if(tab==='purchret'){
+    var pcandidates = D.purchases.slice().reverse().filter(function(p){
+      return ((p.qty||0)-alreadyReturnedQtyForPurchase(p.id))>0.0001;
+    }).slice(0,100);
+    h += card('Record a Purchase Return',
+      '<div class="al ali" style="margin-bottom:10px">Select the original purchase, enter the quantity being returned to the supplier. Stock is reduced (must still be in hand — can\'t return what\'s already sold), and you\'re refunded (cash/bank) or the supplier balance you owe is reduced (credit purchases) automatically.</div>'+
+      sl('Original Purchase','ret_purch_id', pcandidates.map(function(p){
+        var rem = (p.qty||0)-alreadyReturnedQtyForPurchase(p.id);
+        return {v:p.id, l:p.date+' — '+p.supplierName+' — '+p.itemName+' (qty '+fmt(p.qty)+', returnable '+fmt(rem)+', '+fc(p.rate)+'/unit)'};
+      }), '')+
+      inp('Return Quantity','ret_purch_qty','number','')+
+      inp('Return Date','ret_purch_date','date',td())+
+      inp('Reason / Notes (optional)','ret_purch_notes','text','')+
+      btn('↩ Record Purchase Return','submitPurchaseReturn()','#C62828')
+    );
+  } else {
+    var srTotal=0, prTotal=0;
+    var srRows = D.salesReturns.slice().reverse().map(function(r){ srTotal+=r.amount; return r; });
+    var prRows = D.purchaseReturns.slice().reverse().map(function(r){ prTotal+=r.amount; return r; });
+    h += card('Sales Returns',
+      (srRows.length ? tbl([{l:'Date',k:'date'},{l:'Customer',k:'customerName'},{l:'Item',k:'itemName'},
+        {l:'Qty',r:1,k:'qty',fn:function(r){return fmt(r.qty);}},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},
+        {l:'Notes',k:'notes'}], srRows)+'<div style="text-align:right;font-weight:700;padding:7px">Total: '+fc(srTotal)+'</div>'
+        : '<div class="al ali">No sales returns recorded yet.</div>')
+    );
+    h += card('Purchase Returns',
+      (prRows.length ? tbl([{l:'Date',k:'date'},{l:'Supplier',k:'supplierName'},{l:'Item',k:'itemName'},
+        {l:'Qty',r:1,k:'qty',fn:function(r){return fmt(r.qty);}},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},
+        {l:'Notes',k:'notes'}], prRows)+'<div style="text-align:right;font-weight:700;padding:7px">Total: '+fc(prTotal)+'</div>'
+        : '<div class="al ali">No purchase returns recorded yet.</div>')
+    );
+  }
+  return h;
+}
+function submitSalesReturn(){
+  var saleId=gv('ret_sale_id'), qty=gvn('ret_sale_qty'), date=gv('ret_sale_date')||td(), notes=gv('ret_sale_notes');
+  if(!saleId){toast('Select the original sale','e');return;}
+  if(!qty||qty<=0){toast('Enter a valid return quantity','e');return;}
+  if(addSalesReturn(saleId, qty, date, notes)){
+    toast('Sales return recorded — stock restored, customer refunded/credited.');
+    renderPage();
+  }
+}
+function submitPurchaseReturn(){
+  var purchId=gv('ret_purch_id'), qty=gvn('ret_purch_qty'), date=gv('ret_purch_date')||td(), notes=gv('ret_purch_notes');
+  if(!purchId){toast('Select the original purchase','e');return;}
+  if(!qty||qty<=0){toast('Enter a valid return quantity','e');return;}
+  if(addPurchaseReturn(purchId, qty, date, notes)){
+    toast('Purchase return recorded — stock reduced, refund/creditor adjusted.');
+    renderPage();
+  }
+}
 function advanceSettleSel(id, advType){
   var matches=[];
   (D.advances||[]).forEach(function(a){
@@ -5084,6 +5170,70 @@ function restoreStock(item, fromIndig, fromImp, indigCostEach, impCostEach){
     var itq=(item.importedStock||0)+fromImp, itv=(item.importedStock||0)*(item.importedAvgCost||0) + fromImp*impCostEach;
     item.importedStock=itq; item.importedAvgCost = itq>0 ? itv/itq : 0;
   }
+}
+// ── Sales Returns / Purchase Returns ──
+// Design: original Sale/Purchase records are never edited — returns are separate, linked
+// entries (a proper credit note / debit note trail), and Net Sales/Net Purchases/COGS are
+// computed by subtracting returns from the gross figures wherever they're used (see getF()).
+function alreadyReturnedQtyForSale(saleId){
+  var q=0; (D.salesReturns||[]).forEach(function(r){ if(r.originalSaleId===saleId) q+=(+r.qty||0); });
+  return q;
+}
+function alreadyReturnedQtyForPurchase(purchaseId){
+  var q=0; (D.purchaseReturns||[]).forEach(function(r){ if(r.originalPurchaseId===purchaseId) q+=(+r.qty||0); });
+  return q;
+}
+function addSalesReturn(saleId, returnQty, date, notes){
+  var s=null; for(var i=0;i<D.sales.length;i++) if(D.sales[i].id===saleId){ s=D.sales[i]; break; }
+  if(!s){ toast('Original sale not found','e'); return false; }
+  if(s.paymentMode==='advance'){ toast('Cannot return an advance-settled sale directly — adjust the advance manually.','e'); return false; }
+  var alreadyReturned = alreadyReturnedQtyForSale(saleId);
+  var remaining = (s.qty||0) - alreadyReturned;
+  if(!(returnQty>0) || returnQty>remaining+0.0001){ toast('Return quantity must be between 0 and '+fmt(remaining)+' (already returned: '+fmt(alreadyReturned)+')','e'); return false; }
+  var item=null; for(var j=0;j<D.inventory.length;j++) if(D.inventory[j].id===s.itemId){ item=D.inventory[j]; break; }
+  var fraction = returnQty/(s.qty||1);
+  var returnAmount = Math.round(returnQty*(s.sellingPrice||0)*100)/100;
+  var returnCogs = Math.round((s.cogs||0)*fraction*100)/100;
+  var returnFromIndig = (s.fromIndig!==undefined ? s.fromIndig : s.qty)*fraction;
+  var returnFromImp = (s.fromImp!==undefined ? s.fromImp : 0)*fraction;
+  if(item) restoreStock(item, returnFromIndig, returnFromImp, s.indigCostEach||item.avgCost, s.impCostEach||0);
+  date = date||td();
+  if(s.paymentMode==='credit'){
+    D.debtors.push({id:uid(), name:s.customerName, amount:-returnAmount, date:date, ref:'Sales Return'});
+  } else {
+    postCB(s.paymentMode,'payment',returnAmount,s.customerName,'Sales Return: '+s.itemName,date);
+  }
+  D.salesReturns.push({id:uid(), date:date, originalSaleId:saleId, customerName:s.customerName, itemId:s.itemId,
+    itemName:s.itemName, qty:returnQty, rate:s.sellingPrice, amount:returnAmount, cogs:returnCogs,
+    paymentMode:s.paymentMode, notes:notes||''});
+  sv();
+  return true;
+}
+function addPurchaseReturn(purchaseId, returnQty, date, notes){
+  var p=null; for(var i=0;i<D.purchases.length;i++) if(D.purchases[i].id===purchaseId){ p=D.purchases[i]; break; }
+  if(!p){ toast('Original purchase not found','e'); return false; }
+  var alreadyReturned = alreadyReturnedQtyForPurchase(purchaseId);
+  var remaining = (p.qty||0) - alreadyReturned;
+  if(!(returnQty>0) || returnQty>remaining+0.0001){ toast('Return quantity must be between 0 and '+fmt(remaining)+' (already returned: '+fmt(alreadyReturned)+')','e'); return false; }
+  var item=null; for(var j=0;j<D.inventory.length;j++) if(D.inventory[j].id===p.itemId){ item=D.inventory[j]; break; }
+  var availableStock = item ? (p.isImported ? (item.importedStock||0) : item.currentStock) : 0;
+  if(item && returnQty>availableStock+0.0001){ toast('Cannot return more than current stock of this item ('+fmt(availableStock)+' available) — some may already be sold.','e'); return false; }
+  var returnAmount = Math.round(returnQty*(p.rate||0)*100)/100;
+  if(item){
+    if(p.isImported) item.importedStock = Math.max(0,(item.importedStock||0)-returnQty);
+    else item.currentStock = Math.max(0, item.currentStock-returnQty);
+  }
+  date = date||td();
+  if(p.paymentMode==='credit'){
+    D.creditors.push({id:uid(), name:p.supplierName, amount:-returnAmount, date:date, ref:'Purchase Return', type:'supplier'});
+  } else {
+    postCB(p.paymentMode,'receipt',returnAmount,p.supplierName,'Purchase Return: '+p.itemName,date);
+  }
+  D.purchaseReturns.push({id:uid(), date:date, originalPurchaseId:purchaseId, supplierName:p.supplierName, itemId:p.itemId,
+    itemName:p.itemName, qty:returnQty, rate:p.rate, amount:returnAmount, isImported:p.isImported||false,
+    paymentMode:p.paymentMode, notes:notes||''});
+  sv();
+  return true;
 }
 function onSalMarginChange(){
   var m=gvn('sl_margin');
@@ -19011,13 +19161,13 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 // ===== NAVIGATION & RENDER =====
 var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',production:'उत्पादन',consumption:'उपभोग',bizmanager:'व्यवसाय प्रबंधक',interunit:'अंतर-इकाई स्थानांतरण',template:'डेटा टेम्पलेट'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template'};
 function getNavAll(){
   var biz = getBizType();
   var base = ['bizmanager','profile','dashboard','capital','inventory'];
   if(biz==='Manufacturing'||biz==='Trading + Manufacturing') base.push('production');
   if(biz==='Service'||biz==='Trading + Service') base.push('consumption');
-  base = base.concat(['interunit','purchase','sales','expenses','cashbank','recon','emi','bankcalc',
+  base = base.concat(['interunit','purchase','sales','returns','expenses','cashbank','recon','emi','bankcalc',
     'financials','projections','analytics','loanassess','cma','reminders',
     'gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help']);
   return base;
@@ -19057,7 +19207,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,production:pgProduction,consumption:pgConsumption,bizmanager:pgBizManager,interunit:pgInterUnit,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
+  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,production:pgProduction,consumption:pgConsumption,bizmanager:pgBizManager,interunit:pgInterUnit,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
   // Update business switcher bar
