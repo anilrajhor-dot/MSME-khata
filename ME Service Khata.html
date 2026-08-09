@@ -189,6 +189,8 @@ function defD(){
     inventory:[],
     purchases:[],
     sales:[],
+    salesReturns:[],
+    purchaseReturns:[],
     consumptions:[],
     productions:[],
     expenses:[],
@@ -340,6 +342,8 @@ function migrateData(d){
     if(d.inventory[ii].category===undefined) d.inventory[ii].category='Resale';
   }
   if(!d.sales)d.sales=[];
+  if(!d.salesReturns)d.salesReturns=[];
+  if(!d.purchaseReturns)d.purchaseReturns=[];
   if(!d.consumptions)d.consumptions=[];
   if(!d.productions)d.productions=[];
   for(var si=0;si<d.sales.length;si++){ if(d.sales[si].isExport===undefined) d.sales[si].isExport=false; }
@@ -1106,6 +1110,11 @@ function getF(){
     else purchasesByType.indigenous+=D.purchases[i].amount;
   }
   for(i=0;i<D.expenses.length;i++)te+=D.expenses[i].amount;
+  var salesReturnsTotal=0, salesReturnsCogs=0;
+  (D.salesReturns||[]).forEach(function(r){ salesReturnsTotal+=(+r.amount||0); salesReturnsCogs+=(+r.cogs||0); });
+  var purchaseReturnsTotal=0;
+  (D.purchaseReturns||[]).forEach(function(r){ purchaseReturnsTotal+=(+r.amount||0); });
+  ts -= salesReturnsTotal; tc -= salesReturnsCogs; tp -= purchaseReturnsTotal;
   cap=(D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+((D.capital.initialCapital||0)===0?(+D.opening.capital||0):0);
   var totalDrawings=0;(D.drawings||[]).forEach(function(d){totalDrawings+=(+d.amount||0);});cap-=totalDrawings;
   for(i=0;i<D.loans.length;i++)ltl+=(+D.loans[i].outstandingBalance||0);
@@ -1121,7 +1130,7 @@ function getF(){
 
   var dr=totalDebtors(),cr=totalCreditors(),expPayable=totalExpensesPayable();
   var oa=(+D.otherAssets||0), ol=(+D.otherLiab||0);
-  return{ts:ts,tc:tc,os:os,tp:tp,cs:cs,csIndig:csIndig,csImp:csImp,gp:gp,te:te,np:gp-te,cap:cap,ltl:ltl,stl:stl,cb:cb,bb:bb,dr:dr,cr:cr,expPayable:expPayable,oa:oa,ol:ol,salesByType:salesByType,purchasesByType:purchasesByType,advToSuppliers:advToSuppliers,advPrepaidExp:advPrepaidExp,advFromCustomers:advFromCustomers};
+  return{ts:ts,tc:tc,os:os,tp:tp,cs:cs,csIndig:csIndig,csImp:csImp,gp:gp,te:te,np:gp-te,cap:cap,ltl:ltl,stl:stl,cb:cb,bb:bb,dr:dr,cr:cr,expPayable:expPayable,oa:oa,ol:ol,salesByType:salesByType,purchasesByType:purchasesByType,advToSuppliers:advToSuppliers,advPrepaidExp:advPrepaidExp,advFromCustomers:advFromCustomers,salesReturnsTotal:salesReturnsTotal,salesReturnsCogs:salesReturnsCogs,purchaseReturnsTotal:purchaseReturnsTotal};
 }
 
 function getBS(){
@@ -5068,6 +5077,83 @@ function pgSal(){
 // advType: 'received' (Sales settles Advances Received from Customers),
 //          'paid_supplier' (Purchase settles Advances Paid to Suppliers),
 //          'paid_expense' (Expense settles Prepaid Expenses)
+// ===== SALES / PURCHASE RETURNS =====
+function pgReturns(){
+  var tab = window._retTab||'salesret';
+  var h = '<div class="tabs">'+
+    '<button class="'+(tab==='salesret'?'act':'')+'" onclick="window._retTab=\'salesret\';renderPage()">Sales Return</button>'+
+    '<button class="'+(tab==='purchret'?'act':'')+'" onclick="window._retTab=\'purchret\';renderPage()">Purchase Return</button>'+
+    '<button class="'+(tab==='register'?'act':'')+'" onclick="window._retTab=\'register\';renderPage()">Returns Register</button>'+
+    '</div>';
+
+  if(tab==='salesret'){
+    // Recent sales with remaining returnable qty > 0
+    var candidates = D.sales.slice().reverse().filter(function(s){
+      return s.paymentMode!=='advance' && ((s.qty||0)-alreadyReturnedQtyForSale(s.id))>0.0001;
+    }).slice(0,100);
+    h += card('Record a Sales Return',
+      '<div class="al ali" style="margin-bottom:10px">Select the original sale, enter the quantity being returned. Stock is restored, and the customer is refunded (cash/bank) or their outstanding balance reduced (credit sales) automatically.</div>'+
+      sl('Original Sale','ret_sale_id', candidates.map(function(s){
+        var rem = (s.qty||0)-alreadyReturnedQtyForSale(s.id);
+        return {v:s.id, l:s.date+' — '+s.customerName+' — '+s.itemName+' (qty '+fmt(s.qty)+', returnable '+fmt(rem)+', '+fc(s.sellingPrice)+'/unit)'};
+      }), '')+
+      inp('Return Quantity','ret_sale_qty','number','')+
+      inp('Return Date','ret_sale_date','date',td())+
+      inp('Reason / Notes (optional)','ret_sale_notes','text','')+
+      btn('↩ Record Sales Return','submitSalesReturn()','#C62828')
+    );
+  } else if(tab==='purchret'){
+    var pcandidates = D.purchases.slice().reverse().filter(function(p){
+      return ((p.qty||0)-alreadyReturnedQtyForPurchase(p.id))>0.0001;
+    }).slice(0,100);
+    h += card('Record a Purchase Return',
+      '<div class="al ali" style="margin-bottom:10px">Select the original purchase, enter the quantity being returned to the supplier. Stock is reduced (must still be in hand — can\'t return what\'s already sold), and you\'re refunded (cash/bank) or the supplier balance you owe is reduced (credit purchases) automatically.</div>'+
+      sl('Original Purchase','ret_purch_id', pcandidates.map(function(p){
+        var rem = (p.qty||0)-alreadyReturnedQtyForPurchase(p.id);
+        return {v:p.id, l:p.date+' — '+p.supplierName+' — '+p.itemName+' (qty '+fmt(p.qty)+', returnable '+fmt(rem)+', '+fc(p.rate)+'/unit)'};
+      }), '')+
+      inp('Return Quantity','ret_purch_qty','number','')+
+      inp('Return Date','ret_purch_date','date',td())+
+      inp('Reason / Notes (optional)','ret_purch_notes','text','')+
+      btn('↩ Record Purchase Return','submitPurchaseReturn()','#C62828')
+    );
+  } else {
+    var srTotal=0, prTotal=0;
+    var srRows = D.salesReturns.slice().reverse().map(function(r){ srTotal+=r.amount; return r; });
+    var prRows = D.purchaseReturns.slice().reverse().map(function(r){ prTotal+=r.amount; return r; });
+    h += card('Sales Returns',
+      (srRows.length ? tbl([{l:'Date',k:'date'},{l:'Customer',k:'customerName'},{l:'Item',k:'itemName'},
+        {l:'Qty',r:1,k:'qty',fn:function(r){return fmt(r.qty);}},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},
+        {l:'Notes',k:'notes'}], srRows)+'<div style="text-align:right;font-weight:700;padding:7px">Total: '+fc(srTotal)+'</div>'
+        : '<div class="al ali">No sales returns recorded yet.</div>')
+    );
+    h += card('Purchase Returns',
+      (prRows.length ? tbl([{l:'Date',k:'date'},{l:'Supplier',k:'supplierName'},{l:'Item',k:'itemName'},
+        {l:'Qty',r:1,k:'qty',fn:function(r){return fmt(r.qty);}},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},
+        {l:'Notes',k:'notes'}], prRows)+'<div style="text-align:right;font-weight:700;padding:7px">Total: '+fc(prTotal)+'</div>'
+        : '<div class="al ali">No purchase returns recorded yet.</div>')
+    );
+  }
+  return h;
+}
+function submitSalesReturn(){
+  var saleId=gv('ret_sale_id'), qty=gvn('ret_sale_qty'), date=gv('ret_sale_date')||td(), notes=gv('ret_sale_notes');
+  if(!saleId){toast('Select the original sale','e');return;}
+  if(!qty||qty<=0){toast('Enter a valid return quantity','e');return;}
+  if(addSalesReturn(saleId, qty, date, notes)){
+    toast('Sales return recorded — stock restored, customer refunded/credited.');
+    renderPage();
+  }
+}
+function submitPurchaseReturn(){
+  var purchId=gv('ret_purch_id'), qty=gvn('ret_purch_qty'), date=gv('ret_purch_date')||td(), notes=gv('ret_purch_notes');
+  if(!purchId){toast('Select the original purchase','e');return;}
+  if(!qty||qty<=0){toast('Enter a valid return quantity','e');return;}
+  if(addPurchaseReturn(purchId, qty, date, notes)){
+    toast('Purchase return recorded — stock reduced, refund/creditor adjusted.');
+    renderPage();
+  }
+}
 function advanceSettleSel(id, advType){
   var matches=[];
   (D.advances||[]).forEach(function(a){
@@ -5129,270 +5215,70 @@ function restoreStock(item, fromIndig, fromImp, indigCostEach, impCostEach){
     item.importedStock=itq; item.importedAvgCost = itq>0 ? itv/itq : 0;
   }
 }
-// ===== PRODUCTION / CONSUMPTION (merged: consume Spares/Consumables, optionally producing an item for Resale) =====
-function pgConsumption(){
-  var cart = window._prodCart || [];
-  var hasOutput = window._prodHasOutput===true; // default false (write-off/usage only)
-
-  // Items for resale: existing Resale-category items, plus option to create a new one
-  var fgOpts=[{v:'__new__',l:'+ New Item for Resale (type name below)'}];
-  for(var i=0;i<D.inventory.length;i++){
-    if((D.inventory[i].category||'Resale')==='Resale') fgOpts.push({v:D.inventory[i].id,l:D.inventory[i].itemName+' ('+D.inventory[i].unit+', current stock: '+fmt(D.inventory[i].currentStock)+')'});
-  }
-  var fgSel = window._prodFG || '__new__';
-  var newFgFields='';
-  if(fgSel==='__new__'){
-    newFgFields = g2(inp('New Item Name','prod_newname','text',window._prodNewName||''),sl('Unit','prod_newunit',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'));
-  }
-
-  // Items available to consume: ALL categories — a resale item may also be consumed
-  var consOpts=[{v:'',l:'-- Select Item --'}];
-  for(i=0;i<D.inventory.length;i++){
-    var it=D.inventory[i];
-    {
-      var inCart=0; cart.forEach(function(c){if(c.itemId===it.id)inCart+=c.qty;});
-      var avail=(it.currentStock+(it.importedStock||0))-inCart;
-      var _cLabel=it.category||'Item';
-      consOpts.push({v:it.id,l:it.itemName+' ['+_cLabel+'] '+(avail>0?('Stock:'+fmt(avail)+' '+it.unit):'⚠ Out of stock')});
-    }
-  }
-
-  var h = '<div style="margin-bottom:8px">'+btn('← Back to Sales','window._salMode=null;renderPage()','#546E7A')+'</div>';
-  h += '<div class="al ali"><div class="alt">Record Production / Consumption</div><p>Use this whenever Spares or Consumables are used up. If this produces an item you will sell (e.g., parts assembled into a repaired/refurbished product), choose "Produces an item for Resale" below and that item\'s stock will increase at the cost of materials consumed. If nothing is produced for sale (used directly on a customer\'s job, samples, spoilage, testing), choose "No output - write-off / usage only".</p></div>';
-
-  h += card('What does this consumption produce?',
-    '<div class="fg"><label>Output</label><select id="prod_output" onchange="onProdOutputChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
-    '<option value="no"'+(!hasOutput?' selected':'')+'>No output - write-off / usage only</option>'+
-    '<option value="yes"'+(hasOutput?' selected':'')+'>Produces an item for Resale</option>'+
-    '</select></div>'
-  );
-
-  if(hasOutput){
-    h += card('Item Produced (for Resale)',
-      '<div class="fg"><label>Item</label><select id="prod_fg" onchange="onProdFGChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
-      fgOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===fgSel?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
-      '</select></div>'+
-      '<div id="prod_newwrap">'+newFgFields+'</div>'+
-      g2(inp('Date','prod_d','date',window._prodDate||td()),inp('Quantity Produced','prod_qty','number',window._prodQty||''))
-    );
+// ── Sales Returns / Purchase Returns ──
+// Design: original Sale/Purchase records are never edited — returns are separate, linked
+// entries (a proper credit note / debit note trail), and Net Sales/Net Purchases/COGS are
+// computed by subtracting returns from the gross figures wherever they're used (see getF()).
+function alreadyReturnedQtyForSale(saleId){
+  var q=0; (D.salesReturns||[]).forEach(function(r){ if(r.originalSaleId===saleId) q+=(+r.qty||0); });
+  return q;
+}
+function alreadyReturnedQtyForPurchase(purchaseId){
+  var q=0; (D.purchaseReturns||[]).forEach(function(r){ if(r.originalPurchaseId===purchaseId) q+=(+r.qty||0); });
+  return q;
+}
+function addSalesReturn(saleId, returnQty, date, notes){
+  var s=null; for(var i=0;i<D.sales.length;i++) if(D.sales[i].id===saleId){ s=D.sales[i]; break; }
+  if(!s){ toast('Original sale not found','e'); return false; }
+  if(s.paymentMode==='advance'){ toast('Cannot return an advance-settled sale directly — adjust the advance manually.','e'); return false; }
+  var alreadyReturned = alreadyReturnedQtyForSale(saleId);
+  var remaining = (s.qty||0) - alreadyReturned;
+  if(!(returnQty>0) || returnQty>remaining+0.0001){ toast('Return quantity must be between 0 and '+fmt(remaining)+' (already returned: '+fmt(alreadyReturned)+')','e'); return false; }
+  var item=null; for(var j=0;j<D.inventory.length;j++) if(D.inventory[j].id===s.itemId){ item=D.inventory[j]; break; }
+  var fraction = returnQty/(s.qty||1);
+  var returnAmount = Math.round(returnQty*(s.sellingPrice||0)*100)/100;
+  var returnCogs = Math.round((s.cogs||0)*fraction*100)/100;
+  var returnFromIndig = (s.fromIndig!==undefined ? s.fromIndig : s.qty)*fraction;
+  var returnFromImp = (s.fromImp!==undefined ? s.fromImp : 0)*fraction;
+  if(item) restoreStock(item, returnFromIndig, returnFromImp, s.indigCostEach||item.avgCost, s.impCostEach||0);
+  date = date||td();
+  if(s.paymentMode==='credit'){
+    D.debtors.push({id:uid(), name:s.customerName, amount:-returnAmount, date:date, ref:'Sales Return'});
   } else {
-    h += card('Write-off / Usage Details',
-      '<div class="al alw" style="margin-bottom:8px"><b>Important:</b> This reduces stock and Net Profit with nothing added to any other item\'s stock. Use this for spares/materials used directly on a job, samples, spoilage, breakage, testing, etc.</div>'+
-      inp('Date','prod_d','date',window._prodDate||td())
-    );
+    postCB(s.paymentMode,'payment',returnAmount,s.customerName,'Sales Return: '+s.itemName,date);
   }
-
-  // Add material row
-  var selId = window._prodItem || '';
-  var selItem=null; for(i=0;i<D.inventory.length;i++) if(D.inventory[i].id===selId) selItem=D.inventory[i];
-  var costInfo='';
-  if(selItem){
-    var totQty=selItem.currentStock+(selItem.importedStock||0);
-    var totVal=selItem.currentStock*selItem.avgCost+(selItem.importedStock||0)*(selItem.importedAvgCost||0);
-    var blended = totQty>0?totVal/totQty:0;
-    costInfo='<div class="al ali">Average Cost: '+fc(blended)+' per '+esc(selItem.unit)+'. Available: '+fmt(totQty)+' '+esc(selItem.unit)+'</div>';
-  }
-  h += card('Add Spares/Consumable Used',
-    sl('Item','prod_item',consOpts,selId)+
-    costInfo+
-    inp('Quantity','prod_mq','number',window._prodMQty||'')+
-    btn('+ Add Item','addToProductionCart()','#6A1B9A')
-  );
-
-  // Cart table
-  if(cart.length){
-    var total=0;
-    var rows = cart.map(function(c,idx){
-      total += c.cost;
-      return '<tr><td style="padding:6px 4px">'+esc(c.itemName)+'</td><td style="padding:6px;text-align:right">'+fmt(c.qty)+' '+esc(c.unit)+'</td><td style="padding:6px;text-align:right">'+fc(c.cost)+'</td><td style="padding:6px;text-align:right">'+btn('✕','removeFromProductionCart('+idx+')','#C62828')+'</td></tr>';
-    }).join('');
-    var qtyProd = gvn('prod_qty')||window._prodQty||0;
-    h += card('Items to be Consumed',
-      '<table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px 4px">Item</th><th style="text-align:right;padding:6px">Qty</th><th style="text-align:right;padding:6px">Cost</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+
-      '<div style="margin-top:8px;font-weight:700">Total Material Cost: '+fc(total)+'</div>'+
-      (hasOutput ? (qtyProd>0 ? '<div style="font-size:12px;color:#546E7A">Cost per unit produced: '+fc(total/qtyProd)+'</div>' : '<div class="al ali">Enter Quantity Produced above to see cost per unit.</div>') : '')+
-      inp('Notes (optional)','prod_notes','text',window._prodNotes||'')+
-      btn(hasOutput?'✓ Record Production':'✓ Record Write-off','addProduction()','#2E7D32')
-    );
-  }
-
-  if(D.productions && D.productions.length){
-    h += card('Production Register', tbl([
-      {l:'Date',k:'date'},
-      {l:'Item Produced',k:'fgItemName'},
-      {l:'Qty Produced',r:1,fn:function(r){return fmt(r.qtyProduced);}},
-      {l:'Material Cost',r:1,fn:function(r){return fc(r.totalCost);}},
-      {l:'Cost/Unit',r:1,fn:function(r){return fc(r.qtyProduced>0?r.totalCost/r.qtyProduced:0);}},
-      {l:'Notes',k:'notes'},
-      {l:'',fn:function(r){return btn('Delete','deleteProduction('+Q+r.id+Q+')','#C62828');}}
-    ],[].concat(D.productions).reverse()));
-  }
-
-  if(D.consumptions && D.consumptions.length){
-    h += card('Write-off / Usage Register', tbl([
-      {l:'Date',k:'date'},
-      {l:'Item',k:'itemName'},
-      {l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},
-      {l:'Value',r:1,fn:function(r){return fc(r.amount);}},
-      {l:'Notes',k:'notes'},
-      {l:'',fn:function(r){return btn('Delete','deleteConsumption('+Q+r.id+Q+')','#C62828');}}
-    ],[].concat(D.consumptions).reverse()));
-  }
-  return h;
-}
-function onProdOutputChange(){
-  window._prodHasOutput = gv('prod_output')==='yes';
-  window._prodFG=gv('prod_fg');window._prodNewName=gv('prod_newname');window._prodDate=gv('prod_d');window._prodQty=gv('prod_qty');window._prodNotes=gv('prod_notes');
-  renderPage();
-}
-function onProdFGChange(){
-  window._prodFG=gv('prod_fg');window._prodNewName=gv('prod_newname');window._prodDate=gv('prod_d');window._prodQty=gv('prod_qty');
-  renderPage();
-}
-function addToProductionCart(){
-  var iid=gv('prod_item'), q=gvn('prod_mq');
-  window._prodFG=gv('prod_fg');window._prodNewName=gv('prod_newname');window._prodDate=gv('prod_d');window._prodQty=gv('prod_qty');window._prodNotes=gv('prod_notes');
-  if(!iid){toast('Select an item','e');return;}
-  if(!q||q<=0){toast('Enter quantity','e');return;}
-  var item=null; for(var i=0;i<D.inventory.length;i++) if(D.inventory[i].id===iid){item=D.inventory[i];break;}
-  if(!item) return;
-  window._prodCart = window._prodCart || [];
-  var alreadyInCart=0;
-  window._prodCart.forEach(function(c){ if(c.itemId===iid) alreadyInCart += c.qty; });
-  var totAvail = item.currentStock+(item.importedStock||0);
-  if(q+alreadyInCart>totAvail){toast('Insufficient stock! Available: '+fmt(totAvail-alreadyInCart),'e');return;}
-  var draw = drawStockPreview(item, q);
-  var totQty=item.currentStock+(item.importedStock||0);
-  var totVal=item.currentStock*item.avgCost+(item.importedStock||0)*(item.importedAvgCost||0);
-  var blended = totQty>0?totVal/totQty:0;
-  var cost = alreadyInCart>0 ? q*blended : draw.cogs;
-  window._prodCart.push({itemId:iid, itemName:item.itemName, unit:item.unit, qty:q, cost:cost});
-  window._prodItem=''; window._prodMQty='';
-  renderPage();
-}
-function removeFromProductionCart(idx){
-  if(!window._prodCart) return;
-  window._prodCart.splice(idx,1);
-  renderPage();
-}
-function addProduction(){
-  window._prodFG=gv('prod_fg');window._prodNewName=gv('prod_newname');window._prodDate=gv('prod_d');window._prodQty=gv('prod_qty');window._prodNotes=gv('prod_notes');
-  var cart = window._prodCart||[];
-  if(cart.length===0){toast('Add at least one item consumed','e');return;}
-  var hasOutput = window._prodHasOutput===true;
-  var date = gv('prod_d')||td();
-  var notes = gv('prod_notes')||'';
-
-  if(!hasOutput){
-    var i;
-    for(i=0;i<cart.length;i++){
-      var c=cart[i];
-      var item=null; for(var j=0;j<D.inventory.length;j++) if(D.inventory[j].id===c.itemId) item=D.inventory[j];
-      if(!item) continue;
-      var totAvail=item.currentStock+(item.importedStock||0);
-      if(c.qty>totAvail+0.005){toast('Insufficient stock for '+item.itemName+'! Available: '+fmt(totAvail),'e');return;}
-    }
-    for(i=0;i<cart.length;i++){
-      var c2=cart[i];
-      var item2=null; for(var j2=0;j2<D.inventory.length;j2++) if(D.inventory[j2].id===c2.itemId) item2=D.inventory[j2];
-      if(!item2) continue;
-      var draw2 = drawStock(item2, c2.qty);
-      D.consumptions.push({id:uid(),date:date,itemId:item2.id,itemName:item2.itemName,unit:item2.unit,qty:c2.qty,amount:draw2.cogs,fromIndig:draw2.fromIndig,fromImp:draw2.fromImp,indigCostEach:item2.avgCost,impCostEach:item2.importedAvgCost||0,notes:notes});
-    }
-    sv();
-    window._prodCart=[];window._prodNotes=null;window._prodItem='';window._prodMQty='';
-    renderPage();
-    toast('Write-off recorded! Stock reduced.');
-    return;
-  }
-
-  var fgSel = window._prodFG||'__new__';
-  var qtyProd = gvn('prod_qty');
-  if(!qtyProd||qtyProd<=0){toast('Enter quantity produced','e');return;}
-
-  var fgItem=null;
-  if(fgSel==='__new__'){
-    var nn=gv('prod_newname')||window._prodNewName||'';
-    if(!nn){toast('Enter the item name','e');return;}
-    fgItem = findOrCreateItem(nn, gv('prod_newunit'), 'Resale');
-  } else {
-    for(var k=0;k<D.inventory.length;k++) if(D.inventory[k].id===fgSel) fgItem=D.inventory[k];
-  }
-  if(!fgItem){toast('Item not found','e');return;}
-  // The produced item must be category 'Resale' to appear in Sales - if an existing item
-  // with this name was a different category (e.g. Consumable), reclassify it now since
-  // the user has explicitly chosen to produce it for sale.
-  var reclassified = (fgItem.category||'Resale')!=='Resale';
-  if(reclassified) fgItem.category='Resale';
-
-  var consumedRecords=[], totalCost=0;
-  for(var ci=0;ci<cart.length;ci++){
-    var c3=cart[ci];
-    var item3=null; for(k=0;k<D.inventory.length;k++) if(D.inventory[k].id===c3.itemId) item3=D.inventory[k];
-    if(!item3) continue;
-    var totAvail3=item3.currentStock+(item3.importedStock||0);
-    if(c3.qty>totAvail3+0.005){toast('Insufficient stock for '+item3.itemName+'! Available: '+fmt(totAvail3),'e');return;}
-    var draw3 = drawStock(item3, c3.qty);
-    totalCost += draw3.cogs;
-    consumedRecords.push({itemId:item3.id,itemName:item3.itemName,unit:item3.unit,qty:c3.qty,cost:draw3.cogs,fromIndig:draw3.fromIndig,fromImp:draw3.fromImp,indigCostEach:item3.avgCost,impCostEach:item3.importedAvgCost||0});
-  }
-
-  var unitCost = qtyProd>0 ? totalCost/qtyProd : 0;
-  var tq=fgItem.currentStock+qtyProd, tv=fgItem.currentStock*fgItem.avgCost+totalCost;
-  fgItem.currentStock=tq; fgItem.avgCost=tq>0?tv/tq:unitCost;
-
-  D.productions.push({id:uid(),date:date,fgItemId:fgItem.id,fgItemName:fgItem.itemName,qtyProduced:qtyProd,consumedItems:consumedRecords,totalCost:totalCost,notes:notes});
+  D.salesReturns.push({id:uid(), date:date, originalSaleId:saleId, customerName:s.customerName, itemId:s.itemId,
+    itemName:s.itemName, qty:returnQty, rate:s.sellingPrice, amount:returnAmount, cogs:returnCogs,
+    paymentMode:s.paymentMode, notes:notes||''});
   sv();
-  window._prodCart=[];window._prodFG=null;window._prodNewName=null;window._prodQty=null;window._prodNotes=null;window._prodItem='';window._prodMQty='';
-  renderPage();
-  toast('Production recorded! '+fmt(qtyProd)+' '+fgItem.unit+' of '+fgItem.itemName+' added to stock.'+(reclassified?' (Item was reclassified to "For Resale" so it appears in Sales.)':''));
+  return true;
 }
-function deleteProduction(id){
-  confirmDialog('Delete this production entry? Materials consumed will be restored to stock, and the produced item\'s stock/cost will be reversed.', function(){
-    var idx=-1,i;for(i=0;i<D.productions.length;i++)if(D.productions[i].id===id){idx=i;break;}
-    if(idx<0)return;
-    var p=D.productions[idx];
-    var fgItem=null; for(i=0;i<D.inventory.length;i++) if(D.inventory[i].id===p.fgItemId) fgItem=D.inventory[i];
-    if(fgItem){
-      var tv=fgItem.currentStock*fgItem.avgCost - p.totalCost;
-      var tq=fgItem.currentStock - p.qtyProduced;
-      fgItem.currentStock=Math.max(0,tq);
-      fgItem.avgCost=fgItem.currentStock>0?Math.max(0,tv)/fgItem.currentStock:0;
-    }
-    (p.consumedItems||[]).forEach(function(c){
-      var item=null; for(i=0;i<D.inventory.length;i++) if(D.inventory[i].id===c.itemId) item=D.inventory[i];
-      if(item){
-        if(c.fromIndig===undefined){
-          var rate = c.qty>0 ? (c.cost||0)/c.qty : item.avgCost;
-          restoreStock(item, c.qty, 0, rate, 0);
-        } else {
-          restoreStock(item, c.fromIndig||0, c.fromImp||0, c.indigCostEach||0, c.impCostEach||0);
-        }
-      }
-    });
-    D.productions.splice(idx,1);
-    sv();renderPage();toast('Production deleted, stock reversed.');
-  });
+function addPurchaseReturn(purchaseId, returnQty, date, notes){
+  var p=null; for(var i=0;i<D.purchases.length;i++) if(D.purchases[i].id===purchaseId){ p=D.purchases[i]; break; }
+  if(!p){ toast('Original purchase not found','e'); return false; }
+  var alreadyReturned = alreadyReturnedQtyForPurchase(purchaseId);
+  var remaining = (p.qty||0) - alreadyReturned;
+  if(!(returnQty>0) || returnQty>remaining+0.0001){ toast('Return quantity must be between 0 and '+fmt(remaining)+' (already returned: '+fmt(alreadyReturned)+')','e'); return false; }
+  var item=null; for(var j=0;j<D.inventory.length;j++) if(D.inventory[j].id===p.itemId){ item=D.inventory[j]; break; }
+  var availableStock = item ? (p.isImported ? (item.importedStock||0) : item.currentStock) : 0;
+  if(item && returnQty>availableStock+0.0001){ toast('Cannot return more than current stock of this item ('+fmt(availableStock)+' available) — some may already be sold.','e'); return false; }
+  var returnAmount = Math.round(returnQty*(p.rate||0)*100)/100;
+  if(item){
+    if(p.isImported) item.importedStock = Math.max(0,(item.importedStock||0)-returnQty);
+    else item.currentStock = Math.max(0, item.currentStock-returnQty);
+  }
+  date = date||td();
+  if(p.paymentMode==='credit'){
+    D.creditors.push({id:uid(), name:p.supplierName, amount:-returnAmount, date:date, ref:'Purchase Return', type:'supplier'});
+  } else {
+    postCB(p.paymentMode,'receipt',returnAmount,p.supplierName,'Purchase Return: '+p.itemName,date);
+  }
+  D.purchaseReturns.push({id:uid(), date:date, originalPurchaseId:purchaseId, supplierName:p.supplierName, itemId:p.itemId,
+    itemName:p.itemName, qty:returnQty, rate:p.rate, amount:returnAmount, isImported:p.isImported||false,
+    paymentMode:p.paymentMode, notes:notes||''});
+  sv();
+  return true;
 }
-function deleteConsumption(id){
-  confirmDialog('Delete this write-off entry? The stock will be restored.', function(){
-    var idx=-1,i;for(i=0;i<D.consumptions.length;i++)if(D.consumptions[i].id===id){idx=i;break;}
-    if(idx<0)return;
-    var c=D.consumptions[idx];
-    var item=null; for(i=0;i<D.inventory.length;i++) if(D.inventory[i].id===c.itemId) item=D.inventory[i];
-    if(item){
-      if(c.fromIndig===undefined){
-        var rate = c.qty>0 ? (c.amount||0)/c.qty : item.avgCost;
-        restoreStock(item, c.qty, 0, rate, 0);
-      } else {
-        restoreStock(item, c.fromIndig||0, c.fromImp||0, c.indigCostEach||0, c.impCostEach||0);
-      }
-    }
-    D.consumptions.splice(idx,1);
-    sv();renderPage();toast('Write-off entry deleted, stock restored.');
-  });
-}
-
 function onSalMarginChange(){
   var m=gvn('sl_margin');
   if(m===null||isNaN(m)) return;
@@ -17940,8 +17826,8 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 // ===== NAVIGATION & RENDER =====
 var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
-var NAV_ALL = ['profile','dashboard','capital','inventory','purchase','sales','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
+var NAV_ALL = ['profile','dashboard','capital','inventory','purchase','sales','returns','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
 var BN_PAGES = ['dashboard','sales','purchase','financials','data'];
 var BN_ICONS = ['🏠','🏷️','🛒','📄','⚙️'];
 
@@ -17975,7 +17861,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
+  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
 }
