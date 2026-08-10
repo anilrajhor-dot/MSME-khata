@@ -1237,9 +1237,14 @@ function getBS(){
   var adv=(f.advToSuppliers||0)+(f.advPrepaidExp||0);
   var advFromCust=f.advFromCustomers||0;
   var expPayable=f.expPayable||0;
+  // Net GST position: Output GST owed is a liability; if Input GST/ITC exceeds Output GST,
+  // the net credit is a Current Asset (receivable from the tax department) — never a liability.
+  var gstNet = gstPayableBalance();
+  var gstLiability = Math.max(0, gstNet);
+  var gstReceivable = Math.max(0, -gstNet);
 
   // ASSETS
-  var totalCurrentAssets=cs+dr+adv+cb+bb;
+  var totalCurrentAssets=cs+dr+adv+cb+bb+gstReceivable;
   var totalAssets=fa+oa+totalCurrentAssets;
 
   // LIABILITIES
@@ -1251,8 +1256,7 @@ function getBS(){
   var loans=f.ltl||0;
   var cred=f.cr||0;
   var currentLiab=cred+advFromCust+expPayable;
-  var gstPayable = gstPayableBalance();
-  var totalLiab=netCap+loans+currentLiab+(f.ol||0)+gstPayable;
+  var totalLiab=netCap+loans+currentLiab+(f.ol||0)+gstLiability;
 
   return {
     totalAssets:totalAssets,
@@ -1262,7 +1266,8 @@ function getBS(){
     currentLiab:currentLiab,
     netCap:netCap,
     loans:loans,
-    gstPayable:gstPayable
+    gstPayable:gstLiability,
+    gstReceivable:gstReceivable
   };
 }
 
@@ -1712,6 +1717,23 @@ function runHealthCheck(){
         return diag.findings.map(function(f){ return (f.severity==='error'?'❌ ':'⚠️ ')+f.title+' — '+f.fix; }).join(' | ');
       })():''});
   }catch(e){checks.push({name:'Balance Sheet',pass:false,warn:true,detail:'Error: '+e.message,fix:'Reload app and try again.'});}
+
+  // ── CHECK 2b: GST Reconciliation ──
+  if(gstEnabled()){
+    try{
+      var _gstSummary = computeGSTSummary();
+      var _gstNet = gstPayableBalance();
+      var _gstFromSummary = (_gstSummary.outputGST||0)-(_gstSummary.itc||0);
+      var _gstMatch = Math.abs(_gstNet-_gstFromSummary) < 2;
+      var _bsForGst = getBS();
+      var _classificationOk = _gstNet>=0 ? (_bsForGst.gstPayable>=0 && _bsForGst.gstReceivable===0) : (_bsForGst.gstReceivable>0 && _bsForGst.gstPayable===0);
+      checks.push({name:'GST Reconciliation', pass:_gstMatch && _classificationOk, warn:!_gstMatch||!_classificationOk,
+        detail:_gstMatch && _classificationOk ?
+          'GST Summary matches the GST ledger, correctly classified as '+(_gstNet>=0?'a Liability (Net Payable '+fc(_gstNet)+')':'a Current Asset (Net ITC Credit '+fc(-_gstNet)+')')+' ✅' :
+          'GST Summary ('+fc(_gstFromSummary)+') vs GST ledger ('+fc(_gstNet)+') mismatch, or Balance Sheet classification is inconsistent.',
+        fix:!_gstMatch||!_classificationOk?'Check GST Module → GST Summary against Financials → Balance Sheet.':''});
+    }catch(e){checks.push({name:'GST Reconciliation',pass:false,warn:true,detail:'Error: '+e.message,fix:'Reload app and try again.'});}
+  }
 
   // ── CHECK 3: Cash & Bank Position ──
   try{
@@ -7550,7 +7572,7 @@ function pgFin(){
         var constitution3 = D.profile.constitution||'Individual';
         var isMulti3 = constitution3!=='' && constitution3!=='Individual' && constitution3!=='Sole Proprietorship';
         var capLabel = isMulti3 && partners3.length>0 ? 'Total Capital (All Partners)' : "Owner\'s Capital";
-        var capTotal = (D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+((D.capital.initialCapital||0)===0?(+D.opening.capital||0):0);
+        var capTotal = f.cap;
         var h3 = fsr(capLabel, capTotal, 0, 1);
         if(isMulti3 && partners3.length>0){
           h3 += partners3.map(function(pt){
@@ -16814,7 +16836,7 @@ function pgGST(){
         fsr('IGST', summary.igst, 0, 1)+
       '</div>'+
       fsr('Input Tax Credit (ITC) on Purchases', summary.itc, 0, 1)+
-      fsr('Net GST Payable (Output - ITC)', summary.outputGST-summary.itc, 1, 0, 1, summary.outputGST-summary.itc>0?'#C62828':'#2E7D32')
+      fsr((summary.outputGST-summary.itc>0?'Net GST Payable':'ITC Credit Carried Forward (Asset)')+' (Output - ITC)', Math.abs(summary.outputGST-summary.itc), 1, 0, 1, summary.outputGST-summary.itc>0?'#C62828':'#2E7D32')
     );
     return h;
   }
