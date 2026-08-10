@@ -199,6 +199,7 @@ function defD(){
     journalEntries:[],
     stockStatements:[],
     stockStatementSettings:{stockMarginPct:25, debtorMarginPct:40},
+    gstLedger:[],
     expenses:[],
     cashBook:[],
     debtors:[],
@@ -356,6 +357,7 @@ function migrateData(d){
   if(!d.journalEntries)d.journalEntries=[];
   if(!d.stockStatements)d.stockStatements=[];
   if(!d.stockStatementSettings)d.stockStatementSettings={stockMarginPct:25, debtorMarginPct:40};
+  if(!d.gstLedger)d.gstLedger=[];
   for(var si=0;si<d.sales.length;si++){ if(d.sales[si].isExport===undefined) d.sales[si].isExport=false; }
   if(!d.purchases)d.purchases=[];
   for(var pi=0;pi<d.purchases.length;pi++){ if(d.purchases[pi].isImported===undefined) d.purchases[pi].isImported=false; }
@@ -1147,7 +1149,8 @@ function getBS(){
   var loans=f.ltl||0;
   var cred=f.cr||0;
   var currentLiab=cred+advFromCust+expPayable;
-  var totalLiab=netCap+loans+currentLiab+(f.ol||0);
+  var gstPayable = gstPayableBalance();
+  var totalLiab=netCap+loans+currentLiab+(f.ol||0)+gstPayable;
 
   return {
     totalAssets:totalAssets,
@@ -1156,7 +1159,8 @@ function getBS(){
     currentAssets:totalCurrentAssets,
     currentLiab:currentLiab,
     netCap:netCap,
-    loans:loans
+    loans:loans,
+    gstPayable:gstPayable
   };
 }
 
@@ -5016,7 +5020,8 @@ function pgPur(){
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===sel?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
     '</select></div>'+
     '<div id="pu_newwrap">'+newItemFields+'</div>'+
-    g2(inp('Qty','pu_q','number',window._purQty||0),inp('Rate (₹)','pu_r','number',window._purRate||0))+
+    g2(inp('Qty','pu_q','number',window._purQty||0),inp('Rate (₹, excl. GST)','pu_r','number',window._purRate||0))+
+    (gstEnabled() ? inp('GST Rate % (0 = exempt)','pu_gst','number',(window._purGstRate!=null?window._purGstRate:(D.gst.defaultRate||0))) : '')+
     advanceSettleSel('pu_adv','paid_supplier')+
     payModeSel('pu_m',window._purMode||'cash')+
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="pu_import" '+(window._purImport?'checked':'')+' style="width:auto"> This is an Imported purchase (sourced from outside India)</label>'+
@@ -5055,8 +5060,14 @@ function addPur(){
   }
   if(!item)return;
   var isImported = document.getElementById('pu_import') ? document.getElementById('pu_import').checked : false;
+  // GST: entered rate is always the taxable value (excl. GST). Stock/cost valuation stays GST-exclusive —
+  // GST paid on a purchase is an Input Tax Credit (asset), not part of inventory cost.
+  var gstRate = gstEnabled() ? (gvn('pu_gst')||0) : 0;
+  var gstType = (D.gst&&D.gst.supplyType) || 'intra';
+  var gstAmt = gstRate>0 ? Math.round(amt*gstRate/100*100)/100 : 0;
+  var amtForPosting = amt + gstAmt;
   var checkMode = adv ? null : mode; // advance-settled purchases do not touch cash/bank
-  confirmIfNegative(checkMode, amt, function(){
+  confirmIfNegative(checkMode, amtForPosting, function(){
     if(isImported){
       var itq=(item.importedStock||0)+q, itv2=(item.importedStock||0)*(item.importedAvgCost||0)+amt;
       item.importedStock=itq;item.importedAvgCost=itq>0?itv2/itq:r;
@@ -5066,18 +5077,23 @@ function addPur(){
     }
     var effMode = adv ? 'advance' : mode;
     var suppCode=getPartyCode(s,'supplier');
-    D.purchases.push({id:uid(),date:date,supplierName:s,partyCode:suppCode,itemId:item.id,itemName:item.itemName,qty:q,rate:r,amount:amt,paymentMode:effMode,isImported:isImported,advanceId:adv?adv.id:undefined});
+    var purchaseId=uid();
+    D.purchases.push({id:purchaseId,date:date,supplierName:s,partyCode:suppCode,itemId:item.id,itemName:item.itemName,qty:q,rate:r,amount:amt,paymentMode:effMode,isImported:isImported,advanceId:adv?adv.id:undefined,gstRate:gstRate,gstType:gstType,taxableValue:amt,gstAmount:gstAmt,gstPaymentMode:adv?mode:undefined});
     if(adv){
       adv.amount = (+adv.amount||0) - amt;
       if(adv.amount<=0.005){
         D.advances = D.advances.filter(function(a){return a.id!==adv.id;});
       }
+      if(gstAmt>0.005) postCB(mode,'payment',gstAmt,s,'GST on Purchase (advance-settled): '+item.itemName,date);
     } else if(mode==='credit'){
-      addCreditor(s,amt,date,'Purchase: '+item.itemName);
+      addCreditor(s,amtForPosting,date,'Purchase: '+item.itemName);
     }else{
-      postCB(mode,'payment',amt,s,'Purchase: '+item.itemName,date);
+      postCB(mode,'payment',amtForPosting,s,'Purchase: '+item.itemName,date);
     }
-    sv();window._purItem='__new__';window._purSupplier='';window._purNewName='';window._purImport=false;window._purDate=null;window._purQty=null;window._purRate=null;window._purMode=null;go('purchase');toast('Recorded! Stock updated.');
+    if(gstAmt>0.005){
+      D.gstLedger.push({id:uid(), date:date, type:'input', amount:gstAmt, ref:'Purchase: '+item.itemName, purchaseId:purchaseId});
+    }
+    sv();window._purItem='__new__';window._purSupplier='';window._purNewName='';window._purImport=false;window._purDate=null;window._purQty=null;window._purRate=null;window._purMode=null;window._purGstRate=null;go('purchase');toast('Recorded! Stock updated.');
   });
 }
 // ===== SALES =====
@@ -5183,7 +5199,8 @@ function pgSal(){
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===selId?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
     '</select></div>'+
     costInfo+
-    g2(inp('Qty','sl_q','number',window._salQty||0),inp('Selling Price (₹/unit)','sl_p','number',window._salPrice||0))+
+    g2(inp('Qty','sl_q','number',window._salQty||0),inp('Selling Price (₹/unit, excl. GST)','sl_p','number',window._salPrice||0))+
+    (gstEnabled() ? inp('GST Rate % (0 = exempt)','sl_gst','number',(window._salGstRate!=null?window._salGstRate:(selItem&&selItem.gstRate!==undefined?selItem.gstRate:(D.gst.defaultRate||0)))) : '')+
     advanceSettleSel('sl_adv','received')+
     payModeSel('sl_m',window._salMode||'cash')+
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="sl_export" '+(window._salExport?'checked':'')+' style="width:auto"> This is an Export Sale (sold to a buyer outside India)</label>'+
@@ -5665,15 +5682,21 @@ function addSalesReturn(saleId, returnQty, date, notes){
   var returnCogs = Math.round((s.cogs||0)*fraction*100)/100;
   var returnFromIndig = (s.fromIndig!==undefined ? s.fromIndig : s.qty)*fraction;
   var returnFromImp = (s.fromImp!==undefined ? s.fromImp : 0)*fraction;
+  var returnGstAmount = (s.gstRate>0) ? Math.round(returnAmount*s.gstRate/100*100)/100 : 0;
+  var returnAmountWithGst = returnAmount + returnGstAmount;
   if(item) restoreStock(item, returnFromIndig, returnFromImp, s.indigCostEach||item.avgCost, s.impCostEach||0);
   date = date||td();
   if(s.paymentMode==='credit'){
-    D.debtors.push({id:uid(), name:s.customerName, amount:-returnAmount, date:date, ref:'Sales Return'});
+    D.debtors.push({id:uid(), name:s.customerName, amount:-returnAmountWithGst, date:date, ref:'Sales Return'});
   } else {
-    postCB(s.paymentMode,'payment',returnAmount,s.customerName,'Sales Return: '+s.itemName,date);
+    postCB(s.paymentMode,'payment',returnAmountWithGst,s.customerName,'Sales Return: '+s.itemName,date);
+  }
+  if(returnGstAmount>0.005){
+    D.gstLedger.push({id:uid(), date:date, type:'output', amount:-returnGstAmount, ref:'Sales Return: '+s.itemName, saleId:saleId});
   }
   D.salesReturns.push({id:uid(), date:date, originalSaleId:saleId, customerName:s.customerName, itemId:s.itemId,
     itemName:s.itemName, qty:returnQty, rate:s.sellingPrice, amount:returnAmount, cogs:returnCogs,
+    gstRate:s.gstRate||0, gstAmount:returnGstAmount,
     paymentMode:s.paymentMode, notes:notes||''});
   sv();
   return true;
@@ -5688,18 +5711,24 @@ function addPurchaseReturn(purchaseId, returnQty, date, notes){
   var availableStock = item ? (p.isImported ? (item.importedStock||0) : item.currentStock) : 0;
   if(item && returnQty>availableStock+0.0001){ toast('Cannot return more than current stock of this item ('+fmt(availableStock)+' available) — some may already be sold.','e'); return false; }
   var returnAmount = Math.round(returnQty*(p.rate||0)*100)/100;
+  var returnGstAmount = (p.gstRate>0) ? Math.round(returnAmount*p.gstRate/100*100)/100 : 0;
+  var returnAmountWithGst = returnAmount + returnGstAmount;
   if(item){
     if(p.isImported) item.importedStock = Math.max(0,(item.importedStock||0)-returnQty);
     else item.currentStock = Math.max(0, item.currentStock-returnQty);
   }
   date = date||td();
   if(p.paymentMode==='credit'){
-    D.creditors.push({id:uid(), name:p.supplierName, amount:-returnAmount, date:date, ref:'Purchase Return', type:'supplier'});
+    D.creditors.push({id:uid(), name:p.supplierName, amount:-returnAmountWithGst, date:date, ref:'Purchase Return', type:'supplier'});
   } else {
-    postCB(p.paymentMode,'receipt',returnAmount,p.supplierName,'Purchase Return: '+p.itemName,date);
+    postCB(p.paymentMode,'receipt',returnAmountWithGst,p.supplierName,'Purchase Return: '+p.itemName,date);
+  }
+  if(returnGstAmount>0.005){
+    D.gstLedger.push({id:uid(), date:date, type:'input', amount:-returnGstAmount, ref:'Purchase Return: '+p.itemName, purchaseId:purchaseId});
   }
   D.purchaseReturns.push({id:uid(), date:date, originalPurchaseId:purchaseId, supplierName:p.supplierName, itemId:p.itemId,
     itemName:p.itemName, qty:returnQty, rate:p.rate, amount:returnAmount, isImported:p.isImported||false,
+    gstRate:p.gstRate||0, gstAmount:returnGstAmount,
     paymentMode:p.paymentMode, notes:notes||''});
   sv();
   return true;
@@ -5843,22 +5872,31 @@ function addSal(){
     if(mode!=='credit' && !validateCCOD(mode)) return;
   }
   var isExport = document.getElementById('sl_export') ? document.getElementById('sl_export').checked : false;
+  var gstRate = (gstEnabled() && !isExport) ? (gvn('sl_gst')||0) : 0;
+  var gstType = (D.gst&&D.gst.supplyType) || 'intra';
+  var gstAmt = gstRate>0 ? Math.round(tot*gstRate/100*100)/100 : 0;
+  var totForPosting = tot + gstAmt;
   var effMode = adv ? 'advance' : mode;
   lastSale={gp:gp,pct:pct,tot:tot,unit:item.unit};
   var custCode=getPartyCode(c2,'customer');
-  D.sales.push({id:uid(),date:date,customerName:c2,partyCode:custCode,itemId:iid,itemName:item.itemName,unit:item.unit,qty:q,sellingPrice:p,totalAmount:tot,cogs:cogs,grossProfit:gp,profitPct:pct,paymentMode:effMode,isExport:isExport,advanceId:adv?adv.id:undefined,fromIndig:draw.fromIndig,fromImp:draw.fromImp,indigCostEach:item.avgCost,impCostEach:item.importedAvgCost||0});
+  var saleId=uid();
+  D.sales.push({id:saleId,date:date,customerName:c2,partyCode:custCode,itemId:iid,itemName:item.itemName,unit:item.unit,qty:q,sellingPrice:p,totalAmount:tot,cogs:cogs,grossProfit:gp,profitPct:pct,paymentMode:effMode,isExport:isExport,advanceId:adv?adv.id:undefined,fromIndig:draw.fromIndig,fromImp:draw.fromImp,indigCostEach:item.avgCost,impCostEach:item.importedAvgCost||0,gstRate:gstRate,gstType:gstType,taxableValue:tot,gstAmount:gstAmt,gstPaymentMode:adv?mode:undefined});
   drawStock(item, q);
   if(adv){
     adv.amount = (+adv.amount||0) - tot;
     if(adv.amount<=0.005){
       D.advances = D.advances.filter(function(a){return a.id!==adv.id;});
     }
+    if(gstAmt>0.005) postCB(mode,'receipt',gstAmt,c2,'GST on Sale (advance-settled): '+item.itemName,date);
   } else if(mode==='credit'){
-    addDebtor(c2,tot,date,'Sale: '+item.itemName);
+    addDebtor(c2,totForPosting,date,'Sale: '+item.itemName);
   }else{
-    postCB(mode,'receipt',tot,c2,'Sale: '+item.itemName,date);
+    postCB(mode,'receipt',totForPosting,c2,'Sale: '+item.itemName,date);
   }
-  sv();window._salItem='';window._salCustomer='';window._salDate=null;window._salQty=null;window._salPrice=null;window._salMode=null;window._salExport=false;go('sales');toast('Sale recorded!');
+  if(gstAmt>0.005){
+    D.gstLedger.push({id:uid(), date:date, type:'output', amount:gstAmt, ref:'Sale: '+item.itemName, saleId:saleId});
+  }
+  sv();window._salItem='';window._salCustomer='';window._salDate=null;window._salQty=null;window._salPrice=null;window._salMode=null;window._salExport=false;window._salGstRate=null;go('sales');toast('Sale recorded!');
 }
 // ===== EXPENSES =====
 function pgExp(){
@@ -9146,11 +9184,16 @@ function deleteSale(id){
         restoreStock(item, s.fromIndig||0, s.fromImp||0, s.indigCostEach||0, s.impCostEach||0);
       }
     }
-    if(s.paymentMode==='credit')removeDebtorByRef('Sale: '+s.itemName,s.totalAmount);
+    var postedAmount = (s.totalAmount||0) + (s.gstAmount||0);
+    if(s.paymentMode==='credit')removeDebtorByRef('Sale: '+s.itemName,postedAmount);
     else if(s.paymentMode==='advance'){
       restoreAdvance(s.advanceId,s.totalAmount,'received','customer',s.customerName,s);
+      if(s.gstAmount>0.005) reverseCB(s.gstPaymentMode||'cash','receipt',s.gstAmount,'GST on Sale (advance-settled): '+s.itemName);
     }
-    else reverseCB(s.paymentMode,'receipt',s.totalAmount,'Sale: '+s.itemName);
+    else reverseCB(s.paymentMode,'receipt',postedAmount,'Sale: '+s.itemName);
+    if(s.gstAmount>0.005){
+      D.gstLedger = D.gstLedger.filter(function(g){ return g.saleId!==s.id; });
+    }
     D.sales.splice(idx,1);
     sv();renderPage();toast('Sale deleted, stock and balance reversed.');
   });
@@ -9253,11 +9296,16 @@ function deletePurchase(id){
         item.avgCost=item.currentStock>0?Math.max(0,totalVal)/item.currentStock:0;
       }
     }
-    if(p.paymentMode==='credit')removeCreditorByRef('Purchase: '+p.itemName,p.amount);
+    var postedAmount = (p.amount||0) + (p.gstAmount||0);
+    if(p.paymentMode==='credit')removeCreditorByRef('Purchase: '+p.itemName,postedAmount);
     else if(p.paymentMode==='advance'){
       restoreAdvance(p.advanceId,p.amount,'paid','supplier',p.supplierName,p);
+      if(p.gstAmount>0.005) reverseCB(p.gstPaymentMode||'cash','payment',p.gstAmount,'GST on Purchase (advance-settled): '+p.itemName);
     }
-    else reverseCB(p.paymentMode,'payment',p.amount,'Purchase: '+p.itemName);
+    else reverseCB(p.paymentMode,'payment',postedAmount,'Purchase: '+p.itemName);
+    if(p.gstAmount>0.005){
+      D.gstLedger = D.gstLedger.filter(function(g){ return g.purchaseId!==p.id; });
+    }
     D.purchases.splice(idx,1);
     sv();renderPage();toast('Purchase deleted, stock and balance reversed.');
   });
@@ -16254,6 +16302,15 @@ function saveReminderSettings(){
 var GST_RATES = [0,5,12,18,28];
 
 function gstEnabled(){ return !!(D.gst&&D.gst.enabled); }
+// ── GST Ledger: net GST Payable to government (Output GST collected minus Input GST/ITC available) ──
+// A positive balance means GST is owed; a negative balance means net ITC credit carried forward.
+// Tracked as dated entries (like Debtors/Creditors) rather than a single mutable number, so it can
+// be reconstructed as-of any date and reversed cleanly on edit/delete/return.
+function gstPayableBalance(){
+  var bal = 0;
+  (D.gstLedger||[]).forEach(function(g){ bal += (g.type==='output' ? (+g.amount||0) : -(+g.amount||0)); });
+  return bal;
+}
 
 function pgGST(){
   var g = D.gst||{};
@@ -16529,9 +16586,16 @@ function pgGST(){
     // ITC register - all purchases with GST
     var itcItems=[];
     D.purchases.forEach(function(p){
-      if(!p.gstRate||p.gstRate<=0) return;
-      var tax=Math.round(p.amount*p.gstRate/100);
-      itcItems.push({date:p.date,supplier:p.supplierName,item:p.itemName,taxable:p.amount,rate:p.gstRate,tax:tax,cgst:Math.round(tax/2),sgst:Math.round(tax/2),igst:0});
+      if(!p.gstAmount||p.gstAmount<=0) return;
+      var tax=p.gstAmount;
+      var isInter=p.gstType==='inter';
+      itcItems.push({date:p.date,supplier:p.supplierName,item:p.itemName,taxable:(p.taxableValue!==undefined?p.taxableValue:p.amount),rate:p.gstRate,tax:tax,cgst:isInter?0:Math.round(tax/2),sgst:isInter?0:Math.round(tax/2),igst:isInter?tax:0});
+    });
+    (D.purchaseReturns||[]).forEach(function(rt){
+      if(!rt.gstAmount||rt.gstAmount<=0) return;
+      var tax=-rt.gstAmount;
+      var isInter=rt.gstType==='inter';
+      itcItems.push({date:rt.date,supplier:rt.supplierName,item:rt.itemName+' (Return)',taxable:-rt.amount,rate:rt.gstRate,tax:tax,cgst:isInter?0:Math.round(tax/2),sgst:isInter?0:Math.round(tax/2),igst:isInter?tax:0});
     });
     var totITC=itcItems.reduce(function(s,r){return s+r.tax;},0);
     var totTax=itcItems.reduce(function(s,r){return s+r.taxable;},0);
@@ -16616,15 +16680,24 @@ function saveGSTSetup(){
 function computeGSTSummary(){
   var outputGST=0,cgst=0,sgst=0,igst=0,itc=0,taxableValue=0;
   D.sales.forEach(function(s){
-    if(s.gstRate&&s.gstRate>0){
-      var tax=Math.round(s.totalAmount*s.gstRate/100);
-      taxableValue+=s.totalAmount;
-      outputGST+=tax;
-      if(s.gstType==='inter'){igst+=tax;}else{cgst+=tax/2;sgst+=tax/2;}
+    if(s.gstAmount&&s.gstAmount>0){
+      taxableValue+=(s.taxableValue!==undefined?s.taxableValue:s.totalAmount);
+      outputGST+=s.gstAmount;
+      if(s.gstType==='inter'){igst+=s.gstAmount;}else{cgst+=s.gstAmount/2;sgst+=s.gstAmount/2;}
+    }
+  });
+  (D.salesReturns||[]).forEach(function(r){
+    if(r.gstAmount&&r.gstAmount>0){
+      taxableValue-=r.amount;
+      outputGST-=r.gstAmount;
+      if(r.gstType==='inter'){igst-=r.gstAmount;}else{cgst-=r.gstAmount/2;sgst-=r.gstAmount/2;}
     }
   });
   D.purchases.forEach(function(p){
-    if(p.gstRate&&p.gstRate>0) itc+=Math.round(p.amount*p.gstRate/100);
+    if(p.gstAmount&&p.gstAmount>0) itc+=p.gstAmount;
+  });
+  (D.purchaseReturns||[]).forEach(function(r){
+    if(r.gstAmount&&r.gstAmount>0) itc-=r.gstAmount;
   });
   return {outputGST:Math.round(outputGST),cgst:Math.round(cgst),sgst:Math.round(sgst),igst:Math.round(igst),itc:Math.round(itc),taxableValue:Math.round(taxableValue)};
 }
@@ -16632,12 +16705,20 @@ function computeGSTSummary(){
 function computeGSTR1(){
   var byRate={};
   D.sales.forEach(function(s){
-    if(!s.gstRate||s.gstRate<=0) return;
+    if(!s.gstAmount||s.gstAmount<=0) return;
     var r=s.gstRate; if(!byRate[r]) byRate[r]={rate:r,taxable:0,cgst:0,sgst:0,igst:0};
-    var tax=Math.round(s.totalAmount*r/100);
-    byRate[r].taxable+=s.totalAmount;
+    var tax=s.gstAmount;
+    byRate[r].taxable+=(s.taxableValue!==undefined?s.taxableValue:s.totalAmount);
     if(s.gstType==='inter') byRate[r].igst+=tax;
     else {byRate[r].cgst+=tax/2; byRate[r].sgst+=tax/2;}
+  });
+  (D.salesReturns||[]).forEach(function(rt){
+    if(!rt.gstAmount||rt.gstAmount<=0) return;
+    var r=rt.gstRate; if(!byRate[r]) byRate[r]={rate:r,taxable:0,cgst:0,sgst:0,igst:0};
+    var tax=rt.gstAmount;
+    byRate[r].taxable-=rt.amount;
+    if(rt.gstType==='inter') byRate[r].igst-=tax;
+    else {byRate[r].cgst-=tax/2; byRate[r].sgst-=tax/2;}
   });
   var result=[];
   for(var rk in byRate) result.push(byRate[rk]);
