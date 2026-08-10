@@ -5329,9 +5329,69 @@ function pgSal(){
 // ===== MONTHLY STOCK STATEMENT (for CC/OD banks) =====
 function pgStockStatement(){
   var added = autoGenerateMissingStockStatements();
+  var tab = window._ssTab || 'register';
   var h = '<div class="al ali"><div class="alt">📊 Monthly Stock Statement</div>'+
     '<p>Auto-prepared at month-end for your bank\'s CC/OD monitoring — Stock, Debtors, Creditors and Drawing Power, computed from your actual recorded transactions as of each month-end.'+
     (added>0?' <b>'+added+' new month(s) just generated.</b>':'')+'</p></div>';
+  h += '<div class="tabs">'+
+    '<button class="'+(tab==='register'?'act':'')+'" onclick="window._ssTab=\'register\';renderPage()">Summary Register</button>'+
+    '<button class="'+(tab==='itemwise'?'act':'')+'" onclick="window._ssTab=\'itemwise\';renderPage()">Item-wise Detail</button>'+
+    '</div>';
+
+  var stmts = D.stockStatements.slice().sort(function(a,b){return b.date.localeCompare(a.date);});
+
+  if(tab==='itemwise'){
+    if(stmts.length===0){
+      h += '<div class="al ali">No completed months yet.</div>';
+      return h;
+    }
+    var monthOpts = stmts.map(function(s){return {v:s.date, l:s.date};});
+    var selMonth = window._ssMonth || stmts[0].date;
+    h += card('Select Month', sl('Month-End','ss_month_sel',monthOpts,selMonth)+
+      btn('Show','window._ssMonth=document.getElementById(\'ss_month_sel\').value;renderPage()','#1565C0'));
+
+    var idx = stmts.findIndex(function(s){return s.date===selMonth;});
+    var allSorted = D.stockStatements.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
+    var curIdx = allSorted.findIndex(function(s){return s.date===selMonth;});
+    var fromDate = curIdx>0 ? allSorted[curIdx-1].date : '2000-01-01';
+    var toDate = selMonth;
+
+    var rows = computeItemWiseStockMovement(fromDate, toDate);
+    rows.sort(function(a,b){return a.itemName.localeCompare(b.itemName);});
+    var totalClosingValue = rows.reduce(function(s,r){return s+r.closingValue;},0);
+
+    var cols = [
+      {l:'Item',k:'itemName'},{l:'HSN',fn:function(r){return r.hsnCode||'—';}},{l:'Unit',k:'unit'},
+      {l:'Opening Qty',r:1,fn:function(r){return fmt(r.openingQty);}},
+      {l:'Purchases',r:1,fn:function(r){return fmt(r.purchaseQty);}},
+      {l:'Sales/Consumption',r:1,fn:function(r){return fmt(r.salesQty);}},
+      {l:'Closing Qty',r:1,fn:function(r){return fmt(r.closingQty);}},
+      {l:'Rate',r:1,fn:function(r){return fc(r.rate);}},
+      {l:'Closing Value',r:1,fn:function(r){return fc(r.closingValue);}},
+      {l:'Origin',fn:function(r){
+        if(!r.isImportedItem) return 'Domestic';
+        return 'Dom: '+fmt(r.indigenousQty)+' / Imp: '+fmt(r.importedQty);
+      }}
+    ];
+    setLedgerShareData('Item-wise Stock Statement — '+selMonth+' — '+(D.profile.businessName||''), cols, rows,
+      ['Business: '+(D.profile.businessName||''), 'Month-End: '+selMonth, 'Total Closing Value: '+fc(totalClosingValue)]);
+    h += card('Item-wise Stock — as of '+selMonth,
+      (rows.length ? tbl(cols, rows)+ledgerActionButtons() : '<div class="al ali">No stock activity recorded for this item as of this date.</div>')+
+      '<div style="text-align:right;font-weight:800;padding:8px;font-size:13px">Total Closing Value: '+fc(totalClosingValue)+'</div>'
+    );
+
+    if(toDate>=td()){
+      var bsStock = getF().cs;
+      var reconciles = Math.abs(bsStock-totalClosingValue)<1;
+      h += '<div class="al '+(reconciles?'als':'alw')+'">'+
+        (reconciles ? '✅ Reconciles exactly with Balance Sheet Closing Stock ('+fc(bsStock)+').' :
+          '⚠️ Balance Sheet Closing Stock ('+fc(bsStock)+') differs from this total by '+fc(Math.abs(bsStock-totalClosingValue))+' — check for items with zero recorded purchase history.')+
+        '</div>';
+    } else {
+      h += '<div class="al ali">This is a past month — figures are reconstructed from your transaction history as of that date, and are not cross-checked against today\'s Balance Sheet.</div>';
+    }
+    return h;
+  }
 
   var s = D.stockStatementSettings || {stockMarginPct:25, debtorMarginPct:40};
   h += card('Margin Settings (editable — matches your bank\'s policy)',
@@ -5341,7 +5401,6 @@ function pgStockStatement(){
     btn('💾 Save & Recalculate','saveStockStatementSettings()','#546E7A')
   );
 
-  var stmts = D.stockStatements.slice().sort(function(a,b){return b.date.localeCompare(a.date);});
   if(stmts.length===0){
     h += '<div class="al ali">No completed months yet — statements are generated automatically once a full month has passed since you started using this app.</div>';
     return h;
@@ -15625,6 +15684,85 @@ function autoGenerateMissingStockStatements(){
   });
   if(added>0) sv();
   return added;
+}
+// ── Item-wise Stock Movement for a date range (Opening/Purchases/Sales/Closing, with Indigenous/Imported split) ──
+// Replays every purchase, sale, and return event chronologically per item, tracking two cost pools
+// (indigenous and imported) exactly as the live drawStock/restoreStock functions do, so the result
+// always reconciles to the same figures the rest of the app already uses for stock valuation.
+function computeItemWiseStockMovement(fromDate, toDate){
+  var rows = [];
+  D.inventory.forEach(function(it){
+    var events = [];
+    D.purchases.forEach(function(p){ if(p.itemId===it.id) events.push({date:p.date, type:'p', qty:p.qty, rate:p.rate, isImported:p.isImported||false}); });
+    D.sales.forEach(function(s){ if(s.itemId===it.id) events.push({date:s.date, type:'s', qty:s.qty, fromIndig:(s.fromIndig!==undefined?s.fromIndig:s.qty), fromImp:(s.fromImp||0)}); });
+    (D.purchaseReturns||[]).forEach(function(r){ if(r.itemId===it.id) events.push({date:r.date, type:'pr', qty:r.qty, isImported:r.isImported||false}); });
+    (D.salesReturns||[]).forEach(function(r){
+      if(r.itemId!==it.id) return;
+      var origSale = D.sales.find(function(s){return s.id===r.originalSaleId;});
+      var frac = origSale && origSale.qty>0 ? r.qty/origSale.qty : 1;
+      var fromIndig = origSale ? (origSale.fromIndig!==undefined?origSale.fromIndig:origSale.qty)*frac : r.qty;
+      var fromImp = origSale ? (origSale.fromImp||0)*frac : 0;
+      events.push({date:r.date, type:'sr', qty:r.qty, fromIndig:fromIndig, fromImp:fromImp});
+    });
+    events.sort(function(a,b){ return (a.date||'')<(b.date||'')?-1:((a.date||'')>(b.date||'')?1:0); });
+
+    var indigQty=0, indigVal=0, impQty=0, impVal=0;
+    var openIndigQty=0, openImpQty=0;
+    var purchQty=0, purchImpQty=0, salesQty=0, purchReturnQty=0, salesReturnQty=0;
+    var openingCaptured = false;
+
+    events.forEach(function(ev){
+      if(!openingCaptured && (ev.date||'')>=fromDate){
+        openIndigQty = indigQty; openImpQty = impQty;
+        openingCaptured = true;
+      }
+      var inRange = (ev.date||'')>=fromDate && (ev.date||'')<=toDate;
+      if(ev.type==='p'){
+        if(ev.isImported){ impVal += ev.qty*ev.rate; impQty += ev.qty; if(inRange){purchQty+=ev.qty; purchImpQty+=ev.qty;} }
+        else { indigVal += ev.qty*ev.rate; indigQty += ev.qty; if(inRange) purchQty+=ev.qty; }
+      } else if(ev.type==='s'){
+        var iq=Math.min(ev.fromIndig, indigQty), impq=Math.min(ev.fromImp, impQty);
+        indigVal -= iq*(indigQty>0?indigVal/indigQty:0); indigQty -= iq;
+        impVal -= impq*(impQty>0?impVal/impQty:0); impQty -= impq;
+        if(indigQty<0){indigQty=0;indigVal=0;} if(impQty<0){impQty=0;impVal=0;}
+        if(inRange) salesQty+=ev.qty;
+      } else if(ev.type==='pr'){
+        if(ev.isImported){ impQty=Math.max(0,impQty-ev.qty); } else { indigQty=Math.max(0,indigQty-ev.qty); }
+        if(inRange) purchReturnQty+=ev.qty;
+      } else if(ev.type==='sr'){
+        indigQty += ev.fromIndig; impQty += ev.fromImp;
+        if(inRange) salesReturnQty+=ev.qty;
+      }
+    });
+    if(!openingCaptured){ openIndigQty = indigQty; openImpQty = impQty; }
+
+    var closingQty = indigQty+impQty;
+    var closingVal = indigVal+impVal;
+    var openingQty = openIndigQty+openImpQty;
+    // For the current/most-recent period, use the live item state directly for closing figures —
+    // guaranteed to exactly match what the rest of the app (Balance Sheet, CMA) already shows,
+    // rather than trusting a full historical replay to perfectly track cost-pool precision across
+    // potentially hundreds of transactions.
+    if(toDate>=td()){
+      indigQty = it.currentStock||0; indigVal = indigQty*(it.avgCost||0);
+      impQty = it.importedStock||0; impVal = impQty*(it.importedAvgCost||0);
+      closingQty = indigQty+impQty;
+      closingVal = indigVal+impVal;
+    }
+    if(closingQty<=0.005 && openingQty<=0.005 && purchQty<=0.005 && salesQty<=0.005) return; // no activity for this item at all
+
+    rows.push({
+      itemId: it.id, itemName: it.itemName, unit: it.unit, hsnCode: it.hsnCode||'',
+      openingQty: openingQty, purchaseQty: purchQty, salesQty: salesQty,
+      purchaseReturnQty: purchReturnQty, salesReturnQty: salesReturnQty,
+      closingQty: closingQty, closingValue: closingVal,
+      rate: closingQty>0 ? closingVal/closingQty : 0,
+      indigenousQty: indigQty, indigenousValue: indigVal,
+      importedQty: impQty, importedValue: impVal,
+      isImportedItem: purchImpQty>0 || impQty>0.005
+    });
+  });
+  return rows;
 }
 function computeBalancesAsOfDate(asOfDate){
   var invValue = 0;
