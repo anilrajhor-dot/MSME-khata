@@ -910,7 +910,7 @@ function getF(){
   var purchaseReturnsTotal=0;
   (D.purchaseReturns||[]).forEach(function(r){ purchaseReturnsTotal+=(+r.amount||0); });
   ts -= salesReturnsTotal; tc -= salesReturnsCogs; tp -= purchaseReturnsTotal;
-  cap=(D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+((D.capital.initialCapital||0)===0?(+D.opening.capital||0):0);
+  cap=(D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+((D.tbPosted || (D.capital.initialCapital||0)===0)?(+D.opening.capital||0):0);
   var totalDrawings=0;(D.drawings||[]).forEach(function(d){totalDrawings+=(+d.amount||0);});cap-=totalDrawings;
   for(i=0;i<D.loans.length;i++)ltl+=(+D.loans[i].outstandingBalance||0);
   var gp=ts-(os+tp+directExpenses-cs);
@@ -953,7 +953,7 @@ function getBS(){
   var p1=(D.capital.initialCapital||0);
   var p2=(D.capital.additionalCapital||0);
   var totalDrawings=(D.drawings||[]).reduce(function(s,d){return s+(+d.amount||0);},0);
-  var netCap=p1+p2-totalDrawings+np;
+  var netCap=f.cap+np;
   var loans=f.ltl||0;
   var cred=f.cr||0;
   var currentLiab=cred+advFromCust+expPayable;
@@ -5521,8 +5521,19 @@ function addPurchaseReturn(purchaseId, returnQty, date, notes){
   var returnGstAmount = (p.gstRate>0) ? Math.round(returnAmount*p.gstRate/100*100)/100 : 0;
   var returnAmountWithGst = returnAmount + returnGstAmount;
   if(item){
-    if(p.isImported) item.importedStock = Math.max(0,(item.importedStock||0)-returnQty);
-    else item.currentStock = Math.max(0, item.currentStock-returnQty);
+    if(p.isImported){
+      var oldImpVal = (item.importedStock||0)*(item.importedAvgCost||0);
+      var newImpQty = Math.max(0,(item.importedStock||0)-returnQty);
+      var newImpVal = Math.max(0, oldImpVal - returnAmount);
+      item.importedStock = newImpQty;
+      item.importedAvgCost = newImpQty>0 ? newImpVal/newImpQty : 0;
+    } else {
+      var oldVal = item.currentStock*item.avgCost;
+      var newQty = Math.max(0, item.currentStock-returnQty);
+      var newVal = Math.max(0, oldVal - returnAmount);
+      item.currentStock = newQty;
+      item.avgCost = newQty>0 ? newVal/newQty : 0;
+    }
   }
   date = date||td();
   if(p.paymentMode==='credit'){
@@ -8768,7 +8779,23 @@ function postTB(){
   }
   if(Math.abs(totDr-totCr) >= 0.01){ toast('Trial Balance does not tally','e'); return; }
   if(tb.length===0){ toast('Add at least one item','e'); return; }
-  confirmDialog('Post Trial Balance to books? Opening balances will be set. Use Reset to undo if needed.', function(){ postTBExecute(); });
+  var msg = 'Post Trial Balance to books? Opening balances will be set. Use Reset to undo if needed.';
+  // If this is the first-ever TB post, warn if pre-existing legacy Opening Balance values (from
+  // the old Opening Balance page) would be silently zeroed out because this TB doesn't cover them.
+  if(!D.tbPosted){
+    var o = D.opening||{};
+    var heads = {}; tb.forEach(function(r){ heads[r.head]=true; });
+    var losing = [];
+    if((+o.cash||0)>0 && !heads['cash']) losing.push('Cash '+fc(o.cash));
+    if((+o.bank||0)>0 && !heads['bank']) losing.push('Bank '+fc(o.bank));
+    if((+o.stock||0)>0 && !heads['stockitem'] && !heads['stock']) losing.push('Stock '+fc(o.stock));
+    if((+o.debtors||0)>0 && !heads['debtors']) losing.push('Debtors '+fc(o.debtors));
+    if((+o.creditors||0)>0 && !heads['creditors']) losing.push('Creditors '+fc(o.creditors));
+    if(losing.length>0){
+      msg = '⚠️ Your previously-saved Opening Balance has: '+losing.join(', ')+' — none of these are covered by any row in this Trial Balance, so they will be reset to ₹0 when you post. Add matching rows first if you want to keep them. Continue anyway?';
+    }
+  }
+  confirmDialog(msg, function(){ postTBExecute(); });
 }
 function postTBExecute(){
   var tb = D.trialBalance || [];
@@ -8794,8 +8821,10 @@ function postTBExecute(){
       if(qty>0){
         var existing=findOrCreateItem(r.label||'Item',r.unit||'No.');
         var wasNew = (existing.currentStock===0 && existing.avgCost===0 && existing.openingStock===0);
-        existing.currentStock = (existing.currentStock||0) + qty;
-        existing.avgCost = cost;
+        var oldQty = existing.currentStock||0, oldVal = oldQty*(existing.avgCost||0);
+        var newQty = oldQty + qty, newVal = oldVal + qty*cost;
+        existing.currentStock = newQty;
+        existing.avgCost = newQty>0 ? newVal/newQty : 0;
         existing.openingStock = (existing.openingStock||0) + qty;
         if(!existing.unit || existing.unit==='No.')existing.unit = r.unit||existing.unit;
         if(wasNew) existing.fromTB = true;
@@ -8879,10 +8908,16 @@ function resetTB(){
       var r=tb[i];
       if(r.head==='stockitem' && (+r.qty||0)>0){
         var nm=(r.label||'Item').trim().toLowerCase();
+        var rQty=(+r.qty||0), rCost=(+r.cost||0), rVal=rQty*rCost;
         for(var j=0;j<D.inventory.length;j++){
           if(D.inventory[j].itemName.toLowerCase()===nm){
-            D.inventory[j].currentStock=Math.max(0,(D.inventory[j].currentStock||0)-(+r.qty||0));
-            D.inventory[j].openingStock=Math.max(0,(D.inventory[j].openingStock||0)-(+r.qty||0));
+            var invItem = D.inventory[j];
+            var curVal = (invItem.currentStock||0)*(invItem.avgCost||0);
+            var newQty = Math.max(0,(invItem.currentStock||0)-rQty);
+            var newVal = Math.max(0, curVal-rVal);
+            invItem.currentStock = newQty;
+            invItem.avgCost = newQty>0 ? newVal/newQty : 0;
+            invItem.openingStock=Math.max(0,(invItem.openingStock||0)-rQty);
           }
         }
       }
