@@ -665,6 +665,48 @@ function debtorBalances(){
   return out;
 }
 // ── Ageing Analysis (FIFO: receipts/payments apply against the oldest outstanding invoice first) ──
+// ── 180-day FIFO ageing (bank standard: receivables beyond 180 days are typically treated as
+// doubtful/ineligible for Drawing Power) — same FIFO logic as computeAgeingForParty, just with
+// a single 180-day breakpoint instead of the 30/60/90 buckets used for general ageing analysis.
+function computeAgeing180ForParty(entries, asOfDate){
+  asOfDate = asOfDate || td();
+  var sorted = entries.slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  var invoices = [];
+  sorted.forEach(function(e){
+    var amt = +e.amount||0;
+    if(amt>0){
+      invoices.push({date:e.date, remaining:amt});
+    } else {
+      var toApply = Math.abs(amt);
+      for(var i=0;i<invoices.length && toApply>0.005;i++){
+        if(invoices[i].remaining<=0.005) continue;
+        var apply = Math.min(invoices[i].remaining, toApply);
+        invoices[i].remaining -= apply;
+        toApply -= apply;
+      }
+    }
+  });
+  var buckets = {upto180:0, over180:0, oldestDate:null};
+  invoices.forEach(function(inv){
+    if(inv.remaining<=0.005) return;
+    var days = daysBetween(inv.date, asOfDate);
+    if(!buckets.oldestDate || inv.date<buckets.oldestDate) buckets.oldestDate = inv.date;
+    if(days<=180) buckets.upto180 += inv.remaining;
+    else buckets.over180 += inv.remaining;
+  });
+  return buckets;
+}
+function debtorAgeing180(){
+  var byName = {};
+  D.debtors.forEach(function(d){ var nm=d.name||'Customer'; (byName[nm]=byName[nm]||[]).push(d); });
+  var out = [];
+  Object.keys(byName).forEach(function(nm){
+    var ageing = computeAgeing180ForParty(byName[nm]);
+    var total = ageing.upto180+ageing.over180;
+    if(total>0.005) out.push({name:nm, total:total, ageing:ageing});
+  });
+  return out.sort(function(a,b){return b.total-a.total;});
+}
 function computeAgeingForParty(entries, asOfDate){
   asOfDate = asOfDate || td();
   var sorted = entries.slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
@@ -894,7 +936,12 @@ function getF(){
     csByCatIndig[cat]=(csByCatIndig[cat]||0)+cv;
     csByCatImp[cat]=(csByCatImp[cat]||0)+icv;
   }
-  os=(+D.opening.stock||0);
+  if(D.tbPosted && D.trialBalance && D.trialBalance.length>0){
+    os=0;
+    D.trialBalance.forEach(function(r){ if(r.head==='stockitem') os+=(+r.amount||0); });
+  } else {
+    os=(+D.opening.stock||0);
+  }
   var purchasesByType={indigenous:0,imported:0};
   for(i=0;i<D.purchases.length;i++){
     tp+=D.purchases[i].amount;
@@ -910,7 +957,15 @@ function getF(){
   var purchaseReturnsTotal=0;
   (D.purchaseReturns||[]).forEach(function(r){ purchaseReturnsTotal+=(+r.amount||0); });
   ts -= salesReturnsTotal; tc -= salesReturnsCogs; tp -= purchaseReturnsTotal;
-  cap=(D.capital.initialCapital||0)+(D.capital.additionalCapital||0)+((D.tbPosted || (D.capital.initialCapital||0)===0)?(+D.opening.capital||0):0);
+  var capBase;
+  if(D.tbPosted){
+    capBase = (+D.opening.capital||0); // TB is authoritative once posted - supersedes initialCapital entirely
+  } else if((D.capital.initialCapital||0)===0){
+    capBase = (+D.opening.capital||0); // legacy fallback for the old standalone Opening Balance page
+  } else {
+    capBase = (D.capital.initialCapital||0);
+  }
+  cap = capBase + (D.capital.additionalCapital||0);
   var totalDrawings=0;(D.drawings||[]).forEach(function(d){totalDrawings+=(+d.amount||0);});cap-=totalDrawings;
   for(i=0;i<D.loans.length;i++)ltl+=(+D.loans[i].outstandingBalance||0);
   var gp=ts-(os+tp+directExpenses-cs);
@@ -2594,7 +2649,10 @@ function analyseStockTurnover(){
   var _f={}; try{_f=getF();}catch(e){}
   var cs=_f.cs||0;
   var totalCOGS=D.sales.reduce(function(s,x){return s+(x.cogs||0);},0);
-  var os=D.opening.stock||0;
+  var os=0;
+  if(D.tbPosted && D.trialBalance && D.trialBalance.length>0){
+    D.trialBalance.forEach(function(r){ if(r.head==='stockitem') os+=(+r.amount||0); });
+  } else { os=D.opening.stock||0; }
   var avgStock=(os+cs)/2||cs;
   var stockTurnover=avgStock>0?totalCOGS/avgStock:0;
   var daysToSell=stockTurnover>0?Math.round(365/stockTurnover/4):0; // 3 months data
@@ -4957,7 +5015,9 @@ function pgSal(){
   var selItem=null;for(i=0;i<D.inventory.length;i++)if(D.inventory[i].id===selId)selItem=D.inventory[i];
 
   var h='';
-  if(lastSale){var s=lastSale;h+='<div class="al als"><div class="alt">✅ Sale Recorded - Profit Analysis</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:8px"><div><div style="font-size:10px;color:#546E7A">Sale Value</div><b>'+fc(s.tot)+'</b></div><div><div style="font-size:10px;color:#546E7A">Profit</div><b style="color:#2E7D32">'+fc(s.gp)+'</b></div><div><div style="font-size:10px;color:#546E7A">Margin</div><b style="color:#2E7D32">'+s.pct+'%</b></div></div></div>';}
+  if(lastSale){var s=lastSale;h+='<div class="al als"><div class="alt">✅ Sale Recorded - Profit Analysis</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:8px"><div><div style="font-size:10px;color:#546E7A">Sale Value</div><b>'+fc(s.tot)+'</b></div><div><div style="font-size:10px;color:#546E7A">Profit</div><b style="color:#2E7D32">'+fc(s.gp)+'</b></div><div><div style="font-size:10px;color:#546E7A">Margin</div><b style="color:#2E7D32">'+s.pct+'%</b></div></div>'+
+    (s.mode!=='credit' ? '<div style="margin-top:10px">'+btn('📱 Show Payment QR ('+fc(s.amountDue||s.tot)+')','showPaymentQR('+(s.amountDue||s.tot)+',\''+esc((s.custName||'Sale')+' - '+(s.itemName||''))+'\')','#1565C0')+'</div>' : '')+
+    '</div>';}
 
   h+='<div class="card"><div class="ch">Total Sales: '+fc(tot)+'</div></div>';
   h+='<div style="margin-bottom:10px">'+btn('🧾 Create Bill (Multi-Item Invoice)','window._salMode=\'bill\';window._billCart=[];renderPage()','#1565C0')+'</div>';
@@ -5055,9 +5115,47 @@ function pgStockStatement(){
   h += '<div class="tabs">'+
     '<button class="'+(tab==='register'?'act':'')+'" onclick="window._ssTab=\'register\';renderPage()">Summary Register</button>'+
     '<button class="'+(tab==='itemwise'?'act':'')+'" onclick="window._ssTab=\'itemwise\';renderPage()">Item-wise Detail</button>'+
+    '<button class="'+(tab==='bankrecon'?'act':'')+'" onclick="window._ssTab=\'bankrecon\';renderPage()">Bank Reconciliation</button>'+
     '</div>';
 
   var stmts = D.stockStatements.slice().sort(function(a,b){return b.date.localeCompare(a.date);});
+
+  if(tab==='bankrecon'){
+    if(stmts.length===0){
+      h += '<div class="al ali">No completed months yet.</div>';
+      return h;
+    }
+    var monthOptsB = stmts.map(function(s){return {v:s.date, l:s.date};});
+    var selMonthB = window._ssBankMonth || stmts[0].date;
+    h += card('Select Month', sl('Month-End','ss_bank_month_sel',monthOptsB,selMonthB)+
+      btn('Show','window._ssBankMonth=document.getElementById(\'ss_bank_month_sel\').value;renderPage()','#1565C0'));
+
+    var allSortedB = D.stockStatements.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
+    var curIdxB = allSortedB.findIndex(function(s){return s.date===selMonthB;});
+    var fromDateB = curIdxB>0 ? allSortedB[curIdxB-1].date : '2000-01-01';
+    var toDateB = selMonthB;
+
+    var bankRows = computeBankWiseMonthlyReconciliation(fromDateB, toDateB);
+    var cols = [
+      {l:'Bank Account',fn:function(r){return esc(r.name)+(r.accountNumber?'<br><span style="font-size:10px;color:#546E7A">'+esc(r.accountNumber)+'</span>':'');}},
+      {l:'Opening',r:1,fn:function(r){return fc(r.openingBalance);}},
+      {l:'Receipts',r:1,fn:function(r){return fc(r.receipts);}},
+      {l:'Payments',r:1,fn:function(r){return fc(r.payments);}},
+      {l:'Closing',r:1,fn:function(r){return fc(r.closingBalance);}},
+      {l:'Status',fn:function(r){return r.reconciles?'<span style="color:#2E7D32;font-weight:700">✅ OK</span>':'<span style="color:#C62828;font-weight:800">⚠️ Check</span>';}}
+    ];
+    setLedgerShareData('Bank Reconciliation — '+selMonthB+' — '+(D.profile.businessName||''), cols, bankRows,
+      ['Business: '+(D.profile.businessName||''), 'Month-End: '+selMonthB]);
+    h += card('Bank-wise Reconciliation — as of '+selMonthB,
+      tbl(cols, bankRows)+ledgerActionButtons()
+    );
+    var totalClosing = bankRows.reduce(function(s,r){return s+r.closingBalance;},0);
+    h += '<div class="al ali"><b>Total across all accounts: '+fc(totalClosing)+'</b>'+
+      (toDateB>=td() ? '<br>This matches the live Cash/Bank → Bank Book balances exactly, for the current period.' :
+        '<br>This is a past month — figures are reconstructed from your transaction history as of that date.') +
+      '</div>';
+    return h;
+  }
 
   if(tab==='itemwise'){
     if(stmts.length===0){
@@ -5129,6 +5227,7 @@ function pgStockStatement(){
     {l:'Stock',r:1,fn:function(r){return fc(r.stock);}},
     {l:'Debtors',r:1,fn:function(r){return fc(r.receivables);}},
     {l:'Creditors',r:1,fn:function(r){return fc(r.creditors);}},
+    {l:'Paid Stock',r:1,fn:function(r){return fc(r.paidStock!==undefined ? r.paidStock : Math.max(0,r.stock-r.creditors));}},
     {l:'Drawing Power',r:1,fn:function(r){return fc(r.drawingPower);}},
     {l:'CC O/s',r:1,fn:function(r){return fc(r.ccOutstanding);}},
     {l:'Status',fn:function(r){
@@ -5162,9 +5261,32 @@ function pgDebtCred(){
   var tab = window._dcTab||'ageing';
   var h = '<div class="tabs">'+
     '<button class="'+(tab==='ageing'?'act':'')+'" onclick="window._dcTab=\'ageing\';renderPage()">Ageing Analysis</button>'+
+    '<button class="'+(tab==='bankstmt'?'act':'')+'" onclick="window._dcTab=\'bankstmt\';renderPage()">Bank Debtors Statement</button>'+
     '<button class="'+(tab==='debtors'?'act':'')+'" onclick="window._dcTab=\'debtors\';renderPage()">Debtors</button>'+
     '<button class="'+(tab==='creditors'?'act':'')+'" onclick="window._dcTab=\'creditors\';renderPage()">Creditors</button>'+
     '</div>';
+
+  if(tab==='bankstmt'){
+    var dr180 = debtorAgeing180();
+    var totalUpto180 = dr180.reduce(function(s,d){return s+d.ageing.upto180;},0);
+    var totalOver180 = dr180.reduce(function(s,d){return s+d.ageing.over180;},0);
+    h += '<div class="al ali"><div class="alt">📋 Bank Debtors Statement</div>'+
+      '<p>Sundry Debtors split at the standard 180-day threshold — receivables outstanding up to 180 days are typically eligible for Drawing Power; those beyond 180 days are usually treated as doubtful and excluded. Computed using FIFO — each receipt is applied against the oldest outstanding invoice first.</p></div>';
+    h += '<div class="sg">'+sc('Up to 180 Days',fc(totalUpto180),'#2E7D32','')+sc('More than 180 Days',fc(totalOver180),'#C62828','')+'</div>';
+    var cols = [
+      {l:'Customer',k:'name'},
+      {l:'Up to 180 Days',r:1,fn:function(r){return r.ageing.upto180>0?fc(r.ageing.upto180):'—';}},
+      {l:'More than 180 Days',r:1,fn:function(r){return r.ageing.over180>0?'<span style="color:#C62828;font-weight:700">'+fc(r.ageing.over180)+'</span>':'—';}},
+      {l:'Total',r:1,fn:function(r){return fc(r.total);}}
+    ];
+    setLedgerShareData('Bank Debtors Statement — '+(D.profile.businessName||''), cols, dr180,
+      ['Business: '+(D.profile.businessName||''), 'As of: '+td(), 'Up to 180 Days (Eligible): '+fc(totalUpto180), 'More than 180 Days (Doubtful): '+fc(totalOver180)]);
+    h += card('Customer-wise Statement',
+      (dr180.length ? tbl(cols, dr180)+ledgerActionButtons() : '<div class="al ali">No outstanding debtors.</div>')+
+      '<div style="text-align:right;font-weight:800;padding:8px;font-size:13px">Grand Total: '+fc(totalUpto180+totalOver180)+'</div>'
+    );
+    return h;
+  }
 
   if(tab==='ageing'){
     var creditDays = +(D.settings&&D.settings.creditDays)||30;
@@ -5172,7 +5294,7 @@ function pgDebtCred(){
     var crAgeing = creditorAgeing();
     var drTotal = drAgeing.reduce(function(s,d){return s+d.total;},0);
     var crTotal = crAgeing.reduce(function(s,c){return s+c.total;},0);
-    var overdueDr = drAgeing.filter(function(d){return d.ageing.d30+d.ageing.d60+d.ageing.d90plus>0.005;});
+      var overdueDr = drAgeing.filter(function(d){return d.ageing.d30+d.ageing.d60+d.ageing.d90plus>0.005;});
 
     h += '<div class="sg">'+sc('Total Debtors',fc(drTotal),'#1565C0','')+sc('Total Creditors',fc(crTotal),'#C62828','')+'</div>';
 
@@ -5776,7 +5898,7 @@ function addSal(){
   var gstAmt = gstRate>0 ? Math.round(tot*gstRate/100*100)/100 : 0;
   var totForPosting = tot + gstAmt;
   var effMode = adv ? 'advance' : mode;
-  lastSale={gp:gp,pct:pct,tot:tot,unit:item.unit};
+  lastSale={gp:gp,pct:pct,tot:tot,unit:item.unit,amountDue:totForPosting,custName:c2,itemName:item.itemName,mode:effMode};
   var custCode=getPartyCode(c2,'customer');
   var saleId=uid();
   D.sales.push({id:saleId,date:date,customerName:c2,partyCode:custCode,itemId:iid,itemName:item.itemName,unit:item.unit,qty:q,sellingPrice:p,totalAmount:tot,cogs:cogs,grossProfit:gp,profitPct:pct,paymentMode:effMode,isExport:isExport,advanceId:adv?adv.id:undefined,fromIndig:draw.fromIndig,fromImp:draw.fromImp,indigCostEach:item.avgCost,impCostEach:item.importedAvgCost||0,gstRate:gstRate,gstType:gstType,taxableValue:tot,gstAmount:gstAmt,gstPaymentMode:adv?mode:undefined});
@@ -6045,8 +6167,9 @@ function saveBankAcctInline(id){
   }
   if(!name) name=(gv('ba_name_'+id)||'').trim();
   var num = (gv('ba_num_'+id)||'').trim();
+  var upi = (gv('ba_upi_'+id)||'').trim();
   if(!name){toast('Enter an account name','e');return;}
-  acct.name=name; acct.accountNumber=num;
+  acct.name=name; acct.accountNumber=num; acct.upiId=upi;
   sv();renderPage();toast('Saved!');
 }
 // Add a new blank bank account row for the user to fill in and save
@@ -8225,38 +8348,35 @@ function _importFromDataPlain(jsonText){
     var jsonEnd=clean.lastIndexOf('}');
     if(jsonStart>=0&&jsonEnd>jsonStart) clean=clean.slice(jsonStart,jsonEnd+1);
     var parsed = JSON.parse(clean);
+    var oldD = D; // keep the current data safe until the new data is confirmed
     D = migrateData(parsed);
-    // Auto-fix BS if it doesn't tally
-    var _f2=getF();
-    var _bs2=getBS();
-    var _bsDiff=Math.abs(_bs2.totalAssets-_bs2.totalLiab);
-    if(_bsDiff>100){
-      // Recalculate opening bank to make BS tally
-      var _ts=_f2.ts||0,_tp=0,_te=_f2.te||0,_cs=_f2.cs||0,_draw=0,_loans=0,_drs=_f2.dr||0,_fa=0,_adv=0,_cred=_f2.cr||0;
-      D.purchases.forEach(function(p){_tp+=p.amount||0;});
-      D.drawings.forEach(function(d){_draw+=d.amount||0;});
-      D.loans.forEach(function(l){_loans+=l.outstandingBalance||0;});
-      D.fixedAssets.forEach(function(a){_fa+=(a.cost||0)-(a.accumDep||0);});
-      D.advances.forEach(function(a){_adv+=a.amount||0;});
-      var _p1=D.capital.initialCapital||0,_p2=D.capital.additionalCapital||0;
-      var _netCap=_p1+_p2-_draw+(_ts-D.opening.stock-_tp+_cs-_te);
-      var _totalLiab=_netCap+_loans+_cred;
-      var _reqCB=_totalLiab-_fa-_cs-_drs-_adv;
-      var _sp=D.sales.filter(function(s){return s.paymentMode!=='credit';}).reduce(function(t,s){return t+(s.totalAmount||0);},0);
-      var _reqOp=_reqCB-_sp+_tp+_te+_draw+_adv;
-      var _corrBank=Math.max(0,Math.round(_reqOp-(D.opening.cash||0)));
-      D.opening.bank=_corrBank;
-    }
     sv();
     var _bs3=getBS();
     var _finalDiff=Math.abs(_bs3.totalAssets-_bs3.totalLiab);
-    renderPage();
     if(_finalDiff<10){
+      renderPage();
       toast('✅ Imported successfully! Balance Sheet tallies.');
-    } else {
-      toast('✅ Imported! BS diff: '+fc(Math.round(_finalDiff))+' — check opening entries','w');
+      return true;
     }
-    return true;
+    // Balance Sheet does not tally — do NOT silently alter the data to force a match.
+    // Show exactly what's wrong and let the user decide, keeping their current data safe until then.
+    var diag = diagnoseBSDifference();
+    var reasonHtml = diag.findings.map(function(f){
+      return '<div style="margin-top:6px"><b>'+(f.severity==='error'?'❌ ':'⚠️ ')+f.title+'</b><br><span style="font-size:11px">'+f.detail+'</span></div>';
+    }).join('');
+    var msg = '<div>The uploaded file\'s Balance Sheet does not tally — Assets and Liabilities differ by <b>'+fc(_finalDiff)+'</b>.</div>'+reasonHtml+
+      '<div style="margin-top:10px;font-size:12px">You can still import it and fix this afterward using Health Check, or cancel to keep your current data unchanged.</div>';
+    D = oldD; // revert while the user decides
+    confirmDialogHtml(msg, 'Import Anyway', 'Cancel', function(){
+      D = migrateData(parsed);
+      sv();
+      renderPage();
+      toast('⚠️ Imported with a Balance Sheet difference of '+fc(_finalDiff)+' — see Health Check for details.','w');
+    }, function(){
+      renderPage();
+      toast('Import cancelled — your existing data is unchanged.');
+    });
+    return 'async';
   }catch(err){
     toast('Import failed: '+err.message+' — Make sure you copied the complete JSON file','e');
     return false;
@@ -8872,8 +8992,13 @@ function postTB(){
     if((+o.stock||0)>0 && !heads['stockitem'] && !heads['stock']) losing.push('Stock '+fc(o.stock));
     if((+o.debtors||0)>0 && !heads['debtors']) losing.push('Debtors '+fc(o.debtors));
     if((+o.creditors||0)>0 && !heads['creditors']) losing.push('Creditors '+fc(o.creditors));
-    if(losing.length>0){
-      msg = '⚠️ Your previously-saved Opening Balance has: '+losing.join(', ')+' — none of these are covered by any row in this Trial Balance, so they will be reset to ₹0 when you post. Add matching rows first if you want to keep them. Continue anyway?';
+    var losingCapital = (+D.capital.initialCapital||0)>0 && !heads['capital'];
+    if(losing.length>0 || losingCapital){
+      var parts = losing.slice();
+      if(losingCapital) parts.push('Initial Capital '+fc(D.capital.initialCapital));
+      msg = '⚠️ Your previously-saved Opening Balance has: '+parts.join(', ')+' — none of these are covered by any row in this Trial Balance, so '+
+        (losingCapital?'Initial Capital will be superseded by this Trial Balance\'s own Capital figure, and ':'')+
+        'the others will be reset to ₹0 when you post. Add matching rows first if you want to keep them. Continue anyway?';
     }
   }
   confirmDialog(msg, function(){ postTBExecute(); });
@@ -12944,6 +13069,97 @@ function confirmDialog(message, onConfirm){
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }
+// HTML-capable variant with custom button labels and an onCancel callback — used where the
+// message needs formatting (e.g. a list of diagnosed reasons) or the Cancel action must do
+// something specific (like reverting to a safe prior state), not just silently close.
+function confirmDialogHtml(messageHtml, okLabel, cancelLabel, onConfirm, onCancel){
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:12px;padding:20px;max-width:400px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.2)';
+  var msg = document.createElement('div');
+  msg.style.cssText = 'font-size:13px;color:#0D2137;margin-bottom:18px;line-height:1.5';
+  msg.innerHTML = messageHtml;
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:10px;justify-content:flex-end';
+  var cancelBtn = document.createElement('button');
+  cancelBtn.textContent = cancelLabel||'Cancel';
+  cancelBtn.style.cssText = 'padding:9px 16px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#546E7A;font-size:13px;cursor:pointer';
+  var okBtn = document.createElement('button');
+  okBtn.textContent = okLabel||'OK';
+  okBtn.style.cssText = 'padding:9px 16px;border-radius:8px;border:none;background:#C62828;color:#fff;font-size:13px;font-weight:700;cursor:pointer';
+  cancelBtn.onclick = function(){ document.body.removeChild(overlay); if(onCancel) onCancel(); };
+  okBtn.onclick = function(){ document.body.removeChild(overlay); onConfirm(); };
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(okBtn);
+  box.appendChild(msg);
+  box.appendChild(btnRow);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
+// ── UPI Payment QR (for Sales) ──────────────────────────────────────────────
+// Resolves which UPI ID to use: the account set as default for UPI in Settings,
+// falling back to the first bank account that has a UPI ID configured.
+function getUPIDetails(){
+  var accts = D.bankAccounts || [];
+  if(accts.length===0) return null;
+  var defId = (D.settings && D.settings.defaultUPIAccount) || '';
+  var acct = accts.find(function(a){ return a.id===defId && a.upiId; });
+  if(!acct) acct = accts.find(function(a){ return a.upiId; });
+  if(!acct || !acct.upiId) return null;
+  return {upiId: acct.upiId, accountName: acct.name};
+}
+// Builds a standard UPI deep link (upi://pay?...) with the amount pre-filled, so scanning it in
+// any UPI app (GPay, PhonePe, Paytm etc.) opens the payment screen with the amount already set —
+// the customer only needs to confirm and authenticate, never type the amount themselves.
+function buildUPILink(amount, note){
+  var d = getUPIDetails();
+  if(!d) return null;
+  var payeeName = D.profile.businessName || 'Merchant';
+  var params = 'pa='+encodeURIComponent(d.upiId)+
+    '&pn='+encodeURIComponent(payeeName)+
+    '&am='+encodeURIComponent((+amount||0).toFixed(2))+
+    '&cu=INR'+
+    (note ? '&tn='+encodeURIComponent(note) : '');
+  return 'upi://pay?'+params;
+}
+// Shows a modal with a scannable UPI payment QR code for the given amount. Uses a well-established,
+// key-free QR image generation service since UPI payments themselves require internet connectivity
+// at the moment of use anyway, so this doesn't reduce the app's offline capability for bookkeeping.
+function showPaymentQR(amount, note){
+  var link = buildUPILink(amount, note);
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,0.3)';
+var goToProfileBtn = null;
+  if(!link){
+    box.innerHTML = '<div style="font-size:15px;font-weight:800;color:#C62828;margin-bottom:10px">⚠️ No UPI ID configured</div>'+
+      '<div style="font-size:12px;color:#546E7A;margin-bottom:16px;line-height:1.5">Add a UPI ID to one of your bank accounts in Profile → Bank Accounts, then tap "Set as UPI Account".</div>';
+  } else {
+    var qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&data='+encodeURIComponent(link);
+    box.innerHTML = '<div style="font-size:15px;font-weight:800;color:#0D2137;margin-bottom:4px">Scan to Pay</div>'+
+      '<div style="font-size:22px;font-weight:800;color:#2E7D32;margin-bottom:12px">'+fc(amount)+'</div>'+
+      '<img src="'+qrImgUrl+'" style="width:220px;height:220px;border:1px solid #E0E0E0;border-radius:8px" alt="UPI Payment QR">'+
+      '<div style="font-size:11px;color:#546E7A;margin-top:10px">'+esc(D.profile.businessName||'')+' • '+esc(getUPIDetails().upiId)+'</div>'+
+      '<div style="font-size:10px;color:#90A4AE;margin-top:6px">Customer scans this in any UPI app — the amount is already filled in, no typing needed.</div>';
+  }
+  if(!link){
+    goToProfileBtn = document.createElement('button');
+    goToProfileBtn.textContent = 'Go to Profile';
+    goToProfileBtn.style.cssText = 'margin-top:16px;padding:10px 24px;border-radius:8px;border:none;background:#2E7D32;color:#fff;font-size:13px;font-weight:700;cursor:pointer;margin-right:8px';
+    goToProfileBtn.onclick = function(){ document.body.removeChild(overlay); go('profile'); };
+  }
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Close';
+  closeBtn.style.cssText = 'margin-top:16px;padding:10px 24px;border-radius:8px;border:none;background:#1565C0;color:#fff;font-size:13px;font-weight:700;cursor:pointer';
+  closeBtn.onclick = function(){ document.body.removeChild(overlay); };
+  if(goToProfileBtn) box.appendChild(goToProfileBtn);
+  box.appendChild(closeBtn);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
 
 // Promise-based wrapper for use inside async functions
 function confirmDialogAsync(message){
@@ -15389,6 +15605,7 @@ function autoGenerateMissingStockStatements(){
     var s = D.stockStatementSettings || {stockMarginPct:25, debtorMarginPct:40};
     D.stockStatements.push({
       id:uid(), date:me, stock:bal.stock, receivables:bal.receivables, creditors:bal.creditors,
+      paidStock:Math.max(0, bal.stock-bal.creditors),
       stockMarginPct:s.stockMarginPct, debtorMarginPct:s.debtorMarginPct,
       drawingPower:computeDrawingPower(bal), ccOutstanding:bal.ccOutstanding, autoGenerated:true
     });
@@ -15401,6 +15618,43 @@ function autoGenerateMissingStockStatements(){
 // Replays every purchase, sale, and return event chronologically per item, tracking two cost pools
 // (indigenous and imported) exactly as the live drawStock/restoreStock functions do, so the result
 // always reconciles to the same figures the rest of the app already uses for stock valuation.
+// ── Bank-wise Monthly Reconciliation (Opening + Receipts - Payments = Closing, per account) ──
+function computeBankAccountBalanceAsOfDate(accountId, asOfDate){
+  var bal = 0;
+  var accts = D.bankAccounts && D.bankAccounts.length ? D.bankAccounts : [{id:'acc1',name:'Bank Account 1'}];
+  var isFirstAccount = accts[0] && accts[0].id===accountId;
+  D.cashBook.forEach(function(x){
+    if(x.mode!=='bank' || (x.date||'')>asOfDate) return;
+    var aid = x.bankAccountId || accts[0].id;
+    if(aid!==accountId) return;
+    bal += (x.type==='receipt' ? (x.amount||0) : -(x.amount||0));
+  });
+  if(isFirstAccount) bal += (+D.opening.bank||0);
+  return bal;
+}
+function computeBankWiseMonthlyReconciliation(fromDate, toDate){
+  var accts = D.bankAccounts && D.bankAccounts.length ? D.bankAccounts : [{id:'acc1',name:'Bank Account 1'}];
+  var isCurrentPeriod = toDate>=td();
+  var liveBalances = isCurrentPeriod ? getBankAccountBalances() : null;
+  return accts.map(function(a){
+    var openingBal = computeBankAccountBalanceAsOfDate(a.id, fromDate);
+    var receipts=0, payments=0;
+    D.cashBook.forEach(function(x){
+      if(x.mode!=='bank') return;
+      var aid = x.bankAccountId || accts[0].id;
+      if(aid!==a.id) return;
+      if((x.date||'')<fromDate || (x.date||'')>toDate) return;
+      if(x.type==='receipt') receipts += (x.amount||0); else payments += (x.amount||0);
+    });
+    var closingBal = isCurrentPeriod ? (liveBalances.find(function(b){return b.id===a.id;})||{balance:0}).balance
+      : (openingBal+receipts-payments);
+    return {
+      id: a.id, name: a.name, accountNumber: a.accountNumber||'',
+      openingBalance: openingBal, receipts: receipts, payments: payments, closingBalance: closingBal,
+      reconciles: Math.abs((openingBal+receipts-payments)-closingBal)<1
+    };
+  });
+}
 function computeItemWiseStockMovement(fromDate, toDate){
   var rows = [];
   D.inventory.forEach(function(it){
