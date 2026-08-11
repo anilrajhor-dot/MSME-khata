@@ -1057,10 +1057,15 @@ function getFGrouped(){
   }
   var fixedAssetsNet = fixedAssetsNetTotal();
   var otherNonCurrentAssets = otherAssetsExclFA();
+  // Same GST classification as getBS(): Output GST owed is a Current Liability; if Input GST/ITC
+  // exceeds Output GST, the net credit is a Current Asset — never both, never a negative liability.
+  var gstNet = gstPayableBalance();
+  var gstLiability = Math.max(0, gstNet);
+  var gstReceivable = Math.max(0, -gstNet);
 
   var ownedFunds = f.cap + f.np;
-  var currentLiab = f.cr + f.expPayable + f.advFromCustomers + stBorrowings + f.ol;
-  var currentAssets = f.cs + f.cb + f.bb + f.dr + f.advToSuppliers + f.advPrepaidExp;
+  var currentLiab = f.cr + f.expPayable + f.advFromCustomers + stBorrowings + f.ol + gstLiability;
+  var currentAssets = f.cs + f.cb + f.bb + f.dr + f.advToSuppliers + f.advPrepaidExp + gstReceivable;
   var totalLiab = ownedFunds + termLoans + currentLiab;
   var totalAssets = fixedAssetsNet + currentAssets + otherNonCurrentAssets;
   var nwc = currentAssets - currentLiab;
@@ -1071,7 +1076,7 @@ function getFGrouped(){
     advToSuppliers:f.advToSuppliers, advPrepaidExp:f.advPrepaidExp, advFromCustomers:f.advFromCustomers,
     fixedAssetsNet:fixedAssetsNet, currentAssets:currentAssets, otherNonCurrentAssets:otherNonCurrentAssets,
     closingStock:f.cs, closingStockIndig:f.csIndig, closingStockImp:f.csImp, cashBank:f.cb+f.bb, debtors:f.dr,
-    sundryDebtors:f.dr, sundryCreditors:f.cr,
+    sundryDebtors:f.dr, sundryCreditors:f.cr, gstPayable:gstLiability, gstReceivable:gstReceivable,
     totalLiab:totalLiab, totalAssets:totalAssets, nwc:nwc, diff:totalLiab-totalAssets
   };
 }
@@ -1083,23 +1088,59 @@ function getFGrouped(){
 function diagnoseBSDifference(){
   var bs = getBS();
   var findings = [];
-  if(Math.abs(bs.diff) < 1){
-    return {balanced:true, diff:bs.diff, findings:[]};
-  }
 
-  // 1. Orphaned Sales — item was deleted after being sold
+  // 1. Orphaned Sales — item was deleted after being sold. Checked FIRST and unconditionally
+  // (even when the Balance Sheet is mathematically balanced): revenue/cash for these sales is
+  // still counted, but their stock/cost tracking is completely absent from the inventory-based
+  // COGS calculation, silently inflating profit and stock without necessarily unbalancing the
+  // Assets = Liabilities equation.
   var validItemIds = {}; D.inventory.forEach(function(it){ validItemIds[it.id]=true; });
-  var orphanSales = D.sales.filter(function(s){ return s.itemId && !validItemIds[s.itemId]; });
+  var orphanSales = D.sales.filter(function(s){ return s.itemId && s.itemId!=='__service__' && !validItemIds[s.itemId]; });
   if(orphanSales.length>0){
-    findings.push({severity:'error', title:orphanSales.length+' Sale(s) reference a deleted Inventory item',
-      detail:'These sales still count toward revenue/profit, but their stock/cost tracking is orphaned since the item no longer exists — a likely source of a Balance Sheet mismatch.',
-      fix:'Go to Sales register, find entries for a deleted item, and either restore the item or delete/re-enter those sales against a valid item.'});
+    var orphanSalesTotal = orphanSales.reduce(function(s,x){return s+(x.totalAmount||0);},0);
+    findings.push({severity:'error', title:orphanSales.length+' Sale(s) reference a deleted/missing Inventory item (totalling '+fc(orphanSalesTotal)+')',
+      detail:'These sales still count toward revenue and cash received, but since the item no longer exists in Inventory, no stock was ever reduced and no cost was deducted for them — this overstates profit and stock even when Assets and Liabilities still appear to balance.',
+      fix:'Go to Sales register, find entries for a deleted item, and either restore the item (same name/unit) or delete/re-enter those sales against a valid item.'});
   }
   var orphanPurchases = D.purchases.filter(function(p){ return p.itemId && !validItemIds[p.itemId]; });
   if(orphanPurchases.length>0){
-    findings.push({severity:'error', title:orphanPurchases.length+' Purchase(s) reference a deleted Inventory item',
-      detail:'Same issue as above but for Purchases — stock/cost tracking for these is orphaned.',
+    var orphanPurchTotal = orphanPurchases.reduce(function(s,x){return s+(x.amount||0);},0);
+    findings.push({severity:'error', title:orphanPurchases.length+' Purchase(s) reference a deleted/missing Inventory item (totalling '+fc(orphanPurchTotal)+')',
+      detail:'Same issue as above but for Purchases — cash/creditor tracking exists for these, but stock was never actually added since the item no longer exists.',
       fix:'Go to Purchase register, find entries for a deleted item, and either restore the item or delete/re-enter those purchases against a valid item.'});
+  }
+
+  // 1b. Credit Sales without a matching Debtor entry — checked unconditionally, same reasoning
+  // as orphaned sales: revenue and (via drawStock) COGS are both counted correctly for a credit
+  // sale, but if no debtor entry was ever created, the receivable simply doesn't exist as an
+  // asset. Since stock/COGS still moved correctly, Assets can still equal Liabilities overall —
+  // this doesn't show up as an imbalance, but Cash Flow, Debtors ageing, and collection tracking
+  // for that specific sale will all be silently wrong.
+  var creditSales = D.sales.filter(function(s){ return s.paymentMode==='credit'; });
+  if(creditSales.length>0){
+    var custNameOf = function(s){ return s.customerName || s.customer || ''; };
+    var debtorPositiveByName = {};
+    D.debtors.forEach(function(d){ if((+d.amount||0)>0) debtorPositiveByName[d.name] = (debtorPositiveByName[d.name]||0) + d.amount; });
+    var creditSalesByName = {};
+    creditSales.forEach(function(s){ var nm=custNameOf(s); creditSalesByName[nm] = (creditSalesByName[nm]||0) + (s.totalAmount||0); });
+    var missingDebtorTotal = 0, affectedCustomers = [];
+    for(var nm in creditSalesByName){
+      var salesTotal = creditSalesByName[nm];
+      var debtorTotal = debtorPositiveByName[nm] || 0;
+      if(salesTotal - debtorTotal > 0.5){
+        missingDebtorTotal += (salesTotal - debtorTotal);
+        affectedCustomers.push(nm||'(unnamed)');
+      }
+    }
+    if(missingDebtorTotal>0.5){
+      findings.push({severity:'error', title:'Credit sales worth '+fc(missingDebtorTotal)+' have no matching Debtor entry ('+affectedCustomers.length+' customer(s): '+affectedCustomers.slice(0,3).join(', ')+(affectedCustomers.length>3?', ...':'')+')',
+        detail:'These credit sales correctly reduced stock and counted as revenue, but no receivable was ever recorded for them — so the amount owed isn\'t tracked as an asset anywhere. This can make Cash Flow, Debtors ageing, and Drawing Power calculations understate what should reconcile, even though Assets still equal Liabilities overall.',
+        fix:'Go to Debtors & Creditors → Debtors and check whether these customers\' balances look complete. If a receivable is genuinely missing, add it manually with the correct date and reference.'});
+    }
+  }
+
+  if(Math.abs(bs.diff) < 1){
+    return {balanced:true, diff:bs.diff, findings:findings};
   }
 
   // 2. Opening Balance AND Trial Balance both populated — risk of double-counting
@@ -1205,10 +1246,14 @@ function pgHealthCheck(){
   h+='<div style="background:#E0E0E0;height:8px;border-radius:4px;margin-top:8px">';
   h+='<div style="background:'+overallColor+';height:8px;border-radius:4px;width:'+overall+'%"></div></div>';
 
-  // ── Balance Sheet Difference Diagnostic (detailed, only shown if there IS a difference) ──
+  // ── Balance Sheet Difference Diagnostic (shown whenever there's a real issue - either an
+  // actual Assets≠Liabilities difference, or a data-integrity issue like orphaned sales that
+  // doesn't unbalance the sheet but still silently distorts profit/stock) ──
   var bsDiag = diagnoseBSDifference();
-  if(!bsDiag.balanced){
-    var diagHtml = '<div style="font-size:12px;color:#37474F;margin-bottom:10px">Balance Sheet difference: <b style="color:#C62828">'+fc(Math.abs(bsDiag.diff))+'</b>. Since every entry form posts both sides of a transaction together, a real difference traces back to one of a few specific causes — here\'s what was found:</div>';
+  if(!bsDiag.balanced || bsDiag.findings.length>0){
+    var diagHtml = bsDiag.balanced ?
+      '<div style="font-size:12px;color:#37474F;margin-bottom:10px">Your Balance Sheet totals match (Assets = Liabilities), but the checks below found other data-integrity issues worth reviewing:</div>' :
+      '<div style="font-size:12px;color:#37474F;margin-bottom:10px">Balance Sheet difference: <b style="color:#C62828">'+fc(Math.abs(bsDiag.diff))+'</b>. Since every entry form posts both sides of a transaction together, a real difference traces back to one of a few specific causes — here\'s what was found:</div>';
     bsDiag.findings.forEach(function(f){
       var color = f.severity==='error' ? '#C62828' : '#E65100';
       var bg = f.severity==='error' ? '#FFEBEE' : '#FFF3E0';
@@ -1218,7 +1263,7 @@ function pgHealthCheck(){
         '<div style="font-size:11px;color:#2E7D32;margin-top:4px"><b>How to fix:</b> '+f.fix+'</div>'+
         '</div>';
     });
-    h += card('🔎 Balance Sheet Difference — Traced Cause', diagHtml);
+    h += card('🔎 Data Integrity Check — Traced Findings', diagHtml);
   }
 
   var passed=res.checks.filter(function(c){return c.pass;}).length;
@@ -1483,6 +1528,20 @@ function runHealthCheck(){
       })():''});
   }catch(e){checks.push({name:'Balance Sheet',pass:false,warn:true,detail:'Error: '+e.message,fix:'Reload app and try again.'});}
 
+  // ── CHECK 2a: Data Integrity (orphaned sales/purchases) — runs independently of whether the
+  // Balance Sheet balances, since this issue can silently inflate profit/stock without ever
+  // showing up as an Assets≠Liabilities difference. ──
+  try{
+    var _diagInt = diagnoseBSDifference();
+    var _hasIntegrityIssues = _diagInt.findings.length>0;
+    checks.push({name:'Data Integrity (Orphaned Sales/Purchases)',
+      pass:!_hasIntegrityIssues, warn:_hasIntegrityIssues,
+      detail:_hasIntegrityIssues ?
+        _diagInt.findings.map(function(f){return f.title;}).join(' | ') :
+        'No sales or purchases reference a missing inventory item ✅',
+      fix:_hasIntegrityIssues ? _diagInt.findings.map(function(f){return f.fix;}).join(' | ') : ''});
+  }catch(e){checks.push({name:'Data Integrity',pass:false,warn:true,detail:'Error: '+e.message,fix:'Reload app and try again.'});}
+
   // ── CHECK 2b: GST Reconciliation ──
   if(gstEnabled()){
     try{
@@ -1675,7 +1734,7 @@ function runHealthCheck(){
   }
 
   var categories=[
-    {label:'Accounting Accuracy',  score:score(['Balance Sheet Balances','Trial Balance','Trial Balance Tallies','Loan Balances Correct','No Duplicate Voucher Nos.'])},
+    {label:'Accounting Accuracy',  score:score(['Balance Sheet Balances','Trial Balance','Trial Balance Tallies','Loan Balances Correct','No Duplicate Voucher Nos.','Data Integrity (Orphaned Sales/Purchases)'])},
     {label:'Inventory Accuracy',   score:score(['No Negative Stock','Closing Stock Consistent','No Expired Stock'])},
     {label:'Cash & Bank',          score:score(['Cash & Bank Position'])},
     {label:'Data Integrity',       score:score(['Debtors Reconcile','Creditors Reconcile'])},
@@ -4043,7 +4102,7 @@ function pgCap(){
   }
   else if(tab==='addloan'){
     h+=card('Add New Loan',
-      g2(inp('Bank / Lender Name','l_b','text',''),sl('Loan Type','l_type',LOAN_TYPES,'Term Loan'))+
+      g2(inp('Bank / Lender Name','l_b','text',''),sl('Loan Type','l_type',LOAN_TYPES,'Term Loan').replace('id="l_type"','id="l_type" onchange="updateLoanDisbOptions()"'))+
       '<div id="loanTypeHint"></div>'+
       inp('Loan / CC / OD Account Number (required)','l_acctnum','text','')+
       g2(inp('Loan Amount (₹)','l_a','number',0),inp('Interest Rate % p.a.','l_r','number',0))+
@@ -4064,11 +4123,13 @@ function pgCap(){
         '• यह वह राशि है जो वास्तव में आपके account में आई — नहीं आई तो 0 डालें'+
       '</div>'+
       ''+
+      '<div id="loanDisbWrapper">'+
       sl('Loan Credited To / ऋण कहाँ जमा हुआ?','l_disb',[
         {v:'bank',l:'🏦 Bank Account — Amount credited to bank (बैंक में जमा हुई)'},
         {v:'cash',l:'💵 Cash in Hand — Amount received in cash (नकद में मिली)'},
         {v:'none',l:'⏳ Not Yet Received — Sanctioned but not disbursed yet (स्वीकृत है, अभी तक नहीं मिली)'}
       ],'bank')+
+      '</div>'+
       '<div style="font-size:10px;color:#E65100;margin:-4px 0 6px 0">'+
         '⚠️ Select "Not Yet Received" if bank has sanctioned the loan but money has NOT come in yet.<br>'+
         'The loan will appear on Balance Sheet only when you record the actual drawdown.<br>'+
@@ -4529,6 +4590,29 @@ function previewLoanMoratorium(){
   }
   msg += '<br><b>After moratorium (remaining '+res.postMoratoriumTenure+' months):</b><br>Regular EMI: <b>'+fc(res.emi)+'</b>/month.</div>';
   el.innerHTML = msg;
+}
+// CC/OD sanctioning is not a disbursement — the limit is set up, but no money is credited to
+// Bank or Cash at that point (money is drawn down later, as needed, via CC withdrawals). So for
+// these loan types, the dropdown shows only one locked option instead of a Bank/Cash choice that
+// would incorrectly imply cash moved at sanction time.
+function updateLoanDisbOptions(){
+  var typeEl = document.getElementById('l_type');
+  var wrapper = document.getElementById('loanDisbWrapper');
+  if(!typeEl || !wrapper) return;
+  var type = typeEl.value;
+  var isCcOd = (type==='Cash Credit (CC)' || type==='Overdraft (OD)');
+  if(isCcOd){
+    var label = type==='Cash Credit (CC)' ? 'CC Sanctioned' : 'OD Sanctioned';
+    wrapper.innerHTML = sl('Loan Credited To / ऋण कहाँ जमा हुआ?','l_disb',[
+      {v:'none',l:'📋 '+label+' — limit set up, no cash movement yet (सीमा स्वीकृत, अभी कोई नकद नहीं आया)'}
+    ],'none');
+  } else {
+    wrapper.innerHTML = sl('Loan Credited To / ऋण कहाँ जमा हुआ?','l_disb',[
+      {v:'bank',l:'🏦 Bank Account — Amount credited to bank (बैंक में जमा हुई)'},
+      {v:'cash',l:'💵 Cash in Hand — Amount received in cash (नकद में मिली)'},
+      {v:'none',l:'⏳ Not Yet Received — Sanctioned but not disbursed yet (स्वीकृत है, अभी तक नहीं मिली)'}
+    ],'bank');
+  }
 }
 function addLoan(){
   var b=gv('l_b'),a=gvn('l_a'),lt=gv('l_type');
@@ -7215,6 +7299,7 @@ function pgFin(){
         (g.expensesPayable>0?fsr('Expenses Payable',g.expensesPayable,0,1):'')+
         (g.advFromCustomers>0?fsr('Advances from Customers',g.advFromCustomers,0,1):'')+
         (g.stBorrowings>0?fsr('Short-Term Borrowings (CC/OD)',g.stBorrowings,0,1):'')+
+        (g.gstPayable>0?fsr('GST Payable',g.gstPayable,0,1):'')+
         (g.otherCurrentLiab>0?fsr('Other Liabilities',g.otherCurrentLiab,0,1)+liabExtra:'')+
         fsr('C. Current Liabilities',g.currentLiab,1,0,1)+
         fsr('TOTAL (A+B+C)',g.totalLiab,1,0,1)+
@@ -7227,6 +7312,7 @@ function pgFin(){
         fsr('Sundry Debtors',g.debtors,0,1,0,g.debtors>0?'#C62828':null)+
         (g.advToSuppliers>0?fsr('Advances to Suppliers',g.advToSuppliers,0,1):'')+
         (g.advPrepaidExp>0?fsr('Prepaid Expenses',g.advPrepaidExp,0,1):'')+
+        (g.gstReceivable>0?fsr('GST Receivable (Input Tax Credit)',g.gstReceivable,0,1):'')+
         fsr('Cash &amp; Bank',g.cashBank,0,1)+
         fsr('E. Current Assets',g.currentAssets,1,0,1)+
         (g.otherNonCurrentAssets>0?fsr('F. Other Non-Current Assets',g.otherNonCurrentAssets,1,0,1)+assetExtra:'')+
@@ -11782,6 +11868,23 @@ function pgHelp(){
       '<p><b>UPI ID format:</b> जैसे 9812345678@okicici या shopname@sbi</p>'
     )
   );
+  h += hs(
+    bi('16. What\'s New — GST, Stock Statement, UPI Payments & More', '16. नया क्या है — GST, Stock Statement, UPI Payments और अधिक'),
+    bi(
+      '<p><b>GST on Sales/Purchases:</b> When GST is enabled (Data → GST Setup), Sales and Purchase entry now show a GST Rate field. The price you enter is always the taxable value (excl. GST) — GST is calculated and added on top, and the GST-inclusive amount is what actually posts to Cash/Bank/Debtors/Creditors. Stock valuation stays GST-exclusive (correct, since GST paid isn\'t part of inventory cost). GST Summary, GSTR-1, and ITC reports all read these same figures — one number, everywhere.</p>' +
+      '<p><b>Monthly Stock Statement:</b> Go to <b>Stock Statement</b> menu — auto-prepared for each completed month, no manual work needed. Three tabs: <b>Summary Register</b> (Stock/Debtors/Creditors/Paid Stock/Drawing Power for your bank), <b>Item-wise Detail</b> (Item, HSN, Opening/Purchases/Sales/Closing Qty, Rate, Value, Domestic/Imported split — reconciles exactly with Balance Sheet), and <b>Bank Reconciliation</b> (Opening+Receipts-Payments=Closing per bank account, month by month).</p>' +
+      '<p><b>Debtors & Creditors Department:</b> New menu consolidating everything in one place — Ageing Analysis (FIFO-based), a dedicated <b>Bank Debtors Statement</b> split at the standard 180-day threshold (eligible vs doubtful for Drawing Power), and full Add/Record Receipt/Payment right there — no need to go elsewhere.</p>' +
+      '<p><b>UPI Payment QR:</b> After any non-credit Sale, tap "📱 Show Payment QR" — shows a scannable code with the exact amount pre-filled, so your customer just scans and confirms, no typing needed. Also appears automatically on printed Invoices (Create Bill). Every QR generated is logged in <b>QR Payment Tracker</b> — mark each one Paid (with UTR for bank reconciliation)/Failed/Cancelled, since UPI apps don\'t notify this app automatically. To set your UPI ID: <b>Profile → Bank Accounts → enter UPI ID → Save</b>, then tap "Set as UPI Account".</p>' +
+      '<p><b>CC/OD Loan Sanctioning:</b> When adding a Cash Credit or Overdraft loan, the "Credited To" dropdown now correctly shows only "CC/OD Sanctioned" — no Bank/Cash choice — since sanctioning a limit isn\'t a disbursement; money is drawn down later as needed.</p>' +
+      '<p><b>Smarter Health Check:</b> Now catches issues that don\'t show up as a Balance Sheet imbalance — like a sale referencing a deleted item, or a credit sale with no matching Debtor entry. These can silently distort profit even when Assets still equal Liabilities, so they\'re checked every time, not just when something looks obviously wrong.</p>',
+      '<p><b>Sales/Purchase पर GST:</b> जब GST enable हो (Data → GST Setup), Sales और Purchase entry में अब GST Rate field दिखेगी। आप जो price डालते हैं वो हमेशा taxable value (GST छोड़कर) होती है — GST अलग से जुड़ती है, और GST-सहित amount ही Cash/Bank/Debtors/Creditors में जाती है। Stock valuation GST के बिना रहती है (सही है, क्योंकि GST inventory cost का हिस्सा नहीं)। GST Summary, GSTR-1, ITC सब यही figures पढ़ते हैं — एक नंबर, हर जगह।</p>' +
+      '<p><b>Monthly Stock Statement:</b> <b>Stock Statement</b> menu में जाएं — हर पूरे महीने के लिए अपने आप तैयार होता है। तीन tabs: <b>Summary Register</b> (Stock/Debtors/Creditors/Paid Stock/Drawing Power), <b>Item-wise Detail</b> (Item, HSN, Opening/Purchases/Sales/Closing Qty, Rate, Value, Domestic/Imported), और <b>Bank Reconciliation</b> (हर bank account का Opening+Receipts-Payments=Closing, महीने-दर-महीने)।</p>' +
+      '<p><b>Debtors & Creditors Department:</b> नया menu — Ageing Analysis, <b>Bank Debtors Statement</b> (180-day threshold पर split), और वहीं से Add/Record Receipt/Payment — कहीं और जाने की जरूरत नहीं।</p>' +
+      '<p><b>UPI Payment QR:</b> किसी भी non-credit Sale के बाद "📱 Show Payment QR" दबाएं — amount भरा हुआ QR code दिखता है, ग्राहक सिर्फ scan करे। Invoice print पर भी अपने आप दिखता है। हर QR <b>QR Payment Tracker</b> में दर्ज होता है — Paid (UTR के साथ)/Failed/Cancelled मार्क करें। UPI ID सेट करने के लिए: <b>Profile → Bank Accounts → UPI ID डालें → Save</b>, फिर "Set as UPI Account" दबाएं।</p>' +
+      '<p><b>CC/OD Loan Sanctioning:</b> Cash Credit या Overdraft loan जोड़ते समय dropdown अब सिर्फ "CC/OD Sanctioned" दिखाता है — Bank/Cash का विकल्प नहीं — क्योंकि limit sanction होना पैसा मिलना नहीं है।</p>' +
+      '<p><b>बेहतर Health Check:</b> अब वो issues भी पकड़ता है जो Balance Sheet असंतुलित नहीं करते — जैसे deleted item का sale, या बिना Debtor entry की credit sale। ये चुपचाप profit गलत कर सकते हैं, इसलिए हमेशा जाँचे जाते हैं।</p>'
+    )
+  );
   // Developer credit at bottom
   h += '<div style="margin-top:16px;padding:12px;background:#F0F4FF;border-radius:8px;text-align:center">';
   h += '<div style="font-size:11px;color:#1565C0;font-weight:700">ME Khata Suite</div>';
@@ -15889,8 +15992,13 @@ function computeHistoricalFYFromLiveData(fy){
     .reduce(function(s,a){return s+((+a.cost||0)-(+a.accumAmort||0));},0);
   var tnwAsOf = capitalTotal + cumNetProfitToDate - cumDrawingsToDate - intangAsOf;
 
-  var currentAssetsAsOf = invValue + Math.max(0,receivablesAsOf) + cash + bank;
-  var currentLiabilitiesAsOf = Math.max(0,creditorsAsOf);
+  var gstAsOf = (D.gstLedger||[]).filter(function(g){return g.date && g.date<=range.to;})
+    .reduce(function(s,g){ return s + (g.type==='output' ? (+g.amount||0) : -(+g.amount||0)); }, 0);
+  var gstLiabilityAsOf = Math.max(0, gstAsOf);
+  var gstReceivableAsOf = Math.max(0, -gstAsOf);
+
+  var currentAssetsAsOf = invValue + Math.max(0,receivablesAsOf) + cash + bank + gstReceivableAsOf;
+  var currentLiabilitiesAsOf = Math.max(0,creditorsAsOf) + gstLiabilityAsOf;
   var totalTangibleAssetsAsOf = fixedAssetsAsOf + currentAssetsAsOf;
   var totalAssetsAsOf = totalTangibleAssetsAsOf + intangAsOf;
   var tolAsOf = totalAssetsAsOf - tnwAsOf;
@@ -15929,6 +16037,7 @@ function computeHistoricalFYFromLiveData(fy){
     rmConsumption: rmConsumption, spares: spares, powerFuel: powerFuel, otherMfgExpenses: otherMfgExpenses,
     costOfProduction: rmConsumption+spares+powerFuel+otherMfgExpenses, costOfSales: cogs,
     receivables: Math.max(0,receivablesAsOf), creditors: Math.max(0,creditorsAsOf),
+    gstPayable: gstLiabilityAsOf, gstReceivable: gstReceivableAsOf,
     totalDebt: totalDebtAsOf, termLoanOutstanding: termLoanAsOf, quasiCapital: quasiCapitalAsOf,
     fixedAssets: fixedAssetsAsOf, tnw: tnwAsOf,
     currentAssets: currentAssetsAsOf, currentLiabilities: currentLiabilitiesAsOf,
@@ -17178,8 +17287,23 @@ function pgCFS() {
   var chgCreditors = +(closCreditors - openCreditors);   // increase in creditors = inflow
   var chgExpPayable= +(expPayable    - openExpPayable);  // increase in exp payable = inflow
 
+  // Change in GST Payable/(Receivable): an increase in net GST payable is an operating inflow
+  // (cash collected as GST but not yet remitted); an increase in net GST receivable (ITC exceeding
+  // output GST) is an operating outflow (cash effectively tied up as a claim against the tax
+  // department). There's no "opening" GST balance concept (GST tracking only exists prospectively
+  // from when it was enabled), so the full current net balance represents the change.
+  var gstNetNow = gstPayableBalance();
+  var chgGST = gstNetNow; // positive net payable = inflow; negative (net receivable) = outflow, naturally via sign
+
+  // Change in Provisions/Outstanding Expenses: an increase in unsettled provisions is a non-cash
+  // accrual — an operating inflow in the indirect method (profit was reduced by the expense, but
+  // cash wasn't). Cash only leaves when the provision is actually settled (paid), which is already
+  // reflected through the normal cash/bank ledger at that point, not here.
+  var chgProvisions = unsettledProvisionsTotal();
+
   var cfOperating = netProfit + depreciation
-                    + chgDebtors + chgStock + chgAdvances + chgCreditors + chgExpPayable;
+                    + chgDebtors + chgStock + chgAdvances + chgCreditors + chgExpPayable
+                    + chgGST + chgProvisions;
 
   // ── INVESTING ACTIVITIES ──
   // Fixed asset purchases (outflow) — from otherAssets minus opening FA
@@ -17221,7 +17345,7 @@ function pgCFS() {
   // double counting or silent gaps regardless of how the entry was created.
   var capitalIntroduced = 0;
   (D.cashBook||[]).forEach(function(e){
-    var desc = (e.description||'').toLowerCase();
+    var desc = (e.description||e.desc||'').toLowerCase();
     if(desc.indexOf('capital introduced')>=0 || desc.indexOf('capital reduced')>=0){
       if(e.type==='receipt') capitalIntroduced += (+e.amount||0);
       else if(e.type==='payment') capitalIntroduced -= (+e.amount||0);
@@ -17301,6 +17425,8 @@ function pgCFS() {
   h += cRow('Change in Advances Paid'+(chgAdvances>=0?' (recovered — inflow)':' (paid — outflow)'), chgAdvances, false, true);
   h += cRow('Change in Creditors / Payables'+(chgCreditors>=0?' (increased — inflow)':' (decreased — outflow)'), chgCreditors, false, true);
   if(chgExpPayable!==0) h += cRow('Change in Expenses Payable'+(chgExpPayable>=0?' (increased — inflow)':' (decreased — outflow)'), chgExpPayable, false, true);
+  if(chgGST!==0) h += cRow('Change in GST Payable / (Receivable)'+(chgGST>=0?' (net payable — inflow)':' (net receivable/ITC — outflow)'), chgGST, false, true);
+  if(chgProvisions!==0) h += cRow('Change in Provisions / Outstanding Expenses (unsettled — inflow)', chgProvisions, false, true);
   h += cRow('A.  Net Cash from Operating Activities', cfOperating, true, false, true);
   h += '</div>';
 
