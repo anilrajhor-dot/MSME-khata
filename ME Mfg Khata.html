@@ -1471,7 +1471,7 @@ function diagnoseBSDifference(){
   // opening+purchases-COGS derivation (a genuine mismatch here usually means a manual
   // stock/cost edit happened outside the normal Purchase/Sale flow)
   var f = getF();
-  var independentStock = (+D.opening.stock||0) + f.tp - f.tc;
+  var independentStock = f.os + f.tp - f.tc;
   if(Math.abs(f.cs - independentStock) > Math.max(10, f.cs*0.02)){
     findings.push({severity:'warning', title:'Stock value doesn\'t match the Opening+Purchases−COGS trail',
       detail:'Computed Closing Stock is '+fc(f.cs)+', but Opening Stock + Purchases − COGS gives '+fc(independentStock)+' — a difference of '+fc(Math.abs(f.cs-independentStock))+'. This usually means an item\'s cost/quantity was edited directly, or Sales/Purchase Returns and stock don\'t fully agree.',
@@ -3041,6 +3041,10 @@ function smartAIAnswer(question){
   var q=question.toLowerCase();
 
   // Route to correct analyser
+  if(q.indexOf('gst')>=0)
+    return analyseGSTStatus();
+  if(q.indexOf('upi')>=0||q.indexOf('qr')>=0)
+    return analyseUPISetup();
   if(q.indexOf('profit')>=0&&(q.indexOf('reduc')>=0||q.indexOf('low')>=0||q.indexOf('why')>=0||q.indexOf('fall')>=0||q.indexOf('less')>=0))
     return analyseWhyProfitReduced();
   if(q.indexOf('reorder')>=0||q.indexOf('stock')>=0&&q.indexOf('order')>=0||q.indexOf('buy')>=0||q.indexOf('purchase')>=0&&q.indexOf('should')>=0)
@@ -3062,6 +3066,54 @@ function smartAIAnswer(question){
 
   // Default — general business summary
   return analyseBusinessHealth();
+}
+
+// ── Q0a: GST status — how much do I owe / receive? ───────────
+function analyseGSTStatus(){
+  if(!gstEnabled()){
+    return '<b>📋 GST</b><br><br>GST tracking is not enabled for your business yet. Agar aap GST-registered hain, go to <b>Data → GST Setup</b> to enable it — phir Sales/Purchase entries mein GST rate/amount track hoga automatically.';
+  }
+  var net=gstPayableBalance();
+  var reply='<b>📋 GST Status</b><br><br>';
+  if(net>0.5){
+    reply+='<div style="background:#FFF3E0;border-radius:8px;padding:12px;text-align:center;margin-bottom:10px">';
+    reply+='<div style="font-size:11px;color:#546E7A">Net GST Payable (aapko government ko dena hai)</div>';
+    reply+='<div style="font-size:22px;font-weight:900;color:#E65100">'+fc(net)+'</div>';
+    reply+='</div>';
+    reply+='• Yeh amount aapke Cash/Bank mein already hai (customers se collect ho chuka hai) — isse spend na karein, filing ke liye set aside rakhein.<br>';
+  } else if(net<-0.5){
+    reply+='<div style="background:#E8F5E9;border-radius:8px;padding:12px;text-align:center;margin-bottom:10px">';
+    reply+='<div style="font-size:11px;color:#546E7A">Net GST Receivable / Input Tax Credit</div>';
+    reply+='<div style="font-size:22px;font-weight:900;color:#2E7D32">'+fc(-net)+'</div>';
+    reply+='</div>';
+    reply+='• Aapne output GST se zyada input GST (ITC) pay kiya hai — yeh credit aapke future GST liability se adjust hoga.<br>';
+  } else {
+    reply+='GST output aur input barabar hain — abhi kuch payable/receivable nahi hai.<br>';
+  }
+  reply+='• Full breakdown ke liye: <b>GST → GST Summary</b> ya <b>GSTR-1</b> tab dekhein.<br>';
+  reply+='• Balance Sheet par bhi yeh "GST Payable"/"GST Receivable" line mein dikhta hai.';
+  return reply;
+}
+
+// ── Q0b: UPI payment setup / QR code ─────────────────────────
+function analyseUPISetup(){
+  var upi=getUPIDetails();
+  var reply='<b>📱 UPI Payment QR</b><br><br>';
+  if(!upi){
+    reply+='Aapka UPI ID abhi set nahi hai.<br><br>';
+    reply+='<b>Setup karne ke liye:</b><br>';
+    reply+='1. <b>Profile → Bank Accounts</b> mein jaayein<br>';
+    reply+='2. Apna UPI ID enter karein (jaise 9812345678@okicici)<br>';
+    reply+='3. <b>Save</b> dabayein<br>';
+    reply+='4. Us account ke paas <b>"Set as UPI Account"</b> dabayein<br>';
+  } else {
+    reply+='Aapka active UPI account: <b>'+esc(upi.upiId)+'</b> ('+esc(upi.accountName)+')<br><br>';
+    reply+='<b>Kaise use karein:</b><br>';
+    reply+='• Koi bhi non-credit Sale record karne ke baad, <b>"📱 Show Payment QR"</b> button dabayein — amount already filled hua QR code milega, customer bas scan karke pay karega.<br>';
+    reply+='• Bill/Invoice print karne par bhi QR automatically dikhta hai.<br>';
+    reply+='• Har QR <b>QR Payment Tracker</b> mein log hota hai — payment confirm hone ke baad usse Paid mark karein (UTR ke saath, bank statement match karne ke liye).<br>';
+  }
+  return reply;
 }
 
 // ── Q1: Why has profit reduced? ──────────────────────────────
@@ -3427,6 +3479,11 @@ function analyseCashPosition(){
   reply+='• Expenses paid: '+fc(monthlyExp)+'<br>';
   if(emiTotal>0) reply+='• Monthly EMI: '+fc(emiTotal)+'<br>';
   if(overdueDr>0) reply+='• Overdue to collect: <span style="color:#C62828;font-weight:700">'+fc(overdueDr)+'</span><br>';
+  if(gstEnabled()){
+    var gstNet2=gstPayableBalance();
+    if(gstNet2>0) reply+='• GST Payable (set this aside, don\'t treat as free cash): <span style="color:#E65100;font-weight:700">'+fc(gstNet2)+'</span><br>';
+    else if(gstNet2<0) reply+='• GST Receivable (Input Tax Credit carried forward): <span style="color:#2E7D32;font-weight:700">'+fc(-gstNet2)+'</span><br>';
+  }
   reply+='<br>';
 
   reply+='<b>💡 Cash Flow Improve Karne Ke Upay:</b><br>';
@@ -3753,7 +3810,10 @@ function askAI(quickQ){
     'Top 5 Items by Sales: '+topItems+'\n'+
     'Overdue Collections: '+overdueCount+' customers, Rs.'+Math.round(overdueAmt)+'\n'+
     'Low/Out of Stock: '+(lowStockItems||'None')+'\n'+
-    'Monthly Sales Trend: '+moTrend.join(' → ')+'\n\n'+
+    'Monthly Sales Trend: '+moTrend.join(' → ')+'\n'+
+    (gstEnabled() ? ('GST Status: Net '+(gstPayableBalance()>0?'Payable':'Receivable (ITC)')+' Rs.'+Math.round(Math.abs(gstPayableBalance()))+' (see GST -> GST Summary for full breakdown)\n') : '')+
+    '\n'+
+    'Features available if the user asks how to do something: GST tracking (Data -> GST Setup, then Sales/Purchase show a GST Rate field); Monthly Stock Statement with Item-wise Detail and Bank Reconciliation tabs; Debtors & Creditors department with a Bank Debtors Statement split at 180 days; UPI Payment QR after any non-credit Sale or on printed Invoices (set UPI ID at Profile -> Bank Accounts, mark payments Paid/Failed in QR Payment Tracker); CC/OD loans correctly show only "Sanctioned" (no Bank/Cash choice) since sanctioning a limit is not a disbursement. '+
     'Give practical, specific advice in simple English and Hindi mixed (Hinglish is fine). '+
     'Be concise — max 150 words. Give numbered actionable steps where possible. '+
     'Address the user as "aap" respectfully. Use Rs. for amounts.';
@@ -9560,16 +9620,19 @@ function tbRow(i, row){
 }
 
 function addTBRow(){
+  if(D.tbPosted){ toast('Trial Balance is already posted. To add rows now, use Data → Trial Balance → Reset TB, then re-enter and Post again — editing posted rows directly can silently drift away from your Balance Sheet.','e'); return; }
   if(!D.trialBalance) D.trialBalance=[];
   D.trialBalance.push({head:'cash',label:'',side:'dr',amount:0});
   sv(); renderPage();
 }
 function delTBRow(i){
+  if(D.tbPosted){ toast('Trial Balance is already posted. Use Data → Trial Balance → Reset TB first, then re-enter and Post again.','e'); return; }
   D.trialBalance.splice(i,1);
   sv(); renderPage();
 }
 // field: 1=head, 2=amount, 3=label
 function tbUpdate(i,field,val){
+  if(D.tbPosted){ toast('Trial Balance is already posted and locked. Use Data → Trial Balance → Reset TB first, then re-enter and Post again — this keeps your Balance Sheet in sync.','e'); renderPage(); return; }
   var row = D.trialBalance[i];
   if(!row) return;
   if(field===1){
