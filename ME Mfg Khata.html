@@ -196,6 +196,7 @@ function defD(){
     stockStatements:[],
     stockStatementSettings:{stockMarginPct:25, debtorMarginPct:40},
     gstLedger:[],
+    mfgCosting:{enabled:false,openingWIP:0,closingWIP:0,openingFG:0,directLabourCategories:[],factoryOverheadCategories:[]},
     expenses:[],
     cashBook:[],
     debtors:[],
@@ -356,6 +357,7 @@ function migrateData(d){
   if(!d.stockStatements)d.stockStatements=[];
   if(!d.stockStatementSettings)d.stockStatementSettings={stockMarginPct:25, debtorMarginPct:40};
   if(!d.gstLedger)d.gstLedger=[];
+  if(!d.mfgCosting)d.mfgCosting={enabled:false,openingWIP:0,closingWIP:0,openingFG:0,directLabourCategories:[],factoryOverheadCategories:[]};
   for(var si=0;si<d.sales.length;si++){ if(d.sales[si].isExport===undefined) d.sales[si].isExport=false; }
   if(!d.purchases)d.purchases=[];
   for(var pi=0;pi<d.purchases.length;pi++){ if(d.purchases[pi].isImported===undefined) d.purchases[pi].isImported=false; }
@@ -1206,6 +1208,100 @@ function actBtns(type,id){
 // from Gross Profit to get Net Profit, not from Sales to get Gross Profit.
 var DIRECT_EXPENSE_CATEGORIES = ['Freight Inward','Carriage Inward','Loading/Unloading (Purchase)','Octroi/Entry Tax (Purchase)'];
 function isDirectExpenseCategory(cat){ return DIRECT_EXPENSE_CATEGORIES.indexOf(cat)>-1; }
+// ── Manufacturing Costing (optional Manufacturing Account view) ─────────────
+// IMPORTANT DESIGN NOTE: the Manufacturing Account formula (Opening FG + Cost of
+// Production - Closing FG) only correctly represents the cost of goods that were
+// actually PRODUCED and sold as Finished Goods. It must NOT replace COGS for sales
+// of items in other categories (Raw Material sold directly, Resale items, stock
+// brought in via Trial Balance, etc.) - those already have correct, individually
+// tracked COGS on each sale record. Blindly using the Manufacturing Account figure
+// as total COGS would silently drop the cost of every non-FG sale, inflating
+// profit. So total COGS = (Manufacturing COGS for FG sales) + (per-sale COGS for
+// everything else) - every sale's cost is accounted for exactly once, either way.
+function mfgCostingEnabled(){
+  return !!(isMfgBiz() && D.mfgCosting && D.mfgCosting.enabled);
+}
+function mfgExpenseSum(categories){
+  var total=0, cats=categories||[];
+  (D.expenses||[]).forEach(function(e){ if(cats.indexOf(e.category)>=0) total+=(+e.amount||0); });
+  return total;
+}
+function getMfgCostingSummary(){
+  var mc=D.mfgCosting||{};
+  var productionMaterial=0, productionCount=0;
+  (D.productions||[]).forEach(function(p){ productionMaterial+=(+p.totalCost||0); productionCount++; });
+  var directLabour=mfgExpenseSum(mc.directLabourCategories||[]);
+  var factoryOverheads=mfgExpenseSum(mc.factoryOverheadCategories||[]);
+  var openingWIP=+mc.openingWIP||0, closingWIP=+mc.closingWIP||0, openingFG=+mc.openingFG||0;
+  var closingFG=0;
+  (D.inventory||[]).forEach(function(it){
+    if((it.category||'FG')==='FG') closingFG+=(+it.currentStock||0)*(+it.avgCost||0)+(+it.importedStock||0)*(+it.importedAvgCost||0);
+  });
+  var materialCost=productionMaterial;
+  var costOfProduction=Math.max(0,materialCost+directLabour+factoryOverheads+openingWIP-closingWIP);
+  var mfgCogsForFG=Math.max(0,openingFG+costOfProduction-closingFG);
+  // Non-FG sales (Raw Material sold directly, Resale, Consumable, WIP written off as a
+  // sale, etc.) keep their own already-correct per-sale COGS - these never went through
+  // Production, so the Manufacturing Account formula has nothing to say about them.
+  var nonFGSalesCogs=0, fgSalesRevenue=0, nonFGSalesRevenue=0;
+  var itemCatById={}; (D.inventory||[]).forEach(function(it){ itemCatById[it.id]=(it.category||'FG'); });
+  (D.sales||[]).forEach(function(s){
+    var cat = itemCatById[s.itemId] || 'FG';
+    if(cat==='FG'){ fgSalesRevenue += (+s.totalAmount||0); }
+    else { nonFGSalesRevenue += (+s.totalAmount||0); nonFGSalesCogs += (+s.cogs||0); }
+  });
+  var totalCogs = mfgCogsForFG + nonFGSalesCogs;
+  return {
+    materialCost:materialCost, productionCount:productionCount, directLabour:directLabour,
+    factoryOverheads:factoryOverheads, openingWIP:openingWIP, closingWIP:closingWIP,
+    openingFG:openingFG, closingFG:closingFG, costOfProduction:costOfProduction,
+    mfgCogsForFG:mfgCogsForFG, nonFGSalesCogs:nonFGSalesCogs, cogs:totalCogs,
+    fgSalesRevenue:fgSalesRevenue, nonFGSalesRevenue:nonFGSalesRevenue
+  };
+}
+function saveMfgCostingSettings(){
+  if(!D.mfgCosting)D.mfgCosting={enabled:false,openingWIP:0,closingWIP:0,openingFG:0,directLabourCategories:[],factoryOverheadCategories:[]};
+  D.mfgCosting.enabled=!!document.getElementById('mfg_cost_enabled')?.checked;
+  D.mfgCosting.openingWIP=gvn('mfg_open_wip')||0;
+  D.mfgCosting.closingWIP=gvn('mfg_close_wip')||0;
+  D.mfgCosting.openingFG=gvn('mfg_open_fg')||0;
+  D.mfgCosting.directLabourCategories=[];
+  D.mfgCosting.factoryOverheadCategories=[];
+  (D.expenseCategories||[]).forEach(function(c,i){
+    var dl=document.getElementById('mfg_dl_'+i);
+    var fo=document.getElementById('mfg_fo_'+i);
+    if(dl&&dl.checked)D.mfgCosting.directLabourCategories.push(c);
+    if(fo&&fo.checked)D.mfgCosting.factoryOverheadCategories.push(c);
+  });
+  // A category cannot be both direct labour and factory overhead.
+  D.mfgCosting.factoryOverheadCategories=D.mfgCosting.factoryOverheadCategories.filter(function(c){return D.mfgCosting.directLabourCategories.indexOf(c)<0;});
+  sv(); renderPage(); toast('Manufacturing costing settings saved.');
+}
+function mfgCostingCard(f){
+  var mc=D.mfgCosting||{enabled:false,openingWIP:0,closingWIP:0,openingFG:0,directLabourCategories:[],factoryOverheadCategories:[]};
+  var cats=D.expenseCategories||[];
+  var map=cats.map(function(c,i){
+    var dl=(mc.directLabourCategories||[]).indexOf(c)>=0;
+    var fo=(mc.factoryOverheadCategories||[]).indexOf(c)>=0;
+    return '<tr><td style="padding:5px 4px">'+esc(c)+'</td>'+
+      '<td style="text-align:center"><input type="checkbox" id="mfg_dl_'+i+'" '+(dl?'checked':'')+'></td>'+
+      '<td style="text-align:center"><input type="checkbox" id="mfg_fo_'+i+'" '+(fo?'checked':'')+'></td></tr>';
+  }).join('');
+  var mc2=getMfgCostingSummary();
+  var status=mc.enabled?'<span style="color:#2E7D32;font-weight:800">ON</span>':'<span style="color:#E65100;font-weight:800">OFF</span>';
+  return card('🏭 Manufacturing Costing — '+status,
+    '<div class="al ali" style="margin-bottom:8px">When ON, the cost of Finished-Goods sales is based on <b>Opening FG + Cost of Production − Closing FG</b> (a proper Manufacturing Account). Sales of any other category (Raw Material, Resale, Consumable) keep using their own tracked cost, so nothing is double-counted or dropped. Material cost comes from Production records. Map only genuine factory/direct-cost expense categories below. WIP is manual because this version does not maintain WIP as a perpetual quantity ledger.</div>'+
+    '<label style="display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:10px"><input type="checkbox" id="mfg_cost_enabled" '+(mc.enabled?'checked':'')+'> Use Manufacturing Costing for Finished Goods</label>'+
+    g2(inp('Opening WIP (₹)','mfg_open_wip','number',mc.openingWIP||0),inp('Closing WIP (₹)','mfg_close_wip','number',mc.closingWIP||0))+
+    inp('Opening Finished Goods (₹)','mfg_open_fg','number',mc.openingFG||0)+
+    '<div style="font-size:11px;font-weight:800;color:#37474F;margin:10px 0 5px">Expense Category Mapping</div>'+
+    '<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Category</th><th>Direct Labour</th><th>Factory Overhead</th></tr></thead><tbody>'+map+'</tbody></table>'+
+    btn('💾 Save Manufacturing Costing Settings','saveMfgCostingSettings()','#2E7D32')+
+    '<div style="margin-top:10px;padding:8px;background:#F5F7FA;border-radius:8px;font-size:11px;line-height:1.7">'+
+    '<b>Current costing:</b><br>Material consumed from production: '+fc(mc2.materialCost)+'<br>Direct labour: '+fc(mc2.directLabour)+'<br>Factory overheads: '+fc(mc2.factoryOverheads)+'<br>Opening WIP: '+fc(mc2.openingWIP)+' | Closing WIP: '+fc(mc2.closingWIP)+'<br><b>Cost of Production: '+fc(mc2.costOfProduction)+'</b><br>Opening FG: '+fc(mc2.openingFG)+' | Closing FG: '+fc(mc2.closingFG)+'<br><b>FG Sales COGS (Manufacturing Account): '+fc(mc2.mfgCogsForFG)+'</b><br>Non-FG Sales COGS (own tracked cost): '+fc(mc2.nonFGSalesCogs)+'<br><b>Total COGS: '+fc(mc2.cogs)+'</b></div>'+
+    (mc.enabled && mc2.productionCount===0 ? '<div class="al alw" style="margin-top:8px">⚠ Manufacturing Costing is ON but there are no Production records. FG Sales COGS will therefore be driven only by Opening/Closing FG and the manual WIP/cost inputs. Record production for each manufacturing batch.</div>':'')
+  );
+}
 function getF(){
   var ts=0,tc=0,os=0,tp=0,cs=0,te=0,cap=0,ltl=0,stl=0,i;
   var bal=getBalances(),cb=bal.cb,bb=bal.bb;
@@ -1262,7 +1358,31 @@ function getF(){
   cap = capBase + (D.capital.additionalCapital||0);
   var totalDrawings=0;(D.drawings||[]).forEach(function(d){totalDrawings+=(+d.amount||0);});cap-=totalDrawings;
   for(i=0;i<D.loans.length;i++)ltl+=(+D.loans[i].outstandingBalance||0);
-  var gp=ts-(os+tp+directExpenses-cs);
+  var legacyCogs = os+tp+directExpenses-cs;
+  var mfg = mfgCostingEnabled() ? getMfgCostingSummary() : null;
+  var mfgReconciled = true;
+  if(mfg){
+    // Safety net: the Manufacturing Account formula is only valid if every unit of FG ever
+    // sold can be traced back to either Opening FG (manually entered) or a Production record.
+    // When fully tracked, mfg.cogs is EXPECTED to exceed legacyCogs by exactly the mapped
+    // Direct Labour/Factory Overhead expenses (since those correctly move from Opex into
+    // COGS here) - so compare against that adjusted expectation, not legacyCogs directly.
+    // If the two still diverge beyond a small tolerance, something is untracked (FG stock
+    // that came from neither Opening FG nor Production - e.g. brought in via Purchase/Trial
+    // Balance directly as FG). In that case, silently using the mfg figure would misstate
+    // profit and unbalance the Balance Sheet, so fall back to the proven legacy formula
+    // instead and flag it for the user to fix their Opening FG/Production data.
+    var mappedExpenses = mfg.directLabour + mfg.factoryOverheads;
+    var expectedMfgCogs = legacyCogs + mappedExpenses;
+    var tolerance = Math.max(50, Math.abs(expectedMfgCogs)*0.02);
+    if(Math.abs(mfg.cogs - expectedMfgCogs) > tolerance) mfgReconciled = false;
+  }
+  var cogs = (mfg && mfgReconciled) ? mfg.cogs : legacyCogs;
+  if(mfg && mfgReconciled){
+    var mfgExpCats = (D.mfgCosting.directLabourCategories||[]).concat(D.mfgCosting.factoryOverheadCategories||[]);
+    mfgExpCats.forEach(function(cat){ (D.expenses||[]).forEach(function(e){ if(e.category===cat) indirectExpenses -= (+e.amount||0); }); });
+  }
+  var gp=ts-cogs;
   var advToSuppliers=0, advPrepaidExp=0, advFromCustomers=0;
   (D.advances||[]).forEach(function(a){
     var amt=(+a.amount||0);
@@ -1280,7 +1400,7 @@ function getF(){
     if(c.category==='RM') rmConsumed+=c.amount;
     else if(c.category==='Consumable') consumableConsumed+=c.amount;
   });
-  return{ts:ts,tc:tc,os:os,tp:tp,cs:cs,csIndig:csIndig,csImp:csImp,csByCat:csByCat,csByCatIndig:csByCatIndig,csByCatImp:csByCatImp,gp:gp,te:te,np:gp-indirectExpenses,directExpenses:directExpenses,indirectExpenses:indirectExpenses,cap:cap,ltl:ltl,stl:stl,cb:cb,bb:bb,dr:dr,cr:cr,expPayable:expPayable,oa:oa,ol:ol,rmConsumed:rmConsumed,consumableConsumed:consumableConsumed,salesByType:salesByType,purchasesByType:purchasesByType,advToSuppliers:advToSuppliers,advPrepaidExp:advPrepaidExp,advFromCustomers:advFromCustomers,salesReturnsTotal:salesReturnsTotal,salesReturnsCogs:salesReturnsCogs,purchaseReturnsTotal:purchaseReturnsTotal};
+  return{ts:ts,tc:tc,os:os,tp:tp,cs:cs,csIndig:csIndig,csImp:csImp,csByCat:csByCat,csByCatIndig:csByCatIndig,csByCatImp:csByCatImp,gp:gp,te:te,np:gp-indirectExpenses,directExpenses:directExpenses,indirectExpenses:indirectExpenses,cap:cap,ltl:ltl,stl:stl,cb:cb,bb:bb,dr:dr,cr:cr,expPayable:expPayable,oa:oa,ol:ol,rmConsumed:rmConsumed,consumableConsumed:consumableConsumed,salesByType:salesByType,purchasesByType:purchasesByType,advToSuppliers:advToSuppliers,advPrepaidExp:advPrepaidExp,advFromCustomers:advFromCustomers,salesReturnsTotal:salesReturnsTotal,salesReturnsCogs:salesReturnsCogs,purchaseReturnsTotal:purchaseReturnsTotal,mfg:mfg,cogs:cogs,legacyCogs:legacyCogs,mfgReconciled:mfgReconciled};
 }
 
 function getBS(){
@@ -7832,10 +7952,33 @@ function pgFin(){
         (pt.imported>0 ? 'Imported: '+fc(pt.imported)+'<br>' : '')+
         '</div>';
     }
-    h+=card('Manufacturing A/C (Trading Account)',fsr('Total Sales',f.ts,1)+salesBreakdown+fsr('Opening Stock',f.os,0,1)+fsr('Purchases',f.tp,0,1)+purchasesBreakdown+
-      (f.directExpenses>0?fsr('Direct Expenses (Freight/Carriage Inward etc.)',f.directExpenses,0,1):'')+
-      fsr('Closing Stock (less)',-f.cs,0,1)+csBreakdown+fsr('Cost of Goods Sold',f.os+f.tp+f.directExpenses-f.cs,1)+fsr('GROSS PROFIT',f.gp,1,0,1));
-    if(f.os===0)h+='<div class="al ali">Opening Stock is ₹0. If you had stock before starting this app, set it in the "Opening Balance" menu (Data tab).</div>';
+    if(mfgCostingEnabled() && f.mfg && f.mfgReconciled){
+      var m=f.mfg;
+      h+=card('Manufacturing Account',
+        fsr('Sales',f.ts,1)+salesBreakdown+
+        fsr('Raw Material / Production Material Consumed',m.materialCost)+
+        fsr('Direct Labour',m.directLabour)+
+        fsr('Factory Overheads',m.factoryOverheads)+
+        fsr('Add: Opening WIP',m.openingWIP)+
+        fsr('Less: Closing WIP',-m.closingWIP)+
+        fsr('COST OF PRODUCTION',m.costOfProduction,1)+
+        fsr('Add: Opening Finished Goods',m.openingFG)+
+        fsr('Less: Closing Finished Goods',-m.closingFG)+
+        fsr('FG Sales — Cost of Goods Sold',m.mfgCogsForFG)+
+        (m.nonFGSalesCogs>0 ? fsr('Non-FG Sales — Own Tracked Cost (Raw Material/Resale/Consumable sold directly)',m.nonFGSalesCogs) : '')+
+        fsr('TOTAL COST OF GOODS SOLD',f.cogs,1)+
+        fsr('GROSS PROFIT',f.gp,1,0,1));
+      if(m.productionCount===0)h+='<div class="al alw">⚠ No Production records found. FG Sales COGS will be driven only by Opening/Closing FG and the manual WIP/cost inputs. Record production for each manufacturing batch in Inventory → Production.</div>';
+    } else {
+      if(mfgCostingEnabled() && f.mfg && !f.mfgReconciled){
+        h+='<div class="al alw">⚠ Manufacturing Costing is ON, but your Finished Goods figures don\'t fully reconcile with Opening FG + Production records yet — some FG stock appears to have come from somewhere else (e.g. Purchase or Trial Balance entered directly as FG). Showing the standard Trading Account below instead, to keep your Balance Sheet accurate. Enter the correct Opening FG value below, or record any missing production batches, to switch to the Manufacturing Account view.</div>';
+      }
+      h+=card('Manufacturing A/C (Trading Account)',fsr('Total Sales',f.ts,1)+salesBreakdown+fsr('Opening Stock',f.os,0,1)+fsr('Purchases',f.tp,0,1)+purchasesBreakdown+
+        (f.directExpenses>0?fsr('Direct Expenses (Freight/Carriage Inward etc.)',f.directExpenses,0,1):'')+
+        fsr('Closing Stock (less)',-f.cs,0,1)+csBreakdown+fsr('Cost of Goods Sold',f.legacyCogs,1)+fsr('GROSS PROFIT',f.gp,1,0,1));
+      if(f.os===0)h+='<div class="al ali">Opening Stock is ₹0. If you had stock before starting this app, set it in the "Opening Balance" menu (Data tab).</div>';
+    }
+    if(isMfgBiz()) h+=mfgCostingCard(f);
   }
   else if(tab===1){
     var erH='',i,ec,ea,j;for(i=0;i<D.expenseCategories.length;i++){ec=D.expenseCategories[i];if(isDirectExpenseCategory(ec))continue;ea=0;for(j=0;j<D.expenses.length;j++)if(D.expenses[j].category===ec)ea+=D.expenses[j].amount;if(ea>0)erH+=fsr(ec,ea,0,1);}
