@@ -8431,6 +8431,58 @@ function pgRep(){
   }
   return h;
 }
+// ── Storage usage (Data → Overview) ──────────────────────────────────────
+// navigator.storage.estimate() is async but rendering is synchronous, so the result is cached
+// in window._storageEstimate the first time it's requested, then renderPage() is called again
+// once it resolves. Shows the browser-wide quota/usage (this app's IndexedDB is a small part of
+// the origin's total storage) alongside this app's own data size specifically, which is the more
+// directly actionable number for the user.
+function loadStorageEstimate(){
+  if(window._storageEstimateLoading) return;
+  if(!navigator.storage || !navigator.storage.estimate){ window._storageEstimate = 'unsupported'; return; }
+  window._storageEstimateLoading = true;
+  navigator.storage.estimate().then(function(est){
+    window._storageEstimate = est;
+    window._storageEstimateLoading = false;
+    if(curPg==='data') renderPage();
+  }).catch(function(){
+    window._storageEstimate = 'unsupported';
+    window._storageEstimateLoading = false;
+  });
+}
+function fmtBytes(n){
+  if(n<1024) return n+' B';
+  if(n<1024*1024) return (n/1024).toFixed(1)+' KB';
+  if(n<1024*1024*1024) return (n/(1024*1024)).toFixed(1)+' MB';
+  return (n/(1024*1024*1024)).toFixed(2)+' GB';
+}
+function storageCard(){
+  var appDataSize = 0;
+  try{ appDataSize = new Blob([JSON.stringify(D)]).size; }catch(e){ try{ appDataSize = JSON.stringify(D).length; }catch(e2){} }
+
+  if(window._storageEstimate===undefined) loadStorageEstimate();
+
+  if(window._storageEstimate==='unsupported'){
+    return card('💾 Storage',
+      '<div style="display:flex;justify-content:space-between;padding:7px 9px;background:#F0F4FF;border-radius:7px;font-size:12px;margin-bottom:6px"><span style="color:#546E7A">This App\'s Data Size</span><b>'+fmtBytes(appDataSize)+'</b></div>'+
+      '<div class="al ali" style="margin-top:4px">Your browser doesn\'t report total device storage here, but this app uses IndexedDB, which has no realistic size limit — you can keep adding data safely for years.</div>');
+  }
+  if(!window._storageEstimate){
+    return card('💾 Storage', '<div style="font-size:12px;color:#546E7A;padding:8px">Calculating storage usage…</div>');
+  }
+  var est = window._storageEstimate;
+  var used = est.usage||0, quota = est.quota||0, remaining = Math.max(0, quota-used);
+  var pct = quota>0 ? Math.min(100, (used/quota*100)) : 0;
+  var barColor = pct>90 ? '#C62828' : pct>70 ? '#E65100' : '#2E7D32';
+  return card('💾 Storage',
+    '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:#546E7A">Total Storage Available</span><b>'+fmtBytes(quota)+'</b></div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:#546E7A">Storage Used (this browser, all sites)</span><b>'+fmtBytes(used)+'</b></div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px"><span style="color:#546E7A">Storage Remaining</span><b style="color:'+barColor+'">'+fmtBytes(remaining)+'</b></div>'+
+    '<div style="height:8px;background:#E0E0E0;border-radius:4px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:'+pct.toFixed(1)+'%;background:'+barColor+'"></div></div>'+
+    '<div style="display:flex;justify-content:space-between;padding:7px 9px;background:#F0F4FF;border-radius:7px;font-size:12px"><span style="color:#546E7A">This App\'s Data Size</span><b>'+fmtBytes(appDataSize)+'</b></div>'+
+    (pct>85 ? '<div class="al alw" style="margin-top:8px">⚠️ Your device storage is getting full. This won\'t stop this app from working (IndexedDB has no fixed limit), but consider freeing up space or backing up and clearing data from other apps.</div>' : '')
+  );
+}
 function pgDat(){
   var tab=window._dtab||'overview';
   var isNew = (D.profile.businessStage==='new');
@@ -8465,6 +8517,7 @@ function pgDat(){
   }
   var stats=[['Inventory',D.inventory.length],['Purchases',D.purchases.length],['Sales',D.sales.length],['Expenses',D.expenses.length],['Cash/Bank Entries',D.cashBook.length],['Loans',D.loans.length],['Debtors',D.debtors.length],['Creditors',D.creditors.length]];
   h+=card('Data Overview','<div class="g2">'+stats.map(function(s){return'<div style="display:flex;justify-content:space-between;padding:7px 9px;background:#F0F4FF;border-radius:7px;font-size:12px"><span style="color:#546E7A">'+s[0]+'</span><b>'+s[1]+'</b></div>';}).join('')+'</div>');
+  h+=storageCard();
   h+=card('Backup &amp; Restore',
   btn('⬇ Download Backup','expDat()')+
   '<br><br>'+
