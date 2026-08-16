@@ -5515,6 +5515,273 @@ function saveStockStatementSettings(){
   toast('Margins saved — all statements recalculated.');
   renderPage();
 }
+// ===== STATEMENT GENERATOR (any head, any period) =====
+function ledgerHeadOptions(){
+  var debtorNames = Array.from(new Set(D.debtors.map(function(d){return d.name;}))).sort();
+  var creditorNames = Array.from(new Set(D.creditors.map(function(c){return c.name;}))).sort();
+  var expenseCats = Array.from(new Set(D.expenses.map(function(e){return e.category;}))).sort();
+  var fixedAssetNames = D.fixedAssets.filter(function(a){return !a.disposed;}).map(function(a){return {id:a.id, name:a.name};});
+  var loanNames = D.loans.map(function(l){return {id:l.id, name:(l.lender||'Loan')+' — '+(l.loanType||'')};});
+  var stockItems = D.inventory.map(function(it){return {id:it.id, name:it.itemName};});
+  return {debtorNames:debtorNames, creditorNames:creditorNames, expenseCats:expenseCats, fixedAssetNames:fixedAssetNames, loanNames:loanNames, stockItems:stockItems};
+}
+function pgLedgerStatement(){
+  var opts = ledgerHeadOptions();
+  var headType = window._lsHeadType || 'debtor';
+  var subValue = window._lsSubValue || '';
+  var fromDate = window._lsFrom || (D.opening&&D.opening.takenOn) || '2024-04-01';
+  var toDate = window._lsTo || td();
+
+  var h = '<div class="al ali"><div class="alt">📄 Statement Generator</div><p>Pull a proper ledger-style statement for any Debtor, Creditor, Expense head, Fixed Asset, Cash, or Bank account — for any date range. Shows Opening Balance, every transaction in the period, running balance, and Closing Balance.</p></div>';
+
+  h += card('Select Head & Period',
+    sl('Head Type','ls_headtype',[
+      {v:'debtor', l:'👤 Debtor (Customer)'},
+      {v:'creditor', l:'🏭 Creditor (Supplier)'},
+      {v:'sales', l:'💰 Sales (P&L)'},
+      {v:'purchases', l:'🛒 Purchases (P&L)'},
+      {v:'expense', l:'📋 Expense Head (P&L)'},
+      {v:'capital', l:'🏛️ Capital (Balance Sheet)'},
+      {v:'loan', l:'🏦 Loan (Balance Sheet)'},
+      {v:'stockitem', l:'📦 Stock Item (Balance Sheet)'},
+      {v:'fixedasset', l:'🪑 Fixed Asset (Furniture, Machinery, etc.)'},
+      {v:'cash', l:'💵 Cash'},
+      {v:'bank', l:'🏦 Bank'},
+    ], headType).replace('id="ls_headtype"','id="ls_headtype" onchange="window._lsHeadType=this.value;window._lsSubValue=\'\';renderPage()"')
+    +
+    (headType==='debtor' ? sl('Customer','ls_sub', opts.debtorNames.map(function(n){return {v:n,l:n};}), subValue).replace('id="ls_sub"','id="ls_sub" onchange="window._lsSubValue=this.value"') :
+     headType==='creditor' ? sl('Supplier','ls_sub', opts.creditorNames.map(function(n){return {v:n,l:n};}), subValue).replace('id="ls_sub"','id="ls_sub" onchange="window._lsSubValue=this.value"') :
+     headType==='expense' ? sl('Expense Category','ls_sub', opts.expenseCats.map(function(n){return {v:n,l:n};}), subValue).replace('id="ls_sub"','id="ls_sub" onchange="window._lsSubValue=this.value"') :
+     headType==='fixedasset' ? sl('Asset','ls_sub', opts.fixedAssetNames.map(function(a){return {v:a.id,l:a.name};}), subValue).replace('id="ls_sub"','id="ls_sub" onchange="window._lsSubValue=this.value"') :
+     headType==='loan' ? sl('Loan','ls_sub', opts.loanNames.map(function(a){return {v:a.id,l:a.name};}), subValue).replace('id="ls_sub"','id="ls_sub" onchange="window._lsSubValue=this.value"') :
+     headType==='stockitem' ? sl('Item','ls_sub', opts.stockItems.map(function(a){return {v:a.id,l:a.name};}), subValue).replace('id="ls_sub"','id="ls_sub" onchange="window._lsSubValue=this.value"') :
+     '')
+    +
+    g2(inp('From Date','ls_from','date',fromDate),inp('To Date','ls_to','date',toDate))
+    + btn('📄 Generate Statement','genLedgerStatement()')
+  );
+
+  if(window._lsResult){
+    h += renderLedgerStatement(window._lsResult);
+  }
+  return h;
+}
+// Jump directly to a specific party's statement from the Ageing list, pre-filled and
+// auto-generated - covers a full financial-year-to-date range by default so the user sees
+// everything without having to first pick dates themselves.
+function viewPartyStatement(headType, partyName){
+  window._lsHeadType = headType;
+  window._lsSubValue = partyName;
+  window._lsFrom = (D.opening&&D.opening.takenOn) || '2024-04-01';
+  window._lsTo = td();
+  window._lsResult = computeLedgerStatement(headType, partyName, window._lsFrom, window._lsTo);
+  go('ledgerstmt');
+}
+function genLedgerStatement(){
+  var headType = gv('ls_headtype');
+  var subValue = gv('ls_sub')||'';
+  var fromDate = gv('ls_from');
+  var toDate = gv('ls_to');
+  if((headType==='debtor'||headType==='creditor'||headType==='expense'||headType==='fixedasset'||headType==='loan'||headType==='stockitem') && !subValue){
+    toast('Please select a '+(headType==='debtor'?'customer':headType==='creditor'?'supplier':headType==='expense'?'expense category':headType==='loan'?'loan':headType==='stockitem'?'item':'asset'),'e');
+    return;
+  }
+  if(!fromDate||!toDate){ toast('Please select both From and To dates','e'); return; }
+  window._lsHeadType = headType; window._lsSubValue = subValue; window._lsFrom = fromDate; window._lsTo = toDate;
+  window._lsResult = computeLedgerStatement(headType, subValue, fromDate, toDate);
+  renderPage();
+}
+// Computes a ledger-style statement for any head: opening balance (as of fromDate), every
+// transaction within [fromDate, toDate] with a running balance, and the closing balance.
+function computeLedgerStatement(headType, subValue, fromDate, toDate){
+  var rows = [], openingBalance = 0, label = '';
+
+  function partyLedger(arr, name, isCreditNormal){
+    // isCreditNormal: true for Creditors (liability - increases are Cr, decreases are Dr)
+    //                 false for Debtors (asset - increases are Dr, decreases are Cr)
+    var entries = arr.filter(function(x){ return x.name===name; }).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    var bal = 0;
+    entries.forEach(function(e){
+      var amt = +e.amount||0;
+      if(e.date < fromDate){ bal += amt; return; }
+      if(e.date > toDate) return;
+      var isIncrease = amt > 0;
+      var dr = isCreditNormal ? (isIncrease ? 0 : -amt) : (isIncrease ? amt : 0);
+      var cr = isCreditNormal ? (isIncrease ? amt : 0) : (isIncrease ? 0 : -amt);
+      bal += amt;
+      rows.push({date:e.date, desc:e.ref||(isIncrease?'Increase':'Payment/Collection'), dr:dr, cr:cr, balance:bal});
+    });
+    openingBalance = entries.filter(function(e){return e.date<fromDate;}).reduce(function(s,e){return s+(+e.amount||0);},0);
+  }
+
+  if(headType==='debtor'){
+    label = 'Debtor Statement — '+subValue;
+    partyLedger(D.debtors, subValue, false);
+  } else if(headType==='creditor'){
+    label = 'Creditor Statement — '+subValue;
+    partyLedger(D.creditors, subValue, true);
+  } else if(headType==='expense'){
+    label = 'Expense Statement — '+subValue;
+    var entries = D.expenses.filter(function(e){ return e.category===subValue; }).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    var bal = 0;
+    entries.forEach(function(e){
+      if(e.date < fromDate){ return; } // expenses don't carry an opening balance
+      if(e.date > toDate) return;
+      bal += (+e.amount||0);
+      rows.push({date:e.date, desc:e.description||subValue, dr:(+e.amount||0), cr:0, balance:bal});
+    });
+    openingBalance = 0;
+  } else if(headType==='fixedasset'){
+    var asset = D.fixedAssets.find(function(a){ return a.id===subValue; });
+    if(!asset) return {label:'', rows:[], openingBalance:0, closingBalance:0, isAsset:true};
+    label = 'Fixed Asset Statement — '+asset.name;
+    var lifeYears = +asset.life||10;
+    var annualDep = lifeYears>0 ? (+asset.cost||0)/lifeYears : 0;
+    var dailyDep = annualDep/365;
+    function daysBetweenLocal(d1, d2){ return Math.max(0, (new Date(d2) - new Date(d1))/(1000*60*60*24)); }
+    var purchaseDate = asset.purchaseDate;
+    // Opening WDV as of fromDate
+    var daysToFrom = daysBetweenLocal(purchaseDate, fromDate);
+    var depTillFrom = Math.min(+asset.cost||0, dailyDep*Math.max(0,daysToFrom));
+    openingBalance = purchaseDate < fromDate ? Math.max(0,(+asset.cost||0)-depTillFrom) : 0;
+    if(purchaseDate >= fromDate && purchaseDate <= toDate){
+      rows.push({date:purchaseDate, desc:'Asset Purchased', dr:(+asset.cost||0), cr:0, balance:(+asset.cost||0)});
+    }
+    var periodStart = purchaseDate > fromDate ? purchaseDate : fromDate;
+    var daysInPeriod = daysBetweenLocal(periodStart, toDate);
+    var depThisPeriod = Math.min(openingBalance + (purchaseDate>=fromDate&&purchaseDate<=toDate?(+asset.cost||0):0), dailyDep*Math.max(0,daysInPeriod));
+    if(depThisPeriod > 0.5){
+      var runningBal = (rows.length ? rows[rows.length-1].balance : openingBalance) - depThisPeriod;
+      rows.push({date:toDate, desc:'Depreciation for the period', dr:0, cr:depThisPeriod, balance:Math.max(0,runningBal)});
+    }
+  } else if(headType==='sales'){
+    label = 'Sales Statement (P&L)';
+    var entries3 = D.sales.filter(function(s){ return s.date>=fromDate && s.date<=toDate; }).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    var bal3 = 0;
+    entries3.forEach(function(s){
+      bal3 += (+s.totalAmount||0);
+      rows.push({date:s.date, desc:(s.customerName||'')+' — '+(s.itemName||''), dr:(+s.totalAmount||0), cr:0, balance:bal3});
+    });
+    openingBalance = 0;
+  } else if(headType==='purchases'){
+    label = 'Purchases Statement (P&L)';
+    var entries4 = D.purchases.filter(function(p){ return p.date>=fromDate && p.date<=toDate; }).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    var bal4 = 0;
+    entries4.forEach(function(p){
+      bal4 += (+p.amount||0);
+      rows.push({date:p.date, desc:(p.supplierName||'')+' — '+(p.itemName||''), dr:(+p.amount||0), cr:0, balance:bal4});
+    });
+    openingBalance = 0;
+  } else if(headType==='capital'){
+    label = 'Capital Account Statement (Balance Sheet)';
+    var openingCap = (+D.capital.initialCapital||0);
+    var takenOn = (D.opening&&D.opening.takenOn) || '';
+    if(takenOn && takenOn < fromDate){ openingBalance = openingCap; }
+    else if(takenOn && takenOn>=fromDate && takenOn<=toDate){
+      rows.push({date:takenOn, desc:'Initial Capital', dr:0, cr:openingCap, balance:openingCap});
+    }
+    var runningCap = openingBalance || (rows.length?rows[rows.length-1].balance:0);
+    var capEvents = D.cashBook.filter(function(e){
+      var d2 = (e.description||e.desc||'');
+      return d2.toLowerCase().indexOf('capital introduced')>=0 && e.date>=fromDate && e.date<=toDate;
+    }).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    capEvents.forEach(function(e){
+      runningCap += (+e.amount||0);
+      rows.push({date:e.date, desc:'Additional Capital Introduced', dr:0, cr:(+e.amount||0), balance:runningCap});
+    });
+    var drawEvents = D.drawings.filter(function(d){ return d.date>=fromDate && d.date<=toDate; }).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    drawEvents.forEach(function(d){
+      runningCap -= (+d.amount||0);
+      rows.push({date:d.date, desc:'Drawings — '+(d.description||''), dr:(+d.amount||0), cr:0, balance:runningCap});
+    });
+    rows.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    // recompute running balance after merge-sort of capital-intro and drawings events
+    var rb = openingBalance;
+    rows.forEach(function(r){ rb += r.cr - r.dr; r.balance = rb; });
+  } else if(headType==='loan'){
+    var loan = D.loans.find(function(l){ return l.id===subValue; });
+    if(!loan) return {label:'', rows:[], openingBalance:0, closingBalance:0};
+    label = 'Loan Statement — '+(loan.lender||'')+' ('+(loan.loanType||'')+')';
+    if(loan.sanctionDate && loan.sanctionDate < fromDate){ openingBalance = (+loan.sanctionedAmount||0); }
+    else if(loan.sanctionDate && loan.sanctionDate>=fromDate && loan.sanctionDate<=toDate){
+      rows.push({date:loan.sanctionDate, desc:'Loan Disbursed', dr:0, cr:(+loan.sanctionedAmount||0), balance:(+loan.sanctionedAmount||0)});
+    }
+    var runningLoan = rows.length ? rows[rows.length-1].balance : openingBalance;
+    (loan.payments||[]).filter(function(p){ return p.date>=fromDate && p.date<=toDate; }).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); })
+      .forEach(function(p){
+        runningLoan -= (+p.principal||p.amount||0);
+        rows.push({date:p.date, desc:'EMI / Repayment', dr:(+p.principal||p.amount||0), cr:0, balance:runningLoan});
+      });
+  } else if(headType==='stockitem'){
+    var item = D.inventory.find(function(it){ return it.id===subValue; });
+    if(!item) return {label:'', rows:[], openingBalance:0, closingBalance:0};
+    label = 'Stock Item Statement — '+item.itemName;
+    var itemPurchases = D.purchases.filter(function(p){ return p.itemId===item.id; }).map(function(p){ return {date:p.date, desc:'Purchase — Qty '+fmt(p.qty), dr:(+p.amount||0), cr:0}; });
+    var itemSales = D.sales.filter(function(s){ return s.itemId===item.id; }).map(function(s){ return {date:s.date, desc:'Sale — Qty '+fmt(s.qty), dr:0, cr:(+s.cogs||0)}; });
+    var itemAll = itemPurchases.concat(itemSales).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    // Reconcile against the live stock value: any gap between what purchases-minus-sales implies
+    // and the item's actual current value represents stock that predates tracked transactions
+    // (genuine opening stock, or a direct inventory adjustment) - shown transparently as its own
+    // line rather than silently omitted, so the closing balance always ties to the real, live value.
+    var liveValue = (+item.currentStock||0)*(+item.avgCost||0) + (+item.importedStock||0)*(+item.importedAvgCost||0);
+    var txnNetTotal = itemAll.reduce(function(s,e){return s+e.dr-e.cr;},0);
+    var untrackedOpening = liveValue - txnNetTotal;
+    var takenOnDate = (D.opening&&D.opening.takenOn)||fromDate;
+    var bal5 = 0;
+    if(Math.abs(untrackedOpening) > 0.5 && fromDate <= takenOnDate){
+      bal5 += untrackedOpening;
+      rows.push({date:takenOnDate, desc:'Opening Stock (predates tracked Purchase/Sale entries)', dr:Math.max(0,untrackedOpening), cr:Math.max(0,-untrackedOpening), balance:bal5});
+      openingBalance = 0;
+    } else {
+      openingBalance = untrackedOpening + itemAll.filter(function(e){return e.date<fromDate;}).reduce(function(s,e){return s+e.dr-e.cr;},0);
+      bal5 = openingBalance;
+    }
+    itemAll.forEach(function(e){
+      if(e.date < fromDate){ return; }
+      if(e.date > toDate) return;
+      bal5 += e.dr - e.cr;
+      rows.push({date:e.date, desc:e.desc, dr:e.dr, cr:e.cr, balance:bal5});
+    });
+  } else if(headType==='cash' || headType==='bank'){
+    label = (headType==='cash' ? 'Cash Statement' : 'Bank Statement');
+    var entries2 = D.cashBook.filter(function(e){ return e.mode===headType; }).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    var openBase = headType==='cash' ? (+D.opening.cash||0) : (+D.opening.bank||0);
+    var bal2 = openBase;
+    entries2.forEach(function(e){
+      var amt = e.type==='receipt' ? (+e.amount||0) : -(+e.amount||0);
+      if(e.date < fromDate){ bal2 += amt; return; }
+      if(e.date > toDate) return;
+      bal2 += amt;
+      rows.push({date:e.date, desc:(e.description||e.desc||'')+(e.party?' — '+e.party:''), dr:(e.type==='receipt'?(+e.amount||0):0), cr:(e.type==='payment'?(+e.amount||0):0), balance:bal2});
+    });
+    openingBalance = openBase + entries2.filter(function(e){return e.date<fromDate;}).reduce(function(s,e){return s+(e.type==='receipt'?(+e.amount||0):-(+e.amount||0));},0);
+  }
+
+  var closingBalance = rows.length ? rows[rows.length-1].balance : openingBalance;
+  var totalDr = rows.reduce(function(s,r){return s+r.dr;},0);
+  var totalCr = rows.reduce(function(s,r){return s+r.cr;},0);
+  return {label:label, rows:rows, openingBalance:openingBalance, closingBalance:closingBalance, totalDr:totalDr, totalCr:totalCr, fromDate:fromDate, toDate:toDate};
+}
+function renderLedgerStatement(result){
+  if(!result.label) return '<div class="al alw">Selected item not found.</div>';
+  var cols = [
+    {l:'Date', k:'date'},
+    {l:'Description', k:'desc'},
+    {l:'Debit', r:1, fn:function(r){return r.dr>0?fc(r.dr):'—';}},
+    {l:'Credit', r:1, fn:function(r){return r.cr>0?fc(r.cr):'—';}},
+    {l:'Balance', r:1, fn:function(r){return fc(r.balance);}}
+  ];
+  setLedgerShareData(result.label+' ('+result.fromDate+' to '+result.toDate+')', cols, result.rows,
+    ['Opening Balance: '+fc(result.openingBalance), 'Closing Balance: '+fc(result.closingBalance)]);
+  var h = card(result.label,
+    '<div style="display:flex;justify-content:space-between;padding:8px;background:#F0F4FF;border-radius:8px;margin-bottom:8px;font-size:12px"><span>Opening Balance ('+result.fromDate+')</span><b>'+fc(result.openingBalance)+'</b></div>'+
+    (result.rows.length ? tbl(cols, result.rows) : '<div class="al ali">No transactions in this period.</div>')+
+    '<div style="display:flex;justify-content:space-between;padding:8px;background:#E8F5E9;border-radius:8px;margin-top:8px;font-size:12px"><span>Closing Balance ('+result.toDate+')</span><b style="color:#2E7D32">'+fc(result.closingBalance)+'</b></div>'+
+    '<div style="display:flex;justify-content:space-between;padding:6px 8px;font-size:11px;color:#546E7A"><span>Total Debit: '+fc(result.totalDr)+'</span><span>Total Credit: '+fc(result.totalCr)+'</span></div>'+
+    ledgerActionButtons()
+  );
+  return h;
+}
 function pgDebtCred(){
   var tab = window._dcTab||'ageing';
   var h = '<div class="tabs">'+
@@ -5571,7 +5838,8 @@ function pgDebtCred(){
         '<th style="text-align:right;padding:5px 6px;background:#37474F;color:#fff">Total</th></tr></thead><tbody>'+
         rows.map(function(r,i){
           return '<tr style="background:'+(i%2?'#F8FAFC':'#fff')+'">'+
-            '<td style="padding:5px 6px;position:sticky;left:0;background:inherit">'+esc(r.name)+'</td>'+
+            '<td style="padding:5px 6px;position:sticky;left:0;background:inherit">'+esc(r.name)+
+            '<br><a href="#" onclick="viewPartyStatement(\''+(isDebtor?'debtor':'creditor')+'\',\''+esc(r.name).replace(/'/g,"\\'")+'\');return false;" style="font-size:10px;color:#1565C0;text-decoration:underline">📄 View Statement</a></td>'+
             '<td style="text-align:right;padding:5px 6px">'+(r.ageing.current>0?fc(r.ageing.current):'—')+'</td>'+
             '<td style="text-align:right;padding:5px 6px'+(r.ageing.d30>0?';color:#F9A825;font-weight:700':'')+'">'+(r.ageing.d30>0?fc(r.ageing.d30):'—')+'</td>'+
             '<td style="text-align:right;padding:5px 6px'+(r.ageing.d60>0?';color:#EF6C00;font-weight:700':'')+'">'+(r.ageing.d60>0?fc(r.ageing.d60):'—')+'</td>'+
@@ -7702,8 +7970,23 @@ function shareCurrentLedger(){
   if(!d){ toast('Nothing to share yet','e'); return; }
   shareOrCopyText(d.title, tableToShareText(d.title, d.cols, d.rows, d.extraLines));
 }
+function shareLedgerWhatsApp(){
+  var d = window._currentLedgerShareData;
+  if(!d){ toast('Nothing to share yet','e'); return; }
+  var url = 'https://wa.me/?text='+encodeURIComponent(tableToShareText(d.title, d.cols, d.rows, d.extraLines));
+  var win = window.open(url,'_blank');
+  if(!win) toast('Could not open WhatsApp - please allow pop-ups, or use 📤 Share instead.','e');
+}
+function shareLedgerEmail(){
+  var d = window._currentLedgerShareData;
+  if(!d){ toast('Nothing to share yet','e'); return; }
+  var url = 'mailto:?subject='+encodeURIComponent(d.title)+'&body='+encodeURIComponent(tableToShareText(d.title, d.cols, d.rows, d.extraLines));
+  window.location.href = url;
+}
 function ledgerActionButtons(){
   return '<div style="text-align:right;margin-top:8px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">'+
+    btn('💬 WhatsApp','shareLedgerWhatsApp()','#25D366')+
+    btn('✉️ Email','shareLedgerEmail()','#5B5BD6')+
     btn('📤 Share','shareCurrentLedger()','#2E7D32')+
     btn('🖨 Print / Download PDF','window.print()','#546E7A')+
     '</div>';
@@ -20753,14 +21036,14 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 
 // ===== NAVIGATION & RENDER =====
-var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',production:'उत्पादन',consumption:'उपभोग',bizmanager:'व्यवसाय प्रबंधक',interunit:'अंतर-इकाई स्थानांतरण',template:'डेटा टेम्पलेट'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',stockstmt:'Stock Statement',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template'};
+var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',production:'उत्पादन',consumption:'उपभोग',bizmanager:'व्यवसाय प्रबंधक',interunit:'अंतर-इकाई स्थानांतरण',template:'डेटा टेम्पलेट',ledgerstmt:'खाता विवरण'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template'};
 function getNavAll(){
   var biz = getBizType();
   var base = ['bizmanager','profile','dashboard','capital','inventory'];
   if(biz==='Manufacturing'||biz==='Trading + Manufacturing') base.push('production');
   if(biz==='Service'||biz==='Trading + Service') base.push('consumption');
-  base = base.concat(['interunit','purchase','sales','returns','journal','debtcred','stockstmt','expenses','cashbank','recon','emi','bankcalc',
+  base = base.concat(['interunit','purchase','sales','returns','journal','debtcred','ledgerstmt','stockstmt','expenses','cashbank','recon','emi','bankcalc',
     'financials','projections','analytics','loanassess','cma','reminders',
     'gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help']);
   return base;
@@ -20800,7 +21083,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,stockstmt:pgStockStatement,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,production:pgProduction,consumption:pgConsumption,bizmanager:pgBizManager,interunit:pgInterUnit,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
+  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,production:pgProduction,consumption:pgConsumption,bizmanager:pgBizManager,interunit:pgInterUnit,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
   // Update business switcher bar
