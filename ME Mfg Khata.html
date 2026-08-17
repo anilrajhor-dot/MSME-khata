@@ -7243,10 +7243,17 @@ function expTodayEntries(){
   var newDebtors = D.debtors.filter(function(d){ return d.date===today && d.amount>0; });
   var newCreditors = D.creditors.filter(function(c){ return c.date===today && c.amount>0; });
 
-  if(sales.length===0 && purchases.length===0 && expenses.length===0 && D.cashBook.filter(function(c){return c.date===today;}).length===0){
+  if(sales.length===0 && purchases.length===0 && expenses.length===0 && D.cashBook.filter(function(c){return c.date===today;}).length===0 && D.inventory.length===0){
     toast('No entries recorded today yet.','e');
     return;
   }
+
+  var todayItemIds = {};
+  sales.forEach(function(s){ if(s.itemId) todayItemIds[s.itemId]=true; });
+  purchases.forEach(function(p){ if(p.itemId) todayItemIds[p.itemId]=true; });
+  var movedItems = D.inventory.filter(function(it){ return todayItemIds[it.id]; });
+  var lowStockItems = D.inventory.filter(function(it){ return (+it.reorderLevel||0)>0 && (+it.currentStock||0)<=(+it.reorderLevel||0); });
+  var totalStockValue = D.inventory.reduce(function(s,it){ return s+(+it.currentStock||0)*(+it.avgCost||0)+(+it.importedStock||0)*(+it.importedAvgCost||0); },0);
 
   var text = '*'+(D.profile.businessName||'')+' — Today\'s Entries*\n';
   text += '*'+today+'*\n\n';
@@ -7260,6 +7267,17 @@ function expTodayEntries(){
   if(newCreditors.length){ text += '\n🏭 New Credit Purchases (Creditors): '+newCreditors.length+', Total '+fc(newCreditors.reduce(function(s,c){return s+c.amount;},0))+'\n'; }
   text += '\n💵 Cash: Received '+fc(cashIn)+' | Paid '+fc(cashOut)+'\n';
   text += '🏦 Bank: Received '+fc(bankIn)+' | Paid '+fc(bankOut)+'\n';
+  if(D.inventory.length){
+    text += '\n📦 Stock in Hand (Total Value): '+fc(totalStockValue)+'\n';
+    if(movedItems.length){
+      text += '  Items that moved today:\n';
+      movedItems.forEach(function(it){ text += '  • '+it.itemName+' — '+fmt((+it.currentStock||0)+(+it.importedStock||0))+' '+(it.unit||'')+' left\n'; });
+    }
+    if(lowStockItems.length){
+      text += '  ⚠️ Low Stock — reorder soon:\n';
+      lowStockItems.forEach(function(it){ text += '  • '+it.itemName+' — only '+fmt((+it.currentStock||0)+(+it.importedStock||0))+' '+(it.unit||'')+' left\n'; });
+    }
+  }
   text += '\nSent from ME Khata app.';
 
   var url = 'https://wa.me/?text='+encodeURIComponent(text);
@@ -13104,6 +13122,19 @@ h += hs(
       '<p><b>तुरंत Party Statement:</b> Debtors & Creditors → Ageing Analysis में, हर customer/supplier के नाम के नीचे अब "📄 View Statement" link है — एक tap में उनका पूरा statement खुल जाता है, कोई manual selection नहीं।</p>' +
       '<p><b>WhatsApp और Email से Share करें:</b> हर statement में अब <b>💬 WhatsApp</b> और <b>✉️ Email</b> बटन भी हैं — सीधे WhatsApp या email app खोलता है, पूरा statement text पहले से भरा हुआ।</p>' +
       '<p><b>Storage Tab:</b> Data → Overview में अब Storage card दिखता है — कुल Storage, इस्तेमाल हुआ Storage, बचा हुआ Storage, और यह app कितनी जगह ले रहा है। यह app IndexedDB इस्तेमाल करता है, जिसकी कोई तय सीमा नहीं है।</p>'
+    )
+  );
+  h += hs(
+    bi('18. Share Today\'s Entries — Staff to Owner', '18. आज की Entries शेयर करें — स्टाफ से मालिक तक'),
+    bi(
+      '<p><b>If someone else enters data for you</b> (a servant, staff member, or accountant at the shop), Data → Overview now has a <b>💬 Send Today\'s Entries on WhatsApp</b> button. One tap sends you a clean, readable summary — no need for the full Backup/Import cycle for a quick daily check.</p>' +
+      '<p>The summary includes: every Sale, Purchase, and Expense entered that day (with amounts and payment mode), new Credit Sales/Purchases (Debtors/Creditors), Cash and Bank received/paid, and — importantly — <b>Stock in Hand</b>: total stock value, current quantity left for every item that was sold or purchased that day, and a low-stock alert for anything at or below its reorder level.</p>' +
+      '<p><b>Note:</b> this app stores data locally on whichever device it\'s used on — there\'s no automatic live sync between devices. If your staff uses a separate device from yours, this WhatsApp summary (or a shared Backup file via Data → Download Backup → Import Backup File on your phone) is how you stay updated. If they use your own phone/tablet at the shop, you\'ll see everything automatically since it\'s the same device.</p>' +
+      '<p><b>Bank Reconciliation reminder:</b> you only ever need to upload the statement your bank gives you (CSV/Excel/PDF) — the app automatically pulls its own Cash/Bank records for the matching dates and compares them for you. See Bank Recon in the menu.</p>',
+      '<p><b>अगर कोई और आपके लिए entry करता है</b> (नौकर, स्टाफ, या shop पर accountant), Data → Overview में अब <b>💬 Send Today\'s Entries on WhatsApp</b> बटन है। एक tap में आपको साफ, पढ़ने लायक summary मिल जाती है — पूरे Backup/Import की ज़रूरत नहीं।</p>' +
+      '<p>Summary में शामिल है: उस दिन की हर Sale, Purchase, Expense (amount और payment mode के साथ), नई Credit Sales/Purchases, Cash और Bank में आया/गया पैसा, और — ज़रूरी बात — <b>Stock in Hand</b>: कुल stock value, जो item उस दिन बिका/खरीदा गया उसकी बची हुई quantity, और अगर कोई item reorder level से नीचे है तो चेतावनी।</p>' +
+      '<p><b>ध्यान दें:</b> यह app डेटा उसी device पर रखता है जिस पर इस्तेमाल हो रहा है — devices के बीच अपने आप sync नहीं होता। अगर स्टाफ अलग device इस्तेमाल करता है, तो यह WhatsApp summary (या Backup file भेजकर) ही अपडेट रहने का तरीका है। अगर वे आपके ही phone/tablet पर shop में काम करते हैं, तो सब अपने आप दिखेगा।</p>' +
+      '<p><b>Bank Reconciliation याद दिलाना:</b> आपको सिर्फ बैंक से मिला statement upload करना है — app अपने आप matching dates के Cash/Bank records निकालकर compare कर देता है। Menu में Bank Recon देखें।</p>'
     )
   );
     // Developer credit at bottom
