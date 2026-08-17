@@ -12568,7 +12568,20 @@ function pgHelp(){
       '<p><b>बेहतर Health Check:</b> अब वो issues भी पकड़ता है जो Balance Sheet असंतुलित नहीं करते — जैसे deleted item का sale, या बिना Debtor entry की credit sale। ये चुपचाप profit गलत कर सकते हैं, इसलिए हमेशा जाँचे जाते हैं।</p>'
     )
   );
-  // Developer credit at bottom
+h += hs(
+    bi('17. Statement Generator, Storage & More', '17. Statement Generator, Storage और अधिक'),
+    bi(
+      '<p><b>Statement Generator:</b> New menu — pull a proper ledger-style statement (Opening Balance → every transaction with running balance → Closing Balance) for <b>any</b> head: Debtor, Creditor, Sales, Purchases, any Expense category, Capital, any Loan, any Stock Item, any Fixed Asset (furniture, machinery — with real depreciation), Cash, or Bank. Pick a From/To date range and tap Generate. This covers every line on your P&L and Balance Sheet, not just Debtors/Creditors.</p>' +
+      '<p><b>Quick Party Statements:</b> In Debtors & Creditors → Ageing Analysis, every customer/supplier now has a "📄 View Statement" link right under their name — one tap jumps straight to their full, auto-generated statement for the current financial year, no manual date/name selection needed.</p>' +
+      '<p><b>Share via WhatsApp & Email:</b> Every statement (and other ledger-style reports) now has dedicated <b>💬 WhatsApp</b> and <b>✉️ Email</b> buttons alongside the existing Share and Print/PDF options — opens WhatsApp or your email app directly with the full statement text pre-filled, ready to send.</p>' +
+      '<p><b>Storage Tab:</b> Data → Overview now shows a Storage card — Total Storage Available, Storage Used, Storage Remaining (with a color-coded bar), and specifically how much space this app\'s own data is using. Reassures you that IndexedDB (what this app uses) has no realistic size limit, unlike the old localStorage approach.</p>',
+      '<p><b>Statement Generator:</b> नया menu — किसी भी head के लिए पूरा ledger-style statement (Opening Balance → हर transaction running balance के साथ → Closing Balance) निकालें: Debtor, Creditor, Sales, Purchases, कोई भी Expense category, Capital, कोई भी Loan, कोई भी Stock Item, कोई भी Fixed Asset (furniture, machinery — असली depreciation के साथ), Cash, या Bank। From/To date range चुनें और Generate दबाएं। यह आपके P&L और Balance Sheet की हर line को cover करता है, सिर्फ Debtors/Creditors ही नहीं।</p>' +
+      '<p><b>तुरंत Party Statement:</b> Debtors & Creditors → Ageing Analysis में, हर customer/supplier के नाम के नीचे अब "📄 View Statement" link है — एक tap में उनका पूरा statement खुल जाता है, कोई manual selection नहीं।</p>' +
+      '<p><b>WhatsApp और Email से Share करें:</b> हर statement में अब <b>💬 WhatsApp</b> और <b>✉️ Email</b> बटन भी हैं — सीधे WhatsApp या email app खोलता है, पूरा statement text पहले से भरा हुआ।</p>' +
+      '<p><b>Storage Tab:</b> Data → Overview में अब Storage card दिखता है — कुल Storage, इस्तेमाल हुआ Storage, बचा हुआ Storage, और यह app कितनी जगह ले रहा है। यह app IndexedDB इस्तेमाल करता है, जिसकी कोई तय सीमा नहीं है।</p>'
+    )
+  );
+    // Developer credit at bottom
   h += '<div style="margin-top:16px;padding:12px;background:#F0F4FF;border-radius:8px;text-align:center">';
   h += '<div style="font-size:11px;color:#1565C0;font-weight:700">ME Khata Suite</div>';
   h += '<div style="font-size:10px;color:#546E7A;margin-top:2px">' + (isHi ? 'विकसित: अनिल शर्मा | पूर्व महाप्रबंधक — सेंट्रल बैंक ऑफ इंडिया' : 'Developed by Anil Sharma | Former General Manager — Central Bank of India') + '</div>';
