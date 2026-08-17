@@ -6919,6 +6919,49 @@ function setUPIAccount(id){
 
 
 
+// Quick, readable summary of today's entries - built for a staff member at the shop to send
+// the owner each evening via WhatsApp, so the owner sees what was entered without needing a
+// full backup/import cycle. Much smaller and faster to read than a full JSON backup.
+function expTodayEntries(){
+  var today = td();
+  var sales = D.sales.filter(function(s){ return s.date===today; });
+  var purchases = D.purchases.filter(function(p){ return p.date===today; });
+  var expenses = D.expenses.filter(function(e){ return e.date===today; });
+  var cashIn = D.cashBook.filter(function(c){ return c.date===today && c.type==='receipt' && c.mode==='cash'; }).reduce(function(s,c){return s+c.amount;},0);
+  var cashOut = D.cashBook.filter(function(c){ return c.date===today && c.type==='payment' && c.mode==='cash'; }).reduce(function(s,c){return s+c.amount;},0);
+  var bankIn = D.cashBook.filter(function(c){ return c.date===today && c.type==='receipt' && c.mode==='bank'; }).reduce(function(s,c){return s+c.amount;},0);
+  var bankOut = D.cashBook.filter(function(c){ return c.date===today && c.type==='payment' && c.mode==='bank'; }).reduce(function(s,c){return s+c.amount;},0);
+  var salesTotal = sales.reduce(function(s,x){return s+(x.totalAmount||0);},0);
+  var purchaseTotal = purchases.reduce(function(s,x){return s+(x.amount||0);},0);
+  var expenseTotal = expenses.reduce(function(s,x){return s+(x.amount||0);},0);
+  var newDebtors = D.debtors.filter(function(d){ return d.date===today && d.amount>0; });
+  var newCreditors = D.creditors.filter(function(c){ return c.date===today && c.amount>0; });
+
+  if(sales.length===0 && purchases.length===0 && expenses.length===0 && D.cashBook.filter(function(c){return c.date===today;}).length===0){
+    toast('No entries recorded today yet.','e');
+    return;
+  }
+
+  var text = '*'+(D.profile.businessName||'')+' — Today\'s Entries*\n';
+  text += '*'+today+'*\n\n';
+  text += '📈 Sales: '+sales.length+' entries, Total '+fc(salesTotal)+'\n';
+  sales.forEach(function(s){ text += '  • '+(s.customerName||'')+' — '+(s.itemName||'')+' — '+fc(s.totalAmount)+' ('+(s.paymentMode||'')+')\n'; });
+  text += '\n🛒 Purchases: '+purchases.length+' entries, Total '+fc(purchaseTotal)+'\n';
+  purchases.forEach(function(p){ text += '  • '+(p.supplierName||'')+' — '+(p.itemName||'')+' — '+fc(p.amount)+' ('+(p.paymentMode||'')+')\n'; });
+  text += '\n📋 Expenses: '+expenses.length+' entries, Total '+fc(expenseTotal)+'\n';
+  expenses.forEach(function(e){ text += '  • '+(e.category||'')+' — '+fc(e.amount)+'\n'; });
+  if(newDebtors.length){ text += '\n👤 New Credit Sales (Debtors): '+newDebtors.length+', Total '+fc(newDebtors.reduce(function(s,d){return s+d.amount;},0))+'\n'; }
+  if(newCreditors.length){ text += '\n🏭 New Credit Purchases (Creditors): '+newCreditors.length+', Total '+fc(newCreditors.reduce(function(s,c){return s+c.amount;},0))+'\n'; }
+  text += '\n💵 Cash: Received '+fc(cashIn)+' | Paid '+fc(cashOut)+'\n';
+  text += '🏦 Bank: Received '+fc(bankIn)+' | Paid '+fc(bankOut)+'\n';
+  text += '\nSent from ME Khata app.';
+
+  var url = 'https://wa.me/?text='+encodeURIComponent(text);
+  var win = window.open(url,'_blank');
+  if(!win){
+    shareOrCopyText("Today's Entries", text);
+  }
+}
 function saveAIProxyUrl(){
   var url=gv('ai_proxy_url').trim();
   if(!D.settings) D.settings={};
@@ -8929,6 +8972,10 @@ function pgDat(){
   var stats=[['Inventory',D.inventory.length],['Purchases',D.purchases.length],['Sales',D.sales.length],['Expenses',D.expenses.length],['Cash/Bank Entries',D.cashBook.length],['Loans',D.loans.length],['Debtors',D.debtors.length],['Creditors',D.creditors.length]];
   h+=card('Data Overview','<div class="g2">'+stats.map(function(s){return'<div style="display:flex;justify-content:space-between;padding:7px 9px;background:#F0F4FF;border-radius:7px;font-size:12px"><span style="color:#546E7A">'+s[0]+'</span><b>'+s[1]+'</b></div>';}).join('')+'</div>');
   h+=storageCard();
+  h+=card('👨‍💼 Share Today\'s Entries with Owner',
+  '<div class="al ali">If someone else makes entries at the shop, tap below at the end of the day to send a quick, readable summary of everything entered today — straight to WhatsApp. No need for a full backup/import.</div>'+
+  btn('💬 Send Today\'s Entries on WhatsApp','expTodayEntries()','#25D366')
+  );
   h+=card('Backup &amp; Restore',
   btn('⬇ Download Backup','expDat()')+
   '<br><br>'+
