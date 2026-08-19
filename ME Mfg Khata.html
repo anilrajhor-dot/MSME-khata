@@ -196,6 +196,8 @@ function defD(){
     stockStatements:[],
     stockStatementSettings:{stockMarginPct:25, debtorMarginPct:40},
     gstLedger:[],
+    dayClose:[],
+    dayCloseState:{lastSeenDate:'', hadUnresolvedDiff:false, blockedSince:null},
     mfgCosting:{enabled:false,openingWIP:0,closingWIP:0,openingFG:0,directLabourCategories:[],factoryOverheadCategories:[]},
     expenses:[],
     cashBook:[],
@@ -357,6 +359,8 @@ function migrateData(d){
   if(!d.stockStatements)d.stockStatements=[];
   if(!d.stockStatementSettings)d.stockStatementSettings={stockMarginPct:25, debtorMarginPct:40};
   if(!d.gstLedger)d.gstLedger=[];
+  if(!d.dayClose)d.dayClose=[];
+  if(!d.dayCloseState)d.dayCloseState={lastSeenDate:'', hadUnresolvedDiff:false, blockedSince:null};
   if(!d.mfgCosting)d.mfgCosting={enabled:false,openingWIP:0,closingWIP:0,openingFG:0,directLabourCategories:[],factoryOverheadCategories:[]};
   for(var si=0;si<d.sales.length;si++){ if(d.sales[si].isExport===undefined) d.sales[si].isExport=false; }
   if(!d.purchases)d.purchases=[];
@@ -3165,6 +3169,8 @@ function smartAIAnswer(question){
     return analyseGSTStatus();
   if(q.indexOf('upi')>=0||q.indexOf('qr')>=0)
     return analyseUPISetup();
+  if(q.indexOf('day close')>=0||q.indexOf('close day')>=0||q.indexOf('close the day')>=0||(q.indexOf('block')>=0&&(q.indexOf('entry')>=0||q.indexOf('entries')>=0)))
+    return analyseDayCloseStatus();
   if(q.indexOf('profit')>=0&&(q.indexOf('reduc')>=0||q.indexOf('low')>=0||q.indexOf('why')>=0||q.indexOf('fall')>=0||q.indexOf('less')>=0))
     return analyseWhyProfitReduced();
   if(q.indexOf('reorder')>=0||q.indexOf('stock')>=0&&q.indexOf('order')>=0||q.indexOf('buy')>=0||q.indexOf('purchase')>=0&&q.indexOf('should')>=0)
@@ -3212,6 +3218,50 @@ function analyseGSTStatus(){
   }
   reply+='• Full breakdown ke liye: <b>GST → GST Summary</b> ya <b>GSTR-1</b> tab dekhein.<br>';
   reply+='• Balance Sheet par bhi yeh "GST Payable"/"GST Receivable" line mein dikhta hai.';
+  return reply;
+}
+
+// ── Q0a2: Day Close status / entry blocking ─────────────────────────
+function analyseDayCloseStatus(){
+  var bs = getBS();
+  var diag = diagnoseBSDifference();
+  var errorFindings = (diag.findings||[]).filter(function(f){return f.severity==='error';});
+  var hasDiff = Math.abs(bs.diff) > 1 || errorFindings.length>0;
+  var lastClose = (D.dayClose && D.dayClose.length) ? D.dayClose[D.dayClose.length-1] : null;
+  var alreadyClosedToday = lastClose && lastClose.date===td();
+  var blocked = !!(D.dayCloseState && D.dayCloseState.blockedSince && hasDiff);
+  var reply='<b>📅 Day Close Status</b><br><br>';
+  if(blocked){
+    reply+='<div style="background:#FFEBEE;border-radius:8px;padding:12px;text-align:center;margin-bottom:10px">';
+    reply+='<div style="font-size:11px;color:#546E7A">🚫 New entries blocked</div>';
+    reply+='<div style="font-size:14px;font-weight:800;color:#C62828">Since '+esc(D.dayCloseState.blockedSince)+'</div>';
+    reply+='</div>';
+    reply+='• '+D.dayCloseState.blockedSince+' balanced nahi thi aur close nahi hui — isliye Sales/Purchase/Expense entries block hain.<br>';
+    reply+='• Yeh automatically unblock ho jayega jaise hi neeche di gayi problem fix ho jaaye.<br>';
+  } else if(hasDiff){
+    reply+='<div style="background:#FFF3E0;border-radius:8px;padding:12px;text-align:center;margin-bottom:10px">';
+    reply+='<div style="font-size:11px;color:#546E7A">⚠️ Books abhi balanced nahi hain</div>';
+    reply+=(Math.abs(bs.diff)>1 ? '<div style="font-size:22px;font-weight:900;color:#E65100">'+fc(Math.abs(bs.diff))+' off</div>' : '<div style="font-size:14px;font-weight:800;color:#E65100">Data issue found</div>');
+    reply+='</div>';
+    reply+='• Aaj day close nahi kar sakte jab tak yeh fix na ho.<br>';
+  } else if(alreadyClosedToday){
+    reply+='<div style="background:#E8F5E9;border-radius:8px;padding:12px;text-align:center;margin-bottom:10px">';
+    reply+='<div style="font-size:11px;color:#546E7A">✅ Aaj ka din close ho chuka hai</div>';
+    reply+='<div style="font-size:14px;font-weight:800;color:#2E7D32">'+new Date(lastClose.closedAt).toLocaleTimeString()+' par</div>';
+    reply+='</div>';
+    reply+='• Books balanced hain. Aap chahein to aur entries bhi add kar sakte hain — closing dobara update ho jayegi.<br>';
+  } else {
+    reply+='<div style="background:#E8F5E9;border-radius:8px;padding:12px;text-align:center;margin-bottom:10px">';
+    reply+='<div style="font-size:11px;color:#546E7A">✅ Books balanced hain</div>';
+    reply+='<div style="font-size:14px;font-weight:800;color:#2E7D32">Close karne ke liye ready</div>';
+    reply+='</div>';
+    reply+='• Total Assets aur Total Liabilities + Capital dono match kar rahe hain.<br>';
+  }
+  if(errorFindings.length){
+    reply+='<br><b>Issues found:</b><br>';
+    errorFindings.forEach(function(f){ reply+='• '+esc(f.title)+(f.fix?' — <i>'+esc(f.fix)+'</i>':'')+'<br>'; });
+  }
+  reply+='<br>• Full details ke liye: <b>Dashboard → Day Close</b> card dekhein, jahan har issue ka "How to fix it" bhi diya hai.';
   return reply;
 }
 
@@ -3933,7 +3983,19 @@ function askAI(quickQ){
     'Monthly Sales Trend: '+moTrend.join(' → ')+'\n'+
     (gstEnabled() ? ('GST Status: Net '+(gstPayableBalance()>0?'Payable':'Receivable (ITC)')+' Rs.'+Math.round(Math.abs(gstPayableBalance()))+' (see GST -> GST Summary for full breakdown)\n') : '')+
     '\n'+
-    'Features available if the user asks how to do something: GST tracking (Data -> GST Setup, then Sales/Purchase show a GST Rate field); Monthly Stock Statement with Item-wise Detail and Bank Reconciliation tabs; Debtors & Creditors department with a Bank Debtors Statement split at 180 days; UPI Payment QR after any non-credit Sale or on printed Invoices (set UPI ID at Profile -> Bank Accounts, mark payments Paid/Failed in QR Payment Tracker); CC/OD loans correctly show only "Sanctioned" (no Bank/Cash choice) since sanctioning a limit is not a disbursement. '+
+    (function(){
+      var bs=getBS(), diag=diagnoseBSDifference();
+      var errF=(diag.findings||[]).filter(function(f){return f.severity==='error';});
+      var dcBlocked = !!(D.dayCloseState && D.dayCloseState.blockedSince && (Math.abs(bs.diff)>1 || errF.length>0));
+      var out = 'Day Close Status: '+(dcBlocked ? 'BLOCKED since '+D.dayCloseState.blockedSince+' — new Sales/Purchase/Expense entries are being refused until the books balance again.' : (Math.abs(bs.diff)>1||errF.length>0) ? 'Books not balanced today (off by Rs.'+Math.round(Math.abs(bs.diff))+'), Day Close not yet possible.' : 'Books balanced, Day Close is fine to do.')+'\n';
+      if(errF.length){
+        out += 'Specific issue(s) found (tell the user exactly what and how to fix, in your own words):\n';
+        errF.forEach(function(f){ out += '- '+f.title+(f.fix?' | Fix: '+f.fix:'')+'\n'; });
+      }
+      return out;
+    })()+
+    '\n'+
+    'Features available if the user asks how to do something: GST tracking (Data -> GST Setup, then Sales/Purchase show a GST Rate field); Monthly Stock Statement with Item-wise Detail and Bank Reconciliation tabs; Debtors & Creditors department with a Bank Debtors Statement split at 180 days, plus a "View Statement" quick-link on every party; Statement Generator (any Debtor/Creditor/Sales/Purchases/Expense head/Capital/Loan/Stock Item/Fixed Asset/Cash/Bank, any date range, with WhatsApp/Email share buttons); UPI Payment QR after any non-credit Sale or on printed Invoices (set UPI ID at Profile -> Bank Accounts, mark payments Paid/Failed in QR Payment Tracker); CC/OD loans correctly show only "Sanctioned" (no Bank/Cash choice) since sanctioning a limit is not a disbursement; Day Close (Dashboard card) which blocks new entries the day after an unresolved discrepancy until it is actually fixed; "Send Today\'s Entries on WhatsApp" (Data -> Overview) for a staff member to summarize the day, including Stock in Hand, for the owner; a Storage usage card (Data -> Overview) showing device storage used/remaining. '+
     'Give practical, specific advice in simple English and Hindi mixed (Hinglish is fine). '+
     'Be concise — max 150 words. Give numbered actionable steps where possible. '+
     'Address the user as "aap" respectfully. Use Rs. for amounts.';
@@ -4000,6 +4062,91 @@ function askAI(quickQ){
 // ═══════════════════════════════════════════════════════════════
 
 
+// ===== DAY CLOSE ======================================================
+// Tracks whether the previous day ended with an unresolved Balance Sheet discrepancy. If so,
+// new entries are blocked starting the next day until the discrepancy is actually rectified
+// (not just until the user re-opens the app) - this is the whole point: catching a real
+// bookkeeping error before more entries pile on top of it and make it harder to trace.
+function checkDayCloseBlock(){
+  var today = td();
+  if(!D.dayCloseState) D.dayCloseState = {lastSeenDate:'', hadUnresolvedDiff:false, blockedSince:null};
+  var bs = getBS();
+  var diag = diagnoseBSDifference();
+  var hasDiff = Math.abs(bs.diff) > 1 || (diag.findings && diag.findings.some(function(f){return f.severity==='error';}));
+  if(D.dayCloseState.lastSeenDate && D.dayCloseState.lastSeenDate !== today && D.dayCloseState.hadUnresolvedDiff && !D.dayCloseState.blockedSince){
+    D.dayCloseState.blockedSince = D.dayCloseState.lastSeenDate;
+  }
+  D.dayCloseState.lastSeenDate = today;
+  D.dayCloseState.hadUnresolvedDiff = hasDiff;
+  if(D.dayCloseState.blockedSince && !hasDiff){ D.dayCloseState.blockedSince = null; }
+  sv();
+  return !!(D.dayCloseState.blockedSince && hasDiff);
+}
+// Called at the top of every new-entry function. Returns true if the entry should proceed,
+// false if it was blocked (and already shown the user why).
+function allowNewEntry(){
+  if(checkDayCloseBlock()){
+    var bs = getBS();
+    var diffMsg = Math.abs(bs.diff)>1 ? ' (Balance Sheet off by '+fc(Math.abs(bs.diff))+')' : ' (a data issue needs fixing)';
+    toast('🚫 Entries are blocked — your books weren\'t fully correct on '+D.dayCloseState.blockedSince+diffMsg+'. Go to Dashboard → Day Close to see what\'s wrong and fix it before adding new entries.','e');
+    return false;
+  }
+  return true;
+}
+function closeDay(){
+  var bs = getBS();
+  var diag = diagnoseBSDifference();
+  var errorFindings = (diag.findings||[]).filter(function(f){return f.severity==='error';});
+  var hasDiff = Math.abs(bs.diff) > 1 || errorFindings.length>0;
+  if(!D.dayCloseState) D.dayCloseState = {lastSeenDate:'', hadUnresolvedDiff:false, blockedSince:null};
+  if(hasDiff){
+    toast('Cannot close the day — there are unresolved data issues. See the details below and fix them first.','e');
+  } else {
+    if(!D.dayClose) D.dayClose = [];
+    D.dayClose.push({date:td(), closedAt:new Date().toISOString(), diff:0});
+    D.dayCloseState.blockedSince = null;
+    D.dayCloseState.hadUnresolvedDiff = false;
+    sv();
+    toast('✅ Day closed successfully — books are balanced.');
+  }
+  renderPage();
+}
+function dayCloseCard(){
+  var bs = getBS();
+  var diag = diagnoseBSDifference();
+  var errorFindings = (diag.findings||[]).filter(function(f){return f.severity==='error';});
+  var warningFindings = (diag.findings||[]).filter(function(f){return f.severity!=='error';});
+  var hasDiff = Math.abs(bs.diff) > 1 || errorFindings.length>0;
+  var lastClose = (D.dayClose && D.dayClose.length) ? D.dayClose[D.dayClose.length-1] : null;
+  var alreadyClosedToday = lastClose && lastClose.date===td();
+  var h = '';
+  if(hasDiff){
+    h += '<div class="al alw"><div class="alt">⚠️ '+(Math.abs(bs.diff)>1 ? 'Balance Sheet is off by '+fc(Math.abs(bs.diff)) : 'Unresolved data issues found')+'</div>'+
+      (Math.abs(bs.diff)>1 ? '<p>Total Assets: '+fc(bs.totalAssets)+' | Total Liabilities + Capital: '+fc(bs.totalLiab)+'</p>' : '')+
+      '<p>You cannot close today\'s books until this is fixed. Here\'s what the diagnostic found:</p></div>';
+    if(diag.findings && diag.findings.length){
+      diag.findings.forEach(function(f){
+        h += '<div class="al '+(f.severity==='error'?'ald':'alw')+'" style="margin-top:6px"><div class="alt">'+esc(f.title)+'</div><p>'+esc(f.detail)+'</p>'+(f.fix?'<p><b>How to fix:</b> '+esc(f.fix)+'</p>':'')+'</div>';
+      });
+    } else {
+      h += '<div class="al ali">No specific cause identified automatically. Review recent entries — especially anything edited or deleted today — or check Health Check for other warnings.</div>';
+    }
+    h += btn('🔄 Recheck','renderPage()','#546E7A');
+  } else if(alreadyClosedToday){
+    h += '<div class="al ali"><div class="alt">✅ Today is already closed</div><p>Closed at '+new Date(lastClose.closedAt).toLocaleTimeString()+'. Books are balanced. You can still make entries — closing again will simply update the record.</p></div>';
+    h += btn('✅ Close Day Again','closeDay()','#2E7D32');
+  } else {
+    h += '<div class="al ali"><div class="alt">✅ Books are balanced</div><p>Total Assets and Total Liabilities + Capital both tie out. Safe to close the day.</p></div>';
+    if(warningFindings.length){
+      h += '<div class="al alw" style="margin-top:6px">Minor items to review when convenient (won\'t block closing): '+warningFindings.map(function(f){return esc(f.title);}).join('; ')+'</div>';
+    }
+    h += btn('✅ Close Day','closeDay()','#2E7D32');
+  }
+  if(D.dayCloseState && D.dayCloseState.blockedSince && hasDiff){
+    h += '<div class="al ald" style="margin-top:8px"><div class="alt">🚫 New entries are currently blocked</div><p>Because '+D.dayCloseState.blockedSince+' was never closed with balanced books, the app is blocking Sales/Purchases/Expense entries until this discrepancy is fixed.</p></div>';
+  }
+  return card('📅 Day Close', h);
+}
 function pgDash(){
   var f=getF(),i,j,td2=td();
   var now=new Date();
@@ -4094,6 +4241,7 @@ function pgDash(){
   var maxProfit=topProfit.length?Math.max(topProfit[0].profit,1):1;
 
   var h='';
+  h += dayCloseCard();
 
   // ── Business header ──
   if(D.profile.businessName){
@@ -5766,6 +5914,7 @@ function onPurItemChange(){window._purItem=gv('pu_i');window._purSupplier=gv('pu
   setTimeout(function(){var q=document.getElementById('pu_q');if(q)q.focus();},50);
 }
 function addPur(){
+  if(!allowNewEntry()) return;
   var s=gv('pu_s')||window._purSupplier||'',iid=gv('pu_i'),q=gvn('pu_q'),r=gvn('pu_r');
   if(!s){toast('Enter supplier name','e');return;}
   if(!q||!r){toast('Enter quantity and rate','e');return;}
@@ -6981,6 +7130,7 @@ function onSalItemChange(){
     else window._salPrice=gvn('sl_p')||0;
   } else window._salPrice=gvn('sl_p')||0;window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
 function addSal(){
+  if(!allowNewEntry()) return;
   var c2=gv('sl_c')||window._salCustomer||'',iid=gv('sl_i'),q=gvn('sl_q'),p=gvn('sl_p');
   if(!c2){toast('Enter customer name','e');return;}
   if(!iid){toast('Select an item','e');return;}
@@ -7077,6 +7227,7 @@ function renameCat(i){
   });
 }
 function addExp(){
+  if(!allowNewEntry()) return;
   var a=gvn('ex_a');if(!a){toast('Enter amount','e');return;}
   var mode=gv('ex_m'),date=gv('ex_d')||td(),cat=gv('ex_c'),rem=gv('ex_r');
   var advId = gv('ex_adv')||'';
@@ -13135,6 +13286,19 @@ h += hs(
       '<p>Summary में शामिल है: उस दिन की हर Sale, Purchase, Expense (amount और payment mode के साथ), नई Credit Sales/Purchases, Cash और Bank में आया/गया पैसा, और — ज़रूरी बात — <b>Stock in Hand</b>: कुल stock value, जो item उस दिन बिका/खरीदा गया उसकी बची हुई quantity, और अगर कोई item reorder level से नीचे है तो चेतावनी।</p>' +
       '<p><b>ध्यान दें:</b> यह app डेटा उसी device पर रखता है जिस पर इस्तेमाल हो रहा है — devices के बीच अपने आप sync नहीं होता। अगर स्टाफ अलग device इस्तेमाल करता है, तो यह WhatsApp summary (या Backup file भेजकर) ही अपडेट रहने का तरीका है। अगर वे आपके ही phone/tablet पर shop में काम करते हैं, तो सब अपने आप दिखेगा।</p>' +
       '<p><b>Bank Reconciliation याद दिलाना:</b> आपको सिर्फ बैंक से मिला statement upload करना है — app अपने आप matching dates के Cash/Bank records निकालकर compare कर देता है। Menu में Bank Recon देखें।</p>'
+    )
+  );
+  h += hs(
+    bi('19. Day Close', '19. डे क्लोज़'),
+    bi(
+      '<p><b>Dashboard now shows a Day Close card at the top.</b> At the end of each business day, check it and tap <b>✅ Close Day</b>. It checks your Total Assets against Total Liabilities + Capital, and also runs the same data-integrity checks as Health Check (like sales pointing to a deleted item) — not just the raw number, since some errors don\'t move the Balance Sheet total even though they still overstate your profit.</p>' +
+      '<p><b>If something\'s wrong</b>, Day Close shows you exactly what — the discrepancy amount, or the specific issue found — plus a plain-language "How to fix it" note for each one, so you don\'t have to guess. You cannot close the day until it\'s genuinely fixed.</p>' +
+      '<p><b>If you forget to close a day and it wasn\'t balanced</b>, the app remembers. Starting the next day, it blocks new Sales, Purchase, and Expense entries with a message pointing you back to Dashboard → Day Close — until you actually fix the underlying issue. The moment it\'s fixed, entries are allowed again immediately, no need to formally re-close the missed day.</p>' +
+      '<p>This is meant to catch a real bookkeeping mistake early, before more entries pile on top of it and make it harder to trace back.</p>',
+      '<p><b>अब Dashboard के ऊपर Day Close card दिखता है।</b> हर दिन के अंत में इसे चेक करें और <b>✅ Close Day</b> दबाएं। यह Total Assets को Total Liabilities + Capital से मिलाता है, और साथ ही Health Check जैसे data-integrity checks भी चलाता है (जैसे किसी deleted item की sale) — सिर्फ number ही नहीं, क्योंकि कुछ गलतियाँ Balance Sheet का total नहीं बदलतीं फिर भी profit गलत दिखाती हैं।</p>' +
+      '<p><b>अगर कुछ गलत है</b>, तो Day Close बिल्कुल बताता है क्या — कितना अंतर है, या क्या समस्या मिली — और हर एक के लिए आसान भाषा में "कैसे ठीक करें" भी बताता है। जब तक असल में ठीक न हो, दिन बंद नहीं कर सकते।</p>' +
+      '<p><b>अगर आप कोई दिन बंद करना भूल जाएं और वह balanced नहीं था</b>, तो app को याद रहता है। अगली दिन से, यह नई Sales, Purchase, Expense entries को रोक देगा और आपको Dashboard → Day Close पर भेजेगा — जब तक असल समस्या ठीक न हो जाए। ठीक होते ही तुरंत entries फिर से चालू हो जाती हैं, छूटे हुए दिन को दोबारा बंद करने की ज़रूरत नहीं।</p>' +
+      '<p>यह किसी असली बहीखाता गलती को जल्दी पकड़ने के लिए है, इससे पहले कि उस पर और entries जुड़ जाएं और उसे ढूंढना मुश्किल हो जाए।</p>'
     )
   );
     // Developer credit at bottom
