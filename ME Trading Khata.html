@@ -4321,6 +4321,94 @@ function salesCard(label,icon,amount,color){
 
 
 // ===== PROFILE =====
+// ===== DAILY REGISTER (fast, unified in-app entry for all transaction types) =====
+// Complements Bulk Import (Data Template) rather than replacing it - this is for when the app
+// is open and someone wants to record entries directly, one at a time, without navigating
+// between separate Sales/Purchase/Expense/Debtors & Creditors menus. Reuses the exact same
+// validateBulkRows/commitBulkImport engine as bulk CSV import (as a single-row batch), so a
+// Daily Register entry is guaranteed to post with identical accounting to any other path.
+function pgDailyRegister(){
+  var typeId = window._drType || 'sale';
+  var t = getBulkImportType(typeId);
+  var bs = getBS();
+  var diag = diagnoseBSDifference();
+  var errorFindings = (diag.findings||[]).filter(function(f){return f.severity==='error';});
+  var isTallied = Math.abs(bs.diff)<1 && errorFindings.length===0;
+
+  var h = '<div class="al ali"><div class="alt">📝 Daily Register</div><p>Quickly record any transaction here — it posts immediately to the right place (Sales, Purchase, Expenses, Debtors & Creditors, Capital/Loans) exactly like using those menus directly. For entering many transactions at once from a spreadsheet instead, use Data Template → Bulk Import.</p></div>';
+
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:'+(isTallied?'#E8F5E9':'#FFEBEE')+';border-radius:10px;margin-bottom:10px">'+
+    '<span style="font-size:12px;font-weight:700;color:'+(isTallied?'#2E7D32':'#C62828')+'">'+(isTallied?'✅ Financial Statements Tally':'⚠️ Not Tallying')+'</span>'+
+    '<span style="font-size:11px;color:#546E7A">Assets '+fc(bs.totalAssets)+' vs Liab+Cap '+fc(bs.totalLiab)+'</span>'+
+    '</div>';
+
+  h += card('What are you recording?',
+    sl('Transaction Type','dr_type', BULK_IMPORT_TYPES.map(function(bt){return {v:bt.id, l:bt.icon+' '+bt.label};}), typeId)
+      .replace('id="dr_type"','id="dr_type" onchange="window._drType=this.value;renderPage()"')
+  );
+
+  var fieldsHtml = inp('Date','dr_f0','date', td());
+  if(typeId==='purchase'){
+    fieldsHtml += inp('Item Name','dr_f1','text','') + inp('Supplier Name','dr_f2','text','') +
+      g2(inp('Quantity','dr_f3','number',''), inp('Rate','dr_f4','number','')) +
+      sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
+  } else if(typeId==='sale'){
+    fieldsHtml += inp('Item Name','dr_f1','text','') + inp('Customer Name','dr_f2','text','') +
+      g2(inp('Quantity','dr_f3','number',''), inp('Selling Price','dr_f4','number','')) +
+      sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}],'cash');
+  } else if(typeId==='expense'){
+    fieldsHtml += inp('Category','dr_f1','text','') + inp('Amount','dr_f2','number','') +
+      sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
+  } else if(typeId==='debtorReceipt'){
+    fieldsHtml += inp('Customer Name','dr_f1','text','') + inp('Amount Received','dr_f2','number','') +
+      sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
+  } else if(typeId==='creditorPayment'){
+    fieldsHtml += inp('Supplier Name','dr_f1','text','') + inp('Amount Paid','dr_f2','number','') +
+      sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
+  } else if(typeId==='loanInstalment'){
+    fieldsHtml += inp('Lender Name','dr_f1','text','') + inp('Amount Paid','dr_f2','number','') +
+      sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
+  } else if(typeId==='fixedAsset'){
+    fieldsHtml += inp('Asset Name','dr_f1','text','') + g2(inp('Cost','dr_f2','number',''), inp('Useful Life (Years)','dr_f3','number','')) +
+      sl('Payment Mode','dr_f4',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
+  }
+
+  h += card(t.icon+' '+t.label+' — New Entry', fieldsHtml + btn('➕ Add Entry','addDailyRegisterEntry()','#2E7D32'));
+
+  if(window._drLastError) h += '<div class="al ald">'+esc(window._drLastError)+'</div>';
+
+  // Today's entries across all types, most recent first - a quick visual confirmation of
+  // what's actually been recorded today, regardless of which menu/path was used.
+  var todayEntries = [];
+  D.sales.filter(function(s){return s.date===td();}).forEach(function(s){ todayEntries.push({time:s.id, icon:'📈', text:'Sale — '+s.customerName+' — '+s.itemName+' — '+fc(s.totalAmount)}); });
+  D.purchases.filter(function(p){return p.date===td();}).forEach(function(p){ todayEntries.push({time:p.id, icon:'🛒', text:'Purchase — '+p.supplierName+' — '+p.itemName+' — '+fc(p.amount)}); });
+  D.expenses.filter(function(e){return e.date===td();}).forEach(function(e){ todayEntries.push({time:e.id, icon:'📋', text:'Expense — '+e.category+' — '+fc(e.amount)}); });
+  if(todayEntries.length){
+    h += card('📅 Today\'s Entries ('+todayEntries.length+')', todayEntries.slice(-10).reverse().map(function(e){
+      return '<div style="padding:6px 0;border-bottom:1px solid #F0F0F0;font-size:12px">'+e.icon+' '+esc(e.text)+'</div>';
+    }).join(''));
+  }
+
+  return h;
+}
+function addDailyRegisterEntry(){
+  var typeId = window._drType || 'sale';
+  var t = getBulkImportType(typeId);
+  var date = gv('dr_f0');
+  var row = [date];
+  for(var i=1;i<t.cols.length;i++){ row.push(gv('dr_f'+i)); }
+  var rows = [t.cols, row];
+  var result = validateBulkRows(typeId, rows);
+  if(result.errors.length){
+    window._drLastError = result.errors[0];
+    renderPage();
+    return;
+  }
+  window._drLastError = null;
+  commitBulkImport(typeId, result.valid);
+  toast('✅ Entry recorded — posted to '+t.label+'.');
+  renderPage();
+}
 function pgProf(){
   var p=D.profile;
   var mobMax = p.mobileExtended ? '15' : '10';
@@ -12341,6 +12429,162 @@ function downloadFullDataTemplateXlsx(){
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
 
+// ===== BULK IMPORT (daily Purchases/Sales/Expenses/Receipts/Payments from a spreadsheet) =====
+// Each transaction type gets its own simple, single-purpose CSV template - deliberately kept
+// separate rather than combined into one multi-tab file, since different people often handle
+// different registers (sales vs purchases vs expenses) on different schedules through the day.
+var BULK_IMPORT_TYPES = [
+  {id:'purchase', label:'Purchases', icon:'🛒',
+   cols:['Date (YYYY-MM-DD)','Item Name','Supplier Name','Quantity','Rate','Payment Mode (cash/bank/credit)'],
+   example:['2026-08-01','Basmati Rice','Agra Wholesale Traders','100','62','bank']},
+  {id:'sale', label:'Sales', icon:'📈',
+   cols:['Date (YYYY-MM-DD)','Item Name','Customer Name','Quantity','Selling Price','Payment Mode (cash/bank/upi/credit)'],
+   example:['2026-08-01','Basmati Rice','Walk-in Customer','5','78','cash']},
+  {id:'expense', label:'Expenses', icon:'📋',
+   cols:['Date (YYYY-MM-DD)','Category','Amount','Payment Mode (cash/bank)'],
+   example:['2026-08-01','Rent','15000','bank']},
+  {id:'debtorReceipt', label:'Receipts from Debtors', icon:'👤',
+   cols:['Date (YYYY-MM-DD)','Customer Name','Amount Received','Payment Mode (cash/bank)'],
+   example:['2026-08-01','Sharma General Store','5000','bank']},
+  {id:'creditorPayment', label:'Payments to Creditors', icon:'🏭',
+   cols:['Date (YYYY-MM-DD)','Supplier Name','Amount Paid','Payment Mode (cash/bank)'],
+   example:['2026-08-01','Agra Wholesale Traders','8000','bank']},
+  {id:'loanInstalment', label:'Loan Instalment Payments', icon:'🏦',
+   cols:['Date (YYYY-MM-DD)','Lender Name','Amount Paid','Payment Mode (cash/bank)'],
+   example:['2026-08-01','UCO Bank','4348','bank']},
+  {id:'fixedAsset', label:'Fixed Asset Purchases', icon:'🪑',
+   cols:['Date (YYYY-MM-DD)','Asset Name','Cost','Useful Life (Years)','Payment Mode (cash/bank/credit)'],
+   example:['2026-08-01','Office Chair','3500','8','cash']},
+];
+function getBulkImportType(id){ return BULK_IMPORT_TYPES.filter(function(t){return t.id===id;})[0]; }
+function downloadBulkTemplate(typeId){
+  var t = getBulkImportType(typeId);
+  if(!t) return;
+  var rows = [t.cols, t.example];
+  var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'ME_Khata_'+t.label.replace(/\s+/g,'_')+'_Template.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+// Validates every row before committing anything - either all valid rows get imported together,
+// or none do, so a partial/broken import never leaves the books half-updated.
+function validateBulkRows(typeId, rows){
+  var valid = [], errors = [];
+  var dataRows = rows.slice(1); // skip header row
+  dataRows.forEach(function(r, idx){
+    var rowNum = idx+2; // account for header row + 1-indexing
+    if(r.length===1 && r[0].trim()==='') return; // skip blank trailing rows
+    var date = (r[0]||'').trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ errors.push('Row '+rowNum+': Date must be YYYY-MM-DD (got "'+(r[0]||'')+'")'); return; }
+    if(typeId==='purchase'){
+      var itemName=(r[1]||'').trim(), supplier=(r[2]||'').trim(), qty=+r[3], rate=+r[4], mode=(r[5]||'').trim().toLowerCase();
+      if(!itemName){ errors.push('Row '+rowNum+': Item Name is required'); return; }
+      if(!supplier){ errors.push('Row '+rowNum+': Supplier Name is required'); return; }
+      if(!qty||qty<=0||isNaN(qty)){ errors.push('Row '+rowNum+': Quantity must be a positive number'); return; }
+      if(!rate||rate<=0||isNaN(rate)){ errors.push('Row '+rowNum+': Rate must be a positive number'); return; }
+      if(['cash','bank','credit'].indexOf(mode)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, or credit (got "'+(r[5]||'')+'")'); return; }
+      valid.push({date:date, itemName:itemName, supplier:supplier, qty:qty, rate:rate, mode:mode});
+    } else if(typeId==='sale'){
+      var itemName2=(r[1]||'').trim(), customer=(r[2]||'').trim(), qty2=+r[3], price=+r[4], mode2=(r[5]||'').trim().toLowerCase();
+      if(!itemName2){ errors.push('Row '+rowNum+': Item Name is required'); return; }
+      if(!customer){ errors.push('Row '+rowNum+': Customer Name is required'); return; }
+      if(!qty2||qty2<=0||isNaN(qty2)){ errors.push('Row '+rowNum+': Quantity must be a positive number'); return; }
+      if(!price||price<=0||isNaN(price)){ errors.push('Row '+rowNum+': Selling Price must be a positive number'); return; }
+      if(['cash','bank','upi','credit'].indexOf(mode2)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, upi, or credit (got "'+(r[5]||'')+'")'); return; }
+      var item = D.inventory.filter(function(it){return it.itemName.toLowerCase()===itemName2.toLowerCase();})[0];
+      if(!item){ errors.push('Row '+rowNum+': Item "'+itemName2+'" not found in Inventory - add it there first (Sales cannot create new items)'); return; }
+      var totalAvail = (item.currentStock||0)+(item.importedStock||0);
+      if(qty2>totalAvail){ errors.push('Row '+rowNum+': Insufficient stock for "'+itemName2+'" - only '+fmt(totalAvail)+' available'); return; }
+      valid.push({date:date, itemId:item.id, itemName:item.itemName, unit:item.unit, customer:customer, qty:qty2, price:price, mode:mode2});
+    } else if(typeId==='expense'){
+      var cat=(r[1]||'').trim(), amt=+r[2], mode3=(r[3]||'').trim().toLowerCase();
+      if(!cat){ errors.push('Row '+rowNum+': Category is required'); return; }
+      if(!amt||amt<=0||isNaN(amt)){ errors.push('Row '+rowNum+': Amount must be a positive number'); return; }
+      if(['cash','bank'].indexOf(mode3)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
+      valid.push({date:date, category:cat, amount:amt, mode:mode3});
+    } else if(typeId==='debtorReceipt'){
+      var cust2=(r[1]||'').trim(), amt2=+r[2], mode4=(r[3]||'').trim().toLowerCase();
+      if(!cust2){ errors.push('Row '+rowNum+': Customer Name is required'); return; }
+      if(!amt2||amt2<=0||isNaN(amt2)){ errors.push('Row '+rowNum+': Amount Received must be a positive number'); return; }
+      if(['cash','bank'].indexOf(mode4)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
+      valid.push({date:date, customer:cust2, amount:amt2, mode:mode4});
+    } else if(typeId==='creditorPayment'){
+      var supp2=(r[1]||'').trim(), amt3=+r[2], mode5=(r[3]||'').trim().toLowerCase();
+      if(!supp2){ errors.push('Row '+rowNum+': Supplier Name is required'); return; }
+      if(!amt3||amt3<=0||isNaN(amt3)){ errors.push('Row '+rowNum+': Amount Paid must be a positive number'); return; }
+      if(['cash','bank'].indexOf(mode5)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
+      valid.push({date:date, supplier:supp2, amount:amt3, mode:mode5});
+    } else if(typeId==='loanInstalment'){
+      var lender=(r[1]||'').trim(), amt4=+r[2], mode6=(r[3]||'').trim().toLowerCase();
+      if(!lender){ errors.push('Row '+rowNum+': Lender Name is required'); return; }
+      if(!amt4||amt4<=0||isNaN(amt4)){ errors.push('Row '+rowNum+': Amount Paid must be a positive number'); return; }
+      if(['cash','bank'].indexOf(mode6)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
+      var loan = D.loans.filter(function(l){return (l.lender||'').toLowerCase()===lender.toLowerCase();})[0];
+      if(!loan){ errors.push('Row '+rowNum+': Loan from "'+lender+'" not found - add it in Capital/Loans first'); return; }
+      valid.push({date:date, loanId:loan.id, lender:loan.lender, amount:amt4, mode:mode6});
+    } else if(typeId==='fixedAsset'){
+      var assetName=(r[1]||'').trim(), cost=+r[2], life=+r[3], mode7=(r[4]||'').trim().toLowerCase();
+      if(!assetName){ errors.push('Row '+rowNum+': Asset Name is required'); return; }
+      if(!cost||cost<=0||isNaN(cost)){ errors.push('Row '+rowNum+': Cost must be a positive number'); return; }
+      if(!life||life<=0||isNaN(life)){ errors.push('Row '+rowNum+': Useful Life must be a positive number of years'); return; }
+      if(['cash','bank','credit'].indexOf(mode7)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, or credit (got "'+(r[4]||'')+'")'); return; }
+      valid.push({date:date, assetName:assetName, cost:cost, life:life, mode:mode7});
+    }
+  });
+  return {valid:valid, errors:errors};
+}
+// Commits validated rows using the same underlying logic as the app's own entry forms (weighted-
+// average stock costing via drawStock, addDebtor/addCreditor, postCB) so bulk-imported entries are
+// indistinguishable from ones typed in by hand - same accounting, same balance sheet impact.
+function commitBulkImport(typeId, validRows){
+  var count=0;
+  validRows.forEach(function(r){
+    if(typeId==='purchase'){
+      var item = findOrCreateItem(r.itemName, '');
+      var amt = r.qty*r.rate;
+      var tq=item.currentStock+r.qty, tv=item.currentStock*item.avgCost+amt;
+      item.currentStock=tq; item.avgCost=tq>0?tv/tq:r.rate;
+      D.purchases.push({id:uid(), date:r.date, supplierName:r.supplier, itemId:item.id, itemName:item.itemName, qty:r.qty, rate:r.rate, amount:amt, paymentMode:r.mode, isImported:false});
+      if(r.mode==='credit') addCreditor(r.supplier, amt, r.date, 'Purchase: '+item.itemName);
+      else postCB(r.mode, 'payment', amt, r.supplier, 'Purchase: '+item.itemName, r.date);
+    } else if(typeId==='sale'){
+      var item2 = D.inventory.filter(function(it){return it.id===r.itemId;})[0];
+      if(!item2) return;
+      var draw = drawStockPreview(item2, r.qty);
+      var tot = r.qty*r.price, cogs=draw.cogs, gp=tot-cogs;
+      D.sales.push({id:uid(), date:r.date, customerName:r.customer, itemId:item2.id, itemName:item2.itemName, unit:item2.unit, qty:r.qty, sellingPrice:r.price, totalAmount:tot, cogs:cogs, grossProfit:gp, profitPct:tot>0?+(gp/tot*100).toFixed(1):0, paymentMode:r.mode, isExport:false});
+      drawStock(item2, r.qty);
+      if(r.mode==='credit') addDebtor(r.customer, tot, r.date, 'Sale: '+item2.itemName);
+      else postCB(r.mode, 'receipt', tot, r.customer, 'Sale: '+item2.itemName, r.date);
+    } else if(typeId==='expense'){
+      D.expenses.push({id:uid(), date:r.date, category:r.category, amount:r.amount, paymentMode:r.mode});
+      postCB(r.mode, 'payment', r.amount, r.category, r.category, r.date);
+    } else if(typeId==='debtorReceipt'){
+      addDebtor(r.customer, -r.amount, r.date, 'Payment Received');
+      postCB(r.mode, 'receipt', r.amount, r.customer, 'Debtor Collection', r.date);
+    } else if(typeId==='creditorPayment'){
+      addCreditor(r.supplier, -r.amount, r.date, 'Payment Made');
+      postCB(r.mode, 'payment', r.amount, r.supplier, 'Creditor Payment', r.date);
+    } else if(typeId==='loanInstalment'){
+      var loan = D.loans.filter(function(l){return l.id===r.loanId;})[0];
+      if(!loan) return;
+      loan.outstandingBalance = Math.max(0, (+loan.outstandingBalance||0) - r.amount);
+      if(!loan.payments) loan.payments=[];
+      loan.payments.push({date:r.date, amount:r.amount, principal:r.amount});
+      postCB(r.mode, 'payment', r.amount, r.lender, 'Loan Instalment', r.date);
+    } else if(typeId==='fixedAsset'){
+      D.fixedAssets.push({id:uid(), name:r.assetName, purchaseDate:r.date, cost:r.cost, life:r.life, accumDep:0, disposed:false});
+      if(r.mode==='credit') addCreditor(r.assetName+' (Asset Supplier)', r.cost, r.date, 'Fixed Asset Purchase: '+r.assetName);
+      else postCB(r.mode, 'payment', r.cost, 'Capital Expenditure', 'Fixed Asset Purchase: '+r.assetName, r.date);
+    }
+    count++;
+  });
+  sv();
+  return count;
+}
 function pgTemplate(){
   var h = '<div class="al ali"><div class="alt">📊 Data Templates — for Existing Businesses</div>';
   h += '<p>Download a ready-made template to bring in your existing business data: opening balances, stock items, fixed assets, loans, and partners/directors. Fill it in on a computer or phone spreadsheet app, then upload it from Data → Opening Trial Balance.</p></div>';
@@ -12365,9 +12609,83 @@ function pgTemplate(){
     '</div>'
   );
 
+  h += '<div class="al ali" style="margin-top:16px"><div class="alt">🔁 Bulk Import — Daily Transactions</div>';
+  h += '<p>Already keeping separate registers for Purchases, Sales, Expenses, or tracking who owes/is owed? Instead of typing each one into the app, fill in a simple spreadsheet and upload it — every entry gets created automatically, with the same accounting as typing it in by hand.</p></div>';
+
+  BULK_IMPORT_TYPES.forEach(function(t){
+    var preview = window._bulkPreview && window._bulkPreview.typeId===t.id ? window._bulkPreview : null;
+    var body = '<div style="font-size:12px;color:#546E7A;margin-bottom:10px">Columns: '+t.cols.join(' | ')+'</div>';
+    body += btn('⬇ Download '+t.label+' Template','downloadBulkTemplate(\''+t.id+'\')','#546E7A');
+    body += '<br><br><input type="file" id="_bulk_file_'+t.id+'" accept=".csv" style="display:none" onchange="handleBulkFileSelect(\''+t.id+'\',event)">';
+    body += '<button onclick="document.getElementById(\'_bulk_file_'+t.id+'\').click()" class="btn bfull" style="background:#1565C0;color:#fff;cursor:pointer">⬆ Upload Filled '+t.label+' CSV</button>';
+    if(preview){
+      body += '<div style="margin-top:10px;padding:10px;background:'+(preview.errors.length?'#FFF3E0':'#E8F5E9')+';border-radius:8px">';
+      body += '<div style="font-size:12px;font-weight:700;color:'+(preview.errors.length?'#E65100':'#2E7D32')+'">'+preview.valid.length+' row(s) ready to import'+(preview.errors.length?', '+preview.errors.length+' row(s) with errors':'')+'</div>';
+      if(preview.errors.length){
+        body += '<div style="font-size:11px;color:#C62828;margin-top:6px;max-height:150px;overflow-y:auto">'+preview.errors.map(function(e){return esc(e);}).join('<br>')+'</div>';
+        body += '<div style="font-size:11px;color:#546E7A;margin-top:6px">Fix these rows in your spreadsheet and upload again. '+(preview.valid.length?'Or, import just the '+preview.valid.length+' valid row(s) now and fix the rest separately:':'')+'</div>';
+      }
+      if(preview.valid.length){
+        body += '<button onclick="confirmBulkImport(\''+t.id+'\')" class="btn bfull" style="background:#2E7D32;color:#fff;margin-top:8px;cursor:pointer">✅ Import '+preview.valid.length+' Valid Row(s)</button>';
+      }
+      body += '<button onclick="window._bulkPreview=null;renderPage()" style="width:100%;padding:8px;margin-top:6px;background:transparent;border:1px solid #E0E0E0;border-radius:6px;font-size:12px;color:#546E7A;cursor:pointer">Cancel</button>';
+      body += '</div>';
+    }
+    var res = window._bulkImportResult && window._bulkImportSnapshotLabel===t.label ? window._bulkImportResult : null;
+    if(res){
+      body += '<div style="margin-top:10px;padding:10px;background:'+(res.isClean?'#E8F5E9':'#FFEBEE')+';border-radius:8px">';
+      body += '<div style="font-size:12px;font-weight:700;color:'+(res.isClean?'#2E7D32':'#C62828')+'">'+(res.isClean?'✅':'⚠️')+' '+res.count+' entries imported — Balance Sheet checked: '+(res.isClean?'still balanced':'something needs attention')+'</div>';
+      if(!res.isClean){
+        body += '<div style="font-size:11px;color:#C62828;margin-top:6px">'+(Math.abs(res.bsDiff)>1?'Off by '+fc(Math.abs(res.bsDiff))+'. ':'')+(res.findings&&res.findings.length?res.findings.map(function(f){return esc(f.title);}).join('; '):'')+'</div>';
+      }
+      body += '<button onclick="undoLastBulkImport()" style="width:100%;padding:8px;margin-top:8px;background:#fff;border:1.5px solid #C62828;border-radius:6px;font-size:12px;color:#C62828;font-weight:700;cursor:pointer">↩️ Undo This Import</button>';
+      body += '<div style="font-size:10px;color:#78909C;margin-top:4px">Undo is only available for the most recent import, and only until you do something else.</div>';
+      body += '</div>';
+    }
+    h += card(t.icon+' '+t.label, body);
+  });
+
   return h;
 }
-
+function handleBulkFileSelect(typeId, event){
+  var file = event.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var rows = parseCSV(e.target.result);
+    var result = validateBulkRows(typeId, rows);
+    window._bulkPreview = {typeId:typeId, valid:result.valid, errors:result.errors};
+    renderPage();
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+function confirmBulkImport(typeId){
+  if(!window._bulkPreview || window._bulkPreview.typeId!==typeId) return;
+  // Full state snapshot before committing - the safest possible rollback mechanism, since
+  // reversing individual weighted-average inventory changes precisely (especially if several
+  // rows touch the same item) is genuinely complex and error-prone to do surgically. Restoring
+  // the whole D object is simple, exact, and impossible to get subtly wrong.
+  window._bulkImportSnapshot = JSON.parse(JSON.stringify(D));
+  window._bulkImportSnapshotLabel = getBulkImportType(typeId).label;
+  var n = commitBulkImport(typeId, window._bulkPreview.valid);
+  window._bulkPreview = null;
+  var bs = getBS();
+  var diag = diagnoseBSDifference();
+  var errorFindings = (diag.findings||[]).filter(function(f){return f.severity==='error';});
+  var isClean = Math.abs(bs.diff)<1 && errorFindings.length===0;
+  window._bulkImportResult = {count:n, isClean:isClean, bsDiff:bs.diff, findings:diag.findings};
+  renderPage();
+}
+function undoLastBulkImport(){
+  if(!window._bulkImportSnapshot){ toast('Nothing to undo.','e'); return; }
+  D = window._bulkImportSnapshot;
+  window._bulkImportSnapshot = null;
+  window._bulkImportResult = null;
+  sv();
+  toast('↩️ Import undone — back to how things were before.');
+  renderPage();
+}
 function pgHelp(){
   var lang = window._helpLang || 'en';
   var isHi = lang === 'hi';
@@ -19998,9 +20316,9 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 
 // ===== NAVIGATION & RENDER =====
-var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण',ledgerstmt:'खाता विवरण'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
-var NAV_ALL = ['profile','dashboard','capital','inventory','purchase','sales','returns','journal','debtcred','ledgerstmt','stockstmt','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
+var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',dailyregister:'दैनिक रजिस्टर',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण',ledgerstmt:'खाता विवरण'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',dailyregister:'Daily Register',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
+var NAV_ALL = ['profile','dailyregister','dashboard','capital','inventory','purchase','sales','returns','journal','debtcred','ledgerstmt','stockstmt','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
 var BN_PAGES = ['dashboard','sales','purchase','financials','data'];
 var BN_ICONS = ['🏠','🏷️','🛒','📄','⚙️'];
 
@@ -20034,7 +20352,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
+  var fns = {dashboard:pgDash,profile:pgProf,dailyregister:pgDailyRegister,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
 }
