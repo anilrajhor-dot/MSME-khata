@@ -266,6 +266,9 @@ function defD(){
 }
 // Shared migration: ensures all fields exist on a loaded/imported data object, mutates and returns d
 function migrateData(d){
+  if(!d.capital)d.capital={initialCapital:0,additionalCapital:0};
+  if(d.capital.initialCapital===undefined)d.capital.initialCapital=0;
+  if(d.capital.additionalCapital===undefined)d.capital.additionalCapital=0;
   if(!d.debtors)d.debtors=[];
   if(!d.creditors)d.creditors=[];
   if(!d.opening)d.opening={cash:0,bank:0,stock:0,debtors:0,creditors:0,capital:0,takenOn:null};
