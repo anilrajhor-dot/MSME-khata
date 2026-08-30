@@ -9660,37 +9660,77 @@ function loadMidSizeDemo(withGST){
   overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10000;padding:14px';
   var box=document.createElement('div');
   box.style.cssText='background:#fff;border-radius:12px;padding:18px;max-width:400px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,0.3);border-top:4px solid #1565C0';
+  var fileName = 'Mfg_MidSize_'+(withGST?'WithGST':'NoGST')+'.json';
   box.innerHTML='<div style="font-size:16px;font-weight:800;color:#1565C0;margin-bottom:8px">📊 Load Demo Data</div>'+
-    '<div style="font-size:12px;color:#37474F;margin-bottom:12px;line-height:1.6">Select the demo data file ('+(withGST?'With GST':'Without GST')+' — the one that came alongside this app) to load a realistic mid-size business example spanning over 2 years: real Sales, Purchases, Expenses, Debtors, Creditors, Loans, and Fixed Assets.<br><br><b>This will replace all your current data.</b> Type <b>DEMO</b> below to confirm, then choose the file.</div>'+
+    '<div id="_demo_status" style="font-size:12px;color:#37474F;margin-bottom:12px;line-height:1.6">Checking for <b>'+fileName+'</b> next to this app online...</div>'+
+    '<div id="_demo_body" style="display:none">'+
+    '<div id="_demo_desc" style="font-size:12px;color:#37474F;margin-bottom:10px;line-height:1.6"></div>'+
     '<input type="text" id="_demo_confirm_inp" placeholder="Type DEMO" style="width:100%;padding:10px;border:1.5px solid #1565C0;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px;text-transform:uppercase" autocomplete="off">'+
-    '<input type="file" id="_demo_file_inp" accept=".json" disabled style="width:100%;margin-bottom:10px;font-size:12px">'+
-    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+    '<input type="file" id="_demo_file_inp" accept=".json" disabled style="width:100%;margin-bottom:10px;font-size:12px;display:none">'+
+    '<button id="_demo_ok" disabled style="width:100%;padding:9px 14px;border-radius:8px;border:none;background:#E0E0E0;color:#9E9E9E;font-size:13px;font-weight:700;cursor:not-allowed;display:none">Load Demo Data</button>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">'+
     '<button id="_demo_cancel" style="padding:9px 14px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#546E7A;font-size:13px;cursor:pointer">Cancel</button>'+
     '</div>';
   overlay.appendChild(box);
   document.body.appendChild(overlay);
-  var inp=document.getElementById('_demo_confirm_inp');
-  var fileInp=document.getElementById('_demo_file_inp');
-  inp.addEventListener('input',function(){
-    fileInp.disabled = inp.value.trim().toUpperCase()!=='DEMO';
-  });
   document.getElementById('_demo_cancel').onclick=function(){ document.body.removeChild(overlay); };
-  fileInp.addEventListener('change', function(e){
-    var file = e.target.files[0];
-    if(!file) return;
-    var reader = new FileReader();
-    reader.onload = function(ev){
-      var src;
-      try{ src = JSON.parse(ev.target.result); }
-      catch(err){ toast('That file is not valid JSON — pick the demo data file that came with this app.','e'); return; }
-      if(!src || !src.sales || !src.profile){ toast('That does not look like a valid ME Khata demo data file.','e'); return; }
-      D = migrateData(src);
-      sv();
-      document.body.removeChild(overlay);
-      toast('✅ Demo data loaded — explore away! Use Data → Danger Zone → Delete All Data when you want to remove it and start fresh.');
-      go('dashboard');
-    };
-    reader.readAsText(file);
+
+  function applyDemo(src){
+    D = migrateData(src);
+    sv();
+    if(document.body.contains(overlay)) document.body.removeChild(overlay);
+    toast('✅ Demo data loaded — explore away! Use Data → Danger Zone → Delete All Data when you want to remove it and start fresh.');
+    go('dashboard');
+  }
+
+  // Pre-fetch in the background only to check availability - nothing is applied until the
+  // user explicitly types DEMO to confirm, same safeguard as every other destructive action.
+  fetch(fileName).then(function(resp){
+    if(!resp.ok) throw new Error('not found');
+    return resp.json();
+  }).then(function(src){
+    if(!src || !src.sales || !src.profile) throw new Error('invalid shape');
+    document.getElementById('_demo_status').style.display='none';
+    var bodyEl = document.getElementById('_demo_body');
+    bodyEl.style.display='block';
+    document.getElementById('_demo_desc').innerHTML = 'Found it! This will <b>replace all your current data</b> with a realistic mid-size business example ('+(withGST?'with GST':'without GST')+') spanning over 2 years — real Sales, Purchases, Expenses, Debtors, Creditors, Loans, and Fixed Assets.<br><br>Type <b>DEMO</b> below to confirm.';
+    var inp=document.getElementById('_demo_confirm_inp');
+    var okBtn=document.getElementById('_demo_ok');
+    okBtn.style.display='block';
+    inp.addEventListener('input',function(){
+      if(inp.value.trim().toUpperCase()==='DEMO'){
+        okBtn.disabled=false; okBtn.style.background='#1565C0'; okBtn.style.color='#fff'; okBtn.style.cursor='pointer';
+      } else {
+        okBtn.disabled=true; okBtn.style.background='#E0E0E0'; okBtn.style.color='#9E9E9E'; okBtn.style.cursor='not-allowed';
+      }
+    });
+    okBtn.onclick=function(){ if(!okBtn.disabled) applyDemo(JSON.parse(JSON.stringify(src))); };
+  }).catch(function(){
+    // Not available online (opened locally, or file not uploaded yet) - fall back to manual pick.
+    document.getElementById('_demo_status').style.display='none';
+    var bodyEl = document.getElementById('_demo_body');
+    bodyEl.style.display='block';
+    document.getElementById('_demo_desc').innerHTML = 'Could not fetch it automatically (this app may be open locally, or <b>'+fileName+'</b> is not uploaded next to it yet). Select the file manually below, or upload it to the same folder/repo as this app so this loads automatically next time.<br><br>Type <b>DEMO</b> below to confirm, then choose the file.';
+    var inp=document.getElementById('_demo_confirm_inp');
+    var fileInp=document.getElementById('_demo_file_inp');
+    fileInp.style.display='block';
+    inp.addEventListener('input',function(){
+      fileInp.disabled = inp.value.trim().toUpperCase()!=='DEMO';
+    });
+    fileInp.addEventListener('change', function(e){
+      var file = e.target.files[0];
+      if(!file) return;
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        var src;
+        try{ src = JSON.parse(ev.target.result); }
+        catch(err){ toast('That file is not valid JSON — pick '+fileName+'.','e'); return; }
+        if(!src || !src.sales || !src.profile){ toast('That does not look like a valid ME Khata demo data file.','e'); return; }
+        applyDemo(src);
+      };
+      reader.readAsText(file);
+    });
   });
 }
 
