@@ -119,12 +119,14 @@ html, body { width:100%; margin:0; padding:0; overflow-x:hidden; }
 @media (min-width:768px){
   #app { max-width:960px !important; margin:0 auto !important; }
   #tb  { max-width:960px !important; margin:0 auto !important; }
-  #nav { max-width:960px !important; margin:0 auto !important; }
-  #bn  { max-width:960px !important; margin:0 auto !important; }
-  #pg  { max-width:960px !important; margin:0 auto !important; padding:0 16px !important; }
+  #nav { max-width:960px !important; margin:0 auto !important; overflow-x:visible !important; flex-wrap:wrap !important; }
+  #nav a, #nav>div { flex-shrink:0; }
+  #bn  { display:none !important; }
+  #pg  { max-width:960px !important; margin:0 auto !important; padding:16px !important; padding-bottom:16px !important; }
+  #faq-fab { bottom:14px !important; }
 }
 @media (min-width:1200px){
-  #app, #tb, #nav, #bn, #pg { max-width:1100px !important; }
+  #app, #tb, #nav, #pg { max-width:1100px !important; }
 }
 /* Fix pointer events — ensure all elements clickable */
 * { pointer-events:auto; }
