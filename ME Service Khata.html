@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <script>
-var _BUILD="202407020002";
+var _BUILD="202609100001"; // Version 11.1 — Stabilisation & Accuracy Release
 try{ sessionStorage.setItem("mfm_build",_BUILD); }catch(e){}
 // Note: removed forced location.reload() — this caused blank screens in
 // standalone "Add to Home Screen" mode on iOS Safari (reload loop/race condition)
@@ -167,6 +167,7 @@ input[type=text], input[type=number], input[type=date], textarea { cursor:text !
     <b id="tbn">🛠️ Service Accounts</b>
     <small id="tbp">Dashboard</small>
   </div>
+  <span style="font-size:9px;color:rgba(255,255,255,0.65);margin-right:8px;white-space:nowrap">v11.1</span>
   <button onclick="toggleHi()" id="lb">हि</button>
 </div>
 <div id="nav"></div>
@@ -201,6 +202,9 @@ function defD(){
     gstLedger:[],
     dayClose:[],
     dayCloseState:{lastSeenDate:'', hadUnresolvedDiff:false, blockedSince:null},
+    reconIgnored:[],
+    reconManualMatches:[],
+    appVersion:'11.1',
     consumptions:[],
     productions:[],
     expenses:[],
@@ -399,6 +403,9 @@ function migrateData(d){
   if(d.settings.defaultMargin===undefined) d.settings.defaultMargin=20;
   if(d.settings.marginMode===undefined) d.settings.marginMode='markup';
   if(!d.settings.categoryMargins) d.settings.categoryMargins={};
+  if(!d.reconIgnored) d.reconIgnored=[];
+  if(!d.reconManualMatches) d.reconManualMatches=[];
+  d.appVersion='11.1'; // always stamp current version on load — informational only, not a storage key
   if(!d.partyCodes) d.partyCodes={};
   if(!d.customHSN) d.customHSN={};
   if(!d.incomeTax) d.incomeTax={ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false};
@@ -1235,6 +1242,282 @@ function actBtns(type,id){
   return '<button onclick="startEdit('+Q+type+Q+','+Q+id+Q+')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px">'+String.fromCodePoint(9999)+'</button>'+
          '<button onclick="doDelete('+Q+type+Q+','+Q+id+Q+')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px;color:#C62828">'+String.fromCodePoint(128465)+'</button>';
 }
+function getKnownSupplierNames(){
+  var names = D.purchases.map(function(p){return p.supplierName;}).concat(D.creditors.map(function(c){return c.name;}));
+  return Array.from(new Set(names.filter(Boolean))).sort(function(a,b){return a.localeCompare(b);});
+}
+function getKnownCustomerNames(){
+  var names = D.sales.map(function(s){return s.customerName;}).concat(D.debtors.map(function(d){return d.name;}));
+  return Array.from(new Set(names.filter(Boolean))).sort(function(a,b){return a.localeCompare(b);});
+}
+function viewAcctBtn(type,id){
+  return '<button onclick="window._acctViewType='+Q+type+Q+';window._acctViewId='+Q+id+Q+';renderPage()" title="View Accounting" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px">📒</button>';
+}
+function partyOrCashLabel(mode){
+  if(mode==='credit') return null; // caller substitutes the actual party name
+  if(mode==='cash') return 'Cash';
+  if(mode==='upi') return 'Bank (UPI)';
+  if(mode&&mode.indexOf('bank:')===0){
+    var acc=null; for(var i=0;i<(D.bankAccounts||[]).length;i++) if(D.bankAccounts[i].id===mode.slice(5)) acc=D.bankAccounts[i];
+    return 'Bank'+(acc?' ('+acc.name+')':'');
+  }
+  if(mode==='bank') return 'Bank';
+  if(mode==='advance') return 'Advance (adjusted)';
+  if(mode==='cc'||mode==='od'||(mode&&(mode.indexOf('cc:')===0||mode.indexOf('od:')===0))) return 'CC/OD Account';
+  return mode||'Cash';
+}
+function describeSaleAccounting(s){
+  var lines=[];
+  var drParty = s.paymentMode==='credit' ? s.customerName : partyOrCashLabel(s.paymentMode);
+  lines.push({side:'Dr', account:drParty, amount:(s.totalAmount||0)+(s.gstAmount||0)});
+  lines.push({side:'Cr', account:'Sales', amount:s.totalAmount||0});
+  if(s.gstAmount>0.005) lines.push({side:'Cr', account:'Output GST', amount:s.gstAmount});
+  lines.push({side:'', account:'— stock effect —', amount:null});
+  lines.push({side:'Dr', account:'Cost of Goods Sold', amount:s.cogs||0});
+  lines.push({side:'Cr', account:'Inventory', amount:s.cogs||0});
+  return lines;
+}
+function describePurchaseAccounting(p){
+  var lines=[];
+  lines.push({side:'Dr', account:'Purchases / Inventory'+(p.freight>0.005?' (incl. landed cost)':''), amount:(p.amount||0)+(p.freight||0)});
+  if(p.gstAmount>0.005) lines.push({side:'Dr', account:'Input GST', amount:p.gstAmount});
+  var crParty = p.paymentMode==='credit' ? p.supplierName : partyOrCashLabel(p.paymentMode);
+  lines.push({side:'Cr', account:crParty, amount:(p.amount||0)+(p.gstAmount||0)});
+  if(p.freight>0.005){
+    var freightParty = p.freightMode==='credit' ? p.supplierName : partyOrCashLabel(p.freightMode||p.paymentMode);
+    lines.push({side:'Cr', account:freightParty+' (Freight)', amount:p.freight});
+  }
+  return lines;
+}
+function describeExpenseAccounting(e){
+  var lines=[];
+  lines.push({side:'Dr', account:e.category||'Expense', amount:e.amount||0});
+  var crParty = e.paymentMode==='credit' ? 'Creditor' : partyOrCashLabel(e.paymentMode);
+  lines.push({side:'Cr', account:crParty, amount:e.amount||0});
+  return lines;
+}
+function describeCashbookAccounting(entry){
+  var otherSide = entry.party || entry.description || 'Other Account';
+  var modeLabel = partyOrCashLabel(entry.subMode||entry.mode) || (entry.mode==='cash'?'Cash':'Bank');
+  var lines=[];
+  if(entry.type==='receipt'){
+    lines.push({side:'Dr', account:modeLabel, amount:entry.amount});
+    lines.push({side:'Cr', account:otherSide, amount:entry.amount});
+  } else {
+    lines.push({side:'Dr', account:otherSide, amount:entry.amount});
+    lines.push({side:'Cr', account:modeLabel, amount:entry.amount});
+  }
+  if(entry.description) lines.push({side:'', account:entry.description, amount:null});
+  return lines;
+}
+function renderAcctLines(lines){
+  return lines.map(function(l){
+    if(!l.side) return '<div style="font-size:10px;color:#90A4AE;margin:4px 0">'+esc(l.account)+'</div>';
+    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span>'+
+      (l.side==='Dr'?'<b>Dr</b> ':'&nbsp;&nbsp;<b>Cr</b> ')+esc(l.account||'—')+'</span><span style="font-weight:600">'+fc(l.amount||0)+'</span></div>';
+  }).join('');
+}
+function pgViewAccountingCard(){
+  var type=window._acctViewType, id=window._acctViewId;
+  if(!type||!id) return '';
+  var rec=null, lines=null, title='';
+  if(type==='sale'){ rec=D.sales.find(function(x){return x.id===id;}); if(rec){lines=describeSaleAccounting(rec); title='Sale: '+rec.itemName+' — '+rec.date;} }
+  else if(type==='purchase'){ rec=D.purchases.find(function(x){return x.id===id;}); if(rec){lines=describePurchaseAccounting(rec); title='Purchase: '+rec.itemName+' — '+rec.date;} }
+  else if(type==='expense'){ rec=D.expenses.find(function(x){return x.id===id;}); if(rec){lines=describeExpenseAccounting(rec); title='Expense: '+(rec.category||'')+' — '+rec.date;} }
+  else if(type==='cashbook'){ rec=D.cashBook.find(function(x){return x.id===id;}); if(rec){lines=describeCashbookAccounting(rec); title=(rec.type==='receipt'?'Receipt':'Payment')+' — '+rec.date;} }
+  if(!rec) return '';
+  return card('📒 Accounting View — '+esc(title),
+    renderAcctLines(lines)+
+    '<div style="font-size:10px;color:#90A4AE;margin-top:8px">This is a read-only breakdown for audit purposes — it does not create any additional entry.</div>'+
+    btn('Close','window._acctViewType=null;window._acctViewId=null;renderPage()','#546E7A')
+  );
+}
+function bankTxnKey(bt){
+  return bt.date+'|'+bt.debit+'|'+bt.credit+'|'+bt.desc;
+}
+function recomputeRecon(){
+  var bankTxns = window._reconAllTxns;
+  if(!bankTxns || !bankTxns.length) return;
+  var dates=bankTxns.map(function(t){return t.date;});
+  var fromDate=dates.reduce(function(a,b){return a<b?a:b;});
+  var toDate=dates.reduce(function(a,b){return a>b?a:b;});
+  var appTxns=getAppBankTxns(fromDate,toDate,window._reconAcct);
+  var result=reconcile(bankTxns,appTxns);
+  var ignoredKeys={}; (D.reconIgnored||[]).forEach(function(k){ignoredKeys[k]=true;});
+  var manualKeys={}; (D.reconManualMatches||[]).forEach(function(m){manualKeys[m.bankKey]=true;});
+  result.unmatchedBank = result.unmatchedBank.filter(function(bt){ return !ignoredKeys[bt.key] && !manualKeys[bt.key]; });
+  var interestEntries=findInterestEntries(bankTxns);
+  var appInterest=appInterestInRange(fromDate,toDate);
+  var bankInterestTotal=0; for(var i=0;i<interestEntries.length;i++)bankInterestTotal+=interestEntries[i].debit;
+  var balRows=bankTxns.filter(function(t){return t.balance!=null;}).slice().sort(function(a,b){return a.date<b.date?-1:1;});
+  var stmtClosingBalance = balRows.length ? balRows[balRows.length-1].balance : null;
+  var appBalRow = (getBankAccountBalances()||[]).find(function(a){return a.id===(window._reconAcct||(D.bankAccounts&&D.bankAccounts[0]&&D.bankAccounts[0].id));});
+  var appBalance = appBalRow ? appBalRow.balance : 0;
+  var unclearedNet = result.unmatchedApp.reduce(function(s,t){return s+(t.type==='receipt'?t.amount:-t.amount);},0);
+  window._reconResult={
+    fromDate:fromDate, toDate:toDate, total:bankTxns.length,
+    matched:result.matched.length, matchedList:result.matched, unmatchedBank:result.unmatchedBank, unmatchedApp:result.unmatchedApp,
+    interestEntries:interestEntries, bankInterestTotal:bankInterestTotal, appInterest:appInterest,
+    stmtClosingBalance:stmtClosingBalance, appBalance:appBalance, unclearedNet:unclearedNet
+  };
+}
+function ignoreBankTxn(key){
+  if(!D.reconIgnored) D.reconIgnored=[];
+  if(D.reconIgnored.indexOf(key)<0) D.reconIgnored.push(key);
+  sv(); recomputeRecon(); renderPage(); toast('Marked as reviewed — won\'t show again for this entry.');
+}
+function matchBankTxnTo(key, appTxnId){
+  if(!D.reconManualMatches) D.reconManualMatches=[];
+  D.reconManualMatches.push({bankKey:key, appId:appTxnId, matchedOn:td()});
+  sv(); recomputeRecon(); renderPage(); toast('Matched!');
+}
+function createEntryFromBank(key, dateStr, amount, desc){
+  var acctId = window._reconAcct || (D.bankAccounts && D.bankAccounts[0] && D.bankAccounts[0].id) || 'acc1';
+  var type = amount>=0 ? 'receipt' : 'payment';
+  var party = (desc||'').slice(0,60) || 'Bank Statement Entry';
+  confirmDialog('Create a '+(type==='receipt'?'Receipt':'Payment')+' of '+fc(Math.abs(amount))+' dated '+dateStr+' for: "'+esc(desc||'')+'"?\n\nThis will be categorised as a Bank Charges/Miscellaneous entry — edit it afterwards from Cash & Bank if a more specific category applies.', function(){
+    if(type==='payment'){
+      D.expenses.push({id:uid(), date:dateStr, category:'Bank Charges', amount:Math.abs(amount), paymentMode:'bank:'+acctId, bankAccountId:acctId, remarks:'From bank statement: '+(desc||'')});
+      postCB('bank:'+acctId,'payment',Math.abs(amount),party,'Expense: Bank Charges',dateStr);
+    } else {
+      postCB('bank:'+acctId,'receipt',Math.abs(amount),party,'Bank Statement Entry: '+(desc||''),dateStr);
+    }
+    if(!D.reconManualMatches) D.reconManualMatches=[];
+    D.reconManualMatches.push({bankKey:key, appId:null, matchedOn:td(), created:true});
+    sv(); recomputeRecon(); renderPage(); toast('Entry created and marked reconciled.');
+  });
+}
+function clearReconDecisions(){
+  confirmDialog('Clear all Ignore/Match decisions for this account? Entries will reappear as unmatched next time you view reconciliation. This does not delete any actual transactions.', function(){
+    D.reconIgnored=[]; D.reconManualMatches=[];
+    sv(); recomputeRecon(); renderPage(); toast('Decisions cleared.');
+  });
+}
+function reconConfBadge(conf){
+  if(conf==='exact') return '<span style="font-size:10px;font-weight:700;color:#2E7D32;background:#E8F5E9;padding:2px 7px;border-radius:10px">🟢 Exact Match</span>';
+  if(conf==='probable') return '<span style="font-size:10px;font-weight:700;color:#E65100;background:#FFF3E0;padding:2px 7px;border-radius:10px">🟡 Probable Match</span>';
+  return '<span style="font-size:10px;font-weight:700;color:#C62828;background:#FFEBEE;padding:2px 7px;border-radius:10px">🔴 Manual Review</span>';
+}
+function computeDayEndSnapshot(dateStr){
+  var sales=0, purchases=0, expenses=0;
+  var cashRecv=0, bankRecv=0, upiRecv=0, cashPay=0, bankPay=0, upiPay=0;
+  D.sales.forEach(function(s){ if(s.date===dateStr) sales+=(+s.totalAmount||0); });
+  D.purchases.forEach(function(p){ if(p.date===dateStr) purchases+=(+p.amount||0); });
+  D.expenses.forEach(function(e){ if(e.date===dateStr) expenses+=(+e.amount||0); });
+  D.cashBook.forEach(function(x){
+    if(x.date!==dateStr || !x.mode) return;
+    if(x.mode==='cc'||x.mode==='od'||x.mode.indexOf('cc:')===0||x.mode.indexOf('od:')===0) return;
+    var isUpi = x.subMode==='upi';
+    if(x.mode==='cash'){ if(x.type==='receipt') cashRecv+=x.amount; else cashPay+=x.amount; }
+    else if(isUpi){ if(x.type==='receipt') upiRecv+=x.amount; else upiPay+=x.amount; }
+    else { if(x.type==='receipt') bankRecv+=x.amount; else bankPay+=x.amount; }
+  });
+  var closingCash=+D.opening.cash||0, closingBank=+D.opening.bank||0, closingUpi=0;
+  D.cashBook.forEach(function(x){
+    if(!x.date || x.date>dateStr || !x.mode) return;
+    if(x.mode==='cc'||x.mode==='od'||x.mode.indexOf('cc:')===0||x.mode.indexOf('od:')===0) return;
+    var amt = x.type==='receipt'?x.amount:-x.amount;
+    if(x.mode==='cash') closingCash+=amt;
+    else if(x.subMode==='upi') closingUpi+=amt;
+    else closingBank+=amt;
+  });
+  var dayCogs=0, dayGP=0;
+  D.sales.forEach(function(s){ if(s.date===dateStr){ dayCogs+=(+s.cogs||0); dayGP+=((+s.totalAmount||0)-(+s.cogs||0)); } });
+  return {
+    dateStr:dateStr, sales:sales, purchases:purchases, expenses:expenses,
+    cashRecv:cashRecv,bankRecv:bankRecv,upiRecv:upiRecv,cashPay:cashPay,bankPay:bankPay,upiPay:upiPay,
+    closingCash:closingCash, closingBank:closingBank, closingUpi:closingUpi,
+    dayGP:dayGP, dayNetProfit:dayGP-expenses
+  };
+}
+function pgDayEnd(){
+  var dateStr = window._dayEndDate || td();
+  var snap = computeDayEndSnapshot(dateStr);
+  var isToday = dateStr===td();
+  var h = card('Select Date',
+    inp('Date','de_date','date',dateStr).replace('<input','<input onchange="window._dayEndDate=this.value;renderPage()"')
+  );
+  h += card('Day\'s Activity — '+dateStr,
+    '<div class="kg">'+
+    '<div class="ki"><div class="kl">Sales</div><div class="kv" style="color:#2E7D32">'+fc(snap.sales)+'</div></div>'+
+    '<div class="ki"><div class="kl">Purchases</div><div class="kv">'+fc(snap.purchases)+'</div></div>'+
+    '<div class="ki"><div class="kl">Expenses</div><div class="kv" style="color:#C62828">'+fc(snap.expenses)+'</div></div>'+
+    '<div class="ki"><div class="kl">Gross Profit</div><div class="kv" style="color:'+(snap.dayGP>=0?'#2E7D32':'#C62828')+'">'+fc(snap.dayGP)+'</div></div>'+
+    '<div class="ki"><div class="kl">Net Profit</div><div class="kv" style="color:'+(snap.dayNetProfit>=0?'#2E7D32':'#C62828')+'">'+fc(snap.dayNetProfit)+'</div></div>'+
+    '</div>'
+  );
+  h += card('Receipts & Payments — '+dateStr,
+    '<div class="kg">'+
+    '<div class="ki"><div class="kl">Cash Receipts</div><div class="kv" style="color:#2E7D32">'+fc(snap.cashRecv)+'</div></div>'+
+    '<div class="ki"><div class="kl">Bank Receipts</div><div class="kv" style="color:#2E7D32">'+fc(snap.bankRecv)+'</div></div>'+
+    '<div class="ki"><div class="kl">UPI Receipts</div><div class="kv" style="color:#2E7D32">'+fc(snap.upiRecv)+'</div></div>'+
+    '<div class="ki"><div class="kl">Cash Payments</div><div class="kv" style="color:#C62828">'+fc(snap.cashPay)+'</div></div>'+
+    '<div class="ki"><div class="kl">Bank Payments</div><div class="kv" style="color:#C62828">'+fc(snap.bankPay)+'</div></div>'+
+    '<div class="ki"><div class="kl">UPI Payments</div><div class="kv" style="color:#C62828">'+fc(snap.upiPay)+'</div></div>'+
+    '</div>'
+  );
+  h += card('Closing Balances (as of '+dateStr+')',
+    fsr('Closing Cash', snap.closingCash, 1)+
+    fsr('Closing Bank', snap.closingBank, 1)+
+    fsr('Closing UPI', snap.closingUpi, 1)+
+    fsr('Closing Stock (current)', (function(){var v=0;D.inventory.forEach(function(i){v+=i.currentStock*i.avgCost+(i.importedStock||0)*(i.importedAvgCost||0);});return v;})(), 1)+
+    fsr('Debtors (current)', totalDebtors(), 1)+
+    fsr('Creditors (current)', totalCreditors(), 1)+
+    fsr('Loan Outstanding (current)', (function(){var t=0;D.loans.forEach(function(l){t+=(+l.outstandingBalance||0);});return t;})(), 1)+
+    (isToday?'':'<div style="font-size:10px;color:#90A4AE;margin-top:6px">Cash/Bank/UPI above are true closing balances as of '+dateStr+'. Stock, Debtors, Creditors and Loan Outstanding are shown as CURRENT figures — this build doesn\'t reconstruct those as of a past date.</div>')
+  );
+  var diag = diagnoseBSDifference();
+  var bs = getBS();
+  var errorFindings = (diag.findings||[]).filter(function(f){return f.severity==='error';});
+  var overallOk = Math.abs(bs.diff)<1 && errorFindings.length===0;
+  var checklistItems = [
+    {label:'Trial Balance', ok:Math.abs(bs.diff)<1},
+    {label:'Cash', ok:true},
+    {label:'Bank', ok:true},
+    {label:'UPI', ok:true},
+    {label:'Stock', ok:!(diag.findings||[]).some(function(f){return /stock/i.test(f.title);})},
+    {label:'Debtors', ok:!(diag.findings||[]).some(function(f){return /debtor/i.test(f.title);})},
+    {label:'Creditors', ok:!(diag.findings||[]).some(function(f){return /creditor/i.test(f.title);})},
+    {label:'Loans', ok:!(diag.findings||[]).some(function(f){return /loan/i.test(f.title);})},
+    {label:'Profit/Loss', ok:true},
+    {label:'Balance Sheet', ok:Math.abs(bs.diff)<1}
+  ];
+  h += card('Reconciliation Status'+(isToday?'':' (current data, not as of '+dateStr+')'),
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'+
+    checklistItems.map(function(c){
+      return '<div style="display:flex;align-items:center;gap:6px;font-size:12px">'+
+        (c.ok?'<span style="color:#2E7D32">✓</span>':'<span style="color:#C62828">✗</span>')+
+        '<span>'+c.label+'</span></div>';
+    }).join('')+
+    '</div>'
+  );
+  // ── Three-tier status, tied to the SAME logic that actually blocks new entries (checkDayCloseBlock/
+  // closeDay) — not a separate judgement, so this screen can't say "Ready" while entries are blocked. ──
+  var blockedForPastDate = D.dayCloseState && D.dayCloseState.blockedSince;
+  var lastClose = (D.dayClose && D.dayClose.length) ? D.dayClose[D.dayClose.length-1] : null;
+  var alreadyClosedToday = lastClose && lastClose.date===td();
+  var statusHtml='';
+  if(!overallOk){
+    statusHtml = '<div class="al ald"><div class="alt">🚫 Cannot Close — '+(errorFindings.length?errorFindings.length+' data-integrity error(s) found':'Balance Sheet difference of '+fc(Math.abs(bs.diff)))+'</div>'+
+      '<p>'+(errorFindings.length?esc(errorFindings[0].title)+(errorFindings.length>1?' (+'+(errorFindings.length-1)+' more)':''):'Assets and Liabilities+Capital do not match.')+'</p></div>'+
+      btn('🔧 Fix Now — Open Health Check',"go('healthcheck')",'#C62828');
+  } else if(blockedForPastDate){
+    statusHtml = '<div class="al ald"><div class="alt">🚫 Cannot Close — '+esc(blockedForPastDate)+' was never closed with balanced books</div>'+
+      '<p>New Sales/Purchase/Expense entries are blocked until that date\'s issue is resolved.</p></div>'+
+      btn('🔧 Fix Now — Open Health Check',"go('healthcheck')",'#C62828');
+  } else if(isToday && alreadyClosedToday){
+    statusHtml = '<div class="al als"><div class="alt">✅ Ready to Close — already closed today</div><p>Closed at '+new Date(lastClose.closedAt).toLocaleTimeString()+'. You can still add entries; closing again just updates the record.</p></div>'+
+      btn('✅ Close Day Again','closeDay()','#2E7D32');
+  } else if(isToday){
+    statusHtml = '<div class="al als"><div class="alt">✅ Ready to Close</div><p>Books are balanced — safe to close today.</p></div>'+
+      btn('✅ Close Day','closeDay()','#2E7D32');
+  } else {
+    statusHtml = '<div class="al ali"><div class="alt">ℹ️ Viewing a past date</div><p>Books are currently balanced. Closing applies to today\'s date, not the date selected above.</p></div>';
+  }
+  h += card('Status', statusHtml);
+  h += btn('🔍 Open Health Check for Full Details',"go('healthcheck')",'#546E7A');
+  return h;
+}
 // ===== FINANCIAL SUMMARY =====
 // Direct Expenses are costs attributable to bringing goods INTO the business (inward freight,
 // carriage, loading/unloading on purchases) — these belong in Cost of Goods Sold, per standard
@@ -1520,22 +1803,16 @@ function pgHealthCheck(){
 
   var res=window._healthResult;
   if(!res){
-    // Show guide BEFORE running
+    // Show guide BEFORE running — deliberately NOT a hardcoded numbered list of checks,
+    // since a static list here has drifted out of sync with the actual checks before
+    // (checks get added/renamed in code without this text being updated). The real,
+    // current list of checks — by name — appears below once you tap Run, generated
+    // directly from what actually ran.
     h+=card('📖 What does Health Check verify?',
       '<div style="font-size:12px;color:#37474F;line-height:1.8">'+
-      '<b>10 automatic checks run instantly:</b><br>'+
-      '1. ✅ Trial Balance DR = CR<br>'+
-      '2. ✅ Balance Sheet Assets = Liabilities<br>'+
-      '3. ✅ Cash & Bank not negative<br>'+
-      '4. ✅ No item has negative stock<br>'+
-      '5. ✅ Closing stock matches inventory<br>'+
-      '6. ✅ Debtors match credit sales<br>'+
-      '7. ✅ Creditors match credit purchases<br>'+
-      '8. ✅ Loan balances correct<br>'+
-      '9. ✅ No duplicate bill numbers<br>'+
-      '10. ✅ No expired stock in hand<br><br>'+
-      '<span style="color:#2E7D32;font-weight:700">Target: 90%+ score = Healthy Books ✅</span><br>'+
-      '<span style="color:#546E7A;font-size:10px">Hindi: ऊपर दिए 10 checks automatically होते हैं। 90%+ score = किताबें सही हैं।</span>'+
+      'Tap <b>Run Health Check Now</b> below. It runs a set of automatic checks — Trial Balance, Balance Sheet, Cash/Bank, Stock, Debtors, Creditors, Loans, Duplicate Vouchers, Duplicate Stock Movements, Expired Stock, and other data-integrity checks already built into this app — and lists each one by its actual name with a Pass ✅ / Warning ⚠️ / Error ❌ result, so what you see always matches what actually ran.<br><br>'+
+      '<span style="color:#2E7D32;font-weight:700">The overall score is a weighted average of these results (Pass=100, Warning=50, Error=0) — not an arbitrary number.</span><br>'+
+      '<span style="color:#546E7A;font-size:10px">Hindi: नीचे \'Run Health Check Now\' दबाएं — जो checks असल में चलते हैं, ठीक वही नाम और नतीजा नीचे दिखेगा।</span>'+
       '</div>'
     );
     return h;
@@ -2029,6 +2306,61 @@ function runHealthCheck(){
         'Remove expired items: Go to Inventory → edit item → reduce stock to 0 → record as loss in Expenses (category: Loss/Wastage).':''});
   }catch(e){checks.push({name:'Expired Stock',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
+  // ── CHECK 11: Duplicate Stock Movements (possible double-entry) ──
+  // Flags purchases/sales that share the same item, date, quantity, rate/price AND party —
+  // almost always an accidental double-tap rather than two genuinely separate transactions.
+  try{
+    function findDupeMovements(records, qtyField, rateField, partyField, label){
+      var seen={}, dupes=[];
+      records.forEach(function(r){
+        var key=[r.itemId, r.date, r[qtyField], r[rateField], r[partyField]].join('|');
+        if(!seen[key]) seen[key]=[];
+        seen[key].push(r);
+      });
+      Object.keys(seen).forEach(function(k){
+        if(seen[k].length>1){
+          var r0=seen[k][0];
+          dupes.push(label+': '+esc(r0.itemName)+' on '+r0.date+' — '+seen[k].length+' identical entries ('+fmt(r0[qtyField])+' units @ '+fc(r0[rateField])+' each, same party)');
+        }
+      });
+      return dupes;
+    }
+    var _purDupes = findDupeMovements(D.purchases, 'qty', 'rate', 'supplierName', 'Purchase');
+    var _salDupes = findDupeMovements(D.sales, 'qty', 'sellingPrice', 'customerName', 'Sale');
+    var _allDupes = _purDupes.concat(_salDupes);
+    checks.push({name:'No Duplicate Stock Movements',
+      pass:_allDupes.length===0, warn:true,
+      detail:_allDupes.length===0?
+        'No exact-duplicate Purchase/Sale entries found ✅':
+        'Possible double-entry — identical item+date+qty+rate+party recorded more than once: '+_allDupes.join('; '),
+      fix:_allDupes.length?
+        'Open Purchase/Sale Register, find the item and date listed, and delete the extra entry if it really is a duplicate (use ✎🗑 on the repeated row). If both were genuinely separate transactions, no action is needed.':''});
+  }catch(e){checks.push({name:'Duplicate Stock Movements',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
+
+  // ── CHECK 12: COGS Consistency ──
+  // Recomputes each sale's expected COGS from the domestic/imported quantity split and the
+  // per-unit cost stored AT THE TIME of that sale (fromIndig/fromImp × indigCostEach/impCostEach),
+  // then compares against the stored cogs. A mismatch usually means a sale was edited in a way
+  // that changed quantity/price without recalculating cost, or an old record predates this split.
+  try{
+    var _cogsMismatches=[];
+    D.sales.forEach(function(s){
+      if(s.fromIndig==null && s.fromImp==null) return; // older record without the cost-split fields — nothing to check
+      var expected = (+s.fromIndig||0)*(+s.indigCostEach||0) + (+s.fromImp||0)*(+s.impCostEach||0);
+      var actual = +s.cogs||0;
+      if(Math.abs(expected-actual)>Math.max(1, actual*0.02)){
+        _cogsMismatches.push(esc(s.itemName)+' on '+s.date+' (expected '+fc(expected)+', recorded '+fc(actual)+')');
+      }
+    });
+    checks.push({name:'COGS Consistency',
+      pass:_cogsMismatches.length===0, warn:true,
+      detail:_cogsMismatches.length===0?
+        'Recorded COGS matches quantity × cost-at-sale for all checked sales ✅':
+        'COGS does not match quantity × cost-at-time-of-sale for: '+_cogsMismatches.slice(0,5).join('; ')+(_cogsMismatches.length>5?' (+'+(_cogsMismatches.length-5)+' more)':''),
+      fix:_cogsMismatches.length?
+        'Open Sales Register, find the listed entries, and re-check the quantity and item — if the sale was edited after the item\'s cost changed, delete and re-enter it so COGS recalculates correctly.':''});
+  }catch(e){checks.push({name:'COGS Consistency',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
+
   // ── CATEGORY SCORES — by check NAME not index ──
   function findCheck(name){
     var exact=checks.find(function(c){return c.name===name;});
@@ -2045,8 +2377,8 @@ function runHealthCheck(){
   }
 
   var categories=[
-    {label:'Accounting Accuracy',  score:score(['Balance Sheet Balances','Trial Balance','Trial Balance Tallies','Loan Balances Correct','No Duplicate Voucher Nos.','Data Integrity (Orphaned Sales/Purchases)'])},
-    {label:'Inventory Accuracy',   score:score(['No Negative Stock','Closing Stock Consistent','No Expired Stock'])},
+    {label:'Accounting Accuracy',  score:score(['Balance Sheet Balances','Trial Balance','Trial Balance Tallies','Loan Balances Correct','No Duplicate Voucher Nos.','Data Integrity (Orphaned Sales/Purchases)','COGS Consistency'])},
+    {label:'Inventory Accuracy',   score:score(['No Negative Stock','Closing Stock Consistent','No Expired Stock','No Duplicate Stock Movements'])},
     {label:'Cash & Bank',          score:score(['Cash & Bank Position'])},
     {label:'Data Integrity',       score:score(['Debtors Reconcile','Creditors Reconcile'])},
   ];
@@ -4022,8 +4354,21 @@ function checkDayCloseBlock(){
 function allowNewEntry(){
   if(checkDayCloseBlock()){
     var bs = getBS();
-    var diffMsg = Math.abs(bs.diff)>1 ? ' (Balance Sheet off by '+fc(Math.abs(bs.diff))+')' : ' (a data issue needs fixing)';
-    toast('🚫 Entries are blocked — your books weren\'t fully correct on '+D.dayCloseState.blockedSince+diffMsg+'. Go to Dashboard → Day Close to see what\'s wrong and fix it before adding new entries.','e');
+    var diag = diagnoseBSDifference();
+    var errorFindings = (diag.findings||[]).filter(function(f){return f.severity==='error';});
+    var diffAmt = Math.abs(bs.diff)>1 ? fc(Math.abs(bs.diff)) : null;
+    var problemHtml = errorFindings.length ?
+      errorFindings.map(function(f){return '<div style="margin-bottom:8px"><b>'+esc(f.title)+'</b><br><span style="color:#546E7A">'+esc(f.detail)+'</span>'+(f.fix?'<br><span style="color:#2E7D32">Fix: '+esc(f.fix)+'</span>':'')+'</div>';}).join('') :
+      '<div>A data issue was found that needs review before you can add new entries.</div>';
+    confirmDialogHtml(
+      '<b style="color:#C62828">🚫 New entries are blocked</b><br><br>'+
+      '<b>Date of unresolved issue:</b> '+esc(D.dayCloseState.blockedSince)+'<br>'+
+      (diffAmt?'<b>Balance Sheet difference:</b> '+diffAmt+'<br><br>':'<br>')+
+      problemHtml+
+      '<br>Fix this in Day End / Health Check before adding new Sales, Purchases, or Expenses.',
+      'Go to Day End', 'Dismiss',
+      function(){ go('dayend'); }
+    );
     return false;
   }
   return true;
@@ -4394,16 +4739,18 @@ function pgDailyRegister(){
   var creditorsDatalist = '<datalist id="dr_creditors_dl">'+creditorNames.map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>';
   var loanNames = D.loans.map(function(l){return l.lender;});
   var loansDatalist = '<datalist id="dr_loans_dl">'+loanNames.map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>';
+  var suppliersDatalist = '<datalist id="dr_suppliers_dl">'+getKnownSupplierNames().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>';
+  var customersDatalist = '<datalist id="dr_customers_dl">'+getKnownCustomerNames().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>';
 
   var fieldsHtml = inp('Date','dr_f0','date', td());
   if(typeId==='purchase'){
     fieldsHtml += itemsDatalist + inp('Item Name','dr_f1','text','','Type or pick existing item','dr_items_dl').replace('<input ','<input oninput="updateDRHint()" ') +
-      inp('Supplier Name','dr_f2','text','') +
+      suppliersDatalist + inp('Supplier Name','dr_f2','text','','Type or pick existing supplier','dr_suppliers_dl') +
       g2(inp('Quantity','dr_f3','number',''), inp('Rate','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='sale'){
     fieldsHtml += itemsDatalist + inp('Item Name','dr_f1','text','','Pick an existing item','dr_items_dl').replace('<input ','<input oninput="updateDRHint()" ') +
-      inp('Customer Name','dr_f2','text','') +
+      customersDatalist + inp('Customer Name','dr_f2','text','','Type or pick existing customer','dr_customers_dl') +
       g2(inp('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" '), inp('Selling Price','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='expense'){
@@ -4684,8 +5031,46 @@ function pgCap(){
   h+='<button class="'+(tab==='addloan'?'act':'')+'" onclick="window._captab=\'addloan\';renderPage()">Add Loan</button>';
   h+='<button class="'+(tab==='repay'?'act':'')+'" onclick="window._captab=\'repay\';renderPage()">Repay Loan</button>';
   h+='<button class="'+(tab==='interest'?'act':'')+'" onclick="window._captab=\'interest\';renderPage()">Interest Due</button>';
+  h+='<button class="'+(tab==='loanrecon'?'act':'')+'" onclick="window._captab=\'loanrecon\';renderPage()">Loan Reconcile</button>';
   h+='<button class="'+(tab==='fixedassets'?'act':'')+'" onclick="window._captab=\'fixedassets\';renderPage()">Fixed Assets</button>';
   h+='</div>';
+  if(tab==='loanrecon'){
+    if(!D.loans.length) return h+card('Loan Reconciliation','<div class="al ali">No loans recorded yet. Add one from the Add Loan tab.</div>');
+    var lrHtml='';
+    D.loans.forEach(function(l){
+      var principalRepaid=0, interestPaid=0;
+      (l.payments||[]).forEach(function(p){ principalRepaid+=(+p.principal||0); interestPaid+=(+p.interest||0); });
+      var sanctioned=(+l.sanctionedAmount||0);
+      var openingPrincipal = l.undrawn ? 0 : sanctioned;
+      var newDisbursement = 0; // this build records one disbursement per loan; top-ups aren't tracked separately
+      var closingPrincipalCalc = openingPrincipal + newDisbursement - principalRepaid;
+      var actualOutstanding = (+l.outstandingBalance||0);
+      var inconsistent = Math.abs(closingPrincipalCalc-actualOutstanding)>1;
+      var emisPaid = (l.payments||[]).length;
+      var remainingTenure = l.tenure ? Math.max(0,l.tenure-emisPaid) : null;
+      lrHtml += '<div style="border:1px solid #BBDEFB;border-radius:10px;padding:12px;margin-bottom:10px">'+
+        '<div style="font-weight:700;font-size:13px;margin-bottom:2px">'+esc(l.lender||l.bankName||'Loan')+' \u2014 '+esc(l.loanType||'')+'</div>'+
+        '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">'+(l.accountNumber?'A/c '+esc(l.accountNumber):'')+(l.undrawn?' \u2022 Sanctioned, not yet drawn':'')+'</div>'+
+        fsr('Sanctioned Amount', sanctioned, 0)+
+        fsr('Opening Principal', openingPrincipal, 0)+
+        fsr('New Disbursement', newDisbursement, 0)+
+        fsr('Principal Repaid', -principalRepaid, 0)+
+        fsr('Closing Principal (calculated)', closingPrincipalCalc, 1, 0, 1)+
+        fsr('Closing Principal (per loan record)', actualOutstanding, 1)+
+        (inconsistent ? '<div class="al ald" style="margin-top:6px">\u26a0\ufe0f Inconsistent: calculated closing principal differs from the loan\'s recorded outstanding balance by '+fc(Math.abs(closingPrincipalCalc-actualOutstanding))+'. This usually means a repayment was edited/deleted without updating the balance, or a payment\'s principal/interest split looks wrong \u2014 check this loan\'s EMI history below.</div>' : '<div class="al als" style="margin-top:6px">\u2713 Calculated and recorded balances agree.</div>')+
+        '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #E3F2FD">'+
+        fsr('Interest Paid (life of loan)', interestPaid, 0)+
+        fsr('EMI', l.emi||0, 0)+
+        '<div class="fsr" style="padding-left:8px"><span>Interest Rate</span><span>'+(l.rate||0)+'% p.a.</span></div>'+
+        '<div style="font-size:11px;color:#546E7A;margin-top:4px">EMIs paid: '+emisPaid+(remainingTenure!=null?' | Remaining tenure: ~'+remainingTenure+' months':'')+'</div>'+
+        '</div>'+
+        '</div>';
+    });
+    return h+card('Loan-wise Reconciliation',
+      '<div class="al ali" style="margin-bottom:10px">For each loan: Opening Principal + New Disbursement \u2212 Principal Repaid should equal the loan\'s recorded Closing Principal (outstanding balance). Interest is tracked separately and does not reduce principal.</div>'+
+      lrHtml
+    );
+  }
 
   if(tab==='overview'){
     h+='<div class="sg">'+sc('Capital',fc(f.cap),'#2E7D32','')+sc('Total Loans O/S',fc(f.ltl),'#5B5BD6','')+sc('D/E Ratio',f.cap>0?(f.ltl/f.cap).toFixed(2):'--',f.ltl>f.cap?'#C62828':'#2E7D32',f.ltl>f.cap?'High':'Healthy')+sc('Cash+Bank',fc(f.cb+f.bb),'#1565C0','')+'</div>';
@@ -4965,9 +5350,11 @@ else if(tab==='fixedassets'){
       h += card('Fixed Assets Register',tbl([
         {l:'Asset',k:'name'},
         {l:'Category',k:'category'},
+        {l:'Purchase Date',k:'purchaseDate'},
         {l:'Cost',r:1,fn:function(a){return fc(a.cost);}},
         {l:'Rate%',k:'depRate',r:1},
         {l:'Accum. Dep.',r:1,fn:function(a){return fc(a.accumDep||0);},c:function(){return'#C62828';}},
+        {l:'Current Dep. (pending)',r:1,fn:function(a){return fc(faPendingDep(a));},c:function(){return'#E65100';}},
         {l:'WDV (Book Value)',r:1,fn:function(a){return fc(faWDV(a));},c:function(){return'#2E7D32';}},
         {l:'',fn:function(a){return '<button onclick="removeFA(\''+a.id+'\',\''+esc(a.name)+'\')" style="background:none;border:none;color:#C62828;font-weight:700;cursor:pointer;font-size:13px" title="Remove this asset entry (correcting a mistake)">✕ Remove</button>';}}
       ],active));
@@ -5639,8 +6026,9 @@ function pgPur(){
   }
   var tot=0,i;for(i=0;i<D.purchases.length;i++)tot+=D.purchases[i].amount;
   var iOpts=[{v:'__new__',l:'+ New Item (type name below)'}];
-  for(i=0;i<D.inventory.length;i++){
-    var _it=D.inventory[i];
+  var _invSortedPur = [].concat(D.inventory).sort(function(a,b){return (a.itemName||'').localeCompare(b.itemName||'');});
+  for(i=0;i<_invSortedPur.length;i++){
+    var _it=_invSortedPur[i];
     var _cat=_it.category||'';
     var _catLabel=_cat?(' ['+(_cat==='Raw Material'?'RM':_cat)+']'):''; 
     iOpts.push({v:_it.id,l:_it.itemName+_catLabel+' ('+_it.unit+', Stock:'+fmt(_it.currentStock)+')'});
@@ -5660,7 +6048,8 @@ function pgPur(){
     if(_selItem){var _cat=_selItem.category||'Resale';var _cat=_cat==='RM'?'Raw Material':_cat;var _cc={'Raw Material':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var _ccv=_cc[_cat]||'#546E7A';newItemFields='<div style="margin-bottom:8px"><span style="font-size:12px;font-weight:700;color:'+_ccv+';background:'+_ccv+'18;padding:4px 10px;border-radius:6px">'+esc(_cat)+'</span> <span style="font-size:11px;color:#546E7A">Avg Cost: '+fc(_selItem.avgCost)+' / '+esc(_selItem.unit)+' &nbsp;|&nbsp; Stock: '+fmt(_selItem.currentStock)+' '+esc(_selItem.unit)+'</span></div>';}
   }
   h+=card('Record Purchase',
-    g2(inp('Date','pu_d','date',window._purDate||td()),inp('Supplier','pu_s','text',window._purSupplier||''))+
+    '<datalist id="pu_suppliers_dl">'+getKnownSupplierNames().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>'+
+    g2(inp('Date','pu_d','date',window._purDate||td()),inp('Supplier','pu_s','text',window._purSupplier||'','Type or pick existing supplier','pu_suppliers_dl'))+
     _scanPurBtn+
     '<div class="fg"><label>Item</label><select id="pu_i" onchange="onPurItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===sel?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
@@ -5678,7 +6067,7 @@ function pgPur(){
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="pu_import" '+(window._purImport?'checked':'')+' style="width:auto"> This is an Imported purchase (sourced from outside India)</label>'+
     btn('✓ Record Purchase','addPur()')
   );
-  h+=card('Purchase Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('purchase',r.id);}},{l:'Date',k:'date'},{l:'Supplier',fn:function(r){return esc(r.supplierName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',fn:function(r){var it=null;for(var ki=0;ki<D.inventory.length;ki++)if(D.inventory[ki].id===r.itemId){it=D.inventory[ki];break;}var cat=it?(it.category||''):'';var catColor={'Raw Material':'#E65100','RM':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var cc=catColor[cat]||'#546E7A';var cl=cat==='RM'?'Raw Material':(cat||'');return esc(r.itemName)+(cl&&cl!=='Resale'?'<br><span style="font-size:9px;font-weight:700;color:'+cc+';background:'+cc+'18;padding:1px 4px;border-radius:3px">'+esc(cl)+'</span>':'');}},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'Invoice ₹',r:1,fn:function(r){return fc(r.rate)+'/u';}},{l:'Landed ₹',r:1,fn:function(r){return r.landedRate?('<b style="color:#E65100">'+fc(r.landedRate)+'</b>/u'):'—';}},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}}],[].concat(D.purchases).reverse()));
+  h+=pgViewAccountingCard()+card('Purchase Register',tbl([{l:'✎🗑📒',fn:function(r){return actBtns('purchase',r.id)+viewAcctBtn('purchase',r.id);}},{l:'Date',k:'date'},{l:'Supplier',fn:function(r){return esc(r.supplierName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',fn:function(r){var it=null;for(var ki=0;ki<D.inventory.length;ki++)if(D.inventory[ki].id===r.itemId){it=D.inventory[ki];break;}var cat=it?(it.category||''):'';var catColor={'Raw Material':'#E65100','RM':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var cc=catColor[cat]||'#546E7A';var cl=cat==='RM'?'Raw Material':(cat||'');return esc(r.itemName)+(cl&&cl!=='Resale'?'<br><span style="font-size:9px;font-weight:700;color:'+cc+';background:'+cc+'18;padding:1px 4px;border-radius:3px">'+esc(cl)+'</span>':'');}},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'Invoice ₹',r:1,fn:function(r){return fc(r.rate)+'/u';}},{l:'Landed ₹',r:1,fn:function(r){return r.landedRate?('<b style="color:#E65100">'+fc(r.landedRate)+'</b>/u'):'—';}},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}}],[].concat(D.purchases).reverse()));
   if(D.purchases.length>1) h+=card('Item-wise Purchase Summary',itemwiseSummary(D.purchases,'amount','qty'));
   return h;
 }
@@ -5773,8 +6162,9 @@ function pgSal(){
   }
   var tot=0,i;for(i=0;i<D.sales.length;i++)tot+=D.sales[i].totalAmount;
   var iOpts=[{v:'',l:'-- Select Item --'},{v:'__service__',l:'⚙ Service Charge (no item/stock)'}];
-  for(i=0;i<D.inventory.length;i++){
-    var _it=D.inventory[i];
+  var _invSortedSal = [].concat(D.inventory).sort(function(a,b){return (a.itemName||'').localeCompare(b.itemName||'');});
+  for(i=0;i<_invSortedSal.length;i++){
+    var _it=_invSortedSal[i];
     var _totStock=_it.currentStock+(_it.importedStock||0);
     if(_totStock>0){
       var _sc=_it.category||'';
@@ -5860,7 +6250,8 @@ function pgSal(){
 
       h += '<div style="margin-bottom:8px"><button onclick="openScanner(\'inv_barcode\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📷 Scan Barcode / QR Code</button></div>';
   h+=card('Record Sale',
-    g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||''))+
+    '<datalist id="sl_customers_dl">'+getKnownCustomerNames().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>'+
+    g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||'','Type or pick existing customer','sl_customers_dl'))+
     '<div class="fg"><label>Item</label><select id="sl_i" onchange="onSalItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===selId?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
     '</select></div>'+
@@ -5871,7 +6262,7 @@ function pgSal(){
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="sl_export" '+(window._salExport?'checked':'')+' style="width:auto"> This is an Export Sale (sold to a buyer outside India)</label>'+
     btn('✓ Record Sale','addSal()','#2E7D32')
   );
-  h+=card('Sales Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('sale',r.id);}},{l:'Date',k:'date'},{l:'Customer',fn:function(r){return esc(r.customerName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',k:'itemName'},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'₹',r:1,fn:function(r){return fc(r.totalAmount);}},{l:'GP',r:1,fn:function(r){return fc(r.grossProfit);},c:function(){return'#2E7D32';}}],[].concat(D.sales).reverse()));
+  h+=pgViewAccountingCard()+card('Sales Register',tbl([{l:'✎🗑📒',fn:function(r){return actBtns('sale',r.id)+viewAcctBtn('sale',r.id);}},{l:'Date',k:'date'},{l:'Customer',fn:function(r){return esc(r.customerName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',k:'itemName'},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'₹',r:1,fn:function(r){return fc(r.totalAmount);}},{l:'GP',r:1,fn:function(r){return fc(r.grossProfit);},c:function(){return'#2E7D32';}}],[].concat(D.sales).reverse()));
   if(D.sales.length>1) h+=card('Item-wise Sales Summary',itemwiseSummary(D.sales,'totalAmount','qty'));
   return h;
 }
@@ -6958,6 +7349,15 @@ function addSal(){
   var advId = gv('sl_adv')||'';
   var draw = drawStockPreview(item, q);
   var tot=q*p,cogs=draw.cogs,gp=tot-cogs,pct=+(tot>0?((gp/tot)*100).toFixed(1):0);
+  if(gp<0 && !window._salBelowCostConfirmed){
+    var costPerUnitBC = q>0?cogs/q:0;
+    confirmDialog('⚠️ Warning: Sale below cost\n\nCost: '+fc(costPerUnitBC)+'/'+item.unit+'\nSelling Price: '+fc(p)+'/'+item.unit+'\nLoss per unit: '+fc(costPerUnitBC-p)+'\nTotal Loss: '+fc(Math.abs(gp))+'\n\nRecord this sale anyway?', function(){
+      window._salBelowCostConfirmed=true;
+      addSal();
+    });
+    return;
+  }
+  window._salBelowCostConfirmed=false;
   var adv=null;
   if(advId){
     for(i=0;i<(D.advances||[]).length;i++) if(D.advances[i].id===advId) adv=D.advances[i];
@@ -7018,7 +7418,7 @@ function pgExp(){
   );
 
   h+=card('Add Expense',g2(inp('Date','ex_d','date',td()),sl('Category','ex_c',D.expenseCategories,D.expenseCategories[0]))+g2(inp('Amount','ex_a','number',0),payModeSel('ex_m','cash'))+advanceSettleSel('ex_adv','paid_expense')+inp('Remarks','ex_r','text','')+btn('+ Add Expense','addExp()','#C62828'));
-  h+=card('Expense Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('expense',r.id);}},{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'Remarks',k:'remarks'}],[].concat(D.expenses).reverse()));
+  h+=pgViewAccountingCard()+card('Expense Register',tbl([{l:'✎🗑📒',fn:function(r){return actBtns('expense',r.id)+viewAcctBtn('expense',r.id);}},{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'Remarks',k:'remarks'}],[].concat(D.expenses).reverse()));
   return h;
 }
 function addCat(){var n=gv('newcat').trim();if(!n)return;if(D.expenseCategories.indexOf(n)>=0){toast('Category already exists','e');return;}D.expenseCategories.push(n);sv();renderPage();toast('Category added!');}
@@ -7140,9 +7540,10 @@ function pgCB(){
     if(cbFrom) rows=rows.filter(function(x){return x.date>=cbFrom;});
     if(cbTo) rows=rows.filter(function(x){return x.date<=cbTo;});
     rows=rows.reverse();
-    h+=card('All Auto + Manual Entries'+(cbFrom||cbTo?' ('+esc(cbFrom||'start')+' to '+esc(cbTo||'today')+')':''),
+    h+=pgViewAccountingCard()+card('All Auto + Manual Entries'+(cbFrom||cbTo?' ('+esc(cbFrom||'start')+' to '+esc(cbTo||'today')+')':''),
       '<div style="font-size:10px;color:#90A4AE;margin-bottom:6px">⚠️ Tap 🗑️ to remove a wrongly entered transaction. This affects your Cash/Bank balance and Balance Sheet immediately.</div>'+
       tbl([{l:'Date',k:'date'},{l:'Mode',fn:function(r){return pmChip(r.subMode||r.mode);}},{l:'Type',fn:function(r){return '<span style="color:'+(r.type==='receipt'?'#2E7D32':'#C62828')+';font-weight:700">'+r.type+'</span>';}},{l:'Party',k:'party'},{l:'Description',k:'description'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},
+      {l:'📒',fn:function(r){return viewAcctBtn('cashbook',r.id);}},
       {l:'',fn:function(r){
         return '<button onclick="confirmThenDelete('+Q+'cashbook'+Q+','+Q+r.id+Q+','+Q+esc((r.description||'Entry')+' - '+fc(r.amount))+Q+')" style="background:none;border:none;cursor:pointer;font-size:14px;color:#C62828;padding:2px">'+String.fromCodePoint(128465)+'</button>';
       }}],rows));
@@ -11919,7 +12320,7 @@ function reconcile(bankTxns, appTxns){
     }
     if(bestMatch!==null){
       usedApp[bestMatch]=true;
-      matched.push({bank:bt, app:appTxns[bestMatch], dayDiff:bestDiff});
+      matched.push({bank:bt, app:appTxns[bestMatch], dayDiff:bestDiff, confidence: bestDiff<=1?'exact':'probable'});
     } else {
       unmatchedBank.push(bt);
     }
@@ -11942,6 +12343,8 @@ function reconcile(bankTxns, appTxns){
     }
     suggestions.sort(function(a,b){return a.dayDiff-b.dayDiff;});
     bt2.suggestions = suggestions.slice(0,3);
+    bt2.confidence = suggestions.length ? 'probable' : 'manual';
+    bt2.key = bankTxnKey(bt2);
   }
   return {matched:matched, unmatchedBank:unmatchedBank, unmatchedApp:unmatchedApp};
 }
@@ -12049,14 +12452,26 @@ async function handleReconFile(ev){
     var toDate=dates.reduce(function(a,b){return a>b?a:b;});
     var appTxns=getAppBankTxns(fromDate,toDate,window._reconAcct);
     var result=reconcile(bankTxns,appTxns);
+    // Drop bank entries the user already resolved (ignored or manually matched) in a prior session
+    var ignoredKeys={}; (D.reconIgnored||[]).forEach(function(k){ignoredKeys[k]=true;});
+    var manualKeys={}; (D.reconManualMatches||[]).forEach(function(m){manualKeys[m.bankKey]=true;});
+    result.unmatchedBank = result.unmatchedBank.filter(function(bt){ return !ignoredKeys[bt.key] && !manualKeys[bt.key]; });
     var interestEntries=findInterestEntries(bankTxns);
     var appInterest=appInterestInRange(fromDate,toDate);
     var bankInterestTotal=0; for(var i=0;i<interestEntries.length;i++)bankInterestTotal+=interestEntries[i].debit;
 
+    // Statement closing balance: latest dated row that included a balance column, if any
+    var balRows=bankTxns.filter(function(t){return t.balance!=null;}).slice().sort(function(a,b){return a.date<b.date?-1:1;});
+    var stmtClosingBalance = balRows.length ? balRows[balRows.length-1].balance : null;
+    var appBalRow = (getBankAccountBalances()||[]).find(function(a){return a.id===(window._reconAcct||(D.bankAccounts&&D.bankAccounts[0]&&D.bankAccounts[0].id));});
+    var appBalance = appBalRow ? appBalRow.balance : 0;
+    var unclearedNet = result.unmatchedApp.reduce(function(s,t){return s+(t.type==='receipt'?t.amount:-t.amount);},0);
+
     window._reconResult={
       fromDate:fromDate, toDate:toDate, total:bankTxns.length,
-      matched:result.matched.length, unmatchedBank:result.unmatchedBank, unmatchedApp:result.unmatchedApp,
-      interestEntries:interestEntries, bankInterestTotal:bankInterestTotal, appInterest:appInterest
+      matched:result.matched.length, matchedList:result.matched, unmatchedBank:result.unmatchedBank, unmatchedApp:result.unmatchedApp,
+      interestEntries:interestEntries, bankInterestTotal:bankInterestTotal, appInterest:appInterest,
+      stmtClosingBalance:stmtClosingBalance, appBalance:appBalance, unclearedNet:unclearedNet
     };
     var msg = 'Added '+added+' new transaction'+(added===1?'':'s')+' from this file'+(skippedDupes?' ('+skippedDupes+' duplicate'+(skippedDupes===1?'':'s')+' skipped)':'')+'. Combined total: '+bankTxns.length+' transactions ('+fromDate+' to '+toDate+').';
     window._reconStatusMsg='<div class="al als">'+msg+'</div>';
@@ -12069,6 +12484,19 @@ async function handleReconFile(ev){
 
 function renderReconResult(r){
   var h='';
+  // Amount-based totals — bank total and app total are each "matched + unmatched" for that
+  // side, so they're independently derivable from the same underlying lists (no separate
+  // running total is kept anywhere else).
+  var bankAmt = function(bt){ return bt.credit>0?bt.credit:-bt.debit; };
+  var appAmt = function(at){ return at.type==='receipt'?at.amount:-at.amount; };
+  var matchedBankTotal=0, matchedAppTotal=0;
+  (r.matchedList||[]).forEach(function(m){ matchedBankTotal+=bankAmt(m.bank); matchedAppTotal+=appAmt(m.app); });
+  var unmatchedBankTotal=0; r.unmatchedBank.forEach(function(bt){ unmatchedBankTotal+=bankAmt(bt); });
+  var unmatchedAppTotal=0; r.unmatchedApp.forEach(function(at){ unmatchedAppTotal+=appAmt(at); });
+  var bankGrandTotal = matchedBankTotal+unmatchedBankTotal;
+  var appGrandTotal = matchedAppTotal+unmatchedAppTotal;
+  var amountDiff = bankGrandTotal-appGrandTotal;
+
   h += card('Summary',
     '<div class="kg">'+
     '<div class="ki"><div class="kl">Period</div><div class="kv" style="font-size:13px">'+r.fromDate+' to '+r.toDate+'</div></div>'+
@@ -12076,6 +12504,33 @@ function renderReconResult(r){
     '<div class="ki"><div class="kl">Matched</div><div class="kv" style="color:#2E7D32">'+r.matched+'</div></div>'+
     '<div class="ki"><div class="kl">Unmatched (Bank)</div><div class="kv" style="color:#C62828">'+r.unmatchedBank.length+'</div></div>'+
     '</div>'
+  );
+
+  h += card('Amount Summary',
+    fsr('Bank Statement Total (all entries, net)', bankGrandTotal, 0)+
+    fsr('App-Recorded Total (all entries, net)', appGrandTotal, 0)+
+    fsr('Matched Amount', matchedBankTotal, 0)+
+    fsr('Unmatched Amount — Bank side', unmatchedBankTotal, 0)+
+    fsr('Unmatched Amount — App side', unmatchedAppTotal, 0)+
+    fsr('Difference (Bank Total − App Total)', amountDiff, 1, 0, 1)+
+    '<div class="al '+(Math.abs(amountDiff)<1?'als':'alw')+'" style="margin-top:8px">'+
+    (Math.abs(amountDiff)<1?'✓ Bank and App totals agree for this period.':'⚠ Totals differ by '+fc(Math.abs(amountDiff))+' — driven by the unmatched entries below. Resolve those (Match/Create Entry/Ignore) to close the gap.')+
+    '</div>'
+  );
+
+  // Balance summary — bank statement closing balance vs app bank balance, with the
+  // uncleared (recorded in app but not yet on the statement) entries bridging the gap.
+  var reconciledBal = r.appBalance - (r.unclearedNet||0);
+  var balDiff = (r.stmtClosingBalance!=null) ? (r.stmtClosingBalance - reconciledBal) : null;
+  h += card('Balances',
+    fsr('Bank Statement Closing Balance', r.stmtClosingBalance!=null?r.stmtClosingBalance:0, 1, 0, 0, r.stmtClosingBalance==null?'#90A4AE':undefined)+
+    (r.stmtClosingBalance==null?'<div style="font-size:10px;color:#90A4AE;margin:-6px 0 6px">Statement had no Balance column — upload one that includes it for this line.</div>':'')+
+    fsr('App Bank Account Balance (current)', r.appBalance, 1)+
+    fsr('Uncleared App Entries (not yet on statement)', r.unclearedNet, 0)+
+    fsr('Reconciled Balance (App − Uncleared)', reconciledBal, 1, 0, 1)+
+    (balDiff!=null ? '<div class="al '+(Math.abs(balDiff)<1?'als':'alw')+'" style="margin-top:8px">'+
+      (Math.abs(balDiff)<1?'✓ Reconciled — Bank Statement matches App after adjusting for uncleared entries.':'⚠ Difference: '+fc(Math.abs(balDiff))+' — check the unmatched entries below.')+
+      '</div>' : '')
   );
 
   // Interest comparison
@@ -12089,27 +12544,44 @@ function renderReconResult(r){
     (r.interestEntries.length?tbl([{l:'Date',k:'date'},{l:'Description',k:'desc'},{l:'Amount',r:1,fn:function(x){return fc(x.debit);}}],r.interestEntries):'<div class="al ali">No interest-debit entries detected in statement (looked for descriptions containing "interest"/"int debit"/etc).</div>')
   );
 
-  // Unmatched bank entries with suggestions
+  // Unmatched bank entries with suggestions + actions
   if(r.unmatchedBank.length){
     var ubHtml='';
     for(var i=0;i<r.unmatchedBank.length;i++){
       var bt=r.unmatchedBank[i];
       var amt = bt.credit>0?bt.credit:-bt.debit;
+      var keyEsc = esc(bt.key).replace(/'/g,"\\'");
+      var descEsc = esc(bt.desc).replace(/'/g,"\\'");
       ubHtml+='<div style="border:1px solid #BBDEFB;border-radius:8px;padding:9px;margin-bottom:8px">';
-      ubHtml+='<div style="display:flex;justify-content:space-between"><b>'+bt.date+'</b><span style="color:'+(amt>=0?'#2E7D32':'#C62828')+';font-weight:700">'+fc(amt)+'</span></div>';
+      ubHtml+='<div style="display:flex;justify-content:space-between;align-items:center"><b>'+bt.date+'</b><span style="color:'+(amt>=0?'#2E7D32':'#C62828')+';font-weight:700">'+fc(amt)+'</span></div>';
+      ubHtml+='<div style="margin:4px 0">'+reconConfBadge(bt.confidence)+'</div>';
       ubHtml+='<div style="font-size:12px;color:#546E7A">'+esc(bt.desc)+'</div>';
       if(bt.suggestions && bt.suggestions.length){
         ubHtml+='<div style="font-size:11px;margin-top:6px;color:#546E7A">Possible matches in app:</div>';
         for(var s=0;s<bt.suggestions.length;s++){
           var sg=bt.suggestions[s].app;
-          ubHtml+='<div style="font-size:11px;padding:4px 8px;background:#F0F4FF;border-radius:6px;margin-top:3px">'+sg.date+' - '+esc(sg.desc)+' - '+fc(sg.amount)+' ('+sg.type+')</div>';
+          ubHtml+='<div style="font-size:11px;padding:4px 8px;background:#F0F4FF;border-radius:6px;margin-top:3px;display:flex;justify-content:space-between;align-items:center">'+
+            '<span>'+sg.date+' - '+esc(sg.desc)+' - '+fc(sg.amount)+' ('+sg.type+')</span>'+
+            '<button onclick="matchBankTxnTo(\''+keyEsc+'\',\''+esc(sg.id)+'\')" style="padding:3px 8px;background:#1565C0;color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;margin-left:6px">✓ Match</button>'+
+            '</div>';
         }
       } else {
-        ubHtml+='<div style="font-size:11px;margin-top:6px;color:#546E7A">No similar entry found in app. You may need to add this transaction.</div>';
+        ubHtml+='<div style="font-size:11px;margin-top:6px;color:#546E7A">No similar entry found in app.</div>';
       }
+      ubHtml+='<div style="display:flex;gap:6px;margin-top:8px">'+
+        '<button onclick="createEntryFromBank(\''+keyEsc+'\',\''+bt.date+'\','+amt+',\''+descEsc+'\')" style="flex:1;padding:7px;background:#2E7D32;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">➕ Create Entry</button>'+
+        '<button onclick="ignoreBankTxn(\''+keyEsc+'\')" style="flex:1;padding:7px;background:#ECEFF1;color:#546E7A;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">🚫 Ignore</button>'+
+        '</div>';
       ubHtml+='</div>';
     }
     h += card('Bank Entries Not Found in App ('+r.unmatchedBank.length+')',ubHtml);
+  }
+  var ignoredCount=(D.reconIgnored||[]).length, matchedCount=(D.reconManualMatches||[]).length;
+  if(ignoredCount||matchedCount){
+    h += card('Previously Resolved',
+      '<div style="font-size:11px;color:#546E7A">'+ignoredCount+' entr'+(ignoredCount===1?'y':'ies')+' marked Ignored, '+matchedCount+' manually matched/created across all uploads for this account.</div>'+
+      ((ignoredCount||matchedCount) ? btn('↺ Clear Resolved Decisions (start over)','clearReconDecisions()','#C62828') : '')
+    );
   }
 
   // Unmatched app entries
@@ -12811,6 +13283,7 @@ function pgHelp(){
   h += '<div style="font-weight:700;font-size:14px">ME Khata Suite</div>';
   h += '<div style="font-size:11px;opacity:0.9;margin-top:2px">' + (isHi ? 'विकसित: अनिल शर्मा, पूर्व महाप्रबंधक — सेंट्रल बैंक ऑफ इंडिया' : 'Developed by: Anil Sharma, Former General Manager — Central Bank of India') + '</div>';
   h += '<div style="font-size:11px;opacity:0.85">' + (isHi ? 'पूर्व महाप्रबंधक — सेंट्रल बैंक ऑफ इंडिया' : 'Former General Manager, Central Bank of India') + '</div>';
+  h += '<div style="font-size:10px;opacity:0.75;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.2)">Version 11.1 (Stabilisation &amp; Accuracy Release) · Build ' + _BUILD + '</div>';
   h += '</div>';
 
   function hs(title, body, open) {
@@ -14375,8 +14848,9 @@ function loadCustomerSalesIntoCart(){
 function pgBillCart(){
   var cart = window._billCart || [];
   var iOpts=[{v:'',l:'-- Select Item --'}];
-  for(var i=0;i<D.inventory.length;i++){
-    var it=D.inventory[i];
+  var _invSortedBC = [].concat(D.inventory).sort(function(a,b){return (a.itemName||'').localeCompare(b.itemName||'');});
+  for(var i=0;i<_invSortedBC.length;i++){
+    var it=_invSortedBC[i];
     var inCart=0; (window._billCart||[]).forEach(function(c){if(c.itemId===it.id)inCart+=c.qty;});
     var avail = (it.currentStock+(it.importedStock||0)) - inCart;
     if(avail<=0 && inCart===0) continue;
@@ -20526,9 +21000,9 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 
 // ===== NAVIGATION & RENDER =====
-var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण',ledgerstmt:'खाता विवरण',dailyregister:'दैनिक रजिस्टर'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',dailyregister:'Daily Register',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
-var NAV_ALL = ['profile','dailyregister','dashboard','capital','inventory','purchase','sales','returns','journal','debtcred','ledgerstmt','stockstmt','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
+var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण',ledgerstmt:'खाता विवरण',dailyregister:'दैनिक रजिस्टर',dayend:'डे एंड'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',dailyregister:'Daily Register',dayend:'Day End',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
+var NAV_ALL = ['profile','dailyregister','dashboard','dayend','capital','inventory','purchase','sales','returns','journal','debtcred','ledgerstmt','stockstmt','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
 var BN_PAGES = ['dashboard','sales','purchase','financials','data'];
 var BN_ICONS = ['🏠','🏷️','🛒','📄','⚙️'];
 
@@ -20562,7 +21036,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,dailyregister:pgDailyRegister,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
+  var fns = {dashboard:pgDash,profile:pgProf,dailyregister:pgDailyRegister,dayend:pgDayEnd,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
 }
