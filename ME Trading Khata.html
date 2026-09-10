@@ -4688,30 +4688,30 @@ function pgDailyRegister(){
     fieldsHtml += itemsDatalist + inp('Item Name','dr_f1','text','','Type or pick existing item','dr_items_dl').replace('<input ','<input oninput="updateDRHint()" ') +
       suppliersDatalist + inp('Supplier Name','dr_f2','text','','Type or pick existing supplier','dr_suppliers_dl') +
       g2(inp('Quantity','dr_f3','number',''), inp('Rate','dr_f4','number','')) +
-      sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
+      payModeSel('dr_f5','cash');
   } else if(typeId==='sale'){
     fieldsHtml += itemsDatalist + inp('Item Name','dr_f1','text','','Pick an existing item','dr_items_dl').replace('<input ','<input oninput="updateDRHint()" ') +
       customersDatalist + inp('Customer Name','dr_f2','text','','Type or pick existing customer','dr_customers_dl') +
       g2(inp('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" '), inp('Selling Price','dr_f4','number','')) +
-      sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}],'cash');
+      payModeSel('dr_f5','cash');
   } else if(typeId==='expense'){
-    fieldsHtml += inp('Category','dr_f1','text','') + inp('Amount','dr_f2','number','') +
-      sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
+    fieldsHtml += sl('Category','dr_f1',D.expenseCategories,D.expenseCategories[0]) + inp('Amount','dr_f2','number','') +
+      payModeSel('dr_f3','cash');
   } else if(typeId==='debtorReceipt'){
     fieldsHtml += debtorsDatalist + inp('Customer Name','dr_f1','text','','Pick an existing debtor','dr_debtors_dl').replace('<input ','<input oninput="updateDRHint()" ') +
       inp('Amount Received','dr_f2','number','') +
-      sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
+      payModeSel('dr_f3','cash');
   } else if(typeId==='creditorPayment'){
     fieldsHtml += creditorsDatalist + inp('Supplier Name','dr_f1','text','','Pick an existing creditor','dr_creditors_dl').replace('<input ','<input oninput="updateDRHint()" ') +
       inp('Amount Paid','dr_f2','number','') +
-      sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
+      payModeSel('dr_f3','cash');
   } else if(typeId==='loanInstalment'){
     fieldsHtml += loansDatalist + inp('Lender Name','dr_f1','text','','Pick an existing loan','dr_loans_dl').replace('<input ','<input oninput="updateDRHint()" ') +
       inp('Amount Paid','dr_f2','number','') +
-      sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
+      payModeSel('dr_f3','cash');
   } else if(typeId==='fixedAsset'){
     fieldsHtml += inp('Asset Name','dr_f1','text','') + g2(inp('Cost','dr_f2','number',''), inp('Useful Life (Years)','dr_f3','number','')) +
-      sl('Payment Mode','dr_f4',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
+      payModeSel('dr_f4','cash');
   }
   fieldsHtml += '<div id="dr_hint"></div>';
 
@@ -13157,6 +13157,24 @@ function downloadBulkTemplate(typeId){
 }
 // Validates every row before committing anything - either all valid rows get imported together,
 // or none do, so a partial/broken import never leaves the books half-updated.
+// A payment-mode value may now come from the same rich picker used everywhere else in the
+// app (payModeSel): 'cash', 'upi', 'credit', 'bank:<accountId>', 'cc' / 'cc:<id>', 'od' / 'od:<id>'.
+// Bulk/CSV imports still send the plain legacy words ('cash','bank','credit','upi') by hand-typing.
+// This accepts both without mangling the account-id's original case (only the prefix is lowercased).
+function normalizeDRMode(raw){
+  raw = (raw||'').trim();
+  var colonIdx = raw.indexOf(':');
+  if(colonIdx>-1) return raw.slice(0,colonIdx).toLowerCase()+raw.slice(colonIdx);
+  return raw.toLowerCase();
+}
+function isValidDRMode(mode, allowedBase){
+  var base = mode.split(':')[0];
+  if(allowedBase.indexOf(base)>-1) return true;
+  // Wherever 'bank' is accepted, also accept CC/OD and a specific bank account — these are all
+  // "money moved via a bank-linked account" in the same sense 'bank' was already accepted for.
+  if(allowedBase.indexOf('bank')>-1 && (base==='cc'||base==='od')) return true;
+  return false;
+}
 function validateBulkRows(typeId, rows){
   var valid = [], errors = [];
   var dataRows = rows.slice(1); // skip header row
@@ -13166,57 +13184,57 @@ function validateBulkRows(typeId, rows){
     var date = (r[0]||'').trim();
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ errors.push('Row '+rowNum+': Date must be YYYY-MM-DD (got "'+(r[0]||'')+'")'); return; }
     if(typeId==='purchase'){
-      var itemName=(r[1]||'').trim(), supplier=(r[2]||'').trim(), qty=+r[3], rate=+r[4], mode=(r[5]||'').trim().toLowerCase();
+      var itemName=(r[1]||'').trim(), supplier=(r[2]||'').trim(), qty=+r[3], rate=+r[4], mode=normalizeDRMode(r[5]);
       if(!itemName){ errors.push('Row '+rowNum+': Item Name is required'); return; }
       if(!supplier){ errors.push('Row '+rowNum+': Supplier Name is required'); return; }
       if(!qty||qty<=0||isNaN(qty)){ errors.push('Row '+rowNum+': Quantity must be a positive number'); return; }
       if(!rate||rate<=0||isNaN(rate)){ errors.push('Row '+rowNum+': Rate must be a positive number'); return; }
-      if(['cash','bank','credit'].indexOf(mode)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, or credit (got "'+(r[5]||'')+'")'); return; }
+      if(!isValidDRMode(mode,['cash','bank','credit'])){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, or credit (got "'+(r[5]||'')+'")'); return; }
       valid.push({date:date, itemName:itemName, supplier:supplier, qty:qty, rate:rate, mode:mode});
     } else if(typeId==='sale'){
-      var itemName2=(r[1]||'').trim(), customer=(r[2]||'').trim(), qty2=+r[3], price=+r[4], mode2=(r[5]||'').trim().toLowerCase();
+      var itemName2=(r[1]||'').trim(), customer=(r[2]||'').trim(), qty2=+r[3], price=+r[4], mode2=normalizeDRMode(r[5]);
       if(!itemName2){ errors.push('Row '+rowNum+': Item Name is required'); return; }
       if(!customer){ errors.push('Row '+rowNum+': Customer Name is required'); return; }
       if(!qty2||qty2<=0||isNaN(qty2)){ errors.push('Row '+rowNum+': Quantity must be a positive number'); return; }
       if(!price||price<=0||isNaN(price)){ errors.push('Row '+rowNum+': Selling Price must be a positive number'); return; }
-      if(['cash','bank','upi','credit'].indexOf(mode2)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, upi, or credit (got "'+(r[5]||'')+'")'); return; }
+      if(!isValidDRMode(mode2,['cash','bank','upi','credit'])){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, upi, or credit (got "'+(r[5]||'')+'")'); return; }
       var item = D.inventory.filter(function(it){return it.itemName.toLowerCase()===itemName2.toLowerCase();})[0];
       if(!item){ errors.push('Row '+rowNum+': Item "'+itemName2+'" not found in Inventory - add it there first (Sales cannot create new items)'); return; }
       var totalAvail = (item.currentStock||0)+(item.importedStock||0);
       if(qty2>totalAvail){ errors.push('Row '+rowNum+': Insufficient stock for "'+itemName2+'" - only '+fmt(totalAvail)+' available'); return; }
       valid.push({date:date, itemId:item.id, itemName:item.itemName, unit:item.unit, customer:customer, qty:qty2, price:price, mode:mode2});
     } else if(typeId==='expense'){
-      var cat=(r[1]||'').trim(), amt=+r[2], mode3=(r[3]||'').trim().toLowerCase();
+      var cat=(r[1]||'').trim(), amt=+r[2], mode3=normalizeDRMode(r[3]);
       if(!cat){ errors.push('Row '+rowNum+': Category is required'); return; }
       if(!amt||amt<=0||isNaN(amt)){ errors.push('Row '+rowNum+': Amount must be a positive number'); return; }
-      if(['cash','bank'].indexOf(mode3)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
+      if(!isValidDRMode(mode3,['cash','bank'])){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
       valid.push({date:date, category:cat, amount:amt, mode:mode3});
     } else if(typeId==='debtorReceipt'){
-      var cust2=(r[1]||'').trim(), amt2=+r[2], mode4=(r[3]||'').trim().toLowerCase();
+      var cust2=(r[1]||'').trim(), amt2=+r[2], mode4=normalizeDRMode(r[3]);
       if(!cust2){ errors.push('Row '+rowNum+': Customer Name is required'); return; }
       if(!amt2||amt2<=0||isNaN(amt2)){ errors.push('Row '+rowNum+': Amount Received must be a positive number'); return; }
-      if(['cash','bank'].indexOf(mode4)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
+      if(!isValidDRMode(mode4,['cash','bank'])){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
       valid.push({date:date, customer:cust2, amount:amt2, mode:mode4});
     } else if(typeId==='creditorPayment'){
-      var supp2=(r[1]||'').trim(), amt3=+r[2], mode5=(r[3]||'').trim().toLowerCase();
+      var supp2=(r[1]||'').trim(), amt3=+r[2], mode5=normalizeDRMode(r[3]);
       if(!supp2){ errors.push('Row '+rowNum+': Supplier Name is required'); return; }
       if(!amt3||amt3<=0||isNaN(amt3)){ errors.push('Row '+rowNum+': Amount Paid must be a positive number'); return; }
-      if(['cash','bank'].indexOf(mode5)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
+      if(!isValidDRMode(mode5,['cash','bank'])){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
       valid.push({date:date, supplier:supp2, amount:amt3, mode:mode5});
     } else if(typeId==='loanInstalment'){
-      var lender=(r[1]||'').trim(), amt4=+r[2], mode6=(r[3]||'').trim().toLowerCase();
+      var lender=(r[1]||'').trim(), amt4=+r[2], mode6=normalizeDRMode(r[3]);
       if(!lender){ errors.push('Row '+rowNum+': Lender Name is required'); return; }
       if(!amt4||amt4<=0||isNaN(amt4)){ errors.push('Row '+rowNum+': Amount Paid must be a positive number'); return; }
-      if(['cash','bank'].indexOf(mode6)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
+      if(!isValidDRMode(mode6,['cash','bank'])){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
       var loan = D.loans.filter(function(l){return (l.lender||'').toLowerCase()===lender.toLowerCase();})[0];
       if(!loan){ errors.push('Row '+rowNum+': Loan from "'+lender+'" not found - add it in Capital/Loans first'); return; }
       valid.push({date:date, loanId:loan.id, lender:loan.lender, amount:amt4, mode:mode6});
     } else if(typeId==='fixedAsset'){
-      var assetName=(r[1]||'').trim(), cost=+r[2], life=+r[3], mode7=(r[4]||'').trim().toLowerCase();
+      var assetName=(r[1]||'').trim(), cost=+r[2], life=+r[3], mode7=normalizeDRMode(r[4]);
       if(!assetName){ errors.push('Row '+rowNum+': Asset Name is required'); return; }
       if(!cost||cost<=0||isNaN(cost)){ errors.push('Row '+rowNum+': Cost must be a positive number'); return; }
       if(!life||life<=0||isNaN(life)){ errors.push('Row '+rowNum+': Useful Life must be a positive number of years'); return; }
-      if(['cash','bank','credit'].indexOf(mode7)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, or credit (got "'+(r[4]||'')+'")'); return; }
+      if(!isValidDRMode(mode7,['cash','bank','credit'])){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, or credit (got "'+(r[4]||'')+'")'); return; }
       valid.push({date:date, assetName:assetName, cost:cost, life:life, mode:mode7});
     }
   });
