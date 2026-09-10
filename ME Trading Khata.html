@@ -227,7 +227,7 @@ function defD(){
     bills:[],
     nextBillNo:1,
     expenseCategories:['Rent','Electricity','Salary','Transportation','Telephone','Fuel','Repair','Marketing','Interest Payment','Freight Inward','Carriage Inward','Loading/Unloading (Purchase)','Miscellaneous'],
-    settings:{creditDays:30,defaultMargin:20},
+    settings:{creditDays:30,defaultMargin:20,marginMode:'markup',categoryMargins:{}},
     partyCodes:{},
     customHSN:{},
     incomeTax:{ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false},
@@ -394,6 +394,8 @@ function migrateData(d){
   if(d.loanAssessment && d.loanAssessment.useManual===undefined) d.loanAssessment.useManual=false;
   if(!d.settings) d.settings={creditDays:30,defaultMargin:20};
   if(d.settings.defaultMargin===undefined) d.settings.defaultMargin=20;
+  if(d.settings.marginMode===undefined) d.settings.marginMode='markup';
+  if(!d.settings.categoryMargins) d.settings.categoryMargins={};
   if(!d.partyCodes) d.partyCodes={};
   if(!d.customHSN) d.customHSN={};
   if(!d.incomeTax) d.incomeTax={ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false};
@@ -614,6 +616,34 @@ function postCB(mode,type,amount,party,desc,date){
 }
 
 
+
+// ── MARGIN ENGINE: Item → Category → Global priority, Markup-on-Cost or Margin-on-Sales ──
+// Returns the % to apply for a given item, following the priority order.
+function getMarginPct(item){
+  if(item && item.itemMargin!=null && item.itemMargin>=0) return {pct:+item.itemMargin, source:'item'};
+  var cat = item && item.category;
+  var cm = (D.settings && D.settings.categoryMargins) || {};
+  if(cat && cm[cat]!=null && cm[cat]!=='') return {pct:+cm[cat], source:'category'};
+  return {pct:+((D.settings&&D.settings.defaultMargin)||20), source:'global'};
+}
+// Computes a suggested selling price from cost + %, honouring the Markup-on-Cost vs
+// Margin-on-Sales mode. mode: 'markup' => price = cost*(1+pct/100); 'margin' => price = cost/(1-pct/100).
+function suggestedPriceFromCost(cost, pct, mode){
+  cost=+cost||0; pct=+pct||0;
+  mode = mode || (D.settings&&D.settings.marginMode) || 'markup';
+  if(cost<=0) return 0;
+  if(mode==='margin'){
+    if(pct>=100) pct=99; // guard against divide-by-zero/negative price
+    return Math.round(cost/(1-pct/100));
+  }
+  return Math.round(cost*(1+pct/100));
+}
+// Convenience: given an item and its blended cost, return {price, pct, source, mode}
+function getSuggestedPrice(cost, item){
+  var m = getMarginPct(item);
+  var mode = (D.settings&&D.settings.marginMode)||'markup';
+  return {price:suggestedPriceFromCost(cost,m.pct,mode), pct:m.pct, source:m.source, mode:mode};
+}
 
 // ── BARCODE SCANNER ──────────────────────────────────────────────────────────
 var _scanTarget=null,_scanStream=null,_quaggaLoaded=false,_nativeScanInterval=null;
@@ -4426,12 +4456,12 @@ function updateDRHint(){
     var name = (gv('dr_f1')||'').trim();
     var item = D.inventory.filter(function(it){return it.itemName.toLowerCase()===name.toLowerCase();})[0];
     if(item){
-      var margin = +(D.settings&&D.settings.defaultMargin)||20;
-      var suggested = Math.round(item.avgCost*(1+margin/100));
+      var _drM=getMarginPct(item);var margin=_drM.pct;
+      var suggested = suggestedPriceFromCost(item.avgCost,margin,(D.settings&&D.settings.marginMode)||'markup');
       var priceField = document.getElementById('dr_f4');
       if(priceField && !priceField.value){ priceField.value = suggested; }
       var stockAvail = (item.currentStock||0)+(item.importedStock||0);
-      hint = '<div class="al ali" style="margin-top:6px;font-size:11px">Purchase Price: <b>'+fc(item.avgCost)+'</b>/'+esc(item.unit)+' | Suggested Selling Price ('+margin+'% margin): <b>'+fc(suggested)+'</b> | Stock available: <b>'+fmt(stockAvail)+'</b> '+esc(item.unit)+'</div>';
+      hint = '<div class="al ali" style="margin-top:6px;font-size:11px">Purchase Price: <b>'+fc(item.avgCost)+'</b>/'+esc(item.unit)+' | Suggested Selling Price ('+_drM.source+' '+margin+'%): <b>'+fc(suggested)+'</b> | Stock available: <b>'+fmt(stockAvail)+'</b> '+esc(item.unit)+'</div>';
     }
   } else if(typeId==='purchase'){
     var name2 = (gv('dr_f1')||'').trim();
@@ -5425,7 +5455,9 @@ function pgInv(){
       '</div>'+
       g2(inp('Batch No. (optional)','iv_batch','text',''),inp('Expiry Date','iv_expiry','date',''))+
       '<div style="font-size:10px;color:#E65100;margin-bottom:8px">Batch No. & Expiry important for food/medicine items (FSSAI)</div>'+
-      sl('Category','iv_cat',['Resale','Consumable'],window._invCat||['Resale','Consumable'][0])+
+      g2(sl('Category','iv_cat',['Resale','Consumable'],window._invCat||['Resale','Consumable'][0]),
+         inp('Margin/Markup % Override (optional)','iv_margin','number','')+
+         '<div style="font-size:9px;color:#546E7A;margin-top:2px">Leave blank to use Category/Global — set in Margin Settings</div>')+
       (gstEnabled() ?
         g2(inp('HSN / SAC Code','iv_hsn','text','')+
            '<div style="font-size:10px;color:#546E7A;margin-top:2px">Type item name above and tap Auto-fill to get HSN & GST rate</div>',
@@ -5574,10 +5606,12 @@ function addInv(){
     var lookup=lookupHSNFull(n);
     if(lookup){hsn=lookup[0]; gstRate=+lookup[1];}
   }
+  var _ivMargin=gv('iv_margin');
   var item={id:uid(),itemName:n,unit:gv('iv_u'),openingStock:os,currentStock:os,avgCost:pr,
             importedStock:0,importedAvgCost:0,
             reorderLevel:gvn('iv_rl'),
             category:gv('iv_cat')||'Resale',
+            itemMargin:(_ivMargin!==''&&_ivMargin!=null)?+_ivMargin:null,
             mrp:gvn('iv_mrp')||0,
             priceRetail:gvn('iv_price_retail')||0,
             priceWholesale:gvn('iv_price_wholesale')||0,
@@ -5672,12 +5706,17 @@ function pgPur(){
     '<div id="pu_newwrap">'+newItemFields+'</div>'+
     g2(inp('Qty','pu_q','number',window._purQty||0),inp('Rate (₹, excl. GST)','pu_r','number',window._purRate||0))+
     (gstEnabled() ? inp('GST Rate % (0 = exempt)','pu_gst','number',(window._purGstRate!=null?window._purGstRate:(D.gst.defaultRate||0))) : '')+
+    '<div style="background:#FFF8E1;border-radius:8px;padding:8px 10px;margin-bottom:8px">'+
+    '<div style="font-size:11px;font-weight:700;color:#E65100;margin-bottom:6px">🚚 Landed Cost (optional) — Discount reduces invoice value; Freight/Loading adds to stock cost</div>'+
+    g2(inp('Discount (₹)','pu_disc','number',window._purDisc||0),inp('Freight/Loading/Other Direct Cost (₹)','pu_freight','number',window._purFreight||0))+
+    sl('Freight Paid Via','pu_freightmode',[{v:'same',l:'Same as Purchase Payment Mode'},{v:'cash',l:'Cash'},{v:'bank',l:'Bank (default account)'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit (owed to transporter/supplier)'}],window._purFreightMode||'same')+
+    '</div>'+
     advanceSettleSel('pu_adv','paid_supplier')+
     payModeSel('pu_m',window._purMode||'cash')+
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="pu_import" '+(window._purImport?'checked':'')+' style="width:auto"> This is an Imported purchase (sourced from outside India)</label>'+
     btn('✓ Record Purchase','addPur()')
   );
-  h+=card('Purchase Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('purchase',r.id);}},{l:'Date',k:'date'},{l:'Supplier',fn:function(r){return esc(r.supplierName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',fn:function(r){var it=null;for(var ki=0;ki<D.inventory.length;ki++)if(D.inventory[ki].id===r.itemId){it=D.inventory[ki];break;}var cat=it?(it.category||''):'';var catColor={'Raw Material':'#E65100','RM':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var cc=catColor[cat]||'#546E7A';var cl=cat==='RM'?'Raw Material':(cat||'');return esc(r.itemName)+(cl&&cl!=='Resale'?'<br><span style="font-size:9px;font-weight:700;color:'+cc+';background:'+cc+'18;padding:1px 4px;border-radius:3px">'+esc(cl)+'</span>':'');}},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}}],[].concat(D.purchases).reverse()));
+  h+=card('Purchase Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('purchase',r.id);}},{l:'Date',k:'date'},{l:'Supplier',fn:function(r){return esc(r.supplierName||'')+(r.partyCode?partyCodeBadge(r.partyCode):'');}},{l:'Item',fn:function(r){var it=null;for(var ki=0;ki<D.inventory.length;ki++)if(D.inventory[ki].id===r.itemId){it=D.inventory[ki];break;}var cat=it?(it.category||''):'';var catColor={'Raw Material':'#E65100','RM':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var cc=catColor[cat]||'#546E7A';var cl=cat==='RM'?'Raw Material':(cat||'');return esc(r.itemName)+(cl&&cl!=='Resale'?'<br><span style="font-size:9px;font-weight:700;color:'+cc+';background:'+cc+'18;padding:1px 4px;border-radius:3px">'+esc(cl)+'</span>':'');}},{l:'Qty',r:1,fn:function(r){return fmt(r.qty);}},{l:'Invoice ₹',r:1,fn:function(r){return fc(r.rate)+'/u';}},{l:'Landed ₹',r:1,fn:function(r){return r.landedRate?('<b style="color:#E65100">'+fc(r.landedRate)+'</b>/u'):'—';}},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}}],[].concat(D.purchases).reverse()));
   if(D.purchases.length>1) h+=card('Item-wise Purchase Summary',itemwiseSummary(D.purchases,'amount','qty'));
   return h;
 }
@@ -5692,7 +5731,10 @@ function addPur(){
   if(!q||!r){toast('Enter quantity and rate','e');return;}
   var mode=gv('pu_m'),date=gv('pu_d')||td();
   var advId = gv('pu_adv')||'';
-  var amt=q*r;
+  var disc = gvn('pu_disc')||0;
+  var freight = gvn('pu_freight')||0;
+  var amt=q*r-disc;
+  if(amt<0){toast('Discount cannot exceed the invoice value (Qty x Rate)','e');return;}
   var adv=null;
   if(advId){
     var i2;for(i2=0;i2<(D.advances||[]).length;i2++) if(D.advances[i2].id===advId) adv=D.advances[i2];
@@ -5717,19 +5759,26 @@ function addPur(){
   var gstType = (D.gst&&D.gst.supplyType) || 'intra';
   var gstAmt = gstRate>0 ? Math.round(amt*gstRate/100*100)/100 : 0;
   var amtForPosting = amt + gstAmt;
+  // Landed cost = invoice value (net of discount) + freight/loading/other direct cost.
+  // Freight is capitalised into stock cost (Dr Inventory), not run through the Expense/
+  // Direct-Expense category, so it flows into COGS via the higher avgCost on sale — no double count.
+  var landedTotal = amt + freight;
+  var landedRate = q>0 ? Math.round((landedTotal/q)*100)/100 : r;
+  var freightModeRaw = gv('pu_freightmode')||'same';
+  var freightMode = (freightModeRaw==='same') ? mode : freightModeRaw;
   var checkMode = adv ? null : mode; // advance-settled purchases do not touch cash/bank
   confirmIfNegative(checkMode, amtForPosting, function(){
     if(isImported){
-      var itq=(item.importedStock||0)+q, itv2=(item.importedStock||0)*(item.importedAvgCost||0)+amt;
-      item.importedStock=itq;item.importedAvgCost=itq>0?itv2/itq:r;
+      var itq=(item.importedStock||0)+q, itv2=(item.importedStock||0)*(item.importedAvgCost||0)+landedTotal;
+      item.importedStock=itq;item.importedAvgCost=itq>0?itv2/itq:landedRate;
     } else {
-      var tq=item.currentStock+q,tv2=item.currentStock*item.avgCost+amt;
-      item.currentStock=tq;item.avgCost=tq>0?tv2/tq:r;
+      var tq=item.currentStock+q,tv2=item.currentStock*item.avgCost+landedTotal;
+      item.currentStock=tq;item.avgCost=tq>0?tv2/tq:landedRate;
     }
     var effMode = adv ? 'advance' : mode;
     var suppCode=getPartyCode(s,'supplier');
     var purchaseId=uid();
-    D.purchases.push({id:purchaseId,date:date,supplierName:s,partyCode:suppCode,itemId:item.id,itemName:item.itemName,qty:q,rate:r,amount:amt,paymentMode:effMode,isImported:isImported,advanceId:adv?adv.id:undefined,gstRate:gstRate,gstType:gstType,taxableValue:amt,gstAmount:gstAmt,gstPaymentMode:adv?mode:undefined});
+    D.purchases.push({id:purchaseId,date:date,supplierName:s,partyCode:suppCode,itemId:item.id,itemName:item.itemName,qty:q,rate:r,amount:amt,paymentMode:effMode,isImported:isImported,advanceId:adv?adv.id:undefined,gstRate:gstRate,gstType:gstType,taxableValue:amt,gstAmount:gstAmt,gstPaymentMode:adv?mode:undefined,discount:disc,freight:freight,freightMode:freight>0?freightMode:undefined,landedRate:landedRate});
     if(adv){
       adv.amount = (+adv.amount||0) - amt;
       if(adv.amount<=0.005){
@@ -5744,7 +5793,14 @@ function addPur(){
     if(gstAmt>0.005){
       D.gstLedger.push({id:uid(), date:date, type:'input', amount:gstAmt, ref:'Purchase: '+item.itemName, purchaseId:purchaseId});
     }
-    sv();window._purItem='__new__';window._purSupplier='';window._purNewName='';window._purImport=false;window._purDate=null;window._purQty=null;window._purRate=null;window._purMode=null;window._purGstRate=null;go('purchase');toast('Recorded! Stock updated.');
+    if(freight>0.005){
+      if(freightMode==='credit'){
+        addCreditor(s,freight,date,'Freight on Purchase: '+item.itemName);
+      } else {
+        postCB(freightMode,'payment',freight,s,'Freight on Purchase: '+item.itemName,date);
+      }
+    }
+    sv();window._purItem='__new__';window._purSupplier='';window._purNewName='';window._purImport=false;window._purDate=null;window._purQty=null;window._purRate=null;window._purMode=null;window._purGstRate=null;window._purDisc=null;window._purFreight=null;window._purFreightMode=null;go('purchase');toast('Recorded! Stock updated'+(freight>0?' with landed cost incl. freight.':'.'));
   });
 }
 // ===== SALES =====
@@ -5785,7 +5841,8 @@ function pgSal(){
   h+='<div class="card"><div class="ch">Total Sales: '+fc(tot)+'</div></div>';
   h+='<div style="margin-bottom:10px">'+btn('🧾 Create Bill (Multi-Item Invoice)','window._salMode=\'bill\';window._billCart=[];renderPage()','#1565C0')+'</div>';
 
-  var _defM=+(D.settings&&D.settings.defaultMargin)||20;
+  var _mgMode=(D.settings&&D.settings.marginMode)||'markup';
+  var _defM=getMarginPct(selItem).pct;
   var _curM=(window._salMargin!=null)?window._salMargin:_defM;
   if(selItem){
     // Always recalculate cost — blended (domestic + imported weighted average)
@@ -5799,11 +5856,11 @@ function pgSal(){
     if(!_initCost&&selItem.mrp) _initCost=selItem.mrp/1.22;
     // Set sale price from cost if not manually overridden
     if(_initCost>0&&(!window._salPrice||window._salPrice===0)){
-      window._salPrice=Math.round(_initCost*(1+_curM/100));
+      window._salPrice=suggestedPriceFromCost(_initCost,_curM,_mgMode);
     }
     // If price still 0 but cost found — set it
     if(_initCost>0&&window._salPrice===0){
-      window._salPrice=Math.round(_initCost*(1+_curM/100));
+      window._salPrice=suggestedPriceFromCost(_initCost,_curM,_mgMode);
     }
   }
   var costInfo='';
@@ -5838,10 +5895,9 @@ function pgSal(){
           'Dom:'+fmt(selItem.currentStock)+' + Imp:'+fmt(selItem.importedStock||0):
           (selItem.importedStock||0)>0?'Imp:'+fmt(selItem.importedStock||0):fmt(selItem.currentStock))+
         ' '+esc(selItem.unit)+
-        (selItem.itemMargin!=null&&selItem.itemMargin>=0 ?
-          ' | <span style="color:#2E7D32;font-weight:700">📊 Item margin: '+selItem.itemMargin+'%</span> (change below for this sale)' :
-          ' | Global margin: '+_defM+'% — change below for this sale') +
+        (function(){var _msrc=getMarginPct(selItem);var _lbl=_msrc.source==='item'?'📊 Item':(_msrc.source==='category'?'📁 Category':'🌐 Global');return ' | <span style="color:#2E7D32;font-weight:700">'+_lbl+' '+(_mgMode==='margin'?'margin':'markup')+': '+_msrc.pct+'%</span> (change below for this sale)';})() +
       '</div>'+
+      (gstEnabled() ? '<div style="font-size:10px;color:#546E7A;margin-top:2px">Incl. GST @ '+(window._salGstRate!=null?window._salGstRate:(selItem.gstRate!==undefined?selItem.gstRate:(D.gst.defaultRate||0)))+'%: <b>'+fc(_sp*(1+(+(window._salGstRate!=null?window._salGstRate:(selItem.gstRate!==undefined?selItem.gstRate:(D.gst.defaultRate||0)))/100)))+'</b> per '+esc(selItem.unit)+'</div>' : '')+
     '</div>';
   }
 
@@ -6947,7 +7003,7 @@ function onSalMarginChange(){
   var it=null;
   for(var i=0;i<D.inventory.length;i++) if(D.inventory[i].id===sid){it=D.inventory[i];break;}
   if(it&&it.avgCost>0){
-    var np=Math.round(it.avgCost*(1+m/100));
+    var np=suggestedPriceFromCost(it.avgCost,m,(D.settings&&D.settings.marginMode)||'markup');
     window._salPrice=np;
     var pEl=document.getElementById('sl_p');
     if(pEl) pEl.value=np;
@@ -6968,12 +7024,11 @@ function onSalItemChange(){
   var _nm=gvn('sl_margin');
   if(_nm!==null&&!isNaN(_nm)&&window._salMargin!==null) window._salMargin=_nm;
   var _sid=window._salItem||'';var _sit=null;for(var _ii=0;_ii<D.inventory.length;_ii++)if(D.inventory[_ii].id===_sid){_sit=D.inventory[_ii];break;}
-  // Priority: 1. User edited margin (window._salMargin set) 2. Item-specific margin 3. Global default
-  var _itemSpecificMg=(_sit&&_sit.itemMargin!=null&&_sit.itemMargin>=0)?_sit.itemMargin:null;
+  // Priority: 1. User edited margin (window._salMargin set) 2. Item-specific margin 3. Category margin 4. Global default
   var _mg;
   if(window._salMargin!=null) _mg=window._salMargin;
-  else if(_itemSpecificMg!=null){_mg=_itemSpecificMg;window._salMargin=_itemSpecificMg;}
-  else{_mg=(+(D.settings&&D.settings.defaultMargin)||20);}
+  else {_mg=getMarginPct(_sit).pct;window._salMargin=_mg;}
+  var _mgModeIC=(D.settings&&D.settings.marginMode)||'markup';
   if(_sit){
     var _sBlendDom=(_sit.currentStock||0)*(_sit.avgCost||0);
     var _sBlendImp=(_sit.importedStock||0)*(_sit.importedAvgCost||0);
@@ -6986,7 +7041,7 @@ function onSalItemChange(){
     if(!_sBlendCost&&_sit.priceRetail) _sBlendCost=_sit.priceRetail/(1+_mg/100);
     // Fallback: MRP
     if(!_sBlendCost&&_sit.mrp) _sBlendCost=_sit.mrp/1.22;
-    if(_sBlendCost>0) window._salPrice=Math.round(_sBlendCost*(1+_mg/100));
+    if(_sBlendCost>0) window._salPrice=suggestedPriceFromCost(_sBlendCost,_mg,_mgModeIC);
     else window._salPrice=gvn('sl_p')||0;
   } else window._salPrice=gvn('sl_p')||0;window._salExport=document.getElementById('sl_export')?document.getElementById('sl_export').checked:false;renderPage();setTimeout(function(){var q=document.getElementById('sl_q');if(q)q.focus();},50);}
 function addSal(){
@@ -10684,14 +10739,15 @@ function deletePurchase(id){
     if(idx<0)return;
     var p=D.purchases[idx];
     var item=null;for(i=0;i<D.inventory.length;i++)if(D.inventory[i].id===p.itemId)item=D.inventory[i];
+    var landedTotalRev = (p.amount||0) + (p.freight||0);
     if(item){
       if(p.isImported){
-        var itotalVal=(item.importedStock||0)*(item.importedAvgCost||0) - p.amount;
+        var itotalVal=(item.importedStock||0)*(item.importedAvgCost||0) - landedTotalRev;
         var inewQty=(item.importedStock||0) - p.qty;
         item.importedStock=Math.max(0,inewQty);
         item.importedAvgCost=item.importedStock>0?Math.max(0,itotalVal)/item.importedStock:0;
       } else {
-        var totalVal=item.currentStock*item.avgCost - p.amount;
+        var totalVal=item.currentStock*item.avgCost - landedTotalRev;
         var newQty=item.currentStock - p.qty;
         item.currentStock=Math.max(0,newQty);
         item.avgCost=item.currentStock>0?Math.max(0,totalVal)/item.currentStock:0;
@@ -10706,6 +10762,10 @@ function deletePurchase(id){
     else reverseCB(p.paymentMode,'payment',postedAmount,'Purchase: '+p.itemName);
     if(p.gstAmount>0.005){
       D.gstLedger = D.gstLedger.filter(function(g){ return g.purchaseId!==p.id; });
+    }
+    if(p.freight>0.005){
+      if(p.freightMode==='credit') removeCreditorByRef('Freight on Purchase: '+p.itemName,p.freight);
+      else reverseCB(p.freightMode||p.paymentMode,'payment',p.freight,'Freight on Purchase: '+p.itemName);
     }
     D.purchases.splice(idx,1);
     sv();renderPage();toast('Purchase deleted, stock and balance reversed.');
@@ -10725,7 +10785,9 @@ function editPurchaseForm(p){
     g2(inp('Date','ep_d','date',p.date),inp('Supplier','ep_s','text',p.supplierName))+
     sl('Item','ep_i',iOpts,p.itemId)+
     g2(inp('Qty','ep_q','number',p.qty),inp('Rate (per unit)','ep_r','number',p.rate))+
+    g2(inp('Discount (₹)','ep_disc','number',p.discount||0),inp('Freight/Loading (₹)','ep_freight','number',p.freight||0))+
     payModeSel('ep_m',p.paymentMode||'cash')+
+    sl('Freight Paid Via','ep_freightmode',[{v:'same',l:'Same as Purchase Payment Mode'},{v:'cash',l:'Cash'},{v:'bank',l:'Bank (default account)'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit (owed to transporter/supplier)'}],p.freightMode||'same')+
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="ep_import" '+(p.isImported?'checked':'')+' style="width:auto"> This is an Imported purchase (sourced from outside India)</label>'+
     btn('Save Changes','saveEditPurchase('+Q+p.id+Q+')','#2E7D32')+' '+btn('Cancel','cancelEdit()','#546E7A')
   );
@@ -10738,16 +10800,17 @@ function saveEditPurchase(id){
   if(newMode!=='credit' && !validateCCOD(newMode)) return;
   var oldItem=null;for(i=0;i<D.inventory.length;i++)if(D.inventory[i].id===old.itemId)oldItem=D.inventory[i];
   var savedStock=null,savedCost=null,savedImpStock=null,savedImpCost=null;
+  var oldLanded = (old.amount||0)+(old.freight||0);
   if(oldItem){
     savedStock=oldItem.currentStock; savedCost=oldItem.avgCost;
     savedImpStock=oldItem.importedStock||0; savedImpCost=oldItem.importedAvgCost||0;
     if(old.isImported){
-      var itotalVal=(oldItem.importedStock||0)*(oldItem.importedAvgCost||0) - old.amount;
+      var itotalVal=(oldItem.importedStock||0)*(oldItem.importedAvgCost||0) - oldLanded;
       var inewQty=(oldItem.importedStock||0) - old.qty;
       oldItem.importedStock=Math.max(0,inewQty);
       oldItem.importedAvgCost=oldItem.importedStock>0?Math.max(0,itotalVal)/oldItem.importedStock:0;
     } else {
-      var totalVal=oldItem.currentStock*oldItem.avgCost - old.amount;
+      var totalVal=oldItem.currentStock*oldItem.avgCost - oldLanded;
       var newQty=oldItem.currentStock - old.qty;
       oldItem.currentStock=Math.max(0,newQty);
       oldItem.avgCost=oldItem.currentStock>0?Math.max(0,totalVal)/oldItem.currentStock:0;
@@ -10756,8 +10819,13 @@ function saveEditPurchase(id){
   if(old.paymentMode==='credit')removeCreditorByRef('Purchase: '+old.itemName,old.amount);
   else if(old.paymentMode==='advance')restoreAdvance(old.advanceId,old.amount,'paid','supplier',old.supplierName,old);
   else reverseCB(old.paymentMode,'payment',old.amount,'Purchase: '+old.itemName);
+  if(old.freight>0.005){
+    if(old.freightMode==='credit') removeCreditorByRef('Freight on Purchase: '+old.itemName,old.freight);
+    else reverseCB(old.freightMode||old.paymentMode,'payment',old.freight,'Freight on Purchase: '+old.itemName);
+  }
 
   var iid=gv('ep_i'),q=gvn('ep_q'),r=gvn('ep_r'),s2=gv('ep_s'),date=gv('ep_d')||td(),mode=gv('ep_m');
+  var disc=gvn('ep_disc')||0, freight=gvn('ep_freight')||0;
   var item=null;for(i=0;i<D.inventory.length;i++)if(D.inventory[i].id===iid)item=D.inventory[i];
   if(!item||!s2||!q||!r){
     if(oldItem){oldItem.currentStock=savedStock;oldItem.avgCost=savedCost;oldItem.importedStock=savedImpStock;oldItem.importedAvgCost=savedImpCost;}
@@ -10766,20 +10834,32 @@ function saveEditPurchase(id){
       for(var api=0;api<(D.advances||[]).length;api++) if(D.advances[api].id===old.advanceId) D.advances[api].amount = (+D.advances[api].amount||0) - old.amount;
     }
     else postCB(old.paymentMode,'payment',old.amount,old.supplierName,'Purchase: '+old.itemName,old.date);
+    if(old.freight>0.005){
+      if(old.freightMode==='credit') addCreditor(old.supplierName,old.freight,old.date,'Freight on Purchase: '+old.itemName);
+      else postCB(old.freightMode||old.paymentMode,'payment',old.freight,old.supplierName,'Freight on Purchase: '+old.itemName,old.date);
+    }
     toast('Fill all fields','e');return;
   }
   var isImported = document.getElementById('ep_import') ? document.getElementById('ep_import').checked : false;
-  var amt=q*r;
+  var amt=q*r-disc; if(amt<0) amt=0;
+  var landedTotal = amt+freight;
+  var landedRate = q>0?Math.round((landedTotal/q)*100)/100:r;
+  var freightModeRaw=gv('ep_freightmode')||'same';
+  var freightMode=(freightModeRaw==='same')?mode:freightModeRaw;
   if(isImported){
-    var ntq=(item.importedStock||0)+q, ntv=(item.importedStock||0)*(item.importedAvgCost||0)+amt;
-    item.importedStock=ntq;item.importedAvgCost=ntq>0?ntv/ntq:r;
+    var ntq=(item.importedStock||0)+q, ntv=(item.importedStock||0)*(item.importedAvgCost||0)+landedTotal;
+    item.importedStock=ntq;item.importedAvgCost=ntq>0?ntv/ntq:landedRate;
   } else {
-    var tq=item.currentStock+q,tv2=item.currentStock*item.avgCost+amt;
-    item.currentStock=tq;item.avgCost=tq>0?tv2/tq:r;
+    var tq=item.currentStock+q,tv2=item.currentStock*item.avgCost+landedTotal;
+    item.currentStock=tq;item.avgCost=tq>0?tv2/tq:landedRate;
   }
-  D.purchases[idx]={id:id,date:date,supplierName:s2,itemId:item.id,itemName:item.itemName,qty:q,rate:r,amount:amt,paymentMode:mode,isImported:isImported};
+  D.purchases[idx]={id:id,date:date,supplierName:s2,itemId:item.id,itemName:item.itemName,qty:q,rate:r,amount:amt,paymentMode:mode,isImported:isImported,discount:disc,freight:freight,freightMode:freight>0?freightMode:undefined,landedRate:landedRate};
   if(mode==='credit')addCreditor(s2,amt,date,'Purchase: '+item.itemName);
   else postCB(mode,'payment',amt,s2,'Purchase: '+item.itemName,date);
+  if(freight>0.005){
+    if(freightMode==='credit') addCreditor(s2,freight,date,'Freight on Purchase: '+item.itemName);
+    else postCB(freightMode,'payment',freight,s2,'Freight on Purchase: '+item.itemName,date);
+  }
   sv();cancelEdit();toast('Purchase updated!');
 }
 
@@ -20472,50 +20552,109 @@ function toggleHi(){window._hi=!window._hi;var lb=document.getElementById('lb');
 
 function pgMargin(){
   var defM=+(D.settings&&D.settings.defaultMargin)||20;
+  var mode=(D.settings&&D.settings.marginMode)||'markup';
   var h='';
-  h+=card('💰 Profit Margin Settings',
-    '<div style="font-size:12px;color:#546E7A;margin-bottom:10px">Set a global default margin % on cost price. Auto-fills selling price in Sales page for every item. Override per sale anytime.</div>'+
+  h+=card('Margin Calculation Mode',
+    '<div style="font-size:12px;color:#546E7A;margin-bottom:10px">Markup on Cost: Price = Cost x (1 + %). Margin on Sales: Price = Cost / (1 - %) — so the % is your profit share of the final selling price, not of cost.</div>'+
+    '<div style="display:flex;gap:8px;margin-bottom:10px">'+
+      '<button onclick="setMarginMode(\'markup\')" style="flex:1;padding:10px;border-radius:8px;border:2px solid '+(mode==='markup'?'#1565C0':'#BBDEFB')+';background:'+(mode==='markup'?'#E3F2FD':'#fff')+';font-weight:700;font-size:12px;cursor:pointer">Markup on Cost'+(mode==='markup'?' ✓':'')+'</button>'+
+      '<button onclick="setMarginMode(\'margin\')" style="flex:1;padding:10px;border-radius:8px;border:2px solid '+(mode==='margin'?'#1565C0':'#BBDEFB')+';background:'+(mode==='margin'?'#E3F2FD':'#fff')+';font-weight:700;font-size:12px;cursor:pointer">Margin on Sales'+(mode==='margin'?' ✓':'')+'</button>'+
+    '</div>'
+  );
+  h+=card('💰 Global Default '+(mode==='margin'?'Margin':'Markup')+' %',
+    '<div style="font-size:12px;color:#546E7A;margin-bottom:10px">Applies to every item unless a Category or Item-specific override is set below. Auto-fills selling price in Sales page.</div>'+
     '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'+
-      '<label style="font-size:14px;font-weight:700;color:#1565C0">Default Margin % on Cost:</label>'+
-      '<input type="number" id="mg_val" value="'+defM+'" min="0" max="500" oninput="onMgPreview(this.value)" '+
+      '<label style="font-size:14px;font-weight:700;color:#1565C0">Global '+(mode==='margin'?'Margin':'Markup')+' % :</label>'+
+      '<input type="number" id="mg_val" value="'+defM+'" min="0" max="'+(mode==='margin'?'95':'500')+'" oninput="onMgPreview(this.value)" '+
         'style="width:90px;padding:10px;border-radius:10px;border:2px solid #1565C0;font-size:20px;font-weight:800;text-align:center">'+
     '</div>'+
-    '<div id="mg_preview">'+mgPreviewHtml(defM)+'</div>'+
-    '<div style="margin-top:12px">'+btn('💾 Save Default Margin','saveMargin()','#2E7D32')+'</div>'+
-    '<div style="font-size:11px;color:#90A4AE;margin-top:8px">After saving, go to Sales — select any item — price auto-fills.</div>'
+    '<div id="mg_preview">'+mgPreviewHtml(defM,mode)+'</div>'+
+    '<div style="margin-top:12px">'+btn('💾 Save Global '+(mode==='margin'?'Margin':'Markup'),'saveMargin()','#2E7D32')+'</div>'+
+    '<div style="font-size:11px;color:#90A4AE;margin-top:8px">Priority when suggesting a price: Item override → Category override → this Global setting.</div>'
   );
+  // ── Category-level overrides ──
+  var cats={}; D.inventory.forEach(function(it){ if(it.category) cats[it.category]=true; });
+  ['Resale','Raw Material','FG','Consumable'].forEach(function(c){cats[c]=true;});
+  var catList=Object.keys(cats).sort();
+  var cm=(D.settings&&D.settings.categoryMargins)||{};
+  var catRows='';
+  catList.forEach(function(c){
+    var v=(cm[c]!=null&&cm[c]!=='')?cm[c]:'';
+    catRows+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+      '<span style="flex:1;font-size:12px;font-weight:600">'+esc(c)+'</span>'+
+      '<input type="number" id="catmg_'+esc(c)+'" value="'+v+'" placeholder="use global" min="0" max="'+(mode==='margin'?'95':'500')+'" '+
+      'style="width:90px;padding:7px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;text-align:center">'+
+      '<span style="font-size:11px;color:#546E7A">%</span></div>';
+  });
+  h+=card('📁 Category Overrides',
+    '<div style="font-size:12px;color:#546E7A;margin-bottom:10px">Leave blank to fall back to the Global setting above. Applies to all items in that category unless the item itself has an override.</div>'+
+    catRows+
+    btn('💾 Save Category Overrides','saveCategoryMargins()','#2E7D32')
+  );
+  // ── Item-level overrides + live price preview ──
   if(D.inventory&&D.inventory.length>0){
     var rows='',hasCost=false;
     D.inventory.forEach(function(it){
       if(!it.avgCost||it.avgCost<=0) return;
       hasCost=true;
-      var sp=Math.round(it.avgCost*(1+defM/100));
-      rows+='<tr><td style="padding:7px 8px;font-weight:600">'+esc(it.itemName)+'</td>'+
+      var m2=getMarginPct(it);
+      var sp=suggestedPriceFromCost(it.avgCost,m2.pct,mode);
+      rows+='<tr><td style="padding:7px 8px;font-weight:600">'+esc(it.itemName)+'<div style="font-size:9px;color:#546E7A">'+esc(it.category||'')+'</div></td>'+
         '<td style="padding:7px 8px;text-align:right">'+fc(it.avgCost)+'/'+esc(it.unit)+'</td>'+
+        '<td style="padding:7px 8px;text-align:center">'+
+          '<input type="number" value="'+(it.itemMargin!=null?it.itemMargin:'')+'" placeholder="'+m2.pct+'" min="0" max="'+(mode==='margin'?'95':'500')+'" '+
+          'onchange="setItemMargin(\''+it.id+'\',this.value)" style="width:64px;padding:5px;border-radius:6px;border:1px solid #BBDEFB;font-size:12px;text-align:center">'+
+          '<div style="font-size:8px;color:#90A4AE">'+m2.source+'</div></td>'+
         '<td style="padding:7px 8px;text-align:right;color:#1565C0;font-weight:700">'+fc(sp)+'</td>'+
-        '<td style="padding:7px 8px;text-align:right;color:#2E7D32;font-weight:700">'+fc(sp-it.avgCost)+' ('+defM+'%)</td></tr>';
+        '<td style="padding:7px 8px;text-align:right;color:#2E7D32;font-weight:700">'+fc(sp-it.avgCost)+'</td></tr>';
     });
-    if(hasCost) h+=card('📦 Price Preview at '+defM+'% Margin',
+    if(hasCost) h+=card('📦 Item-wise Price Preview & Override',
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">The % box shows the item override if set — otherwise it shows the effective category/global % as a placeholder. Type a value and it saves on blur; clear it to remove the override.</div>'+
       '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
       '<tr style="background:#1565C0;color:#fff"><th style="padding:7px 8px;text-align:left">Item</th>'+
-      '<th style="padding:7px 8px;text-align:right">Cost</th><th style="padding:7px 8px;text-align:right">Sale Price</th>'+
-      '<th style="padding:7px 8px;text-align:right">Profit</th></tr>'+rows+'</table></div>');
+      '<th style="padding:7px 8px;text-align:right">Cost</th><th style="padding:7px 8px;text-align:center">Item %</th>'+
+      '<th style="padding:7px 8px;text-align:right">Sale Price</th><th style="padding:7px 8px;text-align:right">Profit</th></tr>'+rows+'</table></div>');
   }
   return h;
 }
-function mgPreviewHtml(m){
-  m=+m||0;
+function mgPreviewHtml(m,mode){
+  m=+m||0; mode=mode||(D.settings&&D.settings.marginMode)||'markup';
   var ex=[100,250,500,1000,2500],s='<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px">';
-  ex.forEach(function(c){var sp=Math.round(c*(1+m/100));s+='<div style="background:#E8F5E9;border-radius:8px;padding:7px;text-align:center"><div style="font-size:10px;color:#546E7A">Cost ₹'+c+'</div><div style="font-size:13px;font-weight:800;color:#1565C0">₹'+sp+'</div><div style="font-size:10px;color:#2E7D32">+₹'+(sp-c)+'</div></div>';});
+  ex.forEach(function(c){var sp=suggestedPriceFromCost(c,m,mode);s+='<div style="background:#E8F5E9;border-radius:8px;padding:7px;text-align:center"><div style="font-size:10px;color:#546E7A">Cost ₹'+c+'</div><div style="font-size:13px;font-weight:800;color:#1565C0">₹'+sp+'</div><div style="font-size:10px;color:#2E7D32">+₹'+(sp-c)+'</div></div>';});
   return s+'</div>';
 }
 function onMgPreview(v){var el=document.getElementById('mg_preview');if(el)el.innerHTML=mgPreviewHtml(v);}
+function setMarginMode(m){
+  if(!D.settings) D.settings={};
+  D.settings.marginMode=m; sv(); renderPage();
+}
 function saveMargin(){
   var m=gvn('mg_val');
-  if(m===null||isNaN(m)||m<0){toast('Enter valid margin %','e');return;}
+  if(m===null||isNaN(m)||m<0){toast('Enter valid %','e');return;}
   if(!D.settings) D.settings={};
   D.settings.defaultMargin=m;sv();
-  toast('Default margin saved: '+m+'%');renderPage();
+  toast('Global setting saved: '+m+'%');renderPage();
+}
+function saveCategoryMargins(){
+  if(!D.settings) D.settings={};
+  if(!D.settings.categoryMargins) D.settings.categoryMargins={};
+  var cats={}; D.inventory.forEach(function(it){ if(it.category) cats[it.category]=true; });
+  ['Resale','Raw Material','FG','Consumable'].forEach(function(c){cats[c]=true;});
+  Object.keys(cats).forEach(function(c){
+    var el=document.getElementById('catmg_'+c);
+    if(!el) return;
+    var v=el.value;
+    if(v===''||v==null) delete D.settings.categoryMargins[c];
+    else D.settings.categoryMargins[c]=+v;
+  });
+  sv(); toast('Category overrides saved!'); renderPage();
+}
+function setItemMargin(itemId,val){
+  var it=null; for(var i=0;i<D.inventory.length;i++) if(D.inventory[i].id===itemId){it=D.inventory[i];break;}
+  if(!it) return;
+  if(val===''||val==null) delete it.itemMargin;
+  else it.itemMargin=+val;
+  sv(); toast((it.itemMargin!=null?'Item override saved: '+it.itemMargin+'%':'Item override removed — using category/global')); renderPage();
 }
 
 
