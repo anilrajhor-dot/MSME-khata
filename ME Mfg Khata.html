@@ -11,7 +11,7 @@ var _FAQ_DATA=[
 {q:"Purchase entry kaise karen / How to add purchase?",a:"Purchase tab → Date, Supplier → Item select (ya + New Item) → Qty, Rate → Payment mode → Record Purchase tap karen.",tags:["purchase","khareed","buy","enter purchase","record purchase","add purchase"]},
 {q:"Sale kaise record karen / How to record sale?",a:"Sales tab → Date, Customer → Item select → Qty, Price → Payment mode → Record Sale tap karen.",tags:["sale","bikri","sell","enter sale","record sale","add sale"]},
 {q:"Expense kaise add karen / How to add expense?",a:"Expenses tab → Category select (Rent/Salary/Electricity) → Amount → Payment mode → Save Expense.",tags:["expense","kharcha","cost","enter expense","record expense","add expense"]},
-{q:"Balance Sheet tally nahi ho rahi / BS not tallying?",a:"1. Capital aur Loan sahi enter karen. 2. Opening Cash/Bank check karen. 3. Health Check run karen → 100% aana chahiye. / 1. Check capital and loan amounts. 2. Verify opening cash/bank. 3. Run Health Check → should show 100%.",tags:["balance sheet","tally","difference"]},
+{q:"Balance Sheet tally nahi ho rahi / BS not tallying?",a:"1. Capital aur Loan sahi enter karen. 2. Opening Cash/Bank check karen. 3. Health Check run karen — 100% ka matlab hai sabhi applicable checks pass hue. / 1. Check capital and loan amounts. 2. Verify opening cash/bank. 3. Run Health Check — 100% means every applicable check passed, not an arbitrary target.",tags:["balance sheet","tally","difference"]},
 {q:"Cash Flow difference kyun / Why Cash Flow difference?",a:"New business ke liye Opening Cash = 0 rakhein. Existing business ke liye Trial Balance se opening balance sahi enter karen. / For new business keep Opening = 0. For existing business enter opening balance from Trial Balance correctly.",tags:["cash flow","difference","opening"]},
 {q:"Inventory item kaise add karen / How to add inventory?",a:"Inventory tab → Add New Item → Name, Unit, Category, Rate → Save. Ya Purchase mein directly + New Item use karen. / Inventory tab → Add New Item → fill details → Save. Or use + New Item directly in Purchase.",tags:["inventory","stock","item"]},
 {q:"Data backup kaise karen / How to backup?",a:"Data tab → Download Backup → JSON file save hoti hai. Ise safely rakhen. / Data tab → Download Backup → JSON file saves to your phone. Keep it safely.",tags:["backup","save","data"]},
@@ -19,7 +19,7 @@ var _FAQ_DATA=[
 {q:"Loan kaise add karen / How to add loan?",a:"Capital/Loans → Loans → + Add Loan → Lender, Amount, Rate, Tenure → Save. / Capital/Loans → Loans → + Add Loan → fill Lender, Amount, Rate, Tenure → Save.",tags:["loan","karz","borrow"]},
 {q:"Fixed Asset kaise add karen / How to add fixed asset?",a:"Capital/Loans → Fixed Assets → + Add → Name, Date, Cost, Life → Save. Depreciation automatic hoti hai. / Capital/Loans → Fixed Assets → + Add → Name, Date, Cost, Life → Save. Depreciation calculates automatically.",tags:["fixed asset","machinery","FA"]},
 {q:"Report PDF mein kaise save karen / How to export PDF?",a:"Financials → koi bhi report kholen → Print This Report → iPhone: preview pinch out → Share → Save to Files. Ya Data tab → Export All Reports PDF button use karen. / Financials → open any report → Print This Report → iPhone: pinch preview → Share → Save to Files.",tags:["PDF","print","export","report"]},
-{q:"Health Check kya hai / What is Health Check?",a:"10 automatic checks jo aapki books verify karte hain — Balance Sheet, Stock, Cash balance etc. Run karo to errors milenge. / 10 automatic checks that verify your books — Balance Sheet, Stock, Cash etc. Run it to find errors.",tags:["health check","verify","accuracy"]},
+{q:"Health Check kya hai / What is Health Check?",a:"Kai automatic checks jo aapki books verify karte hain — Balance Sheet, Stock, Cash balance etc. Kitne checks chal rahe hain, ye Health Check screen par hi dikhta hai. Run karo to errors milenge. / A full set of automatic checks that verify your books — Balance Sheet, Stock, Cash etc. The exact number of checks is shown on the Health Check screen itself. Run it to find errors.",tags:["health check","verify","accuracy"]},
 {q:"AI Advisor kya karta hai / What does AI Advisor do?",a:"Aapke actual data se 16 business questions ke jawab deta hai — internet ke bina bhi. Profit analysis, stock reorder, loan eligibility sab. / Answers 16 business questions from your actual data — works offline too. Profit analysis, stock reorder, loan eligibility and more.",tags:["AI","advisor","questions"]},
 {q:"Barcode scanner kaise use karen / How to use scanner?",a:"Purchase tab → green 📷 button tap karen → camera khulti hai → barcode scan karo → item auto select. Pehli baar iPhone camera permission maangega → Allow karo. / Purchase tab → tap green 📷 button → camera opens → scan barcode → item auto-selects. First time iPhone asks camera permission → Allow.",tags:["barcode","scanner","camera","scan"]},
 {q:"GST kaise enable karen / How to enable GST?",a:"Profile → GST section → Enable GST → GSTIN enter karen → default rate set karen. Sales entry mein GST automatic calculate hoga. / Profile → GST section → Enable GST → enter GSTIN → set default rate. GST calculates automatically in sales.",tags:["GST","tax","GSTIN"]},
@@ -1511,8 +1511,7 @@ function pgDayEnd(){
       '<p>New Sales/Purchase/Expense entries are blocked until that date\'s issue is resolved.</p></div>'+
       btn('🔧 Fix Now — Open Health Check',"go('healthcheck')",'#C62828');
   } else if(isToday && alreadyClosedToday){
-    statusHtml = '<div class="al als"><div class="alt">✅ Ready to Close — already closed today</div><p>Closed at '+new Date(lastClose.closedAt).toLocaleTimeString()+'. You can still add entries; closing again just updates the record.</p></div>'+
-      btn('✅ Close Day Again','closeDay()','#2E7D32');
+    statusHtml = '<div class="al als"><div class="alt">✅ Ready to Close — Today Already Closed</div><p>Closed at '+new Date(lastClose.closedAt).toLocaleTimeString()+'. One date can only have one official Day Close record — new entries are still fine, but Close Day won\'t create a second record for today.</p></div>';
   } else if(isToday){
     statusHtml = '<div class="al als"><div class="alt">✅ Ready to Close</div><p>Books are balanced — safe to close today.</p></div>'+
       btn('✅ Close Day','closeDay()','#2E7D32');
@@ -2116,7 +2115,7 @@ function pgHealthCheck(){
       '</div></div>':'') +
 
       // Debtors
-      (res.checks.some(function(c){return c.name==='Debtors Reconcile'&&!c.pass;})?
+      (res.checks.some(function(c){return c.name==='Debtor Reasonableness Check'&&!c.pass;})?
       '<div style="background:#FFF3E0;border-left:4px solid #E65100;border-radius:6px;padding:10px;margin-bottom:8px">'+
       '<div style="font-size:12px;font-weight:800;color:#E65100;margin-bottom:6px">⚠️ Debtors Too High — How to Fix</div>'+
       '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
@@ -2129,7 +2128,7 @@ function pgHealthCheck(){
       '</div></div>':'') +
 
       // Creditors
-      (res.checks.some(function(c){return c.name==='Creditors Reconcile'&&!c.pass;})?
+      (res.checks.some(function(c){return c.name==='Creditor Reasonableness Check'&&!c.pass;})?
       '<div style="background:#FFF3E0;border-left:4px solid #E65100;border-radius:6px;padding:10px;margin-bottom:8px">'+
       '<div style="font-size:12px;font-weight:800;color:#E65100;margin-bottom:6px">⚠️ Creditors Too High — How to Fix</div>'+
       '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
@@ -2324,64 +2323,77 @@ function runHealthCheck(){
     },0);
     var _fVal=_f.cs||0;
     var _stockDiff=Math.abs(_invVal-_fVal);
+    // Tolerance is ₹1 — enough to absorb pure floating-point rounding, nothing more. Any real
+    // difference (missing purchase link, stock entered twice, etc.) must show as Warning/Error,
+    // never Pass, so it can't be mistaken for the books being fine.
     checks.push({name:'Closing Stock Consistent',
-      pass:_stockDiff<200,warn:_stockDiff>=200&&_stockDiff<2000,
-      detail:_stockDiff<200?
-        'Inventory value = '+fc(Math.round(_invVal))+' ✅':
-        'Inventory: '+fc(Math.round(_invVal))+
-        ' | Financials: '+fc(Math.round(_fVal))+
-        ' | Diff: '+fc(Math.round(_stockDiff)),
-      fix:_stockDiff>=200?
+      pass:_stockDiff<1,warn:_stockDiff>=1&&_stockDiff<2000,
+      detail:'Inventory Value: '+fc(Math.round(_invVal))+
+        ' | Financials Stock Value: '+fc(Math.round(_fVal))+
+        ' | Difference: '+fc(Math.round(_stockDiff))+
+        (_stockDiff<1?' ✅':''),
+      fix:_stockDiff>=1?
         'Possible cause: Opening stock not entered, or some purchases not linked to an inventory item. '+
         'Check Data → Opening Stock and all Purchase entries.':''});
   }catch(e){checks.push({name:'Closing Stock',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
-  // ── CHECK 6: Debtors Reconciliation ──
+  // ── CHECK 6: Debtor Reconciliation ──
+  // D.debtors is itself the full transaction log (each push is Opening/Credit Sale/Collection/
+  // Return), so this recomputes the closing balance by category from that same log and checks
+  // every entry's reference was correctly recognised — it will not catch drift between two
+  // independently-kept figures (there's only one ledger here to begin with), but it WILL catch
+  // any entry with an unexpected/unrecognised reference, which is the failure mode that matters
+  // for this app's architecture. Shown as a Reasonableness Check for that reason.
   try{
-    var _creditSales=D.sales.filter(function(s){return s.paymentMode==='credit';})
-      .reduce(function(t,s){return t+(s.totalAmount||0);},0);
-    // Also consider TB debtors (prior year) — they are valid
-    var _tbDr=0;
-    if(D.tbPosted&&D.trialBalance){
-      D.trialBalance.forEach(function(t){if(t.head==='debtors'&&t.side==='dr')_tbDr+=(t.amount||0);});
-    }
-    var _totalValidCredit=_creditSales+_tbDr;
-    var _debtWarn=_drs>_totalValidCredit*1.5&&_totalValidCredit>0&&_drs>5000;
-    checks.push({name:'Debtors Reconcile',
-      pass:!_debtWarn,warn:_debtWarn,
-      detail:'Total Debtors: '+fc(Math.round(_drs))+
-        ' | Credit Sales: '+fc(Math.round(_creditSales))+
-        (_tbDr>0?' + TB Opening: '+fc(Math.round(_tbDr)):'')+ 
-        (_debtWarn?' — Debtors seem high':' ✅'),
-      fix:_debtWarn?
-        'Debtors balance is higher than credit sales. '+
-        'Check if: (1) Some collections have been received but not recorded '+
-        '(2) Debtor entry duplicated '+
-        '(3) Go to Capital/Loans → Debtors and verify each entry.':''});
-  }catch(e){checks.push({name:'Debtors',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
+    var _drOpening=0, _drCreditSales=0, _drCollections=0, _drReturns=0, _drUnclassified=0, _drUnclassifiedList=[];
+    D.debtors.forEach(function(d){
+      var ref=d.ref||''; var amt=+d.amount||0;
+      if(ref==='Opening Trial Balance'||ref==='Opening Balance (Manual)') _drOpening+=amt;
+      else if(ref.indexOf('Sale:')===0) _drCreditSales+=amt;
+      else if(ref==='Payment Received'||ref==='Receipt') _drCollections+=-amt;
+      else if(ref==='Sales Return') _drReturns+=-amt;
+      else { _drUnclassified+=amt; _drUnclassifiedList.push((d.name||'Customer')+': '+fc(amt)+' (ref: "'+esc(ref)+'")'); }
+    });
+    var _drCalculated = _drOpening + _drCreditSales - _drCollections - _drReturns;
+    var _drDiff = Math.abs(_drs - _drCalculated - _drUnclassified);
+    checks.push({name:'Debtor Reasonableness Check',
+      pass:_drUnclassified===0&&_drDiff<1, warn:_drUnclassified!==0||_drDiff>=1,
+      detail:'Opening Debtors: '+fc(Math.round(_drOpening))+
+        ' + Credit Sales: '+fc(Math.round(_drCreditSales))+
+        ' − Collections: '+fc(Math.round(_drCollections))+
+        ' − Sales Returns: '+fc(Math.round(_drReturns))+
+        ' = Calculated Closing: '+fc(Math.round(_drCalculated))+
+        ' | Actual Closing: '+fc(Math.round(_drs))+
+        (_drUnclassified!==0?' | Unrecognised entries: '+fc(Math.round(_drUnclassified)):' ✅'),
+      fix:_drUnclassified!==0?
+        'Found debtor entries this check doesn\'t recognise the reference for: '+_drUnclassifiedList.slice(0,3).join('; ')+(_drUnclassifiedList.length>3?' (+'+(_drUnclassifiedList.length-3)+' more)':'')+'. These still count in your Debtors total — check Capital/Loans → Debtors and verify they\'re correct.':''});
+  }catch(e){checks.push({name:'Debtor Reasonableness Check',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
-  // ── CHECK 7: Creditors Reconciliation ──
+  // ── CHECK 7: Creditor Reconciliation ──
   try{
-    var _creditPurch=D.purchases.filter(function(p){return p.paymentMode==='credit';})
-      .reduce(function(t,p){return t+(p.amount||0);},0);
-    var _tbCr=0;
-    if(D.tbPosted&&D.trialBalance){
-      D.trialBalance.forEach(function(t){if(t.head==='creditors'&&t.side==='cr')_tbCr+=(t.amount||0);});
-    }
-    var _totalValidCredit2=_creditPurch+_tbCr;
-    var _credWarn=_cred>_totalValidCredit2*1.5&&_totalValidCredit2>0&&_cred>5000;
-    checks.push({name:'Creditors Reconcile',
-      pass:!_credWarn,warn:_credWarn,
-      detail:'Total Creditors: '+fc(Math.round(_cred))+
-        ' | Credit Purchases: '+fc(Math.round(_creditPurch))+
-        (_tbCr>0?' + TB Opening: '+fc(Math.round(_tbCr)):'')+
-        (_credWarn?' — Creditors seem high':' ✅'),
-      fix:_credWarn?
-        'Creditors balance is higher than credit purchases. '+
-        'Check if: (1) Some supplier payments made but not recorded '+
-        '(2) Creditor entry duplicated '+
-        '(3) Go to Capital/Loans → Creditors and verify each entry.':''});
-  }catch(e){checks.push({name:'Creditors',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
+    var _crOpening=0, _crCreditPurch=0, _crPayments=0, _crReturns=0, _crUnclassified=0, _crUnclassifiedList=[];
+    D.creditors.forEach(function(c){
+      var ref=c.ref||''; var amt=+c.amount||0;
+      if(ref==='Opening Trial Balance'||ref==='Opening Balance (Manual)') _crOpening+=amt;
+      else if(ref.indexOf('Purchase')>=0) _crCreditPurch+=amt;
+      else if(ref==='Payment') _crPayments+=-amt;
+      else if(ref==='Purchase Return') _crReturns+=-amt;
+      else { _crUnclassified+=amt; _crUnclassifiedList.push((c.name||'Supplier')+': '+fc(amt)+' (ref: "'+esc(ref)+'")'); }
+    });
+    var _crCalculated = _crOpening + _crCreditPurch - _crPayments - _crReturns;
+    var _crDiff = Math.abs(_cred - _crCalculated - _crUnclassified);
+    checks.push({name:'Creditor Reasonableness Check',
+      pass:_crUnclassified===0&&_crDiff<1, warn:_crUnclassified!==0||_crDiff>=1,
+      detail:'Opening Creditors: '+fc(Math.round(_crOpening))+
+        ' + Credit Purchases: '+fc(Math.round(_crCreditPurch))+
+        ' − Supplier Payments: '+fc(Math.round(_crPayments))+
+        ' − Purchase Returns: '+fc(Math.round(_crReturns))+
+        ' = Calculated Closing: '+fc(Math.round(_crCalculated))+
+        ' | Actual Closing: '+fc(Math.round(_cred))+
+        (_crUnclassified!==0?' | Unrecognised entries: '+fc(Math.round(_crUnclassified)):' ✅'),
+      fix:_crUnclassified!==0?
+        'Found creditor entries this check doesn\'t recognise the reference for: '+_crUnclassifiedList.slice(0,3).join('; ')+(_crUnclassifiedList.length>3?' (+'+(_crUnclassifiedList.length-3)+' more)':'')+'. These still count in your Creditors total — check Capital/Loans → Creditors and verify they\'re correct.':''});
+  }catch(e){checks.push({name:'Creditor Reasonableness Check',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
   // ── CHECK 8: Loan Balances ──
   try{
@@ -2519,7 +2531,7 @@ function runHealthCheck(){
     {label:'Accounting Accuracy',  score:score(['Balance Sheet Balances','Trial Balance','Trial Balance Tallies','Loan Balances Correct','No Duplicate Voucher Nos.','Data Integrity (Orphaned Sales/Purchases)','COGS Consistency'])},
     {label:'Inventory Accuracy',   score:score(['No Negative Stock','Closing Stock Consistent','No Expired Stock','No Duplicate Stock Movements'])},
     {label:'Cash & Bank',          score:score(['Cash & Bank Position'])},
-    {label:'Data Integrity',       score:score(['Debtors Reconcile','Creditors Reconcile'])},
+    {label:'Data Integrity',       score:score(['Debtor Reasonableness Check','Creditor Reasonableness Check'])},
   ];
 
   window._healthResult={checks:checks,categories:categories};
@@ -4518,10 +4530,16 @@ function closeDay(){
   var errorFindings = (diag.findings||[]).filter(function(f){return f.severity==='error';});
   var hasDiff = Math.abs(bs.diff) > 1 || errorFindings.length>0;
   if(!D.dayCloseState) D.dayCloseState = {lastSeenDate:'', hadUnresolvedDiff:false, blockedSince:null};
+  if(!D.dayClose) D.dayClose = [];
+  var already = D.dayClose.find(function(d){return d.date===td();});
+  if(already){
+    toast('Today is already closed (at '+new Date(already.closedAt).toLocaleTimeString()+'). One date can only have one official Day Close record.','e');
+    renderPage();
+    return;
+  }
   if(hasDiff){
     toast('Cannot close the day — there are unresolved data issues. See the details below and fix them first.','e');
   } else {
-    if(!D.dayClose) D.dayClose = [];
     D.dayClose.push({date:td(), closedAt:new Date().toISOString(), diff:0});
     D.dayCloseState.blockedSince = null;
     D.dayCloseState.hadUnresolvedDiff = false;
@@ -4552,8 +4570,7 @@ function dayCloseCard(){
     }
     h += btn('🔄 Recheck','renderPage()','#546E7A');
   } else if(alreadyClosedToday){
-    h += '<div class="al ali"><div class="alt">✅ Today is already closed</div><p>Closed at '+new Date(lastClose.closedAt).toLocaleTimeString()+'. Books are balanced. You can still make entries — closing again will simply update the record.</p></div>';
-    h += btn('✅ Close Day Again','closeDay()','#2E7D32');
+    h += '<div class="al ali"><div class="alt">✅ Today Already Closed</div><p>Closed at '+new Date(lastClose.closedAt).toLocaleTimeString()+'. Books are balanced. One date can only have one official Day Close record — you can still make entries, but Close Day won\'t create a duplicate for today.</p></div>';
   } else {
     h += '<div class="al ali"><div class="alt">✅ Books are balanced</div><p>Total Assets and Total Liabilities + Capital both tie out. Safe to close the day.</p></div>';
     if(warningFindings.length){
@@ -4906,13 +4923,17 @@ function pgDailyRegister(){
 
   var fieldsHtml = inp('Date','dr_f0','date', td());
   if(typeId==='purchase'){
-    fieldsHtml += itemsDatalist + inp('Item Name','dr_f1','text','','Type or pick existing item','dr_items_dl').replace('<input ','<input oninput="updateDRHint()" ') +
-      suppliersDatalist + inp('Supplier Name','dr_f2','text','','Type or pick existing supplier','dr_suppliers_dl') +
+    fieldsHtml += (D.inventory.length?('<div class="fg"><label>Pick Existing Item (optional)</label><select onchange="document.getElementById(\'dr_f1\').value=this.value;updateDRHint();" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137"><option value="">-- Or type new below --</option>'+[].concat(D.inventory).sort(function(a,b){return (a.itemName||'').localeCompare(b.itemName||'');}).map(function(it){return '<option value="'+esc(it.itemName)+'">'+esc(it.itemName)+'</option>';}).join('')+'</select></div>'):'') +
+      inp('Item Name','dr_f1','text','').replace('<input ','<input oninput="updateDRHint()" ') +
+      (getKnownSupplierNames().length?('<div class="fg"><label>Pick Existing Supplier (optional)</label><select onchange="document.getElementById(\'dr_f2\').value=this.value;" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137"><option value="">-- Or type new below --</option>'+getKnownSupplierNames().map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+'</option>';}).join('')+'</select></div>'):'') +
+      inp('Supplier Name','dr_f2','text','') +
       g2(inp('Quantity','dr_f3','number',''), inp('Rate','dr_f4','number','')) +
       payModeSel('dr_f5','cash');
   } else if(typeId==='sale'){
-    fieldsHtml += itemsDatalist + inp('Item Name','dr_f1','text','','Pick an existing item','dr_items_dl').replace('<input ','<input oninput="updateDRHint()" ') +
-      customersDatalist + inp('Customer Name','dr_f2','text','','Type or pick existing customer','dr_customers_dl') +
+    fieldsHtml += (D.inventory.length?('<div class="fg"><label>Pick Existing Item (optional)</label><select onchange="document.getElementById(\'dr_f1\').value=this.value;updateDRHint();" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137"><option value="">-- Or type new below --</option>'+[].concat(D.inventory).sort(function(a,b){return (a.itemName||'').localeCompare(b.itemName||'');}).map(function(it){return '<option value="'+esc(it.itemName)+'">'+esc(it.itemName)+'</option>';}).join('')+'</select></div>'):'') +
+      inp('Item Name','dr_f1','text','').replace('<input ','<input oninput="updateDRHint()" ') +
+      (getKnownCustomerNames().length?('<div class="fg"><label>Pick Existing Customer (optional)</label><select onchange="document.getElementById(\'dr_f2\').value=this.value;" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137"><option value="">-- Or type new below --</option>'+getKnownCustomerNames().map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+'</option>';}).join('')+'</select></div>'):'') +
+      inp('Customer Name','dr_f2','text','') +
       g2(inp('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" '), inp('Selling Price','dr_f4','number','')) +
       payModeSel('dr_f5','cash');
   } else if(typeId==='expense'){
@@ -6255,8 +6276,8 @@ function pgPur(){
     }
   }
   h+=card('Record Purchase',
-    '<datalist id="pu_suppliers_dl">'+getKnownSupplierNames().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>'+
-    g2(inp('Date','pu_d','date',window._purDate||td()),inp('Supplier','pu_s','text',window._purSupplier||'','Type or pick existing supplier','pu_suppliers_dl'))+
+    (function(){var _supNames=getKnownSupplierNames();return _supNames.length?('<div class="fg"><label>Pick Existing Supplier (optional)</label><select onchange="document.getElementById(\'pu_s\').value=this.value;window._purSupplier=this.value;" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137"><option value="">-- Or type new below --</option>'+_supNames.map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+'</option>';}).join('')+'</select></div>'):'';})()+
+    g2(inp('Date','pu_d','date',window._purDate||td()),inp('Supplier','pu_s','text',window._purSupplier||''))+
     _scanPurBtn+
     '<div class="fg"><label>Item</label><select id="pu_i" onchange="onPurItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===sel?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
@@ -6358,10 +6379,17 @@ function pgProduction(){
       return '<tr><td style="padding:6px 4px">'+esc(c.itemName)+'</td><td style="padding:6px;text-align:right">'+fmt(c.qty)+' '+esc(c.unit)+'</td><td style="padding:6px;text-align:right">'+fc(c.cost)+'</td><td style="padding:6px;text-align:right">'+btn('✕','removeFromProductionCart('+idx+')','#C62828')+'</td></tr>';
     }).join('');
     var qtyProd = gvn('prod_qty')||window._prodQty||0;
+    var labourCostInput = hasOutput ? (
+      inp('Labour/Overhead Cost for this batch (₹, optional)','prod_labour','number',window._prodLabour||0)+
+      '<div style="font-size:10px;color:#546E7A;margin-top:-8px;margin-bottom:8px">Adds directly to this batch\'s per-unit cost (so the Finished Good\'s Avg Cost reflects labour too, not just materials). This is a costing allocation only — it does NOT create a new cash/expense entry, so make sure you\'re not also mapping the same cost under Manufacturing Costing\'s Direct Labour category in Financials (that would count it twice).</div>'
+    ) : '';
+    var totalWithLabour = total + (hasOutput ? (gvn('prod_labour')||0) : 0);
     h += card('Materials to be Consumed',
       '<table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px 4px">Item</th><th style="text-align:right;padding:6px">Qty</th><th style="text-align:right;padding:6px">Cost</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+
       '<div style="margin-top:8px;font-weight:700">Total Material Cost: '+fc(total)+'</div>'+
-      (hasOutput ? (qtyProd>0 ? '<div style="font-size:12px;color:#546E7A">Cost per unit produced: '+fc(total/qtyProd)+'</div>' : '<div class="al ali">Enter Quantity Produced above to see cost per unit.</div>') : '')+
+      labourCostInput+
+      (hasOutput && (gvn('prod_labour')||0)>0 ? '<div style="font-weight:700">Total Batch Cost (Material + Labour): '+fc(totalWithLabour)+'</div>' : '')+
+      (hasOutput ? (qtyProd>0 ? '<div style="font-size:12px;color:#546E7A">Cost per unit produced: '+fc(totalWithLabour/qtyProd)+'</div>' : '<div class="al ali">Enter Quantity Produced above to see cost per unit.</div>') : '')+
       inp('Notes (optional)','prod_notes','text',window._prodNotes||'')+
       btn(hasOutput?'✓ Record Production':'✓ Record Write-off','addProduction()','#2E7D32')
     );
@@ -6372,7 +6400,9 @@ function pgProduction(){
       {l:'Date',k:'date'},
       {l:'Finished Good',k:'fgItemName'},
       {l:'Qty Produced',r:1,fn:function(r){return fmt(r.qtyProduced);}},
-      {l:'Material Cost',r:1,fn:function(r){return fc(r.totalCost);}},
+      {l:'Material Cost',r:1,fn:function(r){return fc(r.materialCost!=null?r.materialCost:r.totalCost);}},
+      {l:'Labour Cost',r:1,fn:function(r){return r.labourCost?fc(r.labourCost):'—';}},
+      {l:'Total Cost',r:1,fn:function(r){return fc(r.totalCost);}},
       {l:'Cost/Unit',r:1,fn:function(r){return fc(r.qtyProduced>0?r.totalCost/r.qtyProduced:0);}},
       {l:'Notes',k:'notes'},
       {l:'',fn:function(r){return btn('Delete','deleteProduction('+Q+r.id+Q+')','#C62828');}}
@@ -6492,14 +6522,21 @@ function addProduction(){
     consumedRecords.push({itemId:item3.id,itemName:item3.itemName,unit:item3.unit,qty:c3.qty,cost:draw3.cogs,fromIndig:draw3.fromIndig,fromImp:draw3.fromImp,indigCostEach:item3.avgCost,impCostEach:item3.importedAvgCost||0});
   }
 
+  // Optional labour/overhead allocated directly to this batch — a costing figure only, no
+  // cash/expense entry (that should already exist separately, e.g. as a Salary expense; this
+  // just folds a share of it into the Finished Good's per-unit cost).
+  var labourCost = gvn('prod_labour')||0;
+  var materialCost = totalCost;
+  totalCost += labourCost;
+
   // Add produced quantity to the FG item's stock at the computed unit cost (weighted average)
   var unitCost = qtyProd>0 ? totalCost/qtyProd : 0;
   var tq=fgItem.currentStock+qtyProd, tv=fgItem.currentStock*fgItem.avgCost+totalCost;
   fgItem.currentStock=tq; fgItem.avgCost=tq>0?tv/tq:unitCost;
 
-  D.productions.push({id:uid(),date:date,fgItemId:fgItem.id,fgItemName:fgItem.itemName,qtyProduced:qtyProd,consumedItems:consumedRecords,totalCost:totalCost,notes:notes});
+  D.productions.push({id:uid(),date:date,fgItemId:fgItem.id,fgItemName:fgItem.itemName,qtyProduced:qtyProd,consumedItems:consumedRecords,materialCost:materialCost,labourCost:labourCost,totalCost:totalCost,notes:notes});
   sv();
-  window._prodCart=[];window._prodFG=null;window._prodNewName=null;window._prodQty=null;window._prodNotes=null;window._prodItem='';window._prodMQty='';
+  window._prodCart=[];window._prodFG=null;window._prodNewName=null;window._prodQty=null;window._prodNotes=null;window._prodItem='';window._prodMQty='';window._prodLabour=null;
   renderPage();
   toast('Production recorded! '+fmt(qtyProd)+' '+fgItem.unit+' of '+fgItem.itemName+' added to stock.'+(reclassified?' (Item was reclassified to "Finished Goods" so it appears in Sales.)':''));
 }
@@ -6734,8 +6771,8 @@ function pgSal(){
 
       h += '<div style="margin-bottom:8px"><button onclick="openScanner(\'inv_barcode\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📷 Scan Barcode / QR Code</button></div>';
   h+=card('Record Sale',
-    '<datalist id="sl_customers_dl">'+getKnownCustomerNames().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>'+
-    g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||'','Type or pick existing customer','sl_customers_dl'))+
+    (function(){var _custNames=getKnownCustomerNames();return _custNames.length?('<div class="fg"><label>Pick Existing Customer (optional)</label><select onchange="document.getElementById(\'sl_c\').value=this.value;window._salCustomer=this.value;" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137"><option value="">-- Or type new below --</option>'+_custNames.map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+'</option>';}).join('')+'</select></div>'):'';})()+
+    g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||''))+
     '<div class="fg"><label>Item</label><select id="sl_i" onchange="onSalItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===selId?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
     '</select></div>'+
@@ -22034,7 +22071,7 @@ var _EXTRA_FAQ_DATA=[
 {q:"Loan outstanding balance is wrong", a:"Check for a negative outstanding balance, or an outstanding amount greater than the sanctioned amount, in <b>Capital/Loans → Loans</b>. Health Check → 'Loan Balances Correct' names the exact lender and issue.",tags:["loan balance wrong","loan mismatch","loan outstanding wrong"],diag:true,liveCheck:['Loan Balances']},
 {q:"Bank statement doesn't match my app entries", a:"Use <b>Bank Recon</b> → upload your bank statement (CSV/Excel) → it auto-matches against your recorded entries and lists unmatched bank transactions and unmatched app entries (e.g. cheques not yet cleared).",tags:["bank statement mismatch","bank reconciliation","passbook mismatch"],diag:true},
 {q:"Duplicate bill or voucher numbers found", a:"Go to <b>Reports → Bills</b> and edit the duplicate bill number. Health Check → 'No Duplicate Voucher Nos.' lists the exact duplicates.",tags:["duplicate bill","duplicate voucher"],diag:true,liveCheck:['Duplicate']},
-{q:"How does Health Check find differences?", a:"It runs 10 checks: Trial Balance tally, Balance Sheet tally, Cash & Bank position, Negative Stock, Closing Stock consistency, Debtors/Creditors reconciliation, Loan balances, Duplicate vouchers, Expired stock. Go to <b>Health Check</b> → tap <b>Run Health Check</b>.",tags:["what is health check","10 checks","accuracy score"],diag:true}
+{q:"How does Health Check find differences?", a:"It runs a full set of checks — Trial Balance tally, Balance Sheet tally, Cash & Bank position, Negative Stock, Closing Stock consistency, Debtor/Creditor reasonableness, Loan balances, Duplicate vouchers, Duplicate Stock Movements, COGS Consistency, Expired Stock, and others as they get added — each listed by its actual name and result once you run it, so the count you see always matches what really ran. Go to <b>Health Check</b> → tap <b>Run Health Check</b>.",tags:["what is health check","accuracy score"],diag:true}
 ];
 
 var _FAQ_STOP={"how":1,"to":1,"a":1,"an":1,"the":1,"is":1,"are":1,"my":1,"i":1,"in":1,"on":1,"of":1,"and":1,"or":1,"do":1,"does":1,"what":1,"for":1,"with":1,"it":1,"me":1,"can":1,"you":1,"please":1,"want":1,"find":1,"out":1};
