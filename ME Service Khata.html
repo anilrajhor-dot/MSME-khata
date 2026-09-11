@@ -2031,7 +2031,7 @@ function pgHealthCheck(){
       // Debtors
       (res.checks.some(function(c){return c.name==='Debtor Reasonableness Check'&&!c.pass;})?
       '<div style="background:#FFF3E0;border-left:4px solid #E65100;border-radius:6px;padding:10px;margin-bottom:8px">'+
-      '<div style="font-size:12px;font-weight:800;color:#E65100;margin-bottom:6px">⚠️ Debtors Too High — How to Fix</div>'+
+      '<div style="font-size:12px;font-weight:800;color:#E65100;margin-bottom:6px">⚠️ Debtor Balance Check — How to Fix</div>'+
       '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
       '<b>Step 1:</b> Go to <b>Capital/Loans → Debtors</b> — list all outstanding debtors<br>'+
       '<b>Step 2:</b> Check if any debtor has already paid but not updated<br>'+
@@ -2044,7 +2044,7 @@ function pgHealthCheck(){
       // Creditors
       (res.checks.some(function(c){return c.name==='Creditor Reasonableness Check'&&!c.pass;})?
       '<div style="background:#FFF3E0;border-left:4px solid #E65100;border-radius:6px;padding:10px;margin-bottom:8px">'+
-      '<div style="font-size:12px;font-weight:800;color:#E65100;margin-bottom:6px">⚠️ Creditors Too High — How to Fix</div>'+
+      '<div style="font-size:12px;font-weight:800;color:#E65100;margin-bottom:6px">⚠️ Creditor Balance Check — How to Fix</div>'+
       '<div style="font-size:11px;color:#37474F;line-height:1.9">'+
       '<b>Step 1:</b> Go to <b>Capital/Loans → Creditors</b> — list all outstanding creditors<br>'+
       '<b>Step 2:</b> Check if any supplier was paid but not recorded<br>'+
