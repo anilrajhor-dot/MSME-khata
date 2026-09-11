@@ -4741,6 +4741,29 @@ function pgDailyRegister(){
   var loansDatalist = '<datalist id="dr_loans_dl">'+loanNames.map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>';
   var suppliersDatalist = '<datalist id="dr_suppliers_dl">'+getKnownSupplierNames().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>';
   var customersDatalist = '<datalist id="dr_customers_dl">'+getKnownCustomerNames().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>';
+  // Proper dropdowns (not just type-ahead) for Debtor Receipt / Creditor Payment / Loan
+  // Instalment — these show the outstanding balance right in the option, so you can see who
+  // owes what (or is owed what) while picking, rather than typing a name blind and checking
+  // the balance only after.
+  var debtorOpts = [{v:'',l:'-- Select Debtor --'}].concat(
+    debtorNames.map(function(n){
+      var due = D.debtors.filter(function(d){return d.name===n;}).reduce(function(s,d){return s+d.amount;},0);
+      return {v:n, l:n+' — Due: '+fc(due)};
+    }).sort(function(a,b){return a.v.localeCompare(b.v);})
+  );
+  var creditorOpts = [{v:'',l:'-- Select Creditor --'}].concat(
+    creditorNames.map(function(n){
+      var due = D.creditors.filter(function(c){return c.name===n;}).reduce(function(s,c){return s+c.amount;},0);
+      return {v:n, l:n+' — Owed: '+fc(due)};
+    }).sort(function(a,b){return a.v.localeCompare(b.v);})
+  );
+  var loanOpts = [{v:'',l:'-- Select Loan --'}].concat(
+    loanNames.filter(Boolean).map(function(n){
+      var loan = D.loans.filter(function(l){return l.lender===n;})[0];
+      return {v:n, l:n+' — Outstanding: '+fc(loan?loan.outstandingBalance||0:0)};
+    })
+  );
+
 
   var fieldsHtml = inp('Date','dr_f0','date', td());
   if(typeId==='purchase'){
@@ -4757,15 +4780,15 @@ function pgDailyRegister(){
     fieldsHtml += sl('Category','dr_f1',D.expenseCategories,D.expenseCategories[0]) + inp('Amount','dr_f2','number','') +
       payModeSel('dr_f3','cash');
   } else if(typeId==='debtorReceipt'){
-    fieldsHtml += debtorsDatalist + inp('Customer Name','dr_f1','text','','Pick an existing debtor','dr_debtors_dl').replace('<input ','<input oninput="updateDRHint()" ') +
+    fieldsHtml += sl('Customer','dr_f1',debtorOpts,'').replace('id="dr_f1"','id="dr_f1" onchange="updateDRHint()"') +
       inp('Amount Received','dr_f2','number','') +
       payModeSel('dr_f3','cash');
   } else if(typeId==='creditorPayment'){
-    fieldsHtml += creditorsDatalist + inp('Supplier Name','dr_f1','text','','Pick an existing creditor','dr_creditors_dl').replace('<input ','<input oninput="updateDRHint()" ') +
+    fieldsHtml += sl('Supplier','dr_f1',creditorOpts,'').replace('id="dr_f1"','id="dr_f1" onchange="updateDRHint()"') +
       inp('Amount Paid','dr_f2','number','') +
       payModeSel('dr_f3','cash');
   } else if(typeId==='loanInstalment'){
-    fieldsHtml += loansDatalist + inp('Lender Name','dr_f1','text','','Pick an existing loan','dr_loans_dl').replace('<input ','<input oninput="updateDRHint()" ') +
+    fieldsHtml += sl('Lender','dr_f1',loanOpts,'').replace('id="dr_f1"','id="dr_f1" onchange="updateDRHint()"') +
       inp('Amount Paid','dr_f2','number','') +
       payModeSel('dr_f3','cash');
   } else if(typeId==='fixedAsset'){
