@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <script>
-var _BUILD="202609100001"; // Version 11.1 — Stabilisation & Accuracy Release
+var _BUILD="202609110002"; // Version 11.2 — Existing Business Accounting & Opening Data
 try{ sessionStorage.setItem("mfm_build",_BUILD); }catch(e){}
 // Note: removed forced location.reload() — this caused blank screens in
 // standalone "Add to Home Screen" mode on iOS Safari (reload loop/race condition)
@@ -167,7 +167,7 @@ input[type=text], input[type=number], input[type=date], textarea { cursor:text !
     <b id="tbn">🛒 Trade Accounts</b>
     <small id="tbp">Dashboard</small>
   </div>
-  <span style="font-size:9px;color:rgba(255,255,255,0.65);margin-right:8px;white-space:nowrap">v11.1</span>
+  <span style="font-size:9px;color:rgba(255,255,255,0.65);margin-right:8px;white-space:nowrap">v11.2</span>
   <button onclick="toggleHi()" id="lb">हि</button>
 </div>
 <div id="nav"></div>
@@ -204,7 +204,7 @@ function defD(){
     dayCloseState:{lastSeenDate:'', hadUnresolvedDiff:false, blockedSince:null},
     reconIgnored:[],
     reconManualMatches:[],
-    appVersion:'11.1',
+    appVersion:'11.2',
     qrPayments:[],
     expenses:[],
     cashBook:[],
@@ -402,7 +402,7 @@ function migrateData(d){
   if(!d.settings.categoryMargins) d.settings.categoryMargins={};
   if(!d.reconIgnored) d.reconIgnored=[];
   if(!d.reconManualMatches) d.reconManualMatches=[];
-  d.appVersion='11.1'; // always stamp current version on load — informational only, not a storage key
+  d.appVersion='11.2'; // always stamp current version on load — informational only, not a storage key
   if(!d.partyCodes) d.partyCodes={};
   if(!d.customHSN) d.customHSN={};
   if(!d.incomeTax) d.incomeTax={ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false};
@@ -2201,6 +2201,65 @@ function runHealthCheck(){
         'Open Sales Register, find the listed entries, and re-check the quantity and item — if the sale was edited after the item\'s cost changed, delete and re-enter it so COGS recalculates correctly.':''});
   }catch(e){checks.push({name:'COGS Consistency',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
 
+  // ── CHECK 13: GST Ledger Consistency ──
+  // D.gstLedger is a separate array from Sales/Purchases (it exists so GST can be tracked,
+  // adjusted, and reversed independently of the underlying transaction) — unlike Debtors/
+  // Creditors/Stock, this genuinely is two independently-maintained figures, so comparing them
+  // catches a real class of bug: a sale/purchase edited or deleted without its GST ledger entry
+  // being kept in sync.
+  try{
+    if(gstEnabled()){
+      var _outputGSTFromSales=0; D.sales.forEach(function(s){_outputGSTFromSales+=(+s.gstAmount||0);});
+      (D.salesReturns||[]).forEach(function(r){_outputGSTFromSales-=(+r.gstAmount||0);});
+      var _outputGSTFromLedger=0; (D.gstLedger||[]).forEach(function(g){ if(g.type==='output') _outputGSTFromLedger+=(+g.amount||0); });
+      var _inputGSTFromPurch=0; D.purchases.forEach(function(p){_inputGSTFromPurch+=(+p.gstAmount||0);});
+      (D.purchaseReturns||[]).forEach(function(r){_inputGSTFromPurch-=(+r.gstAmount||0);});
+      var _inputGSTFromLedger=0; (D.gstLedger||[]).forEach(function(g){ if(g.type==='input') _inputGSTFromLedger+=(+g.amount||0); });
+      var _outDiff=Math.abs(_outputGSTFromSales-_outputGSTFromLedger);
+      var _inDiff=Math.abs(_inputGSTFromPurch-_inputGSTFromLedger);
+      var _gstOk=_outDiff<1&&_inDiff<1;
+      checks.push({name:'GST Ledger Consistency',
+        pass:_gstOk, warn:!_gstOk,
+        detail:'Output GST — from Sales: '+fc(Math.round(_outputGSTFromSales))+' | in GST Ledger: '+fc(Math.round(_outputGSTFromLedger))+
+          ' | Input GST — from Purchases: '+fc(Math.round(_inputGSTFromPurch))+' | in GST Ledger: '+fc(Math.round(_inputGSTFromLedger))+
+          (_gstOk?' ✅':' | Difference — Output: '+fc(Math.round(_outDiff))+', Input: '+fc(Math.round(_inDiff))),
+        fix:!_gstOk?
+          'A Sale, Purchase, or Return may have been edited/deleted without its GST Ledger entry updating to match. Check GST Module → GST Ledger against Sales/Purchase Registers for the mismatched period.':''});
+    } else {
+      checks.push({name:'GST Ledger Consistency', pass:true, warn:false, detail:'GST is not enabled for this business — nothing to check ✅', fix:''});
+    }
+  }catch(e){checks.push({name:'GST Ledger Consistency',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
+
+  // ── CHECK 14: Cash Flow Reconciliation ──
+  // Opening Cash/Bank + all Cash Book movement must equal the closing balance shown everywhere
+  // else in the app. Since both sides are derived from the same D.cashBook array, this is a
+  // confirmatory check (it can't catch independent-ledger drift, because there IS only one
+  // ledger) — but it does catch a genuine bug class: a movement recorded with a bad/missing
+  // mode that getBalances() silently skips.
+  try{
+    var _openCashBank=(+D.opening.cash||0)+(+D.opening.bank||0);
+    var _movement=0, _skippedEntries=0;
+    D.cashBook.forEach(function(x){
+      if(!x.mode){ _skippedEntries++; return; }
+      if(x.mode==='cc'||x.mode==='od'||x.mode.indexOf('cc:')===0||x.mode.indexOf('od:')===0) return;
+      _movement += (x.type==='receipt'?x.amount:-x.amount);
+    });
+    var _calculatedClosing=_openCashBank+_movement;
+    var _bal=getBalances();
+    var _actualClosing=_bal.cb+_bal.bb;
+    var _cfDiff=Math.abs(_calculatedClosing-_actualClosing);
+    checks.push({name:'Cash Flow Reconciliation',
+      pass:_cfDiff<1&&_skippedEntries===0, warn:_cfDiff>=1||_skippedEntries>0,
+      detail:'Opening Cash/Bank: '+fc(Math.round(_openCashBank))+
+        ' + Net Movement: '+fc(Math.round(_movement))+
+        ' = Calculated Closing: '+fc(Math.round(_calculatedClosing))+
+        ' | Actual Closing: '+fc(Math.round(_actualClosing))+
+        (_skippedEntries>0?' | '+_skippedEntries+' cash-book entr'+(_skippedEntries===1?'y':'ies')+' skipped (missing payment mode)':'')+
+        (_cfDiff<1&&_skippedEntries===0?' ✅':''),
+      fix:(_cfDiff>=1||_skippedEntries>0)?
+        'Check Cash/Bank register for an entry with a missing or corrupted payment mode — Data → Backup, then review recent Cash/Bank entries.':''});
+  }catch(e){checks.push({name:'Cash Flow Reconciliation',pass:false,warn:true,detail:'Error: '+e.message,fix:''});}
+
   // ── CATEGORY SCORES — by check NAME not index ──
   function findCheck(name){
     var exact=checks.find(function(c){return c.name===name;});
@@ -2217,7 +2276,7 @@ function runHealthCheck(){
   }
 
   var categories=[
-    {label:'Accounting Accuracy',  score:score(['Balance Sheet Balances','Trial Balance','Trial Balance Tallies','Loan Balances Correct','No Duplicate Voucher Nos.','Data Integrity (Orphaned Sales/Purchases)','COGS Consistency'])},
+    {label:'Accounting Accuracy',  score:score(['Balance Sheet Balances','Trial Balance','Trial Balance Tallies','Loan Balances Correct','No Duplicate Voucher Nos.','Data Integrity (Orphaned Sales/Purchases)','COGS Consistency','GST Ledger Consistency','Cash Flow Reconciliation'])},
     {label:'Inventory Accuracy',   score:score(['No Negative Stock','Closing Stock Consistent','No Expired Stock','No Duplicate Stock Movements'])},
     {label:'Cash & Bank',          score:score(['Cash & Bank Position'])},
     {label:'Data Integrity',       score:score(['Debtor Reasonableness Check','Creditor Reasonableness Check'])},
@@ -7461,9 +7520,9 @@ function addSal(){
     if(mode!=='credit' && !validateCCOD(mode)) return;
   }
   var effMode = adv ? 'advance' : mode;
+  var saleId=uid();
   lastSale={gp:gp,pct:pct,tot:tot,unit:item.unit,amountDue:totForPosting,custName:c2,itemName:item.itemName,mode:effMode,saleId:saleId};
   var custCode=getPartyCode(c2,'customer');
-  var saleId=uid();
   D.sales.push({id:saleId,date:date,customerName:c2,partyCode:custCode,itemId:iid,itemName:item.itemName,unit:item.unit,qty:q,sellingPrice:p,totalAmount:tot,cogs:cogs,grossProfit:gp,profitPct:pct,paymentMode:effMode,isExport:isExport,advanceId:adv?adv.id:undefined,fromIndig:draw.fromIndig,fromImp:draw.fromImp,indigCostEach:item.avgCost,impCostEach:item.importedAvgCost||0,gstRate:gstRate,gstType:gstType,taxableValue:tot,gstAmount:gstAmt,gstPaymentMode:adv?mode:undefined});
   drawStock(item, q);
   if(adv){
@@ -13456,7 +13515,7 @@ function pgHelp(){
   h += '<div style="font-weight:700;font-size:14px">ME Khata Suite</div>';
   h += '<div style="font-size:11px;opacity:0.9;margin-top:2px">' + (isHi ? 'विकसित: अनिल शर्मा, पूर्व महाप्रबंधक — सेंट्रल बैंक ऑफ इंडिया' : 'Developed by: Anil Sharma, Former General Manager — Central Bank of India') + '</div>';
   h += '<div style="font-size:11px;opacity:0.85">' + (isHi ? 'पूर्व महाप्रबंधक — सेंट्रल बैंक ऑफ इंडिया' : 'Former General Manager, Central Bank of India') + '</div>';
-  h += '<div style="font-size:10px;opacity:0.75;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.2)">ME Trading Khata — Version 11.1 (Stabilisation &amp; Accuracy Release) · Build ' + _BUILD + '</div>';
+  h += '<div style="font-size:10px;opacity:0.75;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.2)">ME Trading Khata — Version 11.2 (Existing Business Accounting &amp; Opening Data) · Build ' + _BUILD + '</div>';
   h += '</div>';
 
   function hs(title, body, open) {
