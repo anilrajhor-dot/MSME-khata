@@ -231,7 +231,7 @@ function defD(){
     bills:[],
     nextBillNo:1,
     expenseCategories:['Rent','Electricity','Salary','Transportation','Telephone','Fuel','Repair','Marketing','Interest Payment','Freight Inward','Carriage Inward','Loading/Unloading (Purchase)','Miscellaneous'],
-    settings:{creditDays:30,defaultMargin:20},
+    settings:{creditDays:30,defaultMargin:20,voiceAnnounce:false},
     partyCodes:{},
     customHSN:{},
     incomeTax:{ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false},
@@ -396,7 +396,8 @@ function migrateData(d){
   if(d.loanAssessment && d.loanAssessment.marginPctTurnover===undefined) d.loanAssessment.marginPctTurnover=25;
   if(d.loanAssessment && d.loanAssessment.marginPctTandon===undefined) d.loanAssessment.marginPctTandon=25;
   if(d.loanAssessment && d.loanAssessment.useManual===undefined) d.loanAssessment.useManual=false;
-  if(!d.settings) d.settings={creditDays:30,defaultMargin:20};
+  if(!d.settings) d.settings={creditDays:30,defaultMargin:20,voiceAnnounce:false};
+  if(d.settings.voiceAnnounce===undefined) d.settings.voiceAnnounce=false;
   if(d.settings.defaultMargin===undefined) d.settings.defaultMargin=20;
   if(!d.partyCodes) d.partyCodes={};
   if(!d.customHSN) d.customHSN={};
@@ -1103,6 +1104,26 @@ function tbl(cols,rows){
 function fsr(lbl,amt,bold,ind,tot,col){return '<div class="fsr" style="font-weight:'+(bold||tot?700:400)+';background:'+(tot?'rgba(0,0,0,.04)':'transparent')+';padding-left:'+(ind?22:8)+'px"><span>'+esc(lbl)+'</span>'+(amt!==undefined?'<span'+(col?' style="color:'+col+'"':'')+'>'+fc(amt)+'</span>':'')+'</div>';}
 function bar(data,col,h){h=h||55;if(!data||!data.length)return'';var mx=1,i;for(i=0;i<data.length;i++)if(data[i].v>mx)mx=data[i].v;var s='<div style="display:flex;align-items:flex-end;gap:3px;height:'+h+'px">';for(i=0;i<data.length;i++){var p=Math.max(3,data[i].v/mx*100);s+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%"><div style="flex:1;display:flex;align-items:flex-end;width:100%"><div style="width:100%;background:'+col+';border-radius:3px 3px 0 0;height:'+p+'%"></div></div><div style="font-size:8px;color:#546E7A;text-align:center;overflow:hidden;max-width:100%">'+esc(data[i].l)+'</div></div>';}return s+'</div>';}
 function toast(msg,col){var el=document.createElement('div');el.className='toast';el.style.background=col==='e'?'#C62828':col==='w'?'#E65100':'#2E7D32';el.textContent=msg;document.body.appendChild(el);setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},2200);}
+function toggleVoiceAnnounce(){
+  D.settings.voiceAnnounce = document.getElementById('voice_announce_toggle').checked;
+  sv();
+  if(D.settings.voiceAnnounce) announceEntry('Voice announcements are now on.', 'आवाज़ की घोषणा अब चालू है।');
+}
+// Speaks a short confirmation of what was just recorded, using the browser's built-in text-to-
+// speech (no external service, works offline). Off by default - opt in via Data -> Overview.
+// Matches whichever UI language is currently active (English/Hindi toggle).
+function announceEntry(textEn, textHi){
+  if(!D.settings || !D.settings.voiceAnnounce) return;
+  if(!('speechSynthesis' in window)) return;
+  try{
+    window.speechSynthesis.cancel();
+    var text = window._hi ? (textHi||textEn) : textEn;
+    var utter = new SpeechSynthesisUtterance(text);
+    utter.lang = window._hi ? 'hi-IN' : 'en-IN';
+    utter.rate = 0.95;
+    window.speechSynthesis.speak(utter);
+  }catch(e){}
+}
 function pmChip(m){
   var c={cash:'#1565C0',bank:'#5B5BD6',upi:'#2E7D32',credit:'#E65100',cc:'#C62828',od:'#C62828',advance:'#00897B'};
   var l={cash:'Cash',bank:'Bank',upi:'UPI',credit:'Credit',cc:'CC',od:'OD',advance:'Advance'};
@@ -4510,6 +4531,19 @@ function addDailyRegisterEntry(){
   }
   window._drLastError = null;
   commitBulkImport(typeId, result.valid);
+  var r0 = result.valid[0];
+  var amt = r0.qty ? Math.round(r0.qty*(r0.rate||r0.price)) : Math.round(r0.amount||r0.cost||0);
+  var sentences = {
+    purchase: ['Purchase recorded for rupees '+amt+' from '+r0.supplier+', paid by '+r0.mode+'.', 'रुपये '+amt+' की खरीद '+r0.supplier+' से दर्ज हुई, '+r0.mode+' से।'],
+    sale: ['Sale recorded for rupees '+amt+' to '+r0.customer+', paid by '+r0.mode+'.', 'रुपये '+amt+' की बिक्री '+r0.customer+' को दर्ज हुई, '+r0.mode+' से।'],
+    expense: ['Expense recorded for rupees '+amt+' for '+r0.category+', paid by '+r0.mode+'.', 'रुपये '+amt+' का खर्च '+r0.category+' के लिए दर्ज हुआ, '+r0.mode+' से।'],
+    debtorReceipt: ['Payment of rupees '+amt+' received from '+r0.customer+'.', 'रुपये '+amt+' का भुगतान '+r0.customer+' से प्राप्त हुआ।'],
+    creditorPayment: ['Payment of rupees '+amt+' made to '+r0.supplier+'.', 'रुपये '+amt+' का भुगतान '+r0.supplier+' को किया गया।'],
+    loanInstalment: ['Loan instalment of rupees '+amt+' paid to '+r0.lender+'.', 'रुपये '+amt+' की लोन किश्त '+r0.lender+' को चुकाई गई।'],
+    fixedAsset: ['Fixed asset '+r0.assetName+' recorded for rupees '+amt+'.', r0.assetName+' संपत्ति रुपये '+amt+' में दर्ज हुई।']
+  };
+  var s0 = sentences[typeId];
+  if(s0) announceEntry(s0[0], s0[1]);
   toast('✅ Entry recorded — posted to '+t.label+'.');
   renderPage();
 }
@@ -5774,7 +5808,7 @@ function addPur(){
     if(gstAmt>0.005){
       D.gstLedger.push({id:uid(), date:date, type:'input', amount:gstAmt, ref:'Purchase: '+item.itemName, purchaseId:purchaseId});
     }
-    sv();window._purItem='__new__';window._purSupplier='';window._purNewName='';window._purImport=false;window._purDate=null;window._purQty=null;window._purRate=null;window._purMode=null;window._purGstRate=null;go('purchase');toast('Recorded! Stock updated.');
+    sv();announceEntry('Purchase recorded for rupees '+Math.round(amtForPosting)+' from '+s+', paid by '+effMode+'.', 'रुपये '+Math.round(amtForPosting)+' की खरीद '+s+' से दर्ज हुई, '+effMode+' से।');window._purItem='__new__';window._purSupplier='';window._purNewName='';window._purImport=false;window._purDate=null;window._purQty=null;window._purRate=null;window._purMode=null;window._purGstRate=null;go('purchase');toast('Recorded! Stock updated.');
   });
 }
 // ===== SALES =====
@@ -6980,7 +7014,7 @@ function addSal(){
   if(gstAmt>0.005){
     D.gstLedger.push({id:uid(), date:date, type:'output', amount:gstAmt, ref:'Sale: '+item.itemName, saleId:saleId});
   }
-  sv();window._salItem='';window._salCustomer='';window._salDate=null;window._salQty=null;window._salPrice=null;window._salMode=null;window._salExport=false;window._salGstRate=null;go('sales');toast('Sale recorded!');
+  sv();announceEntry('Sale recorded for rupees '+Math.round(totForPosting)+' to '+c2+', paid by '+effMode+'.', 'रुपये '+Math.round(totForPosting)+' की बिक्री '+c2+' को दर्ज हुई, '+effMode+' से।');window._salItem='';window._salCustomer='';window._salDate=null;window._salQty=null;window._salPrice=null;window._salMode=null;window._salExport=false;window._salGstRate=null;go('sales');toast('Sale recorded!');
 }
 // ===== EXPENSES =====
 function pgExp(){
@@ -7057,7 +7091,7 @@ function addExp(){
     }else{
       postCB(mode,'payment',a,rem||cat,'Expense: '+cat,date);
     }
-    sv();go('expenses');toast('Added!');
+    sv();announceEntry('Expense recorded for rupees '+Math.round(a)+' for '+cat+', paid by '+effMode+'.', 'रुपये '+Math.round(a)+' का खर्च '+cat+' के लिए दर्ज हुआ, '+effMode+' से।');go('expenses');toast('Added!');
   });
 }
 // ===== CASH & BANK =====
@@ -9379,6 +9413,10 @@ function pgDat(){
     '4. When you get an app update → restore from backup → add to home screen again<br><br>'+
     '<b>Take backup of each business weekly</b> and save to Notes app on iPhone.'+
     '</div>'
+  );
+  h+=card('🔊 Voice Announcement',
+  '<div class="al ali">When turned on, the app speaks a short confirmation out loud after every Sale, Purchase, or Expense entry — e.g. "Sale recorded for rupees 500 to Ramesh Kumar, paid by cash." Speaks in whichever language (English/Hindi) is currently selected. Works offline, no extra app needed.</div>'+
+  '<label style="display:flex;align-items:center;gap:10px;margin-top:10px;cursor:pointer"><input type="checkbox" id="voice_announce_toggle" '+(D.settings.voiceAnnounce?'checked':'')+' onchange="toggleVoiceAnnounce()" style="width:20px;height:20px"> <span style="font-size:13px;font-weight:600">Speak entries out loud</span></label>'
   );
   h+=card('📊 Load Demo Data',
   '<div class="al ali">Want to explore the app fully populated before entering your own data? Load a realistic mid-size business example — over 2 years of Sales, Purchases, Expenses, Debtors, Creditors, Loans, and Fixed Assets. <b>This replaces all current data.</b> Remove it anytime via Data → Danger Zone → Delete All Data.</div>'+
@@ -12538,6 +12576,27 @@ function downloadBulkTemplate(typeId){
 }
 // Validates every row before committing anything - either all valid rows get imported together,
 // or none do, so a partial/broken import never leaves the books half-updated.
+function isPotentialDuplicate(typeId, r){
+  function amtClose(a,b){ return Math.abs((+a||0)-(+b||0))<1; }
+  if(typeId==='purchase'){
+    return D.purchases.some(function(p){ return p.date===r.date && (p.supplierName||'').toLowerCase()===r.supplier.toLowerCase() && (p.itemName||'').toLowerCase()===r.itemName.toLowerCase() && amtClose(p.qty*p.rate, r.qty*r.rate); });
+  } else if(typeId==='sale'){
+    return D.sales.some(function(s){ return s.date===r.date && (s.customerName||'').toLowerCase()===r.customer.toLowerCase() && (s.itemName||'').toLowerCase()===r.itemName.toLowerCase() && amtClose(s.totalAmount, r.qty*r.price); });
+  } else if(typeId==='expense'){
+    return D.expenses.some(function(e){ return e.date===r.date && (e.category||'').toLowerCase()===r.category.toLowerCase() && amtClose(e.amount, r.amount); });
+  } else if(typeId==='debtorReceipt'){
+    return D.debtors.some(function(d){ return d.date===r.date && (d.name||'').toLowerCase()===r.customer.toLowerCase() && amtClose(Math.abs(d.amount), r.amount) && d.amount<0; });
+  } else if(typeId==='creditorPayment'){
+    return D.creditors.some(function(c){ return c.date===r.date && (c.name||'').toLowerCase()===r.supplier.toLowerCase() && amtClose(Math.abs(c.amount), r.amount) && c.amount<0; });
+  } else if(typeId==='loanInstalment'){
+    var loan = D.loans.filter(function(l){return l.id===r.loanId;})[0];
+    if(!loan || !loan.payments) return false;
+    return loan.payments.some(function(p){ return p.date===r.date && amtClose(p.amount, r.amount); });
+  } else if(typeId==='fixedAsset'){
+    return D.fixedAssets.some(function(a){ return a.purchaseDate===r.date && (a.name||'').toLowerCase()===r.assetName.toLowerCase() && amtClose(a.cost, r.cost); });
+  }
+  return false;
+}
 function validateBulkRows(typeId, rows){
   var valid = [], errors = [];
   var dataRows = rows.slice(1); // skip header row
@@ -12600,6 +12659,9 @@ function validateBulkRows(typeId, rows){
       if(['cash','bank','credit'].indexOf(mode7)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, or credit (got "'+(r[4]||'')+'")'); return; }
       valid.push({date:date, assetName:assetName, cost:cost, life:life, mode:mode7});
     }
+  });
+  valid.forEach(function(r){
+    r.possibleDuplicate = isPotentialDuplicate(typeId, r);
   });
   return {valid:valid, errors:errors};
 }
@@ -12691,6 +12753,11 @@ function pgTemplate(){
       if(preview.errors.length){
         body += '<div style="font-size:11px;color:#C62828;margin-top:6px;max-height:150px;overflow-y:auto">'+preview.errors.map(function(e){return esc(e);}).join('<br>')+'</div>';
         body += '<div style="font-size:11px;color:#546E7A;margin-top:6px">Fix these rows in your spreadsheet and upload again. '+(preview.valid.length?'Or, import just the '+preview.valid.length+' valid row(s) now and fix the rest separately:':'')+'</div>';
+      }
+      var dupCount = preview.valid.filter(function(r){return r.possibleDuplicate;}).length;
+      if(dupCount){
+        var dupDates = preview.valid.filter(function(r){return r.possibleDuplicate;}).map(function(r){return r.date;}).slice(0,5).join(', ');
+        body += '<div style="font-size:11px;color:#E65100;background:#FFF3E0;padding:8px;border-radius:6px;margin-top:6px">⚠️ '+dupCount+' row(s) look like they may already be in your data (same date, party/item, and amount as an existing entry) — dates: '+esc(dupDates)+(dupCount>5?'...':'')+'. If this file was uploaded before, check before importing again to avoid duplicates.</div>';
       }
       if(preview.valid.length){
         body += '<button onclick="confirmBulkImport(\''+t.id+'\')" class="btn bfull" style="background:#2E7D32;color:#fff;margin-top:8px;cursor:pointer">✅ Import '+preview.valid.length+' Valid Row(s)</button>';
