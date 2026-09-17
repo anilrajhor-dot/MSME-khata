@@ -1185,6 +1185,45 @@ function tbl(cols,rows){
 function fsr(lbl,amt,bold,ind,tot,col){return '<div class="fsr" style="font-weight:'+(bold||tot?700:400)+';background:'+(tot?'rgba(0,0,0,.04)':'transparent')+';padding-left:'+(ind?22:8)+'px"><span>'+esc(lbl)+'</span>'+(amt!==undefined?'<span'+(col?' style="color:'+col+'"':'')+'>'+fc(amt)+'</span>':'')+'</div>';}
 function bar(data,col,h){h=h||55;if(!data||!data.length)return'';var mx=1,i;for(i=0;i<data.length;i++)if(data[i].v>mx)mx=data[i].v;var s='<div style="display:flex;align-items:flex-end;gap:3px;height:'+h+'px">';for(i=0;i<data.length;i++){var p=Math.max(3,data[i].v/mx*100);s+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%"><div style="flex:1;display:flex;align-items:flex-end;width:100%"><div style="width:100%;background:'+col+';border-radius:3px 3px 0 0;height:'+p+'%"></div></div><div style="font-size:8px;color:#546E7A;text-align:center;overflow:hidden;max-width:100%">'+esc(data[i].l)+'</div></div>';}return s+'</div>';}
 function toast(msg,col){var el=document.createElement('div');el.className='toast';el.style.background=col==='e'?'#C62828':col==='w'?'#E65100':'#2E7D32';el.textContent=msg;document.body.appendChild(el);setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},2200);}
+// Custom autocomplete - built because the native <datalist> element has notoriously weak and
+// inconsistent support on iOS Safari (it often shows no suggestions at all on a text input),
+// even though it works fine in desktop/Android browsers. This works identically everywhere
+// since it's plain JS, not a browser feature we're depending on.
+function setupCustomAutocomplete(){
+  var inputs = document.querySelectorAll('[data-ac]');
+  inputs.forEach(function(inp){
+    if(inp._acWired) return; // don't double-wire on re-render
+    inp._acWired = true;
+    var key = inp.getAttribute('data-ac');
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;';
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+    var box = document.createElement('div');
+    box.style.cssText = 'display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #BBDEFB;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-height:180px;overflow-y:auto;z-index:500;margin-top:2px;';
+    wrap.appendChild(box);
+    function showMatches(){
+      var val = inp.value.trim().toLowerCase();
+      var list = (window._acData && window._acData[key]) || [];
+      var matches = val ? list.filter(function(o){ return o.toLowerCase().indexOf(val)>=0; }) : list;
+      matches = matches.slice(0,8);
+      if(!matches.length){ box.style.display='none'; return; }
+      box.innerHTML = matches.map(function(o){ return '<div style="padding:9px 12px;font-size:13px;border-bottom:1px solid #F0F0F0;cursor:pointer" class="_ac_opt">'+esc(o)+'</div>'; }).join('');
+      box.style.display = 'block';
+      Array.prototype.forEach.call(box.querySelectorAll('._ac_opt'), function(el, idx){
+        el.onmousedown = function(e){ // mousedown (not click) so it fires before input's blur hides the box
+          e.preventDefault();
+          inp.value = matches[idx];
+          box.style.display='none';
+          inp.dispatchEvent(new Event('input', {bubbles:true}));
+        };
+      });
+    }
+    inp.addEventListener('focus', showMatches);
+    inp.addEventListener('input', showMatches);
+    inp.addEventListener('blur', function(){ setTimeout(function(){ box.style.display='none'; }, 150); });
+  });
+}
 function toggleVoiceAnnounce(){
   D.settings.voiceAnnounce = document.getElementById('voice_announce_toggle').checked;
   sv();
@@ -1202,6 +1241,10 @@ function announceEntry(textEn, textHi){
     var utter = new SpeechSynthesisUtterance(text);
     utter.lang = window._hi ? 'hi-IN' : 'en-IN';
     utter.rate = 0.95;
+    // Safari/WebKit has a known bug where the utterance can be garbage-collected before it
+    // finishes speaking if nothing keeps a lasting reference to it - holding one on window
+    // prevents this from silently cutting speech short or not speaking at all.
+    window._lastUtterance = utter;
     window.speechSynthesis.speak(utter);
   }catch(e){}
 }
@@ -4378,39 +4421,37 @@ function pgDailyRegister(){
   // Datalists for autocomplete - items already in Inventory (from Purchase), and known
   // Debtor/Creditor names - so typing matches exactly what's already in the app instead of
   // risking a near-miss spelling that creates a duplicate item or party.
-  var itemsDatalist = '<datalist id="dr_items_dl">'+D.inventory.map(function(it){return '<option value="'+esc(it.itemName)+'">';}).join('')+'</datalist>';
-  var debtorNames = Array.from(new Set(D.debtors.map(function(d){return d.name;})));
-  var creditorNames = Array.from(new Set(D.creditors.map(function(c){return c.name;})));
-  var debtorsDatalist = '<datalist id="dr_debtors_dl">'+debtorNames.map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>';
-  var creditorsDatalist = '<datalist id="dr_creditors_dl">'+creditorNames.map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>';
-  var loanNames = D.loans.map(function(l){return l.lender;});
-  var loansDatalist = '<datalist id="dr_loans_dl">'+loanNames.map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>';
+  window._acData = window._acData || {};
+  window._acData.items = D.inventory.map(function(it){return it.itemName;});
+  window._acData.debtors = Array.from(new Set(D.debtors.map(function(d){return d.name;})));
+  window._acData.creditors = Array.from(new Set(D.creditors.map(function(c){return c.name;})));
+  window._acData.loans = D.loans.map(function(l){return l.lender;});
+  window._acData.categories = D.expenseCategories.slice();
 
   var fieldsHtml = inp('Date','dr_f0','date', td());
   if(typeId==='purchase'){
-    fieldsHtml += itemsDatalist + inp('Item Name','dr_f1','text','','Type or pick existing item','dr_items_dl').replace('<input ','<input oninput="updateDRHint()" ') +
+    fieldsHtml += inp('Item Name','dr_f1','text','','Type or pick existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
       inp('Supplier Name','dr_f2','text','') +
       g2(inp('Quantity','dr_f3','number',''), inp('Rate','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='sale'){
-    fieldsHtml += itemsDatalist + inp('Item Name','dr_f1','text','','Pick an existing item','dr_items_dl').replace('<input ','<input oninput="updateDRHint()" ') +
+    fieldsHtml += inp('Item Name','dr_f1','text','','Pick an existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
       inp('Customer Name','dr_f2','text','') +
       g2(inp('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" '), inp('Selling Price','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='expense'){
-    var catDatalist = '<datalist id="dr_cat_dl">'+D.expenseCategories.map(function(c){return '<option value="'+esc(c)+'">';}).join('')+'</datalist>';
-    fieldsHtml += catDatalist + inp('Category','dr_f1','text','','Type or pick a category','dr_cat_dl') + inp('Amount','dr_f2','number','') +
+    fieldsHtml += inp('Category','dr_f1','text','','Type or pick a category').replace('<input ','<input data-ac="categories" ') + inp('Amount','dr_f2','number','') +
       sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
   } else if(typeId==='debtorReceipt'){
-    fieldsHtml += debtorsDatalist + inp('Customer Name','dr_f1','text','','Pick an existing debtor','dr_debtors_dl').replace('<input ','<input oninput="updateDRHint()" ') +
+    fieldsHtml += inp('Customer Name','dr_f1','text','','Pick an existing debtor').replace('<input ','<input data-ac="debtors" oninput="updateDRHint()" ') +
       inp('Amount Received','dr_f2','number','') +
       sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
   } else if(typeId==='creditorPayment'){
-    fieldsHtml += creditorsDatalist + inp('Supplier Name','dr_f1','text','','Pick an existing creditor','dr_creditors_dl').replace('<input ','<input oninput="updateDRHint()" ') +
+    fieldsHtml += inp('Supplier Name','dr_f1','text','','Pick an existing creditor').replace('<input ','<input data-ac="creditors" oninput="updateDRHint()" ') +
       inp('Amount Paid','dr_f2','number','') +
       sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
   } else if(typeId==='loanInstalment'){
-    fieldsHtml += loansDatalist + inp('Lender Name','dr_f1','text','','Pick an existing loan','dr_loans_dl').replace('<input ','<input oninput="updateDRHint()" ') +
+    fieldsHtml += inp('Lender Name','dr_f1','text','','Pick an existing loan').replace('<input ','<input data-ac="loans" oninput="updateDRHint()" ') +
       inp('Amount Paid','dr_f2','number','') +
       sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
   } else if(typeId==='fixedAsset'){
@@ -5661,9 +5702,10 @@ function pgPur(){
     var _selItem=null;for(var ki2=0;ki2<D.inventory.length;ki2++)if(D.inventory[ki2].id===sel){_selItem=D.inventory[ki2];break;}
     if(_selItem){var _cat=_selItem.category||'Resale';var _cat=_cat==='RM'?'Raw Material':_cat;var _cc={'Raw Material':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var _ccv=_cc[_cat]||'#546E7A';newItemFields='<div style="margin-bottom:8px"><span style="font-size:12px;font-weight:700;color:'+_ccv+';background:'+_ccv+'18;padding:4px 10px;border-radius:6px">'+esc(_cat)+'</span> <span style="font-size:11px;color:#546E7A">Avg Cost: '+fc(_selItem.avgCost)+' / '+esc(_selItem.unit)+' &nbsp;|&nbsp; Stock: '+fmt(_selItem.currentStock)+' '+esc(_selItem.unit)+'</span></div>';}
   }
+  window._acData = window._acData || {};
+  window._acData.suppliers = Array.from(new Set(D.purchases.map(function(p){return p.supplierName;}).concat(D.creditors.map(function(c){return c.name;})).filter(Boolean)));
   h+=card('Record Purchase',
-    '<datalist id="pu_supp_dl">'+Array.from(new Set(D.purchases.map(function(p){return p.supplierName;}).concat(D.creditors.map(function(c){return c.name;})).filter(Boolean))).map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>'+
-    g2(inp('Date','pu_d','date',window._purDate||td()),inp('Supplier','pu_s','text',window._purSupplier||'','','pu_supp_dl'))+
+    g2(inp('Date','pu_d','date',window._purDate||td()),inp('Supplier','pu_s','text',window._purSupplier||'').replace('<input ','<input data-ac="suppliers" '))+
     _scanPurBtn+
     '<div class="fg"><label>Item</label><select id="pu_i" onchange="onPurItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===sel?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
@@ -5840,9 +5882,10 @@ function pgSal(){
     : g2(inp('Qty','sl_q','number',window._salQty||0),inp('Selling Price (₹/unit, excl. GST)','sl_p','number',window._salPrice||0))+(gstEnabled() ? inp('GST Rate % (0 = exempt)','sl_gst','number',(window._salGstRate!=null?window._salGstRate:(selItem&&selItem.gstRate!==undefined?selItem.gstRate:(D.gst.defaultRate||0)))) : '');
 
       h += '<div style="margin-bottom:8px"><button onclick="openScanner(\'inv_barcode\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📷 Scan Barcode / QR Code</button></div>';
+  window._acData = window._acData || {};
+  window._acData.customers = Array.from(new Set(D.sales.map(function(s){return s.customerName;}).concat(D.debtors.map(function(d){return d.name;})).filter(Boolean)));
   h+=card('Record Sale',
-    '<datalist id="sl_cust_dl">'+Array.from(new Set(D.sales.map(function(s){return s.customerName;}).concat(D.debtors.map(function(d){return d.name;})).filter(Boolean))).map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>'+
-    g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||'','','sl_cust_dl'))+
+    g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||'').replace('<input ','<input data-ac="customers" '))+
     '<div class="fg"><label>Item</label><select id="sl_i" onchange="onSalItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===selId?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
     '</select></div>'+
@@ -20555,6 +20598,7 @@ function renderPage() {
   var fns = {dashboard:pgDash,profile:pgProf,dailyregister:pgDailyRegister,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
+  setupCustomAutocomplete();
 }
 
 function toggleHi(){window._hi=!window._hi;var lb=document.getElementById('lb');if(lb)lb.textContent=window._hi?'EN':'हि';buildNav();renderPage();}
