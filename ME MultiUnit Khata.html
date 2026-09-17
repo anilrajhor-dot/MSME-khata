@@ -4241,7 +4241,8 @@ function pgDailyRegister(){
       g2(inp('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" '), inp('Selling Price','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='expense'){
-    fieldsHtml += inp('Category','dr_f1','text','') + inp('Amount','dr_f2','number','') +
+    var catDatalist = '<datalist id="dr_cat_dl">'+D.expenseCategories.map(function(c){return '<option value="'+esc(c)+'">';}).join('')+'</datalist>';
+    fieldsHtml += catDatalist + inp('Category','dr_f1','text','','Type or pick a category','dr_cat_dl') + inp('Amount','dr_f2','number','') +
       sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
   } else if(typeId==='debtorReceipt'){
     fieldsHtml += debtorsDatalist + inp('Customer Name','dr_f1','text','','Pick an existing debtor','dr_debtors_dl').replace('<input ','<input oninput="updateDRHint()" ') +
@@ -5536,7 +5537,8 @@ function pgPur(){
     if(_selItem){var _cat=_selItem.category||'Resale';var _cat=_cat==='RM'?'Raw Material':_cat;var _cc={'Raw Material':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var _ccv=_cc[_cat]||'#546E7A';newItemFields='<div style="margin-bottom:8px"><span style="font-size:12px;font-weight:700;color:'+_ccv+';background:'+_ccv+'18;padding:4px 10px;border-radius:6px">'+esc(_cat)+'</span> <span style="font-size:11px;color:#546E7A">Avg Cost: '+fc(_selItem.avgCost)+' / '+esc(_selItem.unit)+' &nbsp;|&nbsp; Stock: '+fmt(_selItem.currentStock)+' '+esc(_selItem.unit)+'</span></div>';}
   }
   h+=card('Record Purchase',
-    g2(inp('Date','pu_d','date',window._purDate||td()),inp('Supplier','pu_s','text',window._purSupplier||''))+
+    '<datalist id="pu_supp_dl">'+Array.from(new Set(D.purchases.map(function(p){return p.supplierName;}).concat(D.creditors.map(function(c){return c.name;})).filter(Boolean))).map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>'+
+    g2(inp('Date','pu_d','date',window._purDate||td()),inp('Supplier','pu_s','text',window._purSupplier||'','','pu_supp_dl'))+
     _scanPurBtn+
     '<div class="fg"><label>Item</label><select id="pu_i" onchange="onPurItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===sel?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
@@ -5718,7 +5720,8 @@ function pgSal(){
   }
 
   h+=card('Record Sale',
-    g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||''))+
+    '<datalist id="sl_cust_dl">'+Array.from(new Set(D.sales.map(function(s){return s.customerName;}).concat(D.debtors.map(function(d){return d.name;})).filter(Boolean))).map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>'+
+    g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||'','','sl_cust_dl'))+
     '<div class="fg"><label>Item</label><select id="sl_i" onchange="onSalItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===selId?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
     '</select></div>'+
