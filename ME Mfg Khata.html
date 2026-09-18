@@ -1216,18 +1216,50 @@ function setupCustomAutocomplete(){
       box.innerHTML = matches.map(function(o){ return '<div style="padding:9px 12px;font-size:13px;border-bottom:1px solid #F0F0F0;cursor:pointer" class="_ac_opt">'+esc(o)+'</div>'; }).join('');
       box.style.display = 'block';
       Array.prototype.forEach.call(box.querySelectorAll('._ac_opt'), function(el, idx){
-        el.onmousedown = function(e){ // mousedown (not click) so it fires before input's blur hides the box
+        var pick = function(e){ // mousedown/touchstart (not click) so it fires before input's blur hides the box
           e.preventDefault();
           inp.value = matches[idx];
           box.style.display='none';
           inp.dispatchEvent(new Event('input', {bubbles:true}));
         };
+        el.onmousedown = pick;
+        el.addEventListener('touchstart', pick, {passive:false});
       });
     }
     inp.addEventListener('focus', showMatches);
     inp.addEventListener('input', showMatches);
     inp.addEventListener('blur', function(){ setTimeout(function(){ box.style.display='none'; }, 150); });
   });
+}
+function testVoiceNow(){
+  var resEl = document.getElementById('voice_test_result');
+  if(!('speechSynthesis' in window)){
+    if(resEl) resEl.innerHTML = '<span style="color:#C62828">❌ This browser does not support voice at all.</span>';
+    return;
+  }
+  if(resEl) resEl.innerHTML = '⏳ Testing...';
+  try{
+    window.speechSynthesis.cancel();
+    var utter = new SpeechSynthesisUtterance(window._hi ? 'यह एक आवाज़ परीक्षण है।' : 'This is a voice test.');
+    utter.lang = window._hi ? 'hi-IN' : 'en-IN';
+    utter.rate = 0.95;
+    var responded = false;
+    utter.onstart = function(){
+      responded = true;
+      if(resEl) resEl.innerHTML = '<span style="color:#2E7D32">✅ Speaking now — if you did not hear anything, check your phone is not on silent/mute mode and the volume is up.</span>';
+    };
+    utter.onerror = function(e){
+      responded = true;
+      if(resEl) resEl.innerHTML = '<span style="color:#C62828">❌ Voice error: '+esc(e.error||'unknown')+'</span>';
+    };
+    window._lastUtterance = utter;
+    window.speechSynthesis.speak(utter);
+    setTimeout(function(){
+      if(!responded && resEl) resEl.innerHTML = '<span style="color:#E65100">⚠️ No response from the voice engine after 3 seconds — this browser/device may not support speech properly, even though the feature is available.</span>';
+    }, 3000);
+  }catch(e){
+    if(resEl) resEl.innerHTML = '<span style="color:#C62828">❌ Error: '+esc(e.message)+'</span>';
+  }
 }
 function toggleVoiceAnnounce(){
   D.settings.voiceAnnounce = document.getElementById('voice_announce_toggle').checked;
@@ -9853,7 +9885,9 @@ function pgDat(){
   h+=storageCard();
   h+=card('🔊 Voice Announcement',
   '<div class="al ali">When turned on, the app speaks a short confirmation out loud after every Sale, Purchase, or Expense entry — e.g. "Sale recorded for rupees 500 to Ramesh Kumar, paid by cash." Speaks in whichever language (English/Hindi) is currently selected. Works offline, no extra app needed.</div>'+
-  '<label style="display:flex;align-items:center;gap:10px;margin-top:10px;cursor:pointer"><input type="checkbox" id="voice_announce_toggle" '+(D.settings.voiceAnnounce?'checked':'')+' onchange="toggleVoiceAnnounce()" style="width:20px;height:20px"> <span style="font-size:13px;font-weight:600">Speak entries out loud</span></label>'
+  '<label style="display:flex;align-items:center;gap:10px;margin-top:10px;cursor:pointer"><input type="checkbox" id="voice_announce_toggle" '+(D.settings.voiceAnnounce?'checked':'')+' onchange="toggleVoiceAnnounce()" style="width:20px;height:20px"> <span style="font-size:13px;font-weight:600">Speak entries out loud</span></label>'+
+  btn('🔊 Test Voice Now','testVoiceNow()','#546E7A')+
+  '<div id="voice_test_result" style="font-size:11px;color:#546E7A;margin-top:6px"></div>'
   );
   h+=card('📊 Load Demo Data',
   '<div class="al ali">Want to explore the app fully populated before entering your own data? Load a realistic mid-size business example — over 2 years of Sales, Purchases, Expenses, Debtors, Creditors, Loans, and Fixed Assets. <b>This replaces all current data.</b> Remove it anytime via Data → Danger Zone → Delete All Data.</div>'+
@@ -13170,6 +13204,7 @@ function commitBulkImport(typeId, validRows){
       else postCB(r.mode, 'receipt', tot, r.customer, 'Sale: '+item2.itemName, r.date);
     } else if(typeId==='expense'){
       D.expenses.push({id:uid(), date:r.date, category:r.category, amount:r.amount, paymentMode:r.mode});
+      if(D.expenseCategories.indexOf(r.category)<0) D.expenseCategories.push(r.category);
       postCB(r.mode, 'payment', r.amount, r.category, r.category, r.date);
     } else if(typeId==='debtorReceipt'){
       addDebtor(r.customer, -r.amount, r.date, 'Payment Received');
