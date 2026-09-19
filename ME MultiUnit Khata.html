@@ -980,14 +980,20 @@ function announceEntry(textEn, textHi){
   try{
     window.speechSynthesis.cancel();
     var text = window._hi ? (textHi||textEn) : textEn;
-    var utter = new SpeechSynthesisUtterance(text);
-    utter.lang = window._hi ? 'hi-IN' : 'en-IN';
-    utter.rate = 0.95;
-    // Safari/WebKit has a known bug where the utterance can be garbage-collected before it
-    // finishes speaking if nothing keeps a lasting reference to it - holding one on window
-    // prevents this from silently cutting speech short or not speaking at all.
-    window._lastUtterance = utter;
-    window.speechSynthesis.speak(utter);
+    // A short delay after cancel() before speak() - Safari/WebKit can silently drop the new
+    // utterance if speak() is called immediately after cancel() in the same tick.
+    setTimeout(function(){
+      try{
+        var utter = new SpeechSynthesisUtterance(text);
+        utter.lang = window._hi ? 'hi-IN' : 'en-IN';
+        utter.rate = 0.95;
+        // Safari/WebKit has a known bug where the utterance can be garbage-collected before it
+        // finishes speaking if nothing keeps a lasting reference to it - holding one on window
+        // prevents this from silently cutting speech short or not speaking at all.
+        window._lastUtterance = utter;
+        window.speechSynthesis.speak(utter);
+      }catch(e){}
+    }, 80);
   }catch(e){}
 }
 function pmChip(m){
@@ -4287,6 +4293,11 @@ function pgDailyRegister(){
     '<span style="font-size:12px;font-weight:700;color:'+(isTallied?'#2E7D32':'#C62828')+'">'+(isTallied?'✅ Financial Statements Tally':'⚠️ Not Tallying')+'</span>'+
     '<span style="font-size:11px;color:#546E7A">Assets '+fc(bs.totalAssets)+' vs Liab+Cap '+fc(bs.totalLiab)+'</span>'+
     '</div>';
+  var voiceOn = !!(D.settings && D.settings.voiceAnnounce);
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:'+(voiceOn?'#E3F2FD':'#F5F5F5')+';border-radius:10px;margin-bottom:10px;font-size:11px">'+
+    '<span style="color:'+(voiceOn?'#1565C0':'#78909C')+';font-weight:600">'+(voiceOn?'🔊 Voice Announcements: ON':'🔇 Voice Announcements: OFF')+'</span>'+
+    (voiceOn?'':'<a href="#" onclick="go(\'data\');return false;" style="color:#1565C0;text-decoration:underline">Turn on in Data →</a>')+
+    '</div>';
 
   h += card('What are you recording?',
     sl('Transaction Type','dr_type', BULK_IMPORT_TYPES.map(function(bt){return {v:bt.id, l:bt.icon+' '+bt.label};}), typeId)
@@ -4302,16 +4313,18 @@ function pgDailyRegister(){
   window._acData.creditors = Array.from(new Set(D.creditors.map(function(c){return c.name;})));
   window._acData.loans = D.loans.map(function(l){return l.lender;});
   window._acData.categories = D.expenseCategories.slice();
+  window._acData.suppliers = Array.from(new Set(D.purchases.map(function(p){return p.supplierName;}).concat(D.creditors.map(function(c){return c.name;})).filter(Boolean)));
+  window._acData.customers = Array.from(new Set(D.sales.map(function(s){return s.customerName;}).concat(D.debtors.map(function(d){return d.name;})).filter(Boolean)));
 
   var fieldsHtml = inp('Date','dr_f0','date', td());
   if(typeId==='purchase'){
     fieldsHtml += inp('Item Name','dr_f1','text','','Type or pick existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
-      inp('Supplier Name','dr_f2','text','') +
+      inp('Supplier Name','dr_f2','text','').replace('<input ','<input data-ac="suppliers" ') +
       g2(inp('Quantity','dr_f3','number',''), inp('Rate','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='sale'){
     fieldsHtml += inp('Item Name','dr_f1','text','','Pick an existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
-      inp('Customer Name','dr_f2','text','') +
+      inp('Customer Name','dr_f2','text','').replace('<input ','<input data-ac="customers" ') +
       g2(inp('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" '), inp('Selling Price','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='expense'){
