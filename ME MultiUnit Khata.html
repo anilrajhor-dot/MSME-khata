@@ -231,7 +231,7 @@ function defD(){
     bills:[],
     nextBillNo:1,
     expenseCategories:['Rent','Electricity','Salary','Transportation','Telephone','Fuel','Repair','Marketing','Interest Payment','Freight Inward','Carriage Inward','Loading/Unloading (Purchase)','Miscellaneous'],
-    settings:{creditDays:30,defaultMargin:20,voiceAnnounce:false},
+    settings:{creditDays:30,defaultMargin:20,voiceAnnounce:false,lastMonthlyStatementRun:'',monthlyStatementSentLog:{}},
     partyCodes:{},
     customHSN:{},
     incomeTax:{ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false},
@@ -396,7 +396,9 @@ function migrateData(d){
   if(d.loanAssessment && d.loanAssessment.marginPctTurnover===undefined) d.loanAssessment.marginPctTurnover=25;
   if(d.loanAssessment && d.loanAssessment.marginPctTandon===undefined) d.loanAssessment.marginPctTandon=25;
   if(d.loanAssessment && d.loanAssessment.useManual===undefined) d.loanAssessment.useManual=false;
-  if(!d.settings) d.settings={creditDays:30,defaultMargin:20,voiceAnnounce:false};
+  if(!d.settings) d.settings={creditDays:30,defaultMargin:20,voiceAnnounce:false,lastMonthlyStatementRun:'',monthlyStatementSentLog:{}};
+  if(d.settings.lastMonthlyStatementRun===undefined) d.settings.lastMonthlyStatementRun='';
+  if(!d.settings.monthlyStatementSentLog) d.settings.monthlyStatementSentLog={};
   if(d.settings.voiceAnnounce===undefined) d.settings.voiceAnnounce=false;
   if(d.settings.defaultMargin===undefined) d.settings.defaultMargin=20;
   if(!d.partyCodes) d.partyCodes={};
@@ -4092,6 +4094,7 @@ function pgDash(){
 
   var h='';
   h += dayCloseCard();
+  h += monthlyStatementBanner();
 
   // ── Business header ──
   if(D.profile.businessName){
@@ -6248,6 +6251,146 @@ function renderLedgerStatement(result){
     '<div style="display:flex;justify-content:space-between;padding:6px 8px;font-size:11px;color:#546E7A"><span>Total Debit: '+fc(result.totalDr)+'</span><span>Total Credit: '+fc(result.totalCr)+'</span></div>'+
     ledgerActionButtons()
   );
+  return h;
+}
+// Returns the list of "items" that need sending this month - every debtor with an outstanding
+// balance, plus one entry for the stock summary. Used both to build the modal and to check
+// whether everything has actually been sent yet.
+function monthlyStatementItems(){
+  var items = debtorBalances().filter(function(d){return Math.abs(d.balance)>0.5;}).map(function(d){
+    return {key:'debtor:'+d.name, label:d.name, sub:'Due: '+fc(d.balance), kind:'debtor', name:d.name};
+  });
+  items.push({key:'stock', label:'Stock Summary', sub:D.inventory.length+' item(s)', kind:'stock'});
+  return items;
+}
+function isMonthlyStatementDue(){
+  var curMonthKey = td().slice(0,7); // 'YYYY-MM'
+  var dayOfMonth = +td().slice(8,10);
+  if(dayOfMonth<1) return false;
+  if((D.settings.lastMonthlyStatementRun||'')===curMonthKey) return false;
+  // Also auto-clear once every item has actually been sent, even without an explicit "mark done".
+  var sentLog = (D.settings.monthlyStatementSentLog && D.settings.monthlyStatementSentLog[curMonthKey]) || [];
+  var items = monthlyStatementItems();
+  var allSent = items.length>0 && items.every(function(it){return sentLog.indexOf(it.key)>=0;});
+  if(allSent){ D.settings.lastMonthlyStatementRun = curMonthKey; sv(); return false; }
+  return true;
+}
+function monthlyStatementBanner(){
+  if(!isMonthlyStatementDue()) return '';
+  var monthName = new Date(td()+'T00:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  return '<div class="al alw" style="margin-bottom:10px"><div class="alt">📅 Time for '+esc(monthName)+' Statements</div>'+
+    '<p>Send this month\'s Debtor and Stock statements to your customers and yourself/bank.</p>'+
+    btn('📤 Open Now','showMonthlyStatementModal(true)','#1565C0')+'</div>';
+}
+function markMonthlyStatementDone(){
+  D.settings.lastMonthlyStatementRun = td().slice(0,7);
+  sv();
+  toast('✅ Marked done for this month.');
+  var m=document.getElementById('monthly_stmt_modal'); if(m) m.remove();
+  renderPage();
+}
+function isItemSent(key){
+  var curMonthKey = td().slice(0,7);
+  var sentLog = (D.settings.monthlyStatementSentLog && D.settings.monthlyStatementSentLog[curMonthKey]) || [];
+  return sentLog.indexOf(key)>=0;
+}
+function markItemSent(key){
+  var curMonthKey = td().slice(0,7);
+  if(!D.settings.monthlyStatementSentLog) D.settings.monthlyStatementSentLog={};
+  if(!D.settings.monthlyStatementSentLog[curMonthKey]) D.settings.monthlyStatementSentLog[curMonthKey]=[];
+  if(D.settings.monthlyStatementSentLog[curMonthKey].indexOf(key)<0) D.settings.monthlyStatementSentLog[curMonthKey].push(key);
+  sv();
+}
+// Computes and shares one debtor's statement directly (WhatsApp or Email) without navigating
+// away - reuses the same computation as Statement Generator so the figures are guaranteed
+// identical to what that page would show. Marks the item as sent for this month's tracking.
+function quickSendPartyStatement(name, channel){
+  var fromDate = (D.opening&&D.opening.takenOn) || '2024-04-01';
+  var result = computeLedgerStatement('debtor', name, fromDate, td());
+  if(!result.label){ toast('Could not compute statement for '+name,'e'); return; }
+  var cols = [
+    {l:'Date', k:'date'},
+    {l:'Description', k:'desc'},
+    {l:'Debit', r:1, fn:function(r){return r.dr>0?fc(r.dr):'—';}},
+    {l:'Credit', r:1, fn:function(r){return r.cr>0?fc(r.cr):'—';}},
+    {l:'Balance', r:1, fn:function(r){return fc(r.balance);}}
+  ];
+  setLedgerShareData(result.label+' ('+result.fromDate+' to '+result.toDate+')', cols, result.rows,
+    ['Opening Balance: '+fc(result.openingBalance), 'Closing Balance: '+fc(result.closingBalance)]);
+  if(channel==='whatsapp') shareLedgerWhatsApp(); else shareLedgerEmail();
+  markItemSent('debtor:'+name);
+  refreshMonthlyStatementModalRow('debtor:'+name);
+}
+function quickSendStockSummary(channel){
+  var cols = [
+    {l:'Item', k:'itemName'},
+    {l:'Qty', r:1, fn:function(r){return fmt((r.currentStock||0)+(r.importedStock||0))+' '+esc(r.unit||'');}},
+    {l:'Avg Cost', r:1, fn:function(r){return fc(r.avgCost||0);}},
+    {l:'Value', r:1, fn:function(r){return fc(((r.currentStock||0)+(r.importedStock||0))*(r.avgCost||0));}}
+  ];
+  var rows = D.inventory.slice().sort(function(a,b){return (a.itemName||'').localeCompare(b.itemName||'');});
+  var totalValue = rows.reduce(function(s,r){return s+((r.currentStock||0)+(r.importedStock||0))*(r.avgCost||0);},0);
+  setLedgerShareData('Stock Summary — '+(D.profile.businessName||'')+' — '+td(), cols, rows,
+    ['Business: '+(D.profile.businessName||''), 'As of: '+td(), 'Total Stock Value: '+fc(totalValue)]);
+  if(channel==='whatsapp') shareLedgerWhatsApp(); else shareLedgerEmail();
+  markItemSent('stock');
+  refreshMonthlyStatementModalRow('stock');
+}
+// Updates just one row's checkmark in the open modal (if any) without re-rendering the whole
+// thing, so the list doesn't jump around while the user is still working through it.
+function refreshMonthlyStatementModalRow(key){
+  var row = document.getElementById('mstmt_row_'+key.replace(/[^a-zA-Z0-9]/g,'_'));
+  if(row){
+    var check = row.querySelector('._mstmt_check');
+    if(check) check.style.display = 'inline';
+  }
+}
+function monthlyStatementItemRowHtml(it){
+  var sent = isItemSent(it.key);
+  var safeName = it.kind==='debtor' ? esc(it.name).replace(/'/g,"\\'") : '';
+  var sendBtns = it.kind==='stock'
+    ? '<button onclick="quickSendStockSummary(\'whatsapp\')" style="padding:7px 10px;border:none;border-radius:6px;background:#25D366;color:#fff;font-size:16px;cursor:pointer">💬</button>'+
+      '<button onclick="quickSendStockSummary(\'email\')" style="padding:7px 10px;border:none;border-radius:6px;background:#5B5BD6;color:#fff;font-size:16px;cursor:pointer">✉️</button>'
+    : '<button onclick="quickSendPartyStatement(\''+safeName+'\',\'whatsapp\')" style="padding:7px 10px;border:none;border-radius:6px;background:#25D366;color:#fff;font-size:16px;cursor:pointer">💬</button>'+
+      '<button onclick="quickSendPartyStatement(\''+safeName+'\',\'email\')" style="padding:7px 10px;border:none;border-radius:6px;background:#5B5BD6;color:#fff;font-size:16px;cursor:pointer">✉️</button>';
+  return '<div id="mstmt_row_'+it.key.replace(/[^a-zA-Z0-9]/g,'_')+'" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #F0F0F0">'+
+    '<div><div style="font-size:13px;font-weight:600">'+(it.kind==='stock'?'📦 ':'')+esc(it.label)+' <span class="_mstmt_check" style="color:#2E7D32;display:'+(sent?'inline':'none')+'">✓ Sent</span></div><div style="font-size:11px;color:#546E7A">'+esc(it.sub)+'</div></div>'+
+    '<div style="display:flex;gap:6px">'+sendBtns+'</div></div>';
+}
+// The actual reminder surface - shows automatically on app open (chained after the existing
+// startup alerts popup, or directly if there were none) when statements are due, and can also
+// be opened manually. Has Send buttons built directly into it, as requested, rather than just
+// linking to another page - and keeps reappearing on every app open until everything listed is
+// either sent or explicitly marked done, since a wa.me/mailto tap can't itself confirm delivery.
+function showMonthlyStatementModal(forceOpen){
+  if(!forceOpen && !isMonthlyStatementDue()) return;
+  if(document.getElementById('monthly_stmt_modal')) return; // don't double-open
+  var monthName = new Date(td()+'T00:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  var items = monthlyStatementItems();
+  var overlay=document.createElement('div');
+  overlay.id='monthly_stmt_modal';
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  overlay.innerHTML='<div style="background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.3)">'+
+    '<div style="background:#1565C0;color:#fff;padding:14px 18px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">'+
+      '<div><div style="font-weight:800;font-size:15px">📅 '+esc(monthName)+' Statements</div>'+
+      '<div style="font-size:11px;opacity:.85">Tap 💬 or ✉️ to send each — you confirm Send in that app</div></div>'+
+      '<button onclick="document.getElementById(\'monthly_stmt_modal\').remove()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:20px;font-weight:700;border-radius:8px;padding:2px 10px;cursor:pointer">✕</button>'+
+    '</div>'+
+    '<div style="overflow-y:auto;padding:14px">'+items.map(monthlyStatementItemRowHtml).join('')+'</div>'+
+    '<div style="padding:12px;border-top:1px solid #eee;display:flex;gap:8px">'+
+      '<button onclick="document.getElementById(\'monthly_stmt_modal\').remove()" style="flex:1;padding:11px;border-radius:8px;background:#546E7A;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer">Remind Me Later</button>'+
+      '<button onclick="markMonthlyStatementDone()" style="flex:1;padding:11px;border-radius:8px;background:#2E7D32;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer">✓ Done for This Month</button>'+
+    '</div>'+
+  '</div>';
+  document.body.appendChild(overlay);
+}
+function pgMonthlyStatements(){
+  var monthName = new Date(td()+'T00:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  var items = monthlyStatementItems();
+  var h = '<div class="al ali"><div class="alt">📅 Monthly Statements — '+esc(monthName)+'</div>'+
+    '<p>Every debtor with an outstanding balance, plus your current Stock Summary, ready to send in one tap each. <b>Note:</b> tapping WhatsApp/Email opens the message pre-filled — you still tap Send yourself in that app, since no website is allowed to send on your behalf without your confirmation. The same reminder pops up automatically when you open the app on/after the 1st, until everything here is sent (or you mark the month done).</p></div>';
+  h += card('This Month\'s Items ('+items.length+')', items.map(monthlyStatementItemRowHtml).join(''));
+  h += card('✅ Done for this month?', btn('Mark '+monthName+' as Sent','markMonthlyStatementDone()','#2E7D32'));
   return h;
 }
 function pgDebtCred(){
@@ -21992,14 +22135,14 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 
 // ===== NAVIGATION & RENDER =====
-var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',production:'उत्पादन',consumption:'उपभोग',bizmanager:'व्यवसाय प्रबंधक',interunit:'अंतर-इकाई स्थानांतरण',template:'डेटा टेम्पलेट',ledgerstmt:'खाता विवरण',dailyregister:'दैनिक रजिस्टर'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',dailyregister:'Daily Register',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template'};
+var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',production:'उत्पादन',consumption:'उपभोग',bizmanager:'व्यवसाय प्रबंधक',interunit:'अंतर-इकाई स्थानांतरण',template:'डेटा टेम्पलेट',ledgerstmt:'खाता विवरण',monthlystmt:'मासिक विवरण',dailyregister:'दैनिक रजिस्टर'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',dailyregister:'Daily Register',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',monthlystmt:'Monthly Statements',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template'};
 function getNavAll(){
   var biz = getBizType();
   var base = ['bizmanager','profile','dailyregister','dashboard','capital','inventory'];
   if(biz==='Manufacturing'||biz==='Trading + Manufacturing') base.push('production');
   if(biz==='Service'||biz==='Trading + Service') base.push('consumption');
-  base = base.concat(['interunit','purchase','sales','returns','journal','debtcred','ledgerstmt','stockstmt','expenses','cashbank','recon','emi','bankcalc',
+  base = base.concat(['interunit','purchase','sales','returns','journal','debtcred','ledgerstmt','stockstmt','monthlystmt','expenses','cashbank','recon','emi','bankcalc',
     'financials','projections','analytics','loanassess','cma','reminders',
     'gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help']);
   return base;
@@ -22039,7 +22182,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,dailyregister:pgDailyRegister,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,production:pgProduction,consumption:pgConsumption,bizmanager:pgBizManager,interunit:pgInterUnit,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
+  var fns = {dashboard:pgDash,profile:pgProf,dailyregister:pgDailyRegister,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,monthlystmt:pgMonthlyStatements,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,production:pgProduction,consumption:pgConsumption,bizmanager:pgBizManager,interunit:pgInterUnit,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
   setupCustomAutocomplete();
@@ -22250,7 +22393,7 @@ function checkStartupAlerts(){
     else if(limit>0&&used>limit*0.9) alerts.push({urg:1,icon:'⚠️',title:'CC Near Limit: '+l.lender,msg:'Used '+Math.round(used/limit*100)+'% of '+fc(limit)+'. Only '+fc(limit-used)+' available.',action:"go('capital')",btn:'View CC'});
   });
 
-  if(!alerts.length) return;
+  if(!alerts.length){ showMonthlyStatementModal(); return; }
   alerts.sort(function(a,b){return a.urg-b.urg;});
   var colors=['#B71C1C','#E65100'],bgs=['#FFEBEE','#FFF3E0'];
   var body=alerts.map(function(a){
@@ -22278,7 +22421,7 @@ function checkStartupAlerts(){
   '</div>';
   document.body.appendChild(d);
 }
-function closeStartupPopup(){var d=document.getElementById('startup_popup');if(d)d.parentNode.removeChild(d);}
+function closeStartupPopup(){var d=document.getElementById('startup_popup');if(d)d.parentNode.removeChild(d);showMonthlyStatementModal();}
 
 function syncOtherAssets(){
   var faCost=(D.fixedAssets||[]).reduce(function(s,a){return s+(+a.cost||0);},0);

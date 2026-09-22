@@ -229,7 +229,7 @@ function defD(){
     bills:[],
     nextBillNo:1,
     expenseCategories:['Rent','Electricity','Salary','Transportation','Telephone','Fuel','Repair','Marketing','Interest Payment','Freight Inward','Carriage Inward','Loading/Unloading (Purchase)','Miscellaneous'],
-    settings:{creditDays:30,defaultMargin:20,voiceAnnounce:false},
+    settings:{creditDays:30,defaultMargin:20,voiceAnnounce:false,lastMonthlyStatementRun:'',monthlyStatementSentLog:{}},
     partyCodes:{},
     customHSN:{},
     incomeTax:{ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false},
@@ -400,7 +400,9 @@ function migrateData(d){
   if(d.loanAssessment && d.loanAssessment.marginPctTurnover===undefined) d.loanAssessment.marginPctTurnover=25;
   if(d.loanAssessment && d.loanAssessment.marginPctTandon===undefined) d.loanAssessment.marginPctTandon=25;
   if(d.loanAssessment && d.loanAssessment.useManual===undefined) d.loanAssessment.useManual=false;
-  if(!d.settings) d.settings={creditDays:30,defaultMargin:20,voiceAnnounce:false};
+  if(!d.settings) d.settings={creditDays:30,defaultMargin:20,voiceAnnounce:false,lastMonthlyStatementRun:'',monthlyStatementSentLog:{}};
+  if(d.settings.lastMonthlyStatementRun===undefined) d.settings.lastMonthlyStatementRun='';
+  if(!d.settings.monthlyStatementSentLog) d.settings.monthlyStatementSentLog={};
   if(d.settings.voiceAnnounce===undefined) d.settings.voiceAnnounce=false;
   if(d.settings.defaultMargin===undefined) d.settings.defaultMargin=20;
   if(!d.partyCodes) d.partyCodes={};
@@ -4388,6 +4390,7 @@ function pgDash(){
 
   var h='';
   h += dayCloseCard();
+  h += monthlyStatementBanner();
 
   // ── Business header ──
   if(D.profile.businessName){
@@ -6831,6 +6834,146 @@ function renderLedgerStatement(result){
     '<div style="display:flex;justify-content:space-between;padding:6px 8px;font-size:11px;color:#546E7A"><span>Total Debit: '+fc(result.totalDr)+'</span><span>Total Credit: '+fc(result.totalCr)+'</span></div>'+
     ledgerActionButtons()
   );
+  return h;
+}
+// Returns the list of "items" that need sending this month - every debtor with an outstanding
+// balance, plus one entry for the stock summary. Used both to build the modal and to check
+// whether everything has actually been sent yet.
+function monthlyStatementItems(){
+  var items = debtorBalances().filter(function(d){return Math.abs(d.balance)>0.5;}).map(function(d){
+    return {key:'debtor:'+d.name, label:d.name, sub:'Due: '+fc(d.balance), kind:'debtor', name:d.name};
+  });
+  items.push({key:'stock', label:'Stock Summary', sub:D.inventory.length+' item(s)', kind:'stock'});
+  return items;
+}
+function isMonthlyStatementDue(){
+  var curMonthKey = td().slice(0,7); // 'YYYY-MM'
+  var dayOfMonth = +td().slice(8,10);
+  if(dayOfMonth<1) return false;
+  if((D.settings.lastMonthlyStatementRun||'')===curMonthKey) return false;
+  // Also auto-clear once every item has actually been sent, even without an explicit "mark done".
+  var sentLog = (D.settings.monthlyStatementSentLog && D.settings.monthlyStatementSentLog[curMonthKey]) || [];
+  var items = monthlyStatementItems();
+  var allSent = items.length>0 && items.every(function(it){return sentLog.indexOf(it.key)>=0;});
+  if(allSent){ D.settings.lastMonthlyStatementRun = curMonthKey; sv(); return false; }
+  return true;
+}
+function monthlyStatementBanner(){
+  if(!isMonthlyStatementDue()) return '';
+  var monthName = new Date(td()+'T00:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  return '<div class="al alw" style="margin-bottom:10px"><div class="alt">📅 Time for '+esc(monthName)+' Statements</div>'+
+    '<p>Send this month\'s Debtor and Stock statements to your customers and yourself/bank.</p>'+
+    btn('📤 Open Now','showMonthlyStatementModal(true)','#1565C0')+'</div>';
+}
+function markMonthlyStatementDone(){
+  D.settings.lastMonthlyStatementRun = td().slice(0,7);
+  sv();
+  toast('✅ Marked done for this month.');
+  var m=document.getElementById('monthly_stmt_modal'); if(m) m.remove();
+  renderPage();
+}
+function isItemSent(key){
+  var curMonthKey = td().slice(0,7);
+  var sentLog = (D.settings.monthlyStatementSentLog && D.settings.monthlyStatementSentLog[curMonthKey]) || [];
+  return sentLog.indexOf(key)>=0;
+}
+function markItemSent(key){
+  var curMonthKey = td().slice(0,7);
+  if(!D.settings.monthlyStatementSentLog) D.settings.monthlyStatementSentLog={};
+  if(!D.settings.monthlyStatementSentLog[curMonthKey]) D.settings.monthlyStatementSentLog[curMonthKey]=[];
+  if(D.settings.monthlyStatementSentLog[curMonthKey].indexOf(key)<0) D.settings.monthlyStatementSentLog[curMonthKey].push(key);
+  sv();
+}
+// Computes and shares one debtor's statement directly (WhatsApp or Email) without navigating
+// away - reuses the same computation as Statement Generator so the figures are guaranteed
+// identical to what that page would show. Marks the item as sent for this month's tracking.
+function quickSendPartyStatement(name, channel){
+  var fromDate = (D.opening&&D.opening.takenOn) || '2024-04-01';
+  var result = computeLedgerStatement('debtor', name, fromDate, td());
+  if(!result.label){ toast('Could not compute statement for '+name,'e'); return; }
+  var cols = [
+    {l:'Date', k:'date'},
+    {l:'Description', k:'desc'},
+    {l:'Debit', r:1, fn:function(r){return r.dr>0?fc(r.dr):'—';}},
+    {l:'Credit', r:1, fn:function(r){return r.cr>0?fc(r.cr):'—';}},
+    {l:'Balance', r:1, fn:function(r){return fc(r.balance);}}
+  ];
+  setLedgerShareData(result.label+' ('+result.fromDate+' to '+result.toDate+')', cols, result.rows,
+    ['Opening Balance: '+fc(result.openingBalance), 'Closing Balance: '+fc(result.closingBalance)]);
+  if(channel==='whatsapp') shareLedgerWhatsApp(); else shareLedgerEmail();
+  markItemSent('debtor:'+name);
+  refreshMonthlyStatementModalRow('debtor:'+name);
+}
+function quickSendStockSummary(channel){
+  var cols = [
+    {l:'Item', k:'itemName'},
+    {l:'Qty', r:1, fn:function(r){return fmt((r.currentStock||0)+(r.importedStock||0))+' '+esc(r.unit||'');}},
+    {l:'Avg Cost', r:1, fn:function(r){return fc(r.avgCost||0);}},
+    {l:'Value', r:1, fn:function(r){return fc(((r.currentStock||0)+(r.importedStock||0))*(r.avgCost||0));}}
+  ];
+  var rows = D.inventory.slice().sort(function(a,b){return (a.itemName||'').localeCompare(b.itemName||'');});
+  var totalValue = rows.reduce(function(s,r){return s+((r.currentStock||0)+(r.importedStock||0))*(r.avgCost||0);},0);
+  setLedgerShareData('Stock Summary — '+(D.profile.businessName||'')+' — '+td(), cols, rows,
+    ['Business: '+(D.profile.businessName||''), 'As of: '+td(), 'Total Stock Value: '+fc(totalValue)]);
+  if(channel==='whatsapp') shareLedgerWhatsApp(); else shareLedgerEmail();
+  markItemSent('stock');
+  refreshMonthlyStatementModalRow('stock');
+}
+// Updates just one row's checkmark in the open modal (if any) without re-rendering the whole
+// thing, so the list doesn't jump around while the user is still working through it.
+function refreshMonthlyStatementModalRow(key){
+  var row = document.getElementById('mstmt_row_'+key.replace(/[^a-zA-Z0-9]/g,'_'));
+  if(row){
+    var check = row.querySelector('._mstmt_check');
+    if(check) check.style.display = 'inline';
+  }
+}
+function monthlyStatementItemRowHtml(it){
+  var sent = isItemSent(it.key);
+  var safeName = it.kind==='debtor' ? esc(it.name).replace(/'/g,"\\'") : '';
+  var sendBtns = it.kind==='stock'
+    ? '<button onclick="quickSendStockSummary(\'whatsapp\')" style="padding:7px 10px;border:none;border-radius:6px;background:#25D366;color:#fff;font-size:16px;cursor:pointer">💬</button>'+
+      '<button onclick="quickSendStockSummary(\'email\')" style="padding:7px 10px;border:none;border-radius:6px;background:#5B5BD6;color:#fff;font-size:16px;cursor:pointer">✉️</button>'
+    : '<button onclick="quickSendPartyStatement(\''+safeName+'\',\'whatsapp\')" style="padding:7px 10px;border:none;border-radius:6px;background:#25D366;color:#fff;font-size:16px;cursor:pointer">💬</button>'+
+      '<button onclick="quickSendPartyStatement(\''+safeName+'\',\'email\')" style="padding:7px 10px;border:none;border-radius:6px;background:#5B5BD6;color:#fff;font-size:16px;cursor:pointer">✉️</button>';
+  return '<div id="mstmt_row_'+it.key.replace(/[^a-zA-Z0-9]/g,'_')+'" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #F0F0F0">'+
+    '<div><div style="font-size:13px;font-weight:600">'+(it.kind==='stock'?'📦 ':'')+esc(it.label)+' <span class="_mstmt_check" style="color:#2E7D32;display:'+(sent?'inline':'none')+'">✓ Sent</span></div><div style="font-size:11px;color:#546E7A">'+esc(it.sub)+'</div></div>'+
+    '<div style="display:flex;gap:6px">'+sendBtns+'</div></div>';
+}
+// The actual reminder surface - shows automatically on app open (chained after the existing
+// startup alerts popup, or directly if there were none) when statements are due, and can also
+// be opened manually. Has Send buttons built directly into it, as requested, rather than just
+// linking to another page - and keeps reappearing on every app open until everything listed is
+// either sent or explicitly marked done, since a wa.me/mailto tap can't itself confirm delivery.
+function showMonthlyStatementModal(forceOpen){
+  if(!forceOpen && !isMonthlyStatementDue()) return;
+  if(document.getElementById('monthly_stmt_modal')) return; // don't double-open
+  var monthName = new Date(td()+'T00:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  var items = monthlyStatementItems();
+  var overlay=document.createElement('div');
+  overlay.id='monthly_stmt_modal';
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  overlay.innerHTML='<div style="background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.3)">'+
+    '<div style="background:#1565C0;color:#fff;padding:14px 18px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">'+
+      '<div><div style="font-weight:800;font-size:15px">📅 '+esc(monthName)+' Statements</div>'+
+      '<div style="font-size:11px;opacity:.85">Tap 💬 or ✉️ to send each — you confirm Send in that app</div></div>'+
+      '<button onclick="document.getElementById(\'monthly_stmt_modal\').remove()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:20px;font-weight:700;border-radius:8px;padding:2px 10px;cursor:pointer">✕</button>'+
+    '</div>'+
+    '<div style="overflow-y:auto;padding:14px">'+items.map(monthlyStatementItemRowHtml).join('')+'</div>'+
+    '<div style="padding:12px;border-top:1px solid #eee;display:flex;gap:8px">'+
+      '<button onclick="document.getElementById(\'monthly_stmt_modal\').remove()" style="flex:1;padding:11px;border-radius:8px;background:#546E7A;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer">Remind Me Later</button>'+
+      '<button onclick="markMonthlyStatementDone()" style="flex:1;padding:11px;border-radius:8px;background:#2E7D32;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer">✓ Done for This Month</button>'+
+    '</div>'+
+  '</div>';
+  document.body.appendChild(overlay);
+}
+function pgMonthlyStatements(){
+  var monthName = new Date(td()+'T00:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  var items = monthlyStatementItems();
+  var h = '<div class="al ali"><div class="alt">📅 Monthly Statements — '+esc(monthName)+'</div>'+
+    '<p>Every debtor with an outstanding balance, plus your current Stock Summary, ready to send in one tap each. <b>Note:</b> tapping WhatsApp/Email opens the message pre-filled — you still tap Send yourself in that app, since no website is allowed to send on your behalf without your confirmation. The same reminder pops up automatically when you open the app on/after the 1st, until everything here is sent (or you mark the month done).</p></div>';
+  h += card('This Month\'s Items ('+items.length+')', items.map(monthlyStatementItemRowHtml).join(''));
+  h += card('✅ Done for this month?', btn('Mark '+monthName+' as Sent','markMonthlyStatementDone()','#2E7D32'));
   return h;
 }
 function pgDebtCred(){
@@ -21068,9 +21211,9 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 
 // ===== NAVIGATION & RENDER =====
-var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण',ledgerstmt:'खाता विवरण',dailyregister:'दैनिक रजिस्टर'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',dailyregister:'Daily Register',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
-var NAV_ALL = ['profile','dailyregister','dashboard','capital','inventory','purchase','sales','returns','journal','debtcred','ledgerstmt','stockstmt','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
+var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण',ledgerstmt:'खाता विवरण',monthlystmt:'मासिक विवरण',dailyregister:'दैनिक रजिस्टर'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',dailyregister:'Daily Register',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',monthlystmt:'Monthly Statements',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
+var NAV_ALL = ['profile','dailyregister','dashboard','capital','inventory','purchase','sales','returns','journal','debtcred','ledgerstmt','stockstmt','monthlystmt','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
 var BN_PAGES = ['dashboard','sales','purchase','financials','data'];
 var BN_ICONS = ['🏠','🏷️','🛒','📄','⚙️'];
 
@@ -21104,7 +21247,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,dailyregister:pgDailyRegister,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
+  var fns = {dashboard:pgDash,profile:pgProf,dailyregister:pgDailyRegister,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,monthlystmt:pgMonthlyStatements,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
   setupCustomAutocomplete();
@@ -21308,7 +21451,7 @@ function checkStartupAlerts(){
     else if(limit>0&&used>limit*0.9) alerts.push({urg:1,icon:'⚠️',title:'CC Near Limit: '+l.lender,msg:'Used '+Math.round(used/limit*100)+'% of '+fc(limit)+'. Only '+fc(limit-used)+' available.',action:"go('capital')",btn:'View CC'});
   });
 
-  if(!alerts.length) return;
+  if(!alerts.length){ showMonthlyStatementModal(); return; }
   alerts.sort(function(a,b){return a.urg-b.urg;});
   var colors=['#B71C1C','#E65100'],bgs=['#FFEBEE','#FFF3E0'];
   var body=alerts.map(function(a){
@@ -21336,7 +21479,7 @@ function checkStartupAlerts(){
   '</div>';
   document.body.appendChild(d);
 }
-function closeStartupPopup(){var d=document.getElementById('startup_popup');if(d)d.parentNode.removeChild(d);}
+function closeStartupPopup(){var d=document.getElementById('startup_popup');if(d)d.parentNode.removeChild(d);showMonthlyStatementModal();}
 
 var _DEMO_DATA={"profile": {"businessName": "Devi Agarbatti Works", "ownerName": "Devi Prasad", "mobile": "9876501234", "address": "Plot 12 Industrial Area, Varanasi-221001", "businessType": "Manufacturing", "businessStage": "new", "constitution": "Individual", "udyam": "UDYAM-UP-64-0055555", "gst": "09ABCDP3456F1Z6", "pan": "ABCDP3456F", "commencementDate": "2026-04-01", "shopLicenseNo": "VNS-IND-2024-012", "email": "devi.agarbatti@gmail.com", "natureOfBusiness": "wholesale", "defaultPaymentMode": "", "defaultBankAccount": "ba1", "businessLogo": "", "openingDateLocked": false}, "capital": {"initialCapital": 250000, "additionalCapital": 0, "partnerCapital": {}}, "opening": {"cash": 0, "bank": 0, "stock": 0, "debtors": 0, "creditors": 0, "capital": 250000, "takenOn": "2026-04-01"}, "bankAccounts": [{"id": "ba1", "name": "Canara Bank CA-223344", "accountNumber": "CA-223344", "upiId": "deviprasad@canarabank"}], "settings": {"creditDays": 30, "defaultMargin": 40, "defaultUPIAccount": "ba1"}, "gst": {"enabled": true, "gstin": "09ABCDP3456F1Z6", "type": "regular", "defaultRate": 12, "supplyType": "intra", "stateCode": "09"}, "incomeTax": {"ay": "2026-27", "taxpayerType": "individual", "gender": "male", "section": "new", "useManual": false}, "inventory": [{"id": "ae7be26cdaa7", "itemName": "Bamboo Sticks", "unit": "Kg", "category": "Raw Material", "currentStock": 200, "avgCost": 44, "importedStock": 0, "importedAvgCost": 0, "reorderLevel": 100}, {"id": "aaf2f8999237", "itemName": "Agarbatti Rose Box", "unit": "Box", "category": "FG", "currentStock": 300, "avgCost": 23, "importedStock": 0, "importedAvgCost": 0, "reorderLevel": 200, "mrp": 55, "priceRetail": 46, "priceWholesale": 42}, {"id": "9678f7a7939f", "itemName": "Agarbatti Sandalwood Box", "unit": "Box", "category": "FG", "currentStock": 120, "avgCost": 25, "importedStock": 0, "importedAvgCost": 0, "reorderLevel": 100, "mrp": 62, "priceRetail": 52, "priceWholesale": 48}], "purchases": [{"id": "48d54f43c30a", "date": "2026-04-03", "supplier": "Bamboo Traders", "itemId": "ae7be26cdaa7", "itemName": "Bamboo Sticks", "qty": 500, "rate": 44, "amount": 22000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "defc72a96803", "date": "2026-04-04", "supplier": "Agarbatti Co", "itemId": "aaf2f8999237", "itemName": "Agarbatti Rose Box", "qty": 1000, "rate": 23, "amount": 23000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "28dafd4a8cb5", "date": "2026-04-05", "supplier": "Agarbatti Co", "itemId": "9678f7a7939f", "itemName": "Agarbatti Sandalwood Box", "qty": 500, "rate": 25, "amount": 12500, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "4866d635ea7b", "date": "2026-05-06", "supplier": "Agarbatti Co", "itemId": "aaf2f8999237", "itemName": "Agarbatti Rose Box", "qty": 800, "rate": 23, "amount": 18400, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}, {"id": "146eb1afa896", "date": "2026-06-05", "supplier": "Agarbatti Co", "itemId": "9678f7a7939f", "itemName": "Agarbatti Sandalwood Box", "qty": 400, "rate": 25, "amount": 10000, "paymentMode": "bank", "bankAccountId": "ba1", "isImported": false}], "sales": [{"id": "c498c329342d", "date": "2026-04-16", "customer": "Religious Stores VNS", "itemId": "aaf2f8999237", "itemName": "Agarbatti Rose Box", "qty": 500, "price": 46, "totalAmount": 23000, "cogs": 11500, "grossProfit": 11500, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "d9c2a84bca85", "date": "2026-04-21", "customer": "Pooja Emporium", "itemId": "9678f7a7939f", "itemName": "Agarbatti Sandalwood Box", "qty": 200, "price": 52, "totalAmount": 10400, "cogs": 5000, "grossProfit": 5400, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "52d2a7b1ada1", "date": "2026-04-26", "customer": "Kashi Wholesale", "itemId": "aaf2f8999237", "itemName": "Agarbatti Rose Box", "qty": 400, "price": 42, "totalAmount": 16800, "cogs": 9200, "grossProfit": 7600, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "a052aeb3458b", "date": "2026-04-29", "customer": "Walk-in", "itemId": "aaf2f8999237", "itemName": "Agarbatti Rose Box", "qty": 60, "price": 46, "totalAmount": 2760, "cogs": 1380, "grossProfit": 1380, "paymentMode": "upi", "bankAccountId": "ba1", "isExport": false}, {"id": "7e2b38b62271", "date": "2026-05-01", "customer": "Dubai Al Haram", "itemId": "aaf2f8999237", "itemName": "Agarbatti Rose Box", "qty": 200, "price": 60, "totalAmount": 12000, "cogs": 4600, "grossProfit": 7400, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": true}, {"id": "b436f0a9f24d", "date": "2026-05-16", "customer": "Religious Stores VNS", "itemId": "aaf2f8999237", "itemName": "Agarbatti Rose Box", "qty": 600, "price": 47, "totalAmount": 28200, "cogs": 13800, "grossProfit": 14400, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "b18a8d2ac7e1", "date": "2026-05-21", "customer": "Pooja Emporium", "itemId": "9678f7a7939f", "itemName": "Agarbatti Sandalwood Box", "qty": 250, "price": 52, "totalAmount": 13000, "cogs": 6250, "grossProfit": 6750, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "7251d521c5db", "date": "2026-05-26", "customer": "Kashi Wholesale", "itemId": "aaf2f8999237", "itemName": "Agarbatti Rose Box", "qty": 400, "price": 43, "totalAmount": 17200, "cogs": 9200, "grossProfit": 8000, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "375a6942ab47", "date": "2026-06-10", "customer": "Religious Stores VNS", "itemId": "aaf2f8999237", "itemName": "Agarbatti Rose Box", "qty": 500, "price": 47, "totalAmount": 23500, "cogs": 11500, "grossProfit": 12000, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "0997275588ba", "date": "2026-06-15", "customer": "Kashi Wholesale", "itemId": "9678f7a7939f", "itemName": "Agarbatti Sandalwood Box", "qty": 200, "price": 52, "totalAmount": 10400, "cogs": 5000, "grossProfit": 5400, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": false}, {"id": "f09df9e28290", "date": "2026-06-20", "customer": "Dubai Al Haram", "itemId": "aaf2f8999237", "itemName": "Agarbatti Rose Box", "qty": 300, "price": 62, "totalAmount": 18600, "cogs": 6900, "grossProfit": 11700, "paymentMode": "bank", "bankAccountId": "ba1", "isExport": true}, {"id": "b6eb854b2a3e", "date": "2026-06-25", "customer": "Walk-in", "itemId": "9678f7a7939f", "itemName": "Agarbatti Sandalwood Box", "qty": 60, "price": 52, "totalAmount": 3120, "cogs": 1500, "grossProfit": 1620, "paymentMode": "upi", "bankAccountId": "ba1", "isExport": false}], "expenses": [{"id": "e980661c1929", "date": "2026-04-02", "category": "Rent", "amount": 12000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Rent April"}, {"id": "e158460f4eb2", "date": "2026-04-29", "category": "Salary", "amount": 18000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Salary April"}, {"id": "1fe1c5c68b45", "date": "2026-04-16", "category": "Electricity", "amount": 1800, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Electricity April"}, {"id": "7b2f58096ff1", "date": "2026-04-11", "category": "Fuel", "amount": 3000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Fuel April"}, {"id": "34d994ed38d3", "date": "2026-05-02", "category": "Rent", "amount": 12000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Rent May"}, {"id": "6a00e7be53f7", "date": "2026-05-29", "category": "Salary", "amount": 18000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Salary May"}, {"id": "f4cccf4998a1", "date": "2026-05-16", "category": "Electricity", "amount": 1800, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Electricity May"}, {"id": "5ce294203fdd", "date": "2026-05-11", "category": "Fuel", "amount": 3000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Fuel May"}, {"id": "53ae09686719", "date": "2026-06-01", "category": "Rent", "amount": 12000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Rent June"}, {"id": "3c7a1def9382", "date": "2026-06-28", "category": "Salary", "amount": 18000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Salary June"}, {"id": "1c7d9d4f8a9a", "date": "2026-06-15", "category": "Electricity", "amount": 1800, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Electricity June"}, {"id": "682e825586ec", "date": "2026-06-10", "category": "Fuel", "amount": 3000, "paymentMode": "bank", "bankAccountId": "ba1", "desc": "Fuel June"}], "cashBook": [{"id": "cap_r1", "date": "2026-04-01", "type": "receipt", "mode": "bank", "amount": 250000, "party": "Owner", "desc": "Capital Introduced", "bankAccountId": "ba1"}, {"id": "loan_r1", "date": "2026-04-01", "type": "receipt", "mode": "bank", "amount": 150000, "party": "Canara Bank", "desc": "Loan Received", "bankAccountId": "ba1"}, {"id": "9c4691597340", "date": "2026-04-01", "type": "payment", "mode": "bank", "amount": 80000, "party": "CapEx", "desc": "Fixed Asset: Agarbatti Making Machine", "bankAccountId": "ba1"}, {"id": "265b18924694", "date": "2026-04-01", "type": "payment", "mode": "bank", "amount": 40000, "party": "CapEx", "desc": "Fixed Asset: Drying & Packing Equipment", "bankAccountId": "ba1"}, {"id": "d35cffd26f11", "date": "2026-04-02", "type": "payment", "mode": "bank", "amount": 12000, "party": "Rent", "desc": "Rent April", "bankAccountId": "ba1"}, {"id": "225e20ae265b", "date": "2026-04-03", "type": "payment", "mode": "bank", "amount": 22000, "party": "Bamboo Traders", "desc": "Purchase: Bamboo Sticks", "bankAccountId": "ba1"}, {"id": "f0de5246315e", "date": "2026-04-04", "type": "payment", "mode": "bank", "amount": 23000, "party": "Agarbatti Co", "desc": "Purchase: Agarbatti Rose Box", "bankAccountId": "ba1"}, {"id": "3eab9d96a67c", "date": "2026-04-05", "type": "payment", "mode": "bank", "amount": 12500, "party": "Agarbatti Co", "desc": "Purchase: Agarbatti Sandalwood Box", "bankAccountId": "ba1"}, {"id": "a6d6a6ba1e13", "date": "2026-04-11", "type": "payment", "mode": "bank", "amount": 3000, "party": "Fuel", "desc": "Fuel April", "bankAccountId": "ba1"}, {"id": "71bc09a02c7a", "date": "2026-04-16", "type": "receipt", "mode": "bank", "amount": 23000, "party": "Religious Stores VNS", "desc": "Sale: Agarbatti Rose Box", "bankAccountId": "ba1"}, {"id": "570217000eb3", "date": "2026-04-16", "type": "payment", "mode": "bank", "amount": 1800, "party": "Electricity", "desc": "Electricity April", "bankAccountId": "ba1"}, {"id": "2cc849c89cac", "date": "2026-04-21", "type": "receipt", "mode": "bank", "amount": 10400, "party": "Pooja Emporium", "desc": "Sale: Agarbatti Sandalwood Box", "bankAccountId": "ba1"}, {"id": "cea0849398cf", "date": "2026-04-26", "type": "receipt", "mode": "bank", "amount": 16800, "party": "Kashi Wholesale", "desc": "Sale: Agarbatti Rose Box", "bankAccountId": "ba1"}, {"id": "02b0062f7c25", "date": "2026-04-29", "type": "receipt", "mode": "bank", "amount": 2760, "party": "Walk-in", "desc": "Sale: Agarbatti Rose Box", "bankAccountId": "ba1"}, {"id": "59f07b144d9e", "date": "2026-04-29", "type": "payment", "mode": "bank", "amount": 18000, "party": "Salary", "desc": "Salary April", "bankAccountId": "ba1"}, {"id": "194ea5dfb78d", "date": "2026-04-30", "type": "payment", "mode": "bank", "amount": 8000, "party": "Owner", "desc": "Personal Apr", "bankAccountId": "ba1"}, {"id": "c2f87fa05d26", "date": "2026-05-01", "type": "receipt", "mode": "bank", "amount": 12000, "party": "Dubai Al Haram", "desc": "Sale: Agarbatti Rose Box", "bankAccountId": "ba1"}, {"id": "afe1eb5d1d83", "date": "2026-05-02", "type": "payment", "mode": "bank", "amount": 12000, "party": "Rent", "desc": "Rent May", "bankAccountId": "ba1"}, {"id": "e817923c85ca", "date": "2026-05-06", "type": "payment", "mode": "bank", "amount": 18400, "party": "Agarbatti Co", "desc": "Purchase: Agarbatti Rose Box", "bankAccountId": "ba1"}, {"id": "e51dc1f49beb", "date": "2026-05-11", "type": "payment", "mode": "bank", "amount": 3000, "party": "Fuel", "desc": "Fuel May", "bankAccountId": "ba1"}, {"id": "55121c764a51", "date": "2026-05-16", "type": "receipt", "mode": "bank", "amount": 28200, "party": "Religious Stores VNS", "desc": "Sale: Agarbatti Rose Box", "bankAccountId": "ba1"}, {"id": "553bc40bd723", "date": "2026-05-16", "type": "payment", "mode": "bank", "amount": 1800, "party": "Electricity", "desc": "Electricity May", "bankAccountId": "ba1"}, {"id": "f9e4c923ba3d", "date": "2026-05-21", "type": "receipt", "mode": "bank", "amount": 13000, "party": "Pooja Emporium", "desc": "Sale: Agarbatti Sandalwood Box", "bankAccountId": "ba1"}, {"id": "7faa91fa6f9e", "date": "2026-05-26", "type": "receipt", "mode": "bank", "amount": 17200, "party": "Kashi Wholesale", "desc": "Sale: Agarbatti Rose Box", "bankAccountId": "ba1"}, {"id": "f154208634a3", "date": "2026-05-29", "type": "payment", "mode": "bank", "amount": 18000, "party": "Salary", "desc": "Salary May", "bankAccountId": "ba1"}, {"id": "798b4c51491f", "date": "2026-05-30", "type": "payment", "mode": "bank", "amount": 8000, "party": "Owner", "desc": "Personal May", "bankAccountId": "ba1"}, {"id": "e72ccddb9b1e", "date": "2026-06-01", "type": "payment", "mode": "bank", "amount": 12000, "party": "Rent", "desc": "Rent June", "bankAccountId": "ba1"}, {"id": "a8a800711c9e", "date": "2026-06-05", "type": "payment", "mode": "bank", "amount": 10000, "party": "Agarbatti Co", "desc": "Purchase: Agarbatti Sandalwood Box", "bankAccountId": "ba1"}, {"id": "12d8b4063d65", "date": "2026-06-10", "type": "receipt", "mode": "bank", "amount": 23500, "party": "Religious Stores VNS", "desc": "Sale: Agarbatti Rose Box", "bankAccountId": "ba1"}, {"id": "c3686817be74", "date": "2026-06-10", "type": "payment", "mode": "bank", "amount": 3000, "party": "Fuel", "desc": "Fuel June", "bankAccountId": "ba1"}, {"id": "124fee3684d4", "date": "2026-06-15", "type": "receipt", "mode": "bank", "amount": 10400, "party": "Kashi Wholesale", "desc": "Sale: Agarbatti Sandalwood Box", "bankAccountId": "ba1"}, {"id": "d1dd75be8c51", "date": "2026-06-15", "type": "payment", "mode": "bank", "amount": 1800, "party": "Electricity", "desc": "Electricity June", "bankAccountId": "ba1"}, {"id": "ededb929c87e", "date": "2026-06-20", "type": "receipt", "mode": "bank", "amount": 18600, "party": "Dubai Al Haram", "desc": "Sale: Agarbatti Rose Box", "bankAccountId": "ba1"}, {"id": "e980fa621cb8", "date": "2026-06-25", "type": "receipt", "mode": "bank", "amount": 3120, "party": "Walk-in", "desc": "Sale: Agarbatti Sandalwood Box", "bankAccountId": "ba1"}, {"id": "fb8a45e363f2", "date": "2026-06-27", "type": "payment", "mode": "bank", "amount": 8000, "party": "Owner", "desc": "Personal Jun", "bankAccountId": "ba1"}, {"id": "bbd0bd7abee9", "date": "2026-06-28", "type": "payment", "mode": "bank", "amount": 18000, "party": "Salary", "desc": "Salary June", "bankAccountId": "ba1"}], "drawings": [{"id": "f49d23640c0e", "date": "2026-04-30", "amount": 8000, "partner": "", "desc": "Personal Apr"}, {"id": "50da5752f17a", "date": "2026-05-30", "amount": 8000, "partner": "", "desc": "Personal May"}, {"id": "97c5e71f30fb", "date": "2026-06-27", "amount": 8000, "partner": "", "desc": "Personal Jun"}], "debtors": [], "creditors": [], "loans": [{"id": "ed05c1a98a54", "loanType": "Term Loan", "lender": "Canara Bank", "sanctionDate": "2026-04-01", "sanctionedAmount": 150000, "outstandingBalance": 150000, "rate": 9, "tenure": 60, "emi": 3115, "lastInterestDate": "2026-04-01", "accountNumber": "CAN-TL-VNS-112", "undrawn": false, "payments": []}], "fixedAssets": [{"id": "277b3b5aaf3c", "name": "Agarbatti Making Machine", "purchaseDate": "2026-04-01", "cost": 80000, "life": 8, "accumDep": 0, "disposed": false}, {"id": "c113e6c00b09", "name": "Drying & Packing Equipment", "purchaseDate": "2026-04-01", "cost": 40000, "life": 7, "accumDep": 0, "disposed": false}], "advances": [], "bills": [], "nextBillNo": 1, "productions": [], "consumptions": [], "trialBalance": [], "tbPosted": false, "tbPostedOn": null, "otherAssets": 120000, "otherLiab": 0, "otherAssetsNotes": [{"label": "Agarbatti Making Machine (Fixed Asset)", "amount": 80000}, {"label": "Drying & Packing Equipment (Fixed Asset)", "amount": 40000}], "otherLiabNotes": [], "partyCodes": {}, "customHSN": {}, "security": {"pinEnabled": false, "pinHash": ""}, "priorPeriod": {"enabled": false, "fromDate": "", "toDate": "", "sales": 0, "cogs": 0, "expenseByCat": {}}, "budget": {"sales": 600000, "purchase": 150000, "rent": 144000, "salary": 216000, "fuel": 36000}, "loanAssessment": {"tlAmount": 150000, "tlRate": 9, "tlTenure": 60, "salesGrowth": 30, "marginPctTurnover": 40, "useManual": false}, "expenseCategories": ["Rent", "Electricity", "Salary", "Transportation", "Telephone", "Fuel", "Repair", "Marketing", "Interest Payment", "Miscellaneous"], "_depCorrectionApplied": true};
 function syncOtherAssets(){
