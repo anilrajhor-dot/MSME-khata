@@ -168,6 +168,7 @@ input[type=text], input[type=number], input[type=date], textarea { cursor:text !
     <b id="tbn">🛒 Trade Accounts</b>
     <small id="tbp">Dashboard</small>
   </div>
+  <button onclick="showDataHealthDetail()" id="dhi" title="Data save status" style="background:none;border:none;font-size:16px;cursor:pointer;padding:4px 6px;vertical-align:middle">💾</button>
   <button onclick="toggleHi()" id="lb">हि</button>
 </div>
 <div id="nav"></div>
@@ -231,8 +232,9 @@ function defD(){
     bills:[],
     nextBillNo:1,
     expenseCategories:['Rent','Electricity','Salary','Transportation','Telephone','Fuel','Repair','Marketing','Interest Payment','Freight Inward','Carriage Inward','Loading/Unloading (Purchase)','Miscellaneous'],
-    settings:{creditDays:30,defaultMargin:20,voiceAnnounce:false,lastMonthlyStatementRun:'',monthlyStatementSentLog:{}},
+    settings:{creditDays:30,defaultMargin:20,voiceAnnounce:false,lastMonthlyStatementRun:'',monthlyStatementSentLog:{},monthlyStatementMinBalance:0,monthlyStatementIncludeCreditors:false,lastBackupDate:''},
     partyCodes:{},
+    partyContacts:{},
     customHSN:{},
     incomeTax:{ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false},
     gst:{enabled:false,gstin:'',type:'regular',defaultRate:18,supplyType:'intra',stateCode:''},
@@ -396,12 +398,16 @@ function migrateData(d){
   if(d.loanAssessment && d.loanAssessment.marginPctTurnover===undefined) d.loanAssessment.marginPctTurnover=25;
   if(d.loanAssessment && d.loanAssessment.marginPctTandon===undefined) d.loanAssessment.marginPctTandon=25;
   if(d.loanAssessment && d.loanAssessment.useManual===undefined) d.loanAssessment.useManual=false;
-  if(!d.settings) d.settings={creditDays:30,defaultMargin:20,voiceAnnounce:false,lastMonthlyStatementRun:'',monthlyStatementSentLog:{}};
+  if(!d.settings) d.settings={creditDays:30,defaultMargin:20,voiceAnnounce:false,lastMonthlyStatementRun:'',monthlyStatementSentLog:{},monthlyStatementMinBalance:0,monthlyStatementIncludeCreditors:false,lastBackupDate:''};
+  if(d.settings.monthlyStatementMinBalance===undefined) d.settings.monthlyStatementMinBalance=0;
+  if(d.settings.monthlyStatementIncludeCreditors===undefined) d.settings.monthlyStatementIncludeCreditors=false;
+  if(d.settings.lastBackupDate===undefined) d.settings.lastBackupDate='';
   if(d.settings.lastMonthlyStatementRun===undefined) d.settings.lastMonthlyStatementRun='';
   if(!d.settings.monthlyStatementSentLog) d.settings.monthlyStatementSentLog={};
   if(d.settings.voiceAnnounce===undefined) d.settings.voiceAnnounce=false;
   if(d.settings.defaultMargin===undefined) d.settings.defaultMargin=20;
   if(!d.partyCodes) d.partyCodes={};
+  if(!d.partyContacts) d.partyContacts={};
   if(!d.customHSN) d.customHSN={};
   if(!d.incomeTax) d.incomeTax={ay:'2025-26',taxpayerType:'individual',gender:'male',section:'regular',useManual:false};
   // Auto-fill HSN/GST on existing inventory items if GST is enabled
@@ -439,7 +445,32 @@ function sv(){
     } else {
       localStorage.setItem(SK, JSON.stringify(D));
     }
-  }catch(e){}
+    window._lastSaveOk = true;
+    updateDataHealthIndicator();
+  }catch(e){
+    window._lastSaveOk = false;
+    updateDataHealthIndicator();
+  }
+}
+function updateDataHealthIndicator(){
+  var el = document.getElementById('dhi');
+  if(!el) return;
+  if(window._lastSaveOk===false){
+    el.textContent = '💾⚠️';
+    el.style.color = '#FFCDD2';
+    el.title = 'Data is NOT saving correctly — tap for details';
+  } else {
+    el.textContent = '💾';
+    el.style.color = '';
+    el.title = 'Data saving normally — tap for details';
+  }
+}
+function showDataHealthDetail(){
+  var ok = window._lastSaveOk!==false;
+  var msg = ok
+    ? '✅ Your data is saving correctly on this device.'
+    : '⚠️ Your data is NOT saving correctly right now — changes you make may be lost if you close the app. Back up now via Data → Download Backup, and try freeing device storage or closing other browser tabs.';
+  toast(msg, ok?undefined:'e');
 }
 function fmt(n,d){d=d||0;if(isNaN(n))return'0';return Number(n).toLocaleString('en-IN',{minimumFractionDigits:d,maximumFractionDigits:d});}
 function fc(n){return'₹'+fmt(n,2);}
@@ -4155,6 +4186,62 @@ function closeDay(){
   }
   renderPage();
 }
+// Replicates the exact per-customer calculation from diagnoseBSDifference()'s "credit sales
+// with no matching Debtor entry" check, since that finding only stores the aggregate total and
+// a truncated name list - this recomputes the full, precise per-customer breakdown needed to
+// actually apply a fix.
+function computeMissingDebtorEntries(){
+  var creditSales = D.sales.filter(function(s){ return s.paymentMode==='credit'; });
+  var custNameOf = function(s){ return s.customerName || s.customer || ''; };
+  var debtorPositiveByName = {};
+  D.debtors.forEach(function(d){ if((+d.amount||0)>0) debtorPositiveByName[d.name] = (debtorPositiveByName[d.name]||0) + d.amount; });
+  var creditSalesByName = {}, lastSaleDateByName = {};
+  creditSales.forEach(function(s){
+    var nm=custNameOf(s);
+    creditSalesByName[nm] = (creditSalesByName[nm]||0) + (s.totalAmount||0);
+    if(!lastSaleDateByName[nm] || s.date>lastSaleDateByName[nm]) lastSaleDateByName[nm]=s.date;
+  });
+  var missing = [];
+  for(var nm in creditSalesByName){
+    var salesTotal = creditSalesByName[nm];
+    var debtorTotal = debtorPositiveByName[nm] || 0;
+    if(salesTotal - debtorTotal > 0.5){
+      missing.push({name:nm, amount:salesTotal-debtorTotal, date:lastSaleDateByName[nm]||td()});
+    }
+  }
+  return missing;
+}
+// Only ever offered for this one finding type - it's safe specifically because the sale already
+// exists and is already counted in revenue; this just adds the missing receivable record that
+// should have existed alongside it, without changing any existing figures. Always shows exactly
+// what will be added and requires explicit confirmation before touching any data.
+function offerAutoFixMissingDebtors(){
+  var missing = computeMissingDebtorEntries();
+  if(!missing.length){ toast('Nothing to fix - no missing Debtor entries found.'); return; }
+  var overlay=document.createElement('div');
+  overlay.id='autofix_modal';
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:10002;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  overlay.innerHTML='<div style="background:#fff;border-radius:12px;padding:18px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 4px 24px rgba(0,0,0,0.3)">'+
+    '<div style="font-size:15px;font-weight:800;color:#1565C0;margin-bottom:10px">🔧 Add Missing Debtor Entries</div>'+
+    '<div style="font-size:12px;color:#546E7A;margin-bottom:10px">This will add exactly these receivable entries — one per customer, dated their most recent credit sale — so the amount they owe is properly tracked. Nothing else changes; the sales themselves are untouched.</div>'+
+    missing.map(function(m){ return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F0F0F0;font-size:12px"><span>'+esc(m.name)+'</span><b>'+fc(m.amount)+'</b></div>'; }).join('')+
+    '<div style="font-size:12px;font-weight:700;margin-top:8px;text-align:right">Total: '+fc(missing.reduce(function(s,m){return s+m.amount;},0))+'</div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">'+
+    '<button onclick="document.getElementById(\'autofix_modal\').remove()" style="padding:9px 14px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#546E7A;font-size:13px;cursor:pointer">Cancel</button>'+
+    '<button onclick="applyAutoFixMissingDebtors()" style="padding:9px 14px;border-radius:8px;border:none;background:#2E7D32;color:#fff;font-size:13px;font-weight:700;cursor:pointer">Add These Entries</button>'+
+    '</div></div>';
+  document.body.appendChild(overlay);
+}
+function applyAutoFixMissingDebtors(){
+  var missing = computeMissingDebtorEntries();
+  missing.forEach(function(m){
+    addDebtor(m.name, m.amount, m.date, 'Auto-fix: missing receivable for credit sale(s)');
+  });
+  sv();
+  var m=document.getElementById('autofix_modal'); if(m) m.remove();
+  toast('✅ Added '+missing.length+' missing Debtor entr'+(missing.length===1?'y':'ies')+'.');
+  renderPage();
+}
 function dayCloseCard(){
   var bs = getBS();
   var diag = diagnoseBSDifference();
@@ -4170,7 +4257,7 @@ function dayCloseCard(){
       '<p>You cannot close today\'s books until this is fixed. Here\'s what the diagnostic found:</p></div>';
     if(diag.findings && diag.findings.length){
       diag.findings.forEach(function(f){
-        h += '<div class="al '+(f.severity==='error'?'ald':'alw')+'" style="margin-top:6px"><div class="alt">'+esc(f.title)+'</div><p>'+esc(f.detail)+'</p>'+(f.fix?'<p><b>How to fix:</b> '+esc(f.fix)+'</p>':'')+'</div>';
+        h += '<div class="al '+(f.severity==='error'?'ald':'alw')+'" style="margin-top:6px"><div class="alt">'+esc(f.title)+'</div><p>'+esc(f.detail)+'</p>'+(f.fix?'<p><b>How to fix:</b> '+esc(f.fix)+'</p>':'')+(f.title.indexOf('have no matching Debtor entry')>=0?btn('🔧 Auto-Fix This','offerAutoFixMissingDebtors()','#2E7D32'):'')+'</div>';
       });
     } else {
       h += '<div class="al ali">No specific cause identified automatically. Review recent entries — especially anything edited or deleted today — or check Health Check for other warnings.</div>';
@@ -4287,6 +4374,7 @@ function pgDash(){
   var h='';
   h += dayCloseCard();
   h += monthlyStatementBanner();
+  h += backupReminderBanner();
 
   // ── Business header ──
   if(D.profile.businessName){
@@ -6446,13 +6534,62 @@ function renderLedgerStatement(result){
   );
   return h;
 }
-// Returns the list of "items" that need sending this month - every debtor with an outstanding
-// balance, plus one entry for the stock summary. Used both to build the modal and to check
-// whether everything has actually been sent yet.
+// ===== PARTY CONTACT BOOK (optional phone/email per debtor/creditor, so WhatsApp/Email can
+// jump straight to that person's chat instead of requiring a manual contact pick every time) ===
+function getPartyContact(name){
+  var key = (name||'').trim().toLowerCase();
+  return (D.partyContacts && D.partyContacts[key]) || {phone:'', email:''};
+}
+function setPartyContact(name, phone, email){
+  var key = (name||'').trim().toLowerCase();
+  if(!D.partyContacts) D.partyContacts={};
+  D.partyContacts[key] = {phone:(phone||'').trim(), email:(email||'').trim()};
+  sv();
+}
+// Small inline modal for adding/editing one party's phone+email - deliberately minimal (two
+// fields, save/cancel) since this is an occasional setup action, not a frequent one.
+function editPartyContactPrompt(name){
+  var existing = getPartyContact(name);
+  var overlay=document.createElement('div');
+  overlay.id='party_contact_modal';
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  var safeName = esc(name);
+  overlay.innerHTML='<div style="background:#fff;border-radius:12px;padding:18px;max-width:380px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,0.3)">'+
+    '<div style="font-size:15px;font-weight:800;color:#1565C0;margin-bottom:10px">📞 Contact — '+safeName+'</div>'+
+    '<div style="font-size:11px;color:#546E7A;margin-bottom:10px">Saved once, reused every time you send this party a statement or reminder — WhatsApp/Email will open directly to them instead of asking you to pick.</div>'+
+    '<div class="fg"><label>Mobile Number (with country code, e.g. 91XXXXXXXXXX)</label><input type="tel" id="pc_phone" value="'+esc(existing.phone)+'" placeholder="91XXXXXXXXXX" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;box-sizing:border-box"></div>'+
+    '<div class="fg" style="margin-top:8px"><label>Email</label><input type="email" id="pc_email" value="'+esc(existing.email)+'" placeholder="name@example.com" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;box-sizing:border-box"></div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">'+
+    '<button onclick="document.getElementById(\'party_contact_modal\').remove()" style="padding:9px 14px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#546E7A;font-size:13px;cursor:pointer">Cancel</button>'+
+    '<button onclick="savePartyContactFromModal(\''+safeName.replace(/'/g,"\\'")+'\')" style="padding:9px 14px;border-radius:8px;border:none;background:#1565C0;color:#fff;font-size:13px;font-weight:700;cursor:pointer">Save</button>'+
+    '</div></div>';
+  document.body.appendChild(overlay);
+}
+function savePartyContactFromModal(name){
+  var phone = document.getElementById('pc_phone').value.trim();
+  var email = document.getElementById('pc_email').value.trim();
+  if(phone && !/^\d{10,15}$/.test(phone.replace(/[^0-9]/g,''))){
+    toast('Mobile number looks off — digits only, with country code (e.g. 919876543210).','e'); return;
+  }
+  setPartyContact(name, phone.replace(/[^0-9]/g,''), email);
+  var m=document.getElementById('party_contact_modal'); if(m) m.remove();
+  toast('✅ Contact saved for '+name+'.');
+  renderPage();
+}
+
+// Returns the list of "items" that need sending this month - every debtor (and, if enabled,
+// creditor) with an outstanding balance above the configured threshold, plus one entry for the
+// stock summary. Used both to build the modal and to check whether everything has been sent.
 function monthlyStatementItems(){
-  var items = debtorBalances().filter(function(d){return Math.abs(d.balance)>0.5;}).map(function(d){
+  var minBal = +(D.settings&&D.settings.monthlyStatementMinBalance)||0;
+  var items = debtorBalances().filter(function(d){return Math.abs(d.balance)>Math.max(0.5,minBal);}).map(function(d){
     return {key:'debtor:'+d.name, label:d.name, sub:'Due: '+fc(d.balance), kind:'debtor', name:d.name};
   });
+  if(D.settings && D.settings.monthlyStatementIncludeCreditors){
+    creditorBalances().filter(function(c){return Math.abs(c.balance)>Math.max(0.5,minBal);}).forEach(function(c){
+      items.push({key:'creditor:'+c.name, label:c.name, sub:'Owed: '+fc(c.balance), kind:'creditor', name:c.name});
+    });
+  }
   items.push({key:'stock', label:'Stock Summary', sub:D.inventory.length+' item(s)', kind:'stock'});
   return items;
 }
@@ -6467,6 +6604,24 @@ function isMonthlyStatementDue(){
   var allSent = items.length>0 && items.every(function(it){return sentLog.indexOf(it.key)>=0;});
   if(allSent){ D.settings.lastMonthlyStatementRun = curMonthKey; sv(); return false; }
   return true;
+}
+// Nudges for a backup if none has been taken in 60+ days, or ever - the device is the only
+// database here, so this is the closest equivalent to an "archive reminder."
+function daysSinceLastBackup(){
+  if(!D.settings.lastBackupDate) return Infinity;
+  var last = new Date(D.settings.lastBackupDate+'T00:00:00');
+  var now = new Date(td()+'T00:00:00');
+  return Math.round((now-last)/86400000);
+}
+function backupReminderBanner(){
+  var days = daysSinceLastBackup();
+  if(days<60) return '';
+  var msg = D.settings.lastBackupDate
+    ? 'It has been '+days+' days since your last backup ('+D.settings.lastBackupDate+').'
+    : 'No backup has been taken yet — this device is the only copy of your data.';
+  return '<div class="al ald" style="margin-bottom:10px"><div class="alt">💾 Backup Reminder</div>'+
+    '<p>'+msg+' Take a fresh backup regularly — it only takes a moment and protects against losing everything if this device is lost, damaged, or reset.</p>'+
+    btn('⬇ Backup Now','go(\'data\');setTimeout(expDat,300)','#C62828')+'</div>';
 }
 function monthlyStatementBanner(){
   if(!isMonthlyStatementDue()) return '';
@@ -6494,12 +6649,14 @@ function markItemSent(key){
   if(D.settings.monthlyStatementSentLog[curMonthKey].indexOf(key)<0) D.settings.monthlyStatementSentLog[curMonthKey].push(key);
   sv();
 }
-// Computes and shares one debtor's statement directly (WhatsApp or Email) without navigating
+// Computes and shares one party's statement directly (WhatsApp or Email) without navigating
 // away - reuses the same computation as Statement Generator so the figures are guaranteed
-// identical to what that page would show. Marks the item as sent for this month's tracking.
-function quickSendPartyStatement(name, channel){
+// identical to what that page would show. Adds a personalised greeting, and if a phone/email is
+// saved for this party, opens directly to their chat/recipient instead of a blank compose.
+function quickSendPartyStatement(name, channel, kind){
+  kind = kind || 'debtor';
   var fromDate = (D.opening&&D.opening.takenOn) || '2024-04-01';
-  var result = computeLedgerStatement('debtor', name, fromDate, td());
+  var result = computeLedgerStatement(kind, name, fromDate, td());
   if(!result.label){ toast('Could not compute statement for '+name,'e'); return; }
   var cols = [
     {l:'Date', k:'date'},
@@ -6508,11 +6665,13 @@ function quickSendPartyStatement(name, channel){
     {l:'Credit', r:1, fn:function(r){return r.cr>0?fc(r.cr):'—';}},
     {l:'Balance', r:1, fn:function(r){return fc(r.balance);}}
   ];
+  var greeting = 'Dear '+name+', Namaste! Please find your account statement below from '+(D.profile.businessName||'us')+'.';
   setLedgerShareData(result.label+' ('+result.fromDate+' to '+result.toDate+')', cols, result.rows,
-    ['Opening Balance: '+fc(result.openingBalance), 'Closing Balance: '+fc(result.closingBalance)]);
-  if(channel==='whatsapp') shareLedgerWhatsApp(); else shareLedgerEmail();
-  markItemSent('debtor:'+name);
-  refreshMonthlyStatementModalRow('debtor:'+name);
+    [greeting, '', 'Opening Balance: '+fc(result.openingBalance), 'Closing Balance: '+fc(result.closingBalance)]);
+  var contact = getPartyContact(name);
+  sendLedgerVia(channel, contact);
+  markItemSent(kind+':'+name);
+  refreshMonthlyStatementModalRow(kind+':'+name);
 }
 function quickSendStockSummary(channel){
   var cols = [
@@ -6529,6 +6688,23 @@ function quickSendStockSummary(channel){
   markItemSent('stock');
   refreshMonthlyStatementModalRow('stock');
 }
+// Like shareLedgerWhatsApp/shareLedgerEmail, but opens directly to the saved contact's chat or
+// recipient address when available, instead of a blank compose the user has to address manually.
+function sendLedgerVia(channel, contact){
+  var d = window._currentLedgerShareData;
+  if(!d){ toast('Nothing to share yet','e'); return; }
+  var text = tableToShareText(d.title, d.cols, d.rows, d.extraLines);
+  if(channel==='whatsapp'){
+    var phonePart = (contact && contact.phone) ? contact.phone : '';
+    var url = 'https://wa.me/'+phonePart+'?text='+encodeURIComponent(text);
+    var win = window.open(url,'_blank');
+    if(!win) toast('Could not open WhatsApp - please allow pop-ups, or use 📤 Share instead.','e');
+  } else {
+    var emailPart = (contact && contact.email) ? contact.email : '';
+    var url = 'mailto:'+emailPart+'?subject='+encodeURIComponent(d.title)+'&body='+encodeURIComponent(text);
+    window.location.href = url;
+  }
+}
 // Updates just one row's checkmark in the open modal (if any) without re-rendering the whole
 // thing, so the list doesn't jump around while the user is still working through it.
 function refreshMonthlyStatementModalRow(key){
@@ -6540,14 +6716,22 @@ function refreshMonthlyStatementModalRow(key){
 }
 function monthlyStatementItemRowHtml(it){
   var sent = isItemSent(it.key);
-  var safeName = it.kind==='debtor' ? esc(it.name).replace(/'/g,"\\'") : '';
+  var safeName = (it.kind==='debtor'||it.kind==='creditor') ? esc(it.name).replace(/'/g,"\\'") : '';
+  var contact = it.kind!=='stock' ? getPartyContact(it.name) : null;
+  var contactLine = '';
+  if(it.kind!=='stock'){
+    var hasContact = contact && (contact.phone||contact.email);
+    contactLine = '<div style="font-size:10px;color:'+(hasContact?'#1565C0':'#B0BEC5')+';margin-top:2px;cursor:pointer" onclick="editPartyContactPrompt(\''+safeName+'\')">'+
+      (hasContact ? '📞 '+(contact.phone?esc(contact.phone):'')+(contact.phone&&contact.email?' | ':'')+(contact.email?esc(contact.email):'')+' · edit' : '📞 Add contact (optional)')+
+      '</div>';
+  }
   var sendBtns = it.kind==='stock'
     ? '<button onclick="quickSendStockSummary(\'whatsapp\')" style="padding:7px 10px;border:none;border-radius:6px;background:#25D366;color:#fff;font-size:16px;cursor:pointer">💬</button>'+
       '<button onclick="quickSendStockSummary(\'email\')" style="padding:7px 10px;border:none;border-radius:6px;background:#5B5BD6;color:#fff;font-size:16px;cursor:pointer">✉️</button>'
-    : '<button onclick="quickSendPartyStatement(\''+safeName+'\',\'whatsapp\')" style="padding:7px 10px;border:none;border-radius:6px;background:#25D366;color:#fff;font-size:16px;cursor:pointer">💬</button>'+
-      '<button onclick="quickSendPartyStatement(\''+safeName+'\',\'email\')" style="padding:7px 10px;border:none;border-radius:6px;background:#5B5BD6;color:#fff;font-size:16px;cursor:pointer">✉️</button>';
+    : '<button onclick="quickSendPartyStatement(\''+safeName+'\',\'whatsapp\',\''+it.kind+'\')" style="padding:7px 10px;border:none;border-radius:6px;background:#25D366;color:#fff;font-size:16px;cursor:pointer">💬</button>'+
+      '<button onclick="quickSendPartyStatement(\''+safeName+'\',\'email\',\''+it.kind+'\')" style="padding:7px 10px;border:none;border-radius:6px;background:#5B5BD6;color:#fff;font-size:16px;cursor:pointer">✉️</button>';
   return '<div id="mstmt_row_'+it.key.replace(/[^a-zA-Z0-9]/g,'_')+'" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #F0F0F0">'+
-    '<div><div style="font-size:13px;font-weight:600">'+(it.kind==='stock'?'📦 ':'')+esc(it.label)+' <span class="_mstmt_check" style="color:#2E7D32;display:'+(sent?'inline':'none')+'">✓ Sent</span></div><div style="font-size:11px;color:#546E7A">'+esc(it.sub)+'</div></div>'+
+    '<div><div style="font-size:13px;font-weight:600">'+(it.kind==='stock'?'📦 ':it.kind==='creditor'?'🏭 ':'')+esc(it.label)+' <span class="_mstmt_check" style="color:#2E7D32;display:'+(sent?'inline':'none')+'">✓ Sent</span></div><div style="font-size:11px;color:#546E7A">'+esc(it.sub)+'</div>'+contactLine+'</div>'+
     '<div style="display:flex;gap:6px">'+sendBtns+'</div></div>';
 }
 // The actual reminder surface - shows automatically on app open (chained after the existing
@@ -6577,11 +6761,25 @@ function showMonthlyStatementModal(forceOpen){
   '</div>';
   document.body.appendChild(overlay);
 }
+function saveMonthlyStatementSettings(){
+  var minBal = +document.getElementById('mstmt_minbal').value || 0;
+  var includeCred = document.getElementById('mstmt_inccred').checked;
+  D.settings.monthlyStatementMinBalance = minBal;
+  D.settings.monthlyStatementIncludeCreditors = includeCred;
+  sv();
+  toast('✅ Settings saved.');
+  renderPage();
+}
 function pgMonthlyStatements(){
   var monthName = new Date(td()+'T00:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
   var items = monthlyStatementItems();
   var h = '<div class="al ali"><div class="alt">📅 Monthly Statements — '+esc(monthName)+'</div>'+
     '<p>Every debtor with an outstanding balance, plus your current Stock Summary, ready to send in one tap each. <b>Note:</b> tapping WhatsApp/Email opens the message pre-filled — you still tap Send yourself in that app, since no website is allowed to send on your behalf without your confirmation. The same reminder pops up automatically when you open the app on/after the 1st, until everything here is sent (or you mark the month done).</p></div>';
+  h += card('⚙️ Settings',
+    g2(inp('Minimum Balance to Include','mstmt_minbal','number',D.settings.monthlyStatementMinBalance||0),'')+
+    '<label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer"><input type="checkbox" id="mstmt_inccred" '+(D.settings.monthlyStatementIncludeCreditors?'checked':'')+' style="width:18px;height:18px"><span style="font-size:12px">Also include Creditors (suppliers you owe)</span></label>'+
+    btn('Save Settings','saveMonthlyStatementSettings()','#546E7A')
+  );
   h += card('This Month\'s Items ('+items.length+')', items.map(monthlyStatementItemRowHtml).join(''));
   h += card('✅ Done for this month?', btn('Mark '+monthName+' as Sent','markMonthlyStatementDone()','#2E7D32'));
   return h;
@@ -7521,6 +7719,33 @@ function expTodayEntries(){
   if(!win){
     shareOrCopyText("Today's Entries", text);
   }
+}
+function aiProxySetupCard(){
+  var proxyUrl = (D.settings&&D.settings.aiProxyUrl)||'';
+  return '<div class="al ali">Optional: connect an online AI proxy for the full Claude-powered AI Advisor. Without this, AI Advisor still works offline using built-in smart answers.</div>'+
+    inp('Proxy URL','ai_proxy_url','text',proxyUrl,'https://your-proxy.example.com')+
+    g2(btn('Test Connection','testAIConnection()','#546E7A'), btn('Save','saveAIProxyUrl()','#1565C0'))+
+    '<div id="ai_proxy_test_result" style="font-size:11px;color:#546E7A;margin-top:8px"></div>';
+}
+function testAIConnection(){
+  var url = gv('ai_proxy_url').trim();
+  var resEl = document.getElementById('ai_proxy_test_result');
+  if(!url){ if(resEl) resEl.innerHTML = '<span style="color:#C62828">Enter a proxy URL first.</span>'; return; }
+  if(resEl) resEl.innerHTML = '⏳ Testing connection...';
+  var endpoint = url.replace(/\/+$/,'')+'/api/chat';
+  fetch(endpoint, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-6', max_tokens:10, messages:[{role:'user', content:'test'}]})
+  }).then(function(resp){
+    if(resp.ok){
+      if(resEl) resEl.innerHTML = '<span style="color:#2E7D32">✅ Connected successfully — this URL works.</span>';
+    } else {
+      if(resEl) resEl.innerHTML = '<span style="color:#C62828">❌ Connection failed (HTTP '+resp.status+') — check the URL is correct and the proxy is running.</span>';
+    }
+  }).catch(function(err){
+    if(resEl) resEl.innerHTML = '<span style="color:#C62828">❌ Could not reach this URL — check for a typo, and that the proxy server is running and reachable. ('+esc(err.message)+')</span>';
+  });
 }
 function saveAIProxyUrl(){
   var url=gv('ai_proxy_url').trim();
@@ -9603,6 +9828,140 @@ function loadMidSizeDemo(withGST){
   });
 }
 
+function runSelfTest(){
+  var results = [];
+  function check(name, pass, detail){ results.push({name:name, pass:pass, detail:detail}); }
+
+  // 1. Balance Sheet check on current live data
+  try{
+    var bs = getBS();
+    check('Balance Sheet ties out', Math.abs(bs.diff)<1, Math.abs(bs.diff)<1 ? 'Assets = Liabilities + Capital, exactly.' : 'Off by '+fc(Math.abs(bs.diff))+'.');
+  }catch(e){ check('Balance Sheet ties out', false, 'Error while checking: '+e.message); }
+
+  // 2. Data integrity diagnostics (same engine Day Close uses)
+  try{
+    var diag = diagnoseBSDifference();
+    var errFindings = (diag.findings||[]).filter(function(f){return f.severity==='error';});
+    check('No data integrity errors', errFindings.length===0, errFindings.length===0 ? 'No orphaned sales/purchases or similar issues found.' : errFindings.length+' issue(s) found: '+errFindings.map(function(f){return f.title;}).join('; '));
+  }catch(e){ check('No data integrity errors', false, 'Error while checking: '+e.message); }
+
+  // 3. Serialization round-trip - the data can be saved and reloaded without loss
+  try{
+    var serialized = JSON.stringify(D);
+    var reparsed = JSON.parse(serialized);
+    var reMigrated = migrateData(reparsed);
+    var salesMatch = reMigrated.sales.length === D.sales.length;
+    var purMatch = reMigrated.purchases.length === D.purchases.length;
+    check('Data survives save/reload intact', salesMatch && purMatch, (salesMatch&&purMatch) ? 'Sales, Purchases and all other records round-trip through JSON without loss.' : 'Record counts changed after round-trip - something is not serializing correctly.');
+  }catch(e){ check('Data survives save/reload intact', false, 'Error while checking: '+e.message); }
+
+  // 4. Live transaction test - on a fully isolated copy, never the real D. Adds a test sale
+  // and expense (using a real existing item if one exists) and confirms the books still tie
+  // out afterward - catches a regression in the core posting logic itself.
+  try{
+    var originalD = D;
+    var testCopy = migrateData(JSON.parse(JSON.stringify(D)));
+    D = testCopy;
+    var txnOk = true, txnDetail = '';
+    if(D.inventory.length>0){
+      var item = D.inventory[0];
+      var csv1 = 'Date (YYYY-MM-DD),Item Name,Customer Name,Quantity,Selling Price,Payment Mode (cash/bank/upi/credit)\n'+td()+','+item.itemName+',Self-Test Customer,1,'+Math.max(1,Math.round(item.avgCost*1.2))+',cash';
+      var val1 = validateBulkRows('sale', parseCSV(csv1));
+      if(val1.errors.length){ txnOk=false; txnDetail='Test sale failed validation: '+val1.errors.join('; '); }
+      else commitBulkImport('sale', val1.valid);
+    }
+    var csv2 = 'Date (YYYY-MM-DD),Category,Amount,Payment Mode (cash/bank)\n'+td()+',Self-Test Category,1,cash';
+    var val2 = validateBulkRows('expense', parseCSV(csv2));
+    if(val2.errors.length){ txnOk=false; txnDetail=(txnDetail?txnDetail+' ':'')+'Test expense failed validation: '+val2.errors.join('; '); }
+    else commitBulkImport('expense', val2.valid);
+    var bsAfter = getBS();
+    var stillClean = Math.abs(bsAfter.diff)<1;
+    D = originalD; // restore immediately - the test copy and everything in it is discarded
+    check('Live posting logic works correctly', txnOk && stillClean, (txnOk && stillClean) ? 'Added a test sale and expense on an isolated copy - books still tie out afterward.' : (txnDetail || 'Books did not tie out after test transactions ('+fc(Math.abs(bsAfter.diff))+' off) - possible regression in posting logic.'));
+  }catch(e){
+    D = originalD || D;
+    check('Live posting logic works correctly', false, 'Error while checking: '+e.message);
+  }
+
+  // 5. Storage writability
+  try{
+    var testKey = '_mekhata_selftest_'+Date.now();
+    localStorage.setItem(testKey, '1');
+    var readBack = localStorage.getItem(testKey)==='1';
+    localStorage.removeItem(testKey);
+    check('Device storage is writable', readBack, readBack ? 'localStorage read/write confirmed working.' : 'Could not write to local storage - saves may be failing silently.');
+  }catch(e){ check('Device storage is writable', false, 'Storage error: '+e.message); }
+
+  // 6. Health Check score (reuses the existing Health Check engine)
+  try{
+    runHealthCheck();
+    var hr = window._healthResult;
+    var passCount = hr ? hr.checks.filter(function(c){return c.pass;}).length : 0;
+    var totalCount = hr ? hr.checks.length : 0;
+    check('Health Check', totalCount>0 && passCount===totalCount, totalCount>0 ? passCount+'/'+totalCount+' Health Check items passed.' : 'Health Check did not return results.');
+  }catch(e){ check('Health Check', false, 'Error while checking: '+e.message); }
+
+  window._selfTestResult = {results:results, ranAt:new Date().toISOString()};
+  renderPage();
+  var allPass = results.every(function(r){return r.pass;});
+  toast(allPass ? '✅ Self-Test passed — '+results.length+'/'+results.length+' checks.' : '⚠️ Self-Test found '+results.filter(function(r){return !r.pass;}).length+' issue(s).', allPass?undefined:'w');
+}
+// ===== REPORT A PROBLEM (bundles recent errors + diagnostic context into one downloadable
+// file, so a bug report is one message instead of several rounds of screenshots) =====
+function generateProblemReport(){
+  var desc = (document.getElementById('problem_desc')?document.getElementById('problem_desc').value:'').trim();
+  var lines = [];
+  lines.push('ME Khata — Problem Report');
+  lines.push('Generated: '+new Date().toLocaleString('en-IN'));
+  lines.push('App: '+(D.profile&&D.profile.businessType||'')+' Khata | Business: '+(D.profile&&D.profile.businessName||''));
+  lines.push('');
+  lines.push('=== What happened (user description) ===');
+  lines.push(desc || '(not provided)');
+  lines.push('');
+  lines.push('=== Current state ===');
+  try{
+    var bs = getBS();
+    lines.push('Balance Sheet diff: '+fc(Math.abs(bs.diff))+(Math.abs(bs.diff)<1?' (balanced)':' (NOT balanced)'));
+  }catch(e){ lines.push('Balance Sheet check failed: '+e.message); }
+  lines.push('Current page: '+curPg);
+  lines.push('Sales: '+D.sales.length+' | Purchases: '+D.purchases.length+' | Expenses: '+D.expenses.length+' | Debtors: '+D.debtors.length+' | Creditors: '+D.creditors.length+' | Inventory items: '+D.inventory.length);
+  lines.push('Browser: '+navigator.userAgent);
+  lines.push('');
+  lines.push('=== Recent errors captured this session ('+window._recentErrors.length+') ===');
+  if(window._recentErrors.length===0){
+    lines.push('(none captured)');
+  } else {
+    window._recentErrors.forEach(function(e){
+      lines.push('['+e.time+'] ('+e.type+', page: '+e.page+') '+e.msg+(e.line?' at line '+e.line:''));
+    });
+  }
+  var content = lines.join('\n');
+  var blob = new Blob([content], {type:'text/plain'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'ME_Khata_Problem_Report_'+td()+'.txt';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+  toast('✅ Report downloaded — share this file to describe the problem in one go.');
+}
+function reportProblemCard(){
+  return '<div class="al ali">Something not working right? Describe it below and download a report bundling recent errors and key diagnostic info — one file instead of several rounds of screenshots.</div>'+
+    '<textarea id="problem_desc" placeholder="What were you trying to do, and what went wrong?" style="width:100%;min-height:70px;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;box-sizing:border-box;margin-top:8px;font-family:inherit"></textarea>'+
+    btn('📋 Download Problem Report','generateProblemReport()','#C62828');
+}
+function selfTestCard(){
+  var r = window._selfTestResult;
+  var h = '<div class="al ali">Runs the same checks used to verify this app throughout its development — balance accuracy, data integrity, a save/reload round-trip, and a live transaction test on a fully isolated copy of your data (nothing is added to your real records). Safe to run anytime.</div>';
+  h += btn('🧪 Run Self-Test','runSelfTest()','#1565C0');
+  if(r){
+    var passCount = r.results.filter(function(x){return x.pass;}).length;
+    h += '<div style="margin-top:10px;font-size:11px;color:#546E7A">Last run: '+new Date(r.ranAt).toLocaleString('en-IN')+' — '+passCount+'/'+r.results.length+' passed</div>';
+    h += r.results.map(function(x){
+      return '<div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid #F0F0F0"><div style="font-size:16px">'+(x.pass?'✅':'❌')+'</div><div><div style="font-size:12px;font-weight:600">'+esc(x.name)+'</div><div style="font-size:11px;color:#546E7A">'+esc(x.detail)+'</div></div></div>';
+    }).join('');
+  }
+  return h;
+}
 function pgDat(){
   var tab=window._dtab||'overview';
   var isNew = (D.profile.businessStage==='new');
@@ -9648,6 +10007,9 @@ function pgDat(){
     '<b>Take backup of each business weekly</b> and save to Notes app on iPhone.'+
     '</div>'
   );
+  h+=card('🤖 AI Proxy Setup (Optional)', aiProxySetupCard());
+  h+=card('🐞 Report a Problem', reportProblemCard());
+  h+=card('🧪 Self-Test', selfTestCard());
   h+=card('🔊 Voice Announcement',
   '<div class="al ali">When turned on, the app speaks a short confirmation out loud after every Sale, Purchase, or Expense entry — e.g. "Sale recorded for rupees 500 to Ramesh Kumar, paid by cash." Speaks in whichever language (English/Hindi) is currently selected. Works offline, no extra app needed.</div>'+
   '<label style="display:flex;align-items:center;gap:10px;margin-top:10px;cursor:pointer"><input type="checkbox" id="voice_announce_toggle" '+(D.settings.voiceAnnounce?'checked':'')+' onchange="toggleVoiceAnnounce()" style="width:20px;height:20px"> <span style="font-size:13px;font-weight:600">Speak entries out loud</span></label>'+
@@ -9827,9 +10189,29 @@ function showBackupModal(content, filename){
       a.click();
       document.body.removeChild(a);
       setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
-      toast('Download started \u2014 check your Downloads/Files app.');
+      var verifyMsg = '';
+      try{
+        var backupCopy = JSON.parse(content);
+        var originalD = D;
+        D = migrateData(backupCopy);
+        var bs = getBS();
+        var diag = diagnoseBSDifference();
+        var errCount = (diag.findings||[]).filter(function(f){return f.severity==='error';}).length;
+        var isClean = Math.abs(bs.diff)<1 && errCount===0;
+        D = originalD;
+        verifyMsg = isClean
+          ? '✅ Verified: this backup parses correctly and its Balance Sheet ties out — genuinely restorable.'
+          : '⚠️ Backup downloaded, but verification found an issue in it: '+(Math.abs(bs.diff)>=1 ? 'Balance Sheet off by '+fc(Math.abs(bs.diff))+'. ' : '')+(errCount>0 ? errCount+' data issue(s) found (same as current data). ' : '')+'This likely mirrors an existing issue in your current data, not something the backup caused.';
+      }catch(ve){
+        verifyMsg = '⚠️ Backup downloaded, but could not be automatically verified: '+ve.message;
+      }
+      D.settings.lastBackupDate = td();
+      try{ sv(); }catch(e){}
+      toast('Download started — check your Downloads/Files app.');
+      var vEl = document.getElementById('backup_verify_result');
+      if(vEl) vEl.innerHTML = verifyMsg;
     }catch(e){
-      toast('Download failed on this browser \u2014 use Select All + Copy below instead.','e');
+      toast('Download failed on this browser — use Select All + Copy below instead.','e');
     }
   };
 
@@ -9867,10 +10249,15 @@ function showBackupModal(content, filename){
   btnRow.appendChild(copyBtn);
   btnRow.appendChild(closeBtn);
 
+  var verifyResult = document.createElement('div');
+  verifyResult.id = 'backup_verify_result';
+  verifyResult.style.cssText = 'font-size:12px;margin-top:10px;padding:10px;border-radius:8px;background:#F0F4FF;color:#0D2137;line-height:1.5';
+
   overlay.appendChild(title);
   overlay.appendChild(instructions);
   overlay.appendChild(ta);
   overlay.appendChild(btnRow);
+  overlay.appendChild(verifyResult);
   document.body.appendChild(overlay);
 }
 function importFromData(jsonText){
@@ -13711,7 +14098,80 @@ h += hs(
       '<p>• <b>Debtor Receipt / Creditor Payment / Loan Instalment</b> — नाम टाइप या चुनने पर उनका मौजूदा Due/Outstanding amount दिखता है, ताकि आप जो amount डाल रहे हैं उसे असली बकाया राशि से मिला सकें।</p>' +
       '<p>ऊपर एक live tally indicator हमेशा दिखाता है कि आपकी Balance Sheet balanced है या नहीं, और नीचे Today\'s Entries आज दर्ज हुई हर चीज़ दिखाता है, चाहे किसी भी मेनू से की गई हो।</p>'
     )
-  );    // Developer credit at bottom
+  );  h += hs(
+    bi('22. Bulk Import', '22. बल्क इम्पोर्ट'),
+    bi(
+      '<p><b>Data Template → Bulk Import</b> — for entering many transactions at once from a spreadsheet instead of typing each one in. Separate, single-purpose templates for all 7 types: Purchases, Sales, Expenses, Debtor Receipts, Creditor Payments, Loan Instalments, Fixed Assets. Download the template, fill it in, upload — every entry posts with the same accounting as typing it in by hand.</p>' +
+      '<p><b>Possible duplicate warning:</b> if a row matches an existing entry (same date, party/item, and amount), it\'s flagged before you confirm — catches an accidental re-upload of the same sheet without blocking a genuinely repeated transaction.</p>' +
+      '<p><b>Multiple dates in one file work fine</b> — each row carries its own date, so a running sheet covering 15 days or a full month uploads correctly, each entry landing on its own day.</p>',
+      '<p><b>Data Template → Bulk Import</b> — एक साथ कई transactions डालने के लिए, स्प्रेडशीट से, हर एक अलग से टाइप करने के बजाय। सातों types के लिए अलग, सिंपल templates: Purchases, Sales, Expenses, Debtor Receipts, Creditor Payments, Loan Instalments, Fixed Assets। Template download करें, भरें, upload करें — हर entry उसी accounting के साथ post होती है जैसे हाथ से टाइप करने पर होती।</p>' +
+      '<p><b>Possible duplicate warning:</b> अगर कोई row मौजूदा entry से मिलती है (same date, party/item, amount), तो confirm करने से पहले चेतावनी दिखती है।</p>' +
+      '<p><b>एक ही file में कई dates ठीक काम करती हैं</b> — हर row की अपनी date होती है, तो 15 दिन या पूरे महीने की running sheet सही से upload होती है।</p>'
+    )
+  );
+  h += hs(
+    bi('23. Monthly Statements', '23. मासिक विवरण'),
+    bi(
+      '<p><b>Opening the app on/after the 1st automatically shows a reminder</b> listing every debtor with a due balance plus a Stock Summary — each with 💬 WhatsApp and ✉️ Email buttons built directly into the reminder. It keeps reappearing on every app open until everything is sent or you mark the month done.</p>' +
+      '<p><b>Contact book (optional):</b> tap "📞 Add contact" next to any party to save a mobile number and/or email once — from then on, WhatsApp/Email opens directly to that person instead of asking you to pick them manually.</p>' +
+      '<p><b>Personalized greeting:</b> messages open with "Dear [Name], Namaste! Please find your account statement below" rather than just raw numbers.</p>' +
+      '<p><b>Settings (Monthly Statements page):</b> a minimum balance threshold to skip trivially small dues, and an option to also include Creditors (suppliers you owe) in the same one-tap flow.</p>' +
+      '<p><b>Note:</b> you still tap Send yourself in WhatsApp/Email — no website is allowed to send on your behalf without your confirmation.</p>',
+      '<p><b>1 तारीख को या उसके बाद app खोलने पर अपने आप एक reminder दिखता है</b> जिसमें हर बकाया debtor और एक Stock Summary होती है — हर एक के साथ 💬 WhatsApp और ✉️ Email बटन सीधे reminder में। जब तक सब भेज न दें या महीना खत्म mark न करें, यह हर बार app खोलने पर दोबारा दिखता रहेगा।</p>' +
+      '<p><b>Contact book (वैकल्पिक):</b> किसी भी party के पास "📞 Add contact" दबाकर एक बार mobile/email सेव करें — फिर WhatsApp/Email सीधे उसी व्यक्ति के पास खुलेगा।</p>' +
+      '<p><b>Personalized greeting:</b> संदेश "Dear [Name], Namaste! Please find your account statement below" से शुरू होता है, सिर्फ नंबर नहीं।</p>' +
+      '<p><b>Settings:</b> छोटी राशियों को छोड़ने के लिए minimum balance, और Creditors को भी शामिल करने का विकल्प।</p>' +
+      '<p><b>ध्यान दें:</b> WhatsApp/Email में Send आपको खुद दबाना होगा — कोई भी वेबसाइट आपकी अनुमति के बिना भेज नहीं सकती।</p>'
+    )
+  );
+  h += hs(
+    bi('24. Voice Announcement', '24. आवाज़ की घोषणा'),
+    bi(
+      '<p><b>Data → Overview → 🔊 Voice Announcement</b> (off by default). When turned on, the app speaks a short confirmation out loud after every Sale, Purchase, Expense, or Daily Register entry — e.g. "Sale recorded for rupees 500 to Ramesh Kumar, paid by cash." Speaks in whichever language (English/Hindi) is currently selected.</p>' +
+      '<p><b>Test Voice Now button:</b> right next to the toggle — tap it to confirm speech actually works on your device, with a clear result (speaking now / error / no response). If it doesn\'t speak, check your phone isn\'t on silent/mute mode.</p>',
+      '<p><b>Data → Overview → 🔊 Voice Announcement</b> (डिफ़ॉल्ट रूप से बंद)। चालू करने पर, हर Sale, Purchase, Expense, या Daily Register entry के बाद app एक छोटी confirmation बोलती है — जैसे "Sale recorded for rupees 500..."। जो भाषा (English/Hindi) चुनी है उसी में बोलती है।</p>' +
+      '<p><b>Test Voice Now बटन:</b> toggle के ठीक बगल में — दबाकर देखें कि आपके डिवाइस पर आवाज़ वाकई काम करती है। अगर न बोले, तो फ़ोन silent/mute मोड में तो नहीं है, देख लें।</p>'
+    )
+  );
+  h += hs(
+    bi('25. Day Close — Auto-Fix', '25. डे क्लोज़ — ऑटो-फिक्स'),
+    bi(
+      '<p>When Day Close finds "Credit sales have no matching Debtor entry," a <b>🔧 Auto-Fix This</b> button appears right there. It shows exactly which customers and amounts will be added as receivable entries before touching anything — the sale itself is never changed, only the missing Debtor record is added so the amount owed is properly tracked.</p>' +
+      '<p>This is the only finding type with an automatic fix, since it\'s the only one that\'s genuinely safe to apply without your judgment — other issues (like Opening Balance and Trial Balance both being set) need you to decide which is correct.</p>',
+      '<p>जब Day Close को "Credit sales का कोई matching Debtor entry नहीं" मिलता है, वहीं <b>🔧 Auto-Fix This</b> बटन दिखता है। कुछ भी बदलने से पहले बिल्कुल दिखाता है कि कौन से customers और कितनी राशि receivable के रूप में जोड़ी जाएगी — sale खुद कभी नहीं बदलती, सिर्फ missing Debtor record जुड़ता है।</p>' +
+      '<p>यह इकलौता finding type है जिसका automatic fix है, क्योंकि यही अकेला है जो आपकी राय के बिना पूरी तरह सुरक्षित है — बाकी मुद्दों (जैसे Opening Balance और Trial Balance दोनों भरे होना) के लिए आपको तय करना होता है कि कौन सही है।</p>'
+    )
+  );
+  h += hs(
+    bi('26. Backup & Data Safety', '26. बैकअप और डेटा सुरक्षा'),
+    bi(
+      '<p><b>Backup is verified automatically:</b> every time you download a backup (Data → Download Backup), it\'s immediately re-checked — parsed and run through the same Balance Sheet check the live app uses — confirming it\'s genuinely restorable, not just that a download happened.</p>' +
+      '<p><b>Backup reminder:</b> the Dashboard nudges you if no backup has been taken in 60+ days, or ever — this device is the only copy of your data, so this matters.</p>' +
+      '<p><b>Data Health indicator:</b> a 💾 icon in the header, visible on every screen. Turns to 💾⚠️ if your data stops saving correctly — tap it anytime for details, rather than discovering a problem mid-task.</p>',
+      '<p><b>Backup अपने आप verify होता है:</b> जब भी backup download करें (Data → Download Backup), उसे तुरंत दोबारा जाँचा जाता है — parse करके वही Balance Sheet check चलाई जाती है जो live app इस्तेमाल करता है — यह पक्का करने के लिए कि यह genuinely restore हो सकता है।</p>' +
+      '<p><b>Backup reminder:</b> अगर 60+ दिनों से या कभी भी backup नहीं लिया, तो Dashboard याद दिलाता है — यह डिवाइस ही आपके डेटा की इकलौती कॉपी है।</p>' +
+      '<p><b>Data Health indicator:</b> हेडर में एक 💾 आइकन, हर स्क्रीन पर दिखता है। अगर डेटा सही से save होना बंद हो जाए तो 💾⚠️ हो जाता है — कभी भी टैप करके details देखें।</p>'
+    )
+  );
+  h += hs(
+    bi('27. Self-Test & Report a Problem', '27. सेल्फ-टेस्ट और समस्या रिपोर्ट'),
+    bi(
+      '<p><b>Data → 🧪 Self-Test</b> — runs 6 checks in one tap: Balance Sheet accuracy, data integrity, a save/reload round-trip, a live transaction test (on a fully isolated, disposable copy of your data — nothing is added to your real records), storage writability, and Health Check. Safe to run anytime.</p>' +
+      '<p><b>Data → 🐞 Report a Problem</b> — describe what happened and download a report bundling recent errors and key diagnostic info into one file, instead of several rounds of screenshots.</p>',
+      '<p><b>Data → 🧪 Self-Test</b> — एक टैप में 6 checks चलाता है: Balance Sheet accuracy, data integrity, save/reload round-trip, live transaction test (आपके डेटा की एक अलग, disposable कॉपी पर — आपके असली records में कुछ नहीं जुड़ता), storage writability, और Health Check। कभी भी चलाना सुरक्षित है।</p>' +
+      '<p><b>Data → 🐞 Report a Problem</b> — क्या हुआ बताएं और एक ही file में हाल की errors और मुख्य diagnostic जानकारी डाउनलोड करें।</p>'
+    )
+  );
+  h += hs(
+    bi('28. AI Proxy Setup & Test Connection', '28. AI प्रॉक्सी सेटअप और कनेक्शन टेस्ट'),
+    bi(
+      '<p><b>Data → 🤖 AI Proxy Setup (Optional)</b> — connects the full Claude-powered AI Advisor. Without this, AI Advisor still works offline using built-in smart answers.</p>' +
+      '<p><b>Test Connection button:</b> validates the URL actually works before you save it — catches a typo immediately instead of discovering it later when a chat fails.</p>',
+      '<p><b>Data → 🤖 AI Proxy Setup (वैकल्पिक)</b> — पूरे Claude-powered AI Advisor को जोड़ता है। इसके बिना भी AI Advisor built-in smart answers से offline काम करता है।</p>' +
+      '<p><b>Test Connection बटन:</b> save करने से पहले पक्का करता है कि URL वाकई काम करता है — बाद में chat fail होने के बजाय गलती तुरंत पकड़ लेता है।</p>'
+    )
+  );
+    // Developer credit at bottom
   h += '<div style="margin-top:16px;padding:12px;background:#F0F4FF;border-radius:8px;text-align:center">';
   h += '<div style="font-size:11px;color:#1565C0;font-weight:700">ME Khata Suite</div>';
   h += '<div style="font-size:10px;color:#546E7A;margin-top:2px">' + (isHi ? 'विकसित: अनिल शर्मा | पूर्व महाप्रबंधक — सेंट्रल बैंक ऑफ इंडिया' : 'Developed by Anil Sharma | Former General Manager — Central Bank of India') + '</div>';
@@ -22550,13 +23010,26 @@ async function loadFullApp() {
 
 loadFullApp();
 
+window._recentErrors = window._recentErrors || [];
+function _logRecentError(entry){
+  window._recentErrors.push(entry);
+  if(window._recentErrors.length>20) window._recentErrors.shift();
+}
 window.onerror = function(msg, url, line, col, err){
   // Ignore cross-origin "Script error" which is an iPhone/Safari artifact
   if(!msg || msg==='Script error.' || msg==='Script error') return true;
+  _logRecentError({time:new Date().toISOString(), type:'error', msg:String(msg), line:line, col:col, page:(typeof curPg!=='undefined'?curPg:'')});
   var el = document.getElementById('pg');
   if(el) el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(String(msg))+' (line '+line+')<br><br>Please tell the developer this message, and which button you tapped just before seeing it.</div>' + el.innerHTML;
   return true;
 };
+(function(){
+  var origConsoleError = console.error;
+  console.error = function(){
+    try{ _logRecentError({time:new Date().toISOString(), type:'console.error', msg:Array.prototype.slice.call(arguments).map(String).join(' '), page:(typeof curPg!=='undefined'?curPg:'')}); }catch(e){}
+    origConsoleError.apply(console, arguments);
+  };
+})();
 // Catch unhandled promise rejections silently on iPhone
 window.onunhandledrejection = function(e){ return true; };
 
