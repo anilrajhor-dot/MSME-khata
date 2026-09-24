@@ -4732,6 +4732,11 @@ function pgDailyRegister(){
   } else if(typeId==='fixedAsset'){
     fieldsHtml += inp('Asset Name','dr_f1','text','') + g2(inp('Cost','dr_f2','number',''), inp('Useful Life (Years)','dr_f3','number','')) +
       sl('Payment Mode','dr_f4',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
+  } else if(typeId==='production'){
+    fieldsHtml += inp('Material/Item Consumed','dr_f1','text','','Pick an existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
+      inp('Qty Consumed','dr_f2','number','') +
+      inp('Output Item Name (leave blank for write-off only)','dr_f3','text','') +
+      inp('Qty Produced (only if Output given)','dr_f4','number','');
   }
   fieldsHtml += '<div id="dr_hint"></div>';
 
@@ -4822,7 +4827,10 @@ function addDailyRegisterEntry(){
     debtorReceipt: ['Payment of rupees '+amt+' received from '+r0.customer+'.', 'रुपये '+amt+' का भुगतान '+r0.customer+' से प्राप्त हुआ।'],
     creditorPayment: ['Payment of rupees '+amt+' made to '+r0.supplier+'.', 'रुपये '+amt+' का भुगतान '+r0.supplier+' को किया गया।'],
     loanInstalment: ['Loan instalment of rupees '+amt+' paid to '+r0.lender+'.', 'रुपये '+amt+' की लोन किश्त '+r0.lender+' को चुकाई गई।'],
-    fixedAsset: ['Fixed asset '+r0.assetName+' recorded for rupees '+amt+'.', r0.assetName+' संपत्ति रुपये '+amt+' में दर्ज हुई।']
+    fixedAsset: ['Fixed asset '+r0.assetName+' recorded for rupees '+amt+'.', r0.assetName+' संपत्ति रुपये '+amt+' में दर्ज हुई।'],
+    production: r0.outName
+      ? [r0.outQty+' units of '+r0.outName+' produced, using '+r0.consQty+' of '+r0.consItemName+'.', r0.outQty+' यूनिट '+r0.outName+' का उत्पादन हुआ, '+r0.consQty+' '+r0.consItemName+' का उपयोग करके।']
+      : [r0.consQty+' of '+r0.consItemName+' consumed, write-off recorded.', r0.consQty+' '+r0.consItemName+' का उपयोग हुआ, write-off दर्ज हुआ।']
   };
   var s0 = sentences[typeId];
   if(s0) announceEntry(s0[0], s0[1]);
@@ -6073,7 +6081,7 @@ function pgProduction(){
     }
   }
 
-  var h = '<div style="margin-bottom:8px">'+btn('← Back to Purchase','window._purMode=null;renderPage()','#546E7A')+'</div>';
+  var h = window._purMode==='production' ? '<div style="margin-bottom:8px">'+btn('← Back to Purchase','window._purMode=null;renderPage()','#546E7A')+'</div>' : '';
   h += '<div class="al ali"><div class="alt">Record Production / Consumption</div><p>Use this whenever Raw Materials or Consumables are used up. If this produces something you will sell (e.g., cloth and accessories making a dress), choose "Produces a Finished Good" below and that item\'s stock will increase at the cost of materials consumed. If nothing is produced for sale (samples, spoilage, testing), choose "No output - write-off / usage only".</p></div>';
 
   h += card('What does this consume produce?',
@@ -13617,6 +13625,9 @@ var BULK_IMPORT_TYPES = [
   {id:'fixedAsset', label:'Fixed Asset Purchases', icon:'🪑',
    cols:['Date (YYYY-MM-DD)','Asset Name','Cost','Useful Life (Years)','Payment Mode (cash/bank/credit)'],
    example:['2026-08-01','Office Chair','3500','8','cash']},
+  {id:'production', label:'Production / Consumption', icon:'🔧',
+   cols:['Date (YYYY-MM-DD)','Material/Item Consumed','Qty Consumed','Output Item Name (blank = write-off only)','Qty Produced (if Output given)'],
+   example:['2026-08-01','Cotton Yarn','50','Cotton T-Shirt','20']},
 ];
 function getBulkImportType(id){ return BULK_IMPORT_TYPES.filter(function(t){return t.id===id;})[0]; }
 function downloadBulkTemplate(typeId){
@@ -13715,6 +13726,16 @@ function validateBulkRows(typeId, rows){
       if(!life||life<=0||isNaN(life)){ errors.push('Row '+rowNum+': Useful Life must be a positive number of years'); return; }
       if(['cash','bank','credit'].indexOf(mode7)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, or credit (got "'+(r[4]||'')+'")'); return; }
       valid.push({date:date, assetName:assetName, cost:cost, life:life, mode:mode7});
+    } else if(typeId==='production'){
+      var consName=(r[1]||'').trim(), consQty=+r[2], outName=(r[3]||'').trim(), outQty=+r[4];
+      if(!consName){ errors.push('Row '+rowNum+': Material/Item Consumed is required'); return; }
+      if(!consQty||consQty<=0||isNaN(consQty)){ errors.push('Row '+rowNum+': Qty Consumed must be a positive number'); return; }
+      var consItem = D.inventory.filter(function(it){return it.itemName.toLowerCase()===consName.toLowerCase();})[0];
+      if(!consItem){ errors.push('Row '+rowNum+': Item "'+consName+'" not found in Inventory'); return; }
+      var availQty = (consItem.currentStock||0)+(consItem.importedStock||0);
+      if(consQty>availQty+0.005){ errors.push('Row '+rowNum+': Insufficient stock for "'+consName+'" - available '+fmt(availQty)+', need '+fmt(consQty)); return; }
+      if(outName && (!outQty||outQty<=0||isNaN(outQty))){ errors.push('Row '+rowNum+': Qty Produced must be a positive number when an Output Item is given'); return; }
+      valid.push({date:date, consItemId:consItem.id, consItemName:consItem.itemName, consQty:consQty, outName:outName||'', outQty:outName?outQty:0});
     }
   });
   valid.forEach(function(r){
@@ -13766,6 +13787,21 @@ function commitBulkImport(typeId, validRows){
       D.fixedAssets.push({id:uid(), name:r.assetName, purchaseDate:r.date, cost:r.cost, life:r.life, accumDep:0, disposed:false});
       if(r.mode==='credit') addCreditor(r.assetName+' (Asset Supplier)', r.cost, r.date, 'Fixed Asset Purchase: '+r.assetName);
       else postCB(r.mode, 'payment', r.cost, 'Capital Expenditure', 'Fixed Asset Purchase: '+r.assetName, r.date);
+    } else if(typeId==='production'){
+      var consItem = D.inventory.filter(function(it){return it.id===r.consItemId;})[0];
+      if(consItem){
+        var draw = drawStock(consItem, r.consQty);
+        if(!r.outName){
+          D.consumptions.push({id:uid(), date:r.date, itemId:consItem.id, itemName:consItem.itemName, category:consItem.category, qty:r.consQty, amount:draw.cogs, fromIndig:draw.fromIndig, fromImp:draw.fromImp, indigCostEach:consItem.avgCost, impCostEach:consItem.importedAvgCost||0, notes:'Bulk Import / Daily Register'});
+        } else {
+          var fgItem = findOrCreateItem(r.outName, consItem.unit, 'FG');
+          if((fgItem.category||'FG')!=='FG') fgItem.category='FG';
+          var unitCost = r.outQty>0 ? draw.cogs/r.outQty : 0;
+          var tq=fgItem.currentStock+r.outQty, tv=fgItem.currentStock*fgItem.avgCost+draw.cogs;
+          fgItem.currentStock=tq; fgItem.avgCost=tq>0?tv/tq:unitCost;
+          D.productions.push({id:uid(), date:r.date, fgItemId:fgItem.id, fgItemName:fgItem.itemName, qtyProduced:r.outQty, consumedItems:[{itemId:consItem.id, itemName:consItem.itemName, unit:consItem.unit, qty:r.consQty, cost:draw.cogs, fromIndig:draw.fromIndig, fromImp:draw.fromImp, indigCostEach:consItem.avgCost, impCostEach:consItem.importedAvgCost||0}], totalCost:draw.cogs, notes:'Bulk Import / Daily Register'});
+        }
+      }
     }
     count++;
   });
@@ -21671,9 +21707,9 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 
 // ===== NAVIGATION & RENDER =====
-var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण',ledgerstmt:'खाता विवरण',monthlystmt:'मासिक विवरण',dailyregister:'दैनिक रजिस्टर'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',dailyregister:'Daily Register',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',monthlystmt:'Monthly Statements',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
-var NAV_ALL = ['profile','dailyregister','dashboard','capital','inventory','purchase','sales','returns','journal','debtcred','ledgerstmt','stockstmt','monthlystmt','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
+var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',production:'उत्पादन',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',template:'डेटा टेम्पलेट',aiadvisor:'AI सलाहकार',healthcheck:'स्वास्थ्य जाँच',training:'प्रशिक्षण',ledgerstmt:'खाता विवरण',monthlystmt:'मासिक विवरण',dailyregister:'दैनिक रजिस्टर'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',dailyregister:'Daily Register',capital:'Capital/Loans',inventory:'Inventory',production:'Production',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',monthlystmt:'Monthly Statements',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',template:'Data Template',aiadvisor:'AI Advisor',healthcheck:'Health Check',training:'Training Mode'};
+var NAV_ALL = ['profile','dailyregister','dashboard','capital','inventory','production','purchase','sales','returns','journal','debtcred','ledgerstmt','stockstmt','monthlystmt','expenses','cashbank','recon','emi','bankcalc','financials','projections','analytics','loanassess','cma','reminders','margin','gstmodule','partycodes','hsnmaster','incometax','reports','aiadvisor','healthcheck','training','data','template','help'];
 var BN_PAGES = ['dashboard','sales','purchase','financials','data'];
 var BN_ICONS = ['🏠','🏷️','🛒','📄','⚙️'];
 
@@ -21707,7 +21743,7 @@ function renderPage() {
     return;
   }
   if(nb && nb.innerHTML==='') buildNav();
-  var fns = {dashboard:pgDash,profile:pgProf,dailyregister:pgDailyRegister,capital:pgCap,inventory:pgInv,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,monthlystmt:pgMonthlyStatements,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
+  var fns = {dashboard:pgDash,profile:pgProf,dailyregister:pgDailyRegister,capital:pgCap,inventory:pgInv,production:pgProduction,purchase:pgPur,sales:pgSal,returns:pgReturns,journal:pgJournal,debtcred:pgDebtCred,ledgerstmt:pgLedgerStatement,stockstmt:pgStockStatement,monthlystmt:pgMonthlyStatements,expenses:pgExp,cashbank:pgCB,emi:pgEMI,bankcalc:pgBankCalc,recon:pgRecon,financials:pgFin,projections:pgProj,analytics:pgAna,reports:pgRep,data:pgDat,help:pgHelp,loanassess:pgLoanAssess,cma:pgCMA,reminders:pgReminders,margin:pgMargin,gstmodule:pgGST,partycodes:pgPartyCodes,hsnmaster:pgCustomHSN,incometax:pgIncomeTax,template:pgTemplate,aiadvisor:pgAIAdvisor,healthcheck:pgHealthCheck,training:pgTraining};
   try { el.innerHTML = (fns[curPg] || pgDash)(); }
   catch(e) { el.innerHTML = '<div class="al ald"><b>Error:</b> '+esc(e.message)+'</div>'; }
   setupCustomAutocomplete();
