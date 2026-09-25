@@ -1178,6 +1178,48 @@ function setupCustomAutocomplete(){
     inp.addEventListener('blur', function(){ setTimeout(function(){ box.style.display='none'; }, 150); });
   });
 }
+// Finds an actual installed voice matching the wanted language, since setting utter.lang to a
+// locale with no matching voice installed (e.g. 'en-IN' when only 'en-US' exists) can silently
+// fail to speak at all on some browsers/devices, rather than falling back gracefully.
+function pickVoiceForLang(hi){
+  try{
+    var voices = window.speechSynthesis.getVoices() || [];
+    if(!voices.length) return null;
+    var exact = voices.filter(function(v){ return v.lang && v.lang.toLowerCase()===(hi?'hi-in':'en-in'); })[0];
+    if(exact) return exact;
+    var wantPrefix = hi ? 'hi' : 'en';
+    var prefixMatch = voices.filter(function(v){ return v.lang && v.lang.toLowerCase().indexOf(wantPrefix)===0; })[0];
+    if(prefixMatch) return prefixMatch;
+    if(hi){
+      var enFallback = voices.filter(function(v){ return v.lang && v.lang.toLowerCase().indexOf('en')===0; })[0];
+      if(enFallback) return enFallback;
+    }
+    return null;
+  }catch(e){ return null; }
+}
+// Shared speak implementation used by both the entry announcements and the Test Voice button -
+// picks a real installed voice when one matches; otherwise leaves voice/lang unset so the
+// browser uses its own default rather than risk silent failure from an unsupported locale.
+function speakRobust(text, hi, onStart, onError){
+  try{
+    window.speechSynthesis.cancel();
+    setTimeout(function(){
+      try{
+        var utter = new SpeechSynthesisUtterance(text);
+        var voice = pickVoiceForLang(hi);
+        if(voice){
+          try{ utter.voice = voice; utter.lang = voice.lang; }
+          catch(ve){ /* if setting the voice object fails for any reason, still speak with no explicit voice rather than not speaking at all */ }
+        }
+        utter.rate = 0.95;
+        if(onStart) utter.onstart = onStart;
+        if(onError) utter.onerror = onError;
+        window._lastUtterance = utter;
+        window.speechSynthesis.speak(utter);
+      }catch(e){ if(onError) onError({error:e.message}); }
+    }, 80);
+  }catch(e){ if(onError) onError({error:e.message}); }
+}
 function testVoiceNow(){
   var resEl = document.getElementById('voice_test_result');
   if(!('speechSynthesis' in window)){
@@ -1185,28 +1227,20 @@ function testVoiceNow(){
     return;
   }
   if(resEl) resEl.innerHTML = '⏳ Testing...';
-  try{
-    window.speechSynthesis.cancel();
-    var utter = new SpeechSynthesisUtterance(window._hi ? 'यह एक आवाज़ परीक्षण है।' : 'This is a voice test.');
-    utter.lang = window._hi ? 'hi-IN' : 'en-IN';
-    utter.rate = 0.95;
-    var responded = false;
-    utter.onstart = function(){
-      responded = true;
-      if(resEl) resEl.innerHTML = '<span style="color:#2E7D32">✅ Speaking now — if you did not hear anything, check your phone is not on silent/mute mode and the volume is up.</span>';
-    };
-    utter.onerror = function(e){
-      responded = true;
-      if(resEl) resEl.innerHTML = '<span style="color:#C62828">❌ Voice error: '+esc(e.error||'unknown')+'</span>';
-    };
-    window._lastUtterance = utter;
-    window.speechSynthesis.speak(utter);
-    setTimeout(function(){
-      if(!responded && resEl) resEl.innerHTML = '<span style="color:#E65100">⚠️ No response from the voice engine after 3 seconds — this browser/device may not support speech properly, even though the feature is available.</span>';
-    }, 3000);
-  }catch(e){
-    if(resEl) resEl.innerHTML = '<span style="color:#C62828">❌ Error: '+esc(e.message)+'</span>';
-  }
+  var text = window._hi ? 'यह एक आवाज़ परीक्षण है।' : 'This is a voice test.';
+  var voice = pickVoiceForLang(window._hi);
+  var voiceNote = voice ? ' (using voice: '+esc(voice.name)+', '+esc(voice.lang)+')' : ' (no matching voice found — using device default)';
+  var responded = false;
+  speakRobust(text, window._hi, function(){
+    responded = true;
+    if(resEl) resEl.innerHTML = '<span style="color:#2E7D32">✅ Speaking now'+voiceNote+' — if you did not hear anything, check your phone is not on silent/mute mode and the volume is up.</span>';
+  }, function(e){
+    responded = true;
+    if(resEl) resEl.innerHTML = '<span style="color:#C62828">❌ Voice error: '+esc((e&&e.error)||'unknown')+voiceNote+'</span>';
+  });
+  setTimeout(function(){
+    if(!responded && resEl) resEl.innerHTML = '<span style="color:#E65100">⚠️ No response from the voice engine after 3 seconds'+voiceNote+' — this browser/device may not support speech properly, even though the feature is available.</span>';
+  }, 3000);
 }
 function toggleVoiceAnnounce(){
   D.settings.voiceAnnounce = document.getElementById('voice_announce_toggle').checked;
@@ -1219,24 +1253,8 @@ function toggleVoiceAnnounce(){
 function announceEntry(textEn, textHi){
   if(!D.settings || !D.settings.voiceAnnounce) return;
   if(!('speechSynthesis' in window)) return;
-  try{
-    window.speechSynthesis.cancel();
-    var text = window._hi ? (textHi||textEn) : textEn;
-    // A short delay after cancel() before speak() - Safari/WebKit can silently drop the new
-    // utterance if speak() is called immediately after cancel() in the same tick.
-    setTimeout(function(){
-      try{
-        var utter = new SpeechSynthesisUtterance(text);
-        utter.lang = window._hi ? 'hi-IN' : 'en-IN';
-        utter.rate = 0.95;
-        // Safari/WebKit has a known bug where the utterance can be garbage-collected before it
-        // finishes speaking if nothing keeps a lasting reference to it - holding one on window
-        // prevents this from silently cutting speech short or not speaking at all.
-        window._lastUtterance = utter;
-        window.speechSynthesis.speak(utter);
-      }catch(e){}
-    }, 80);
-  }catch(e){}
+  var text = window._hi ? (textHi||textEn) : textEn;
+  speakRobust(text, window._hi);
 }
 function pmChip(m){
   var c={cash:'#1565C0',bank:'#5B5BD6',upi:'#2E7D32',credit:'#E65100',cc:'#C62828',od:'#C62828',advance:'#00897B'};
