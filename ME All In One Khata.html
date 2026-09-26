@@ -1200,6 +1200,80 @@ function pickVoiceForLang(hi){
 // Shared speak implementation used by both the entry announcements and the Test Voice button -
 // picks a real installed voice when one matches; otherwise leaves voice/lang unset so the
 // browser uses its own default rather than risk silent failure from an unsupported locale.
+// ===== MIC (SPEECH-TO-TEXT) INPUT =====
+// Converts a spoken number (English words, with Indian scale words lakh/crore) into a numeric
+// value. Tries a direct digit pattern first, since many browsers already transcribe spoken
+// numbers as digits (e.g. "five hundred" -> "500") - only falls back to word parsing if no
+// digits are found in the transcript at all.
+function parseSpokenNumber(text){
+  if(!text) return null;
+  var digitMatch = text.replace(/,/g,'').match(/-?\d+(\.\d+)?/);
+  if(digitMatch) return parseFloat(digitMatch[0]);
+  var words = text.toLowerCase().replace(/[^a-z\s]/g,' ').split(/\s+/).filter(Boolean);
+  var ones = {zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,
+    ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,
+    twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
+  var scales = {hundred:100,thousand:1000,lakh:100000,lac:100000,crore:10000000};
+  var total=0, current=0, found=false;
+  words.forEach(function(w){
+    if(w==='and') return;
+    if(ones.hasOwnProperty(w)){ current += ones[w]; found=true; }
+    else if(w==='hundred'){ current = (current||1)*100; found=true; }
+    else if(scales.hasOwnProperty(w)){ total += (current||1)*scales[w]; current=0; found=true; }
+  });
+  total += current;
+  return found ? total : null;
+}
+function micButtonHtml(inputId, isNumber){
+  return '<button type="button" onclick="startMicInput(\''+inputId+'\','+(isNumber?'true':'false')+',this)" title="Speak to fill this field" style="flex-shrink:0;width:38px;height:38px;border-radius:8px;border:1px solid #BBDEFB;background:#fff;color:#1565C0;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">🎤</button>';
+}
+// Wraps inp() so the field and its mic button sit side by side, without changing inp() itself
+// (which is used everywhere, including places that should not have a mic).
+function inpMic(lbl, id, type, val, ph, listId){
+  var base = inp(lbl, id, type, val, ph, listId);
+  var isNumber = type==='number';
+  var micBtn = micButtonHtml(id, isNumber);
+  return base.replace(/(<input[^>]*>|<textarea[^>]*>[\s\S]*?<\/textarea>)/, '<div style="display:flex;gap:6px;align-items:center">$1'+micBtn+'</div>');
+}
+function startMicInput(inputId, isNumber, btnEl){
+  var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!Recognition){ toast('Voice input is not supported in this browser.','e'); return; }
+  var inputEl = document.getElementById(inputId);
+  if(!inputEl) return;
+  var recog = new Recognition();
+  recog.lang = window._hi ? 'hi-IN' : 'en-IN';
+  recog.interimResults = false;
+  recog.maxAlternatives = 1;
+  var origText = btnEl.textContent;
+  btnEl.textContent = '🔴';
+  btnEl.disabled = true;
+  recog.onresult = function(e){
+    var transcript = e.results[0][0].transcript;
+    if(isNumber){
+      var num = parseSpokenNumber(transcript);
+      if(num===null){ toast('Could not understand a number from "'+transcript+'" — please type it.','e'); }
+      else { inputEl.value = num; inputEl.dispatchEvent(new Event('input', {bubbles:true})); }
+    } else {
+      inputEl.value = transcript;
+      inputEl.dispatchEvent(new Event('input', {bubbles:true}));
+    }
+  };
+  recog.onerror = function(e){
+    if(e.error==='not-allowed' || e.error==='service-not-allowed'){
+      toast('Microphone access was denied — allow microphone permission for this app to use voice input.','e');
+    } else if(e.error==='no-speech'){
+      toast('No speech detected — please try again.','e');
+    } else {
+      toast('Voice input error: '+esc(e.error||'unknown'),'e');
+    }
+  };
+  recog.onend = function(){
+    btnEl.textContent = origText;
+    btnEl.disabled = false;
+  };
+  try{ recog.start(); }
+  catch(e){ btnEl.textContent = origText; btnEl.disabled = false; toast('Could not start voice input.','e'); }
+}
 function speakRobust(text, hi, onStart, onError){
   try{
     window.speechSynthesis.cancel();
@@ -4619,32 +4693,32 @@ function pgDailyRegister(){
 
   var fieldsHtml = inp('Date','dr_f0','date', td());
   if(typeId==='purchase'){
-    fieldsHtml += inp('Item Name','dr_f1','text','','Type or pick existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
-      inp('Supplier Name','dr_f2','text','').replace('<input ','<input data-ac="suppliers" ') +
-      g2(inp('Quantity','dr_f3','number',''), inp('Rate','dr_f4','number','')) +
+    fieldsHtml += inpMic('Item Name','dr_f1','text','','Type or pick existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
+      inpMic('Supplier Name','dr_f2','text','').replace('<input ','<input data-ac="suppliers" ') +
+      g2(inpMic('Quantity','dr_f3','number',''), inpMic('Rate','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='sale'){
-    fieldsHtml += inp('Item Name','dr_f1','text','','Pick an existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
-      inp('Customer Name','dr_f2','text','').replace('<input ','<input data-ac="customers" ') +
-      g2(inp('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" '), inp('Selling Price','dr_f4','number','')) +
+    fieldsHtml += inpMic('Item Name','dr_f1','text','','Pick an existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
+      inpMic('Customer Name','dr_f2','text','').replace('<input ','<input data-ac="customers" ') +
+      g2(inpMic('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" '), inpMic('Selling Price','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='expense'){
-    fieldsHtml += inp('Category','dr_f1','text','','Type or pick a category').replace('<input ','<input data-ac="categories" ') + inp('Amount','dr_f2','number','') +
+    fieldsHtml += inpMic('Category','dr_f1','text','','Type or pick a category').replace('<input ','<input data-ac="categories" ') + inpMic('Amount','dr_f2','number','') +
       sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
   } else if(typeId==='debtorReceipt'){
-    fieldsHtml += inp('Customer Name','dr_f1','text','','Pick an existing debtor').replace('<input ','<input data-ac="debtors" oninput="updateDRHint()" ') +
-      inp('Amount Received','dr_f2','number','') +
+    fieldsHtml += inpMic('Customer Name','dr_f1','text','','Pick an existing debtor').replace('<input ','<input data-ac="debtors" oninput="updateDRHint()" ') +
+      inpMic('Amount Received','dr_f2','number','') +
       sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
   } else if(typeId==='creditorPayment'){
-    fieldsHtml += inp('Supplier Name','dr_f1','text','','Pick an existing creditor').replace('<input ','<input data-ac="creditors" oninput="updateDRHint()" ') +
-      inp('Amount Paid','dr_f2','number','') +
+    fieldsHtml += inpMic('Supplier Name','dr_f1','text','','Pick an existing creditor').replace('<input ','<input data-ac="creditors" oninput="updateDRHint()" ') +
+      inpMic('Amount Paid','dr_f2','number','') +
       sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
   } else if(typeId==='loanInstalment'){
-    fieldsHtml += inp('Lender Name','dr_f1','text','','Pick an existing loan').replace('<input ','<input data-ac="loans" oninput="updateDRHint()" ') +
-      inp('Amount Paid','dr_f2','number','') +
+    fieldsHtml += inpMic('Lender Name','dr_f1','text','','Pick an existing loan').replace('<input ','<input data-ac="loans" oninput="updateDRHint()" ') +
+      inpMic('Amount Paid','dr_f2','number','') +
       sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
   } else if(typeId==='fixedAsset'){
-    fieldsHtml += inp('Asset Name','dr_f1','text','') + g2(inp('Cost','dr_f2','number',''), inp('Useful Life (Years)','dr_f3','number','')) +
+    fieldsHtml += inpMic('Asset Name','dr_f1','text','') + g2(inpMic('Cost','dr_f2','number',''), inpMic('Useful Life (Years)','dr_f3','number','')) +
       sl('Payment Mode','dr_f4',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
   }
   fieldsHtml += '<div id="dr_hint"></div>';
@@ -5040,10 +5114,10 @@ function pgCap(){
   }
   else if(tab==='addloan'){
     h+=card('Add New Loan',
-      g2(inp('Bank / Lender Name','l_b','text',''),sl('Loan Type','l_type',LOAN_TYPES,'Term Loan').replace('id="l_type"','id="l_type" onchange="updateLoanDisbOptions()"'))+
+      g2(inpMic('Bank / Lender Name','l_b','text',''),sl('Loan Type','l_type',LOAN_TYPES,'Term Loan').replace('id="l_type"','id="l_type" onchange="updateLoanDisbOptions()"'))+
       '<div id="loanTypeHint"></div>'+
       inp('Loan / CC / OD Account Number (required)','l_acctnum','text','')+
-      g2(inp('Loan Amount (₹)','l_a','number',0),inp('Interest Rate % p.a.','l_r','number',0))+
+      g2(inpMic('Loan Amount (₹)','l_a','number',0),inp('Interest Rate % p.a.','l_r','number',0))+
       g2(inp('Tenure (months, 0 if N/A)','l_t','number',0),inp('Sanction / Disbursement Date','l_d','date',td()))+
       g2(inp('Moratorium / Grace Period (months, 0 if none)','l_morat','number',0),
          sl('Interest During Moratorium','l_morat_treat',[{v:'paid',l:'Paid monthly (principal unchanged)'},{v:'accrued',l:'Accrued (added to principal)'}],'paid'))+
@@ -5084,7 +5158,7 @@ function pgCap(){
     h+=card('Record Loan Repayment',
       sl('Select Loan','rp_loan',lOpts,'')+
       '<div id="rp_info"></div>'+
-      g2(inp('Payment Amount (₹)','rp_amt','number',0),inp('Date','rp_d','date',td()))+
+      g2(inpMic('Payment Amount (₹)','rp_amt','number',0),inp('Date','rp_d','date',td()))+
       g3(inp('Principal Portion (₹)','rp_prin','number',0),inp('Interest Portion (₹)','rp_int','number',0),'')+
       '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Tip: tap "Auto-Split" to compute interest based on outstanding balance, rate &amp; days since last payment. Interest portion is recorded as an expense.</div>'+
       btn('Auto-Split','autoSplitRepay()','#546E7A')+' '+
@@ -5444,6 +5518,10 @@ function saveCap(){
   }
 
   sv();renderPage();toast('Capital saved'+(capPartnerName?' for '+capPartnerName:'')+'!');
+  if(delta!==0){
+    var capVerb = delta>0 ? 'introduced' : 'reduced by';
+    announceEntry('Capital '+capVerb+' rupees '+Math.round(Math.abs(delta))+(capPartnerName?' by '+capPartnerName:'')+'.', 'रुपये '+Math.round(Math.abs(delta))+' capital '+(delta>0?'जोड़ी गई':'घटाई गई')+(capPartnerName?' — '+capPartnerName:'')+'।');
+  }
 }
 
 // Remove a loan record entirely. Use this to correct mistakes (e.g. a loan entered
@@ -5599,6 +5677,7 @@ function addLoan(){
   }
   sv();window._captab='overview';renderPage();
   toast(undrawn ? 'Loan recorded as sanctioned (not yet drawn) - it will not appear on the Balance Sheet until drawn.' : 'Loan added!');
+  announceEntry('Loan added: '+b+', amount rupees '+Math.round(loanAmt)+'.', b+' से loan जोड़ा गया, रुपये '+Math.round(loanAmt)+'।');
 }
 // Record a drawdown against a previously "sanctioned, not yet drawn" loan: activates it on the Balance Sheet
 function drawdownLoan(id){
@@ -5665,6 +5744,7 @@ function recordRepay(){
       D.expenses.push({id:uid(),date:date,category:'Interest Payment',amount:intr,remarks:'Interest on '+loan.bankName+' loan',paymentMode:mode});
     }
     sv();renderPage();toast('Repayment recorded!');
+    announceEntry('Loan repayment of rupees '+Math.round(amt)+' recorded for '+loan.bankName+'.', loan.bankName+' के लिए रुपये '+Math.round(amt)+' की loan repayment दर्ज हुई।');
   });
 }
 // ===== INVENTORY =====
@@ -6878,7 +6958,7 @@ function pgDebtCred(){
     if(window._drForm==='add'){
       h+=card('Add Debtor (Existing Balance)',
         '<div class="al alw">Note: Adding a debtor here without a matching Trial Balance entry will create a difference in the Balance Sheet equal to this amount (since it adds an asset without an offsetting source). If this debtor was already part of your Opening Trial Balance, use that instead. Use this only for debtors that arose after you started using this app but were missed.</div>'+
-        g2(inp('Customer Name','nd_name','text',''),inp('Outstanding Amount','nd_amt','number',0))+
+        g2(inpMic('Customer Name','nd_name','text',''),inpMic('Outstanding Amount','nd_amt','number',0))+
         g2(inp('Date','nd_date','date',td()),inp('ID / Mobile / Village (for identification)','nd_id','text',''))+
         btn('Add Debtor','addManualDebtor()','#2E7D32')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
       );
@@ -6890,7 +6970,7 @@ function pgDebtCred(){
       if(dOpts.length===0)dOpts.push({v:'',l:'-- No debtors --'});
       h+=card('Record Receipt from Debtor',
         sl('Debtor Name','rd_name',dOpts,dOpts[0]?dOpts[0].v:'')+
-        g2(inp('Amount Received','rd_amt','number',0),inp('Date','rd_date','date',td()))+
+        g2(inpMic('Amount Received','rd_amt','number',0),inp('Date','rd_date','date',td()))+
         inp('ID / Mobile / Village (optional — to confirm correct party)','rd_id','text','')+
         payModeSel('rd_mode','cash')+
         btn('Record Receipt','recordDebtorReceipt()','#2E7D32')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
@@ -6929,7 +7009,7 @@ function pgDebtCred(){
     if(window._drForm==='addc'){
       h+=card('Add Creditor (Existing Balance)',
         '<div class="al alw">Note: Adding a creditor here without a matching Trial Balance entry will create a difference in the Balance Sheet equal to this amount. If this creditor was already part of your Opening Trial Balance, use that instead. Use this only for creditors that arose after you started using this app but were missed.</div>'+
-        g2(inp('Supplier Name','nc_name','text',''),inp('Outstanding Amount','nc_amt','number',0))+
+        g2(inpMic('Supplier Name','nc_name','text',''),inpMic('Outstanding Amount','nc_amt','number',0))+
         g2(inp('Date','nc_date','date',td()),inp('ID / Mobile / Village (for identification)','nc_id','text',''))+
         btn('Add Creditor','addManualCreditor()','#C62828')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
       );
@@ -6941,7 +7021,7 @@ function pgDebtCred(){
       if(cOpts.length===0)cOpts.push({v:'',l:'-- No creditors --'});
       h+=card('Record Payment to Creditor',
         sl('Creditor Name','cp_name',cOpts,cOpts[0]?cOpts[0].v:'')+
-        g2(inp('Amount Paid','cp_amt','number',0),inp('Date','cp_date','date',td()))+
+        g2(inpMic('Amount Paid','cp_amt','number',0),inp('Date','cp_date','date',td()))+
         payModeSel('cp_mode','cash')+
         btn('Record Payment','recordCreditorPayment()','#C62828')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
       );
@@ -6990,8 +7070,8 @@ function pgJournal(){
     h += card('Record a Provision / Accrued Expense',
       '<div class="al ali" style="margin-bottom:10px">Use this when an expense has been INCURRED but not yet PAID (e.g. this month\'s electricity bill, not yet received) — it books the expense now (correct accrual accounting) and tracks the amount owed as a liability until you actually pay it.</div>'+
       g2(inp('Date','jv_prov_date','date',td()),sl('Expense Category','jv_prov_cat',D.expenseCategories,D.expenseCategories[0]))+
-      inp('Description','jv_prov_desc','text','')+
-      inp('Amount','jv_prov_amt','number','')+
+      inpMic('Description','jv_prov_desc','text','')+
+      inpMic('Amount','jv_prov_amt','number','')+
       btn('📝 Record Provision','submitProvision()','#546E7A')
     );
     var unsettled = D.provisions.filter(function(p){return !p.settled;});
@@ -7014,8 +7094,8 @@ function pgJournal(){
     );
     h += card('Rectification Entry',
       '<div class="al ali" style="margin-bottom:10px">Correct a genuine mistake — e.g. an expense booked under the wrong category, or a capital/drawings entry that needs adjusting. Debit and Credit must be different accounts, and the amounts always balance automatically (Dr = Cr by construction).</div>'+
-      g2(inp('Date','jv_rec_date','date',td()),inp('Amount','jv_rec_amt','number',''))+
-      inp('Narration / Reason','jv_rec_narr','text','')+
+      g2(inp('Date','jv_rec_date','date',td()),inpMic('Amount','jv_rec_amt','number',''))+
+      inpMic('Narration / Reason','jv_rec_narr','text','')+
       g2(sl('Debit Account','jv_rec_dr',acctOptions,''),sl('Credit Account','jv_rec_cr',acctOptions,''))+
       btn('📝 Post Rectification','submitRectification()','#546E7A')
     );
@@ -7035,6 +7115,7 @@ function submitProvision(){
   if(addProvision(date, cat, desc, amt)){
     toast('Provision recorded — expense booked, amount tracked as owed until settled.');
     renderPage();
+    announceEntry('Provision recorded for rupees '+Math.round(amt)+', '+cat+'.', 'रुपये '+Math.round(amt)+' की provision दर्ज हुई, '+cat+' के लिए।');
   }
 }
 function promptSettleProvision(provId){
@@ -7055,10 +7136,12 @@ function promptSettleProvision(provId){
 }
 function confirmSettleProvision(provId){
   var mode = gv('jv_settle_mode')||'cash', date = gv('jv_settle_date')||td();
+  var prov = D.provisions.find(function(p){return p.id===provId;});
   if(settleProvision(provId, mode, date)){
     toast('Provision settled — cash/bank reduced, liability cleared.');
     document.querySelectorAll('div[style*="position: fixed"]').forEach(function(m){ if(m.style.zIndex==='9999') m.remove(); });
     renderPage();
+    if(prov) announceEntry('Provision settled for rupees '+Math.round(prov.amount)+'.', 'रुपये '+Math.round(prov.amount)+' की provision settle हुई।');
   }
 }
 function submitRectification(){
@@ -7069,6 +7152,7 @@ function submitRectification(){
   if(postRectificationJournal(date, narr, drAccount, crAccount, amt, drIsExp, crIsExp)){
     toast('Rectification posted.');
     renderPage();
+    announceEntry('Rectification journal posted for rupees '+Math.round(amt)+'.', 'रुपये '+Math.round(amt)+' की rectification journal दर्ज हुई।');
   }
 }
 // Dropdown to optionally settle this transaction against an existing advance.
@@ -7095,9 +7179,9 @@ function pgReturns(){
         var rem = (s.qty||0)-alreadyReturnedQtyForSale(s.id);
         return {v:s.id, l:s.date+' — '+s.customerName+' — '+s.itemName+' (qty '+fmt(s.qty)+', returnable '+fmt(rem)+', '+fc(s.sellingPrice)+'/unit)'};
       }), '')+
-      inp('Return Quantity','ret_sale_qty','number','')+
+      inpMic('Return Quantity','ret_sale_qty','number','')+
       inp('Return Date','ret_sale_date','date',td())+
-      inp('Reason / Notes (optional)','ret_sale_notes','text','')+
+      inpMic('Reason / Notes (optional)','ret_sale_notes','text','')+
       btn('↩ Record Sales Return','submitSalesReturn()','#C62828')
     );
   } else if(tab==='purchret'){
@@ -7110,9 +7194,9 @@ function pgReturns(){
         var rem = (p.qty||0)-alreadyReturnedQtyForPurchase(p.id);
         return {v:p.id, l:p.date+' — '+p.supplierName+' — '+p.itemName+' (qty '+fmt(p.qty)+', returnable '+fmt(rem)+', '+fc(p.rate)+'/unit)'};
       }), '')+
-      inp('Return Quantity','ret_purch_qty','number','')+
+      inpMic('Return Quantity','ret_purch_qty','number','')+
       inp('Return Date','ret_purch_date','date',td())+
-      inp('Reason / Notes (optional)','ret_purch_notes','text','')+
+      inpMic('Reason / Notes (optional)','ret_purch_notes','text','')+
       btn('↩ Record Purchase Return','submitPurchaseReturn()','#C62828')
     );
   } else {
@@ -7138,18 +7222,24 @@ function submitSalesReturn(){
   var saleId=gv('ret_sale_id'), qty=gvn('ret_sale_qty'), date=gv('ret_sale_date')||td(), notes=gv('ret_sale_notes');
   if(!saleId){toast('Select the original sale','e');return;}
   if(!qty||qty<=0){toast('Enter a valid return quantity','e');return;}
+  var origSale = D.sales.filter(function(s){return s.id===saleId;})[0];
   if(addSalesReturn(saleId, qty, date, notes)){
     toast('Sales return recorded — stock restored, customer refunded/credited.');
     renderPage();
+    var itemNm = origSale ? origSale.itemName : 'item';
+    announceEntry('Sales return recorded: '+qty+' of '+itemNm+'.', itemNm+' की '+qty+' मात्रा वापस हुई, sales return दर्ज हुआ।');
   }
 }
 function submitPurchaseReturn(){
   var purchId=gv('ret_purch_id'), qty=gvn('ret_purch_qty'), date=gv('ret_purch_date')||td(), notes=gv('ret_purch_notes');
   if(!purchId){toast('Select the original purchase','e');return;}
   if(!qty||qty<=0){toast('Enter a valid return quantity','e');return;}
+  var origPurch = D.purchases.filter(function(p){return p.id===purchId;})[0];
   if(addPurchaseReturn(purchId, qty, date, notes)){
     toast('Purchase return recorded — stock reduced, refund/creditor adjusted.');
     renderPage();
+    var itemNm2 = origPurch ? origPurch.itemName : 'item';
+    announceEntry('Purchase return recorded: '+qty+' of '+itemNm2+'.', itemNm2+' की '+qty+' मात्रा वापस हुई, purchase return दर्ज हुआ।');
   }
 }
 function advanceSettleSel(id, advType){
@@ -7591,7 +7681,7 @@ function pgCB(){
     btn('+ Add Another Bank Account','addBankAccountBlank()','#546E7A')
   );
 
-  h+=card('Add Manual Entry',g2(inp('Date','cb_d','date',td()),sl('Type','cb_t',[{v:'receipt',l:'Receipt (Money In)'},{v:'payment',l:'Payment (Money Out)'}],'receipt'))+g2(payModeSelSimple('cb_m','cash'),inp('Amount','cb_a','number',0))+g2(inp('Party','cb_p','text',''),inp('Description','cb_ds','text',''))+btn('+ Add Entry','addCB()'));
+  h+=card('Add Manual Entry',g2(inp('Date','cb_d','date',td()),sl('Type','cb_t',[{v:'receipt',l:'Receipt (Money In)'},{v:'payment',l:'Payment (Money Out)'}],'receipt'))+g2(payModeSelSimple('cb_m','cash'),inpMic('Amount','cb_a','number',0))+g2(inpMic('Party','cb_p','text',''),inpMic('Description','cb_ds','text',''))+btn('+ Add Entry','addCB()'));
 
   // Transfer Between Accounts (Contra): moves money from one Cash/Bank account to another,
   // posting both the payment and receipt sides together so the Balance Sheet never goes out
@@ -8161,6 +8251,8 @@ function addCB(){
   if(cbMode==='bank') entry.bankAccountId=bankAccountId;
   D.cashBook.push(entry);
   sv();go('cashbank');toast('Added!');
+  var cbTypeLabel = entry.type==='receipt' ? 'received' : 'paid';
+  announceEntry('Rupees '+Math.round(a)+' '+cbTypeLabel+(entry.party?' — '+entry.party:'')+'.', 'रुपये '+Math.round(a)+' '+(entry.type==='receipt'?'प्राप्त हुए':'भुगतान किया गया')+(entry.party?' — '+entry.party:'')+'।');
 }
 // ===== EMI CALCULATOR (standalone, for what-if) =====
 // ===== BANK CALCULATORS (FD / RD / Reinvestment / SIP) =====
@@ -9304,7 +9396,7 @@ function pgRep(){
     if(window._drForm==='add'){
       h+=card('Add Debtor (Existing Balance)',
         '<div class="al alw">Note: Adding a debtor here without a matching Trial Balance entry will create a difference in the Balance Sheet equal to this amount (since it adds an asset without an offsetting source). If this debtor was already part of your Opening Trial Balance, use that instead. Use this only for debtors that arose after you started using this app but were missed.</div>'+
-        g2(inp('Customer Name','nd_name','text',''),inp('Outstanding Amount','nd_amt','number',0))+
+        g2(inpMic('Customer Name','nd_name','text',''),inpMic('Outstanding Amount','nd_amt','number',0))+
         g2(inp('Date','nd_date','date',td()),inp('ID / Mobile / Village (for identification)','nd_id','text',''))+
         btn('Add Debtor','addManualDebtor()','#2E7D32')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
       );
@@ -9316,7 +9408,7 @@ function pgRep(){
       if(dOpts.length===0)dOpts.push({v:'',l:'-- No debtors --'});
       h+=card('Record Receipt from Debtor',
         sl('Debtor Name','rd_name',dOpts,dOpts[0]?dOpts[0].v:'')+
-        g2(inp('Amount Received','rd_amt','number',0),inp('Date','rd_date','date',td()))+
+        g2(inpMic('Amount Received','rd_amt','number',0),inp('Date','rd_date','date',td()))+
         inp('ID / Mobile / Village (optional — to confirm correct party)','rd_id','text','')+
         payModeSel('rd_mode','cash')+
         btn('Record Receipt','recordDebtorReceipt()','#2E7D32')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
@@ -9357,7 +9449,7 @@ function pgRep(){
     if(window._drForm==='addc'){
       h+=card('Add Creditor (Existing Balance)',
         '<div class="al alw">Note: Adding a creditor here without a matching Trial Balance entry will create a difference in the Balance Sheet equal to this amount. If this creditor was already part of your Opening Trial Balance, use that instead. Use this only for creditors that arose after you started using this app but were missed.</div>'+
-        g2(inp('Supplier Name','nc_name','text',''),inp('Outstanding Amount','nc_amt','number',0))+
+        g2(inpMic('Supplier Name','nc_name','text',''),inpMic('Outstanding Amount','nc_amt','number',0))+
         g2(inp('Date','nc_date','date',td()),inp('ID / Mobile / Village (for identification)','nc_id','text',''))+
         btn('Add Creditor','addManualCreditor()','#C62828')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
       );
@@ -9369,7 +9461,7 @@ function pgRep(){
       if(cOpts.length===0)cOpts.push({v:'',l:'-- No creditors --'});
       h+=card('Record Payment to Creditor',
         sl('Creditor Name','cp_name',cOpts,cOpts[0]?cOpts[0].v:'')+
-        g2(inp('Amount Paid','cp_amt','number',0),inp('Date','cp_date','date',td()))+
+        g2(inpMic('Amount Paid','cp_amt','number',0),inp('Date','cp_date','date',td()))+
         payModeSel('cp_mode','cash')+
         btn('Record Payment','recordCreditorPayment()','#C62828')+' '+btn('Cancel','window._drForm=null;renderPage()','#546E7A')
       );
@@ -11501,6 +11593,7 @@ function addManualDebtor(){
   // Store partyId in partyCodes directory
   if(pid){if(!D.partyCodes)D.partyCodes={};D.partyCodes['partyid:'+name.trim().toLowerCase()]=pid;}
   sv();window._drForm=null;renderPage();toast('Debtor added!');
+  announceEntry('Debtor added: '+name+', opening balance rupees '+Math.round(amt)+'.', name+' debtor जोड़ा गया, opening balance रुपये '+Math.round(amt)+'।');
 }
 function addManualCreditor(){
   if(!requireTBPosted()) return;
@@ -11511,6 +11604,7 @@ function addManualCreditor(){
   D.creditors.push({id:uid(),name:name,amount:amt,date:date,ref:'Opening Balance (Manual)',partyId:pid});
   if(pid){if(!D.partyCodes)D.partyCodes={};D.partyCodes['partyid:'+name.trim().toLowerCase()]=pid;}
   sv();window._drForm=null;renderPage();toast('Creditor added!');
+  announceEntry('Creditor added: '+name+', opening balance rupees '+Math.round(amt)+'.', name+' creditor जोड़ा गया, opening balance रुपये '+Math.round(amt)+'।');
 }
 function recordDebtorReceipt(){
   var name=gv('rd_name'),amt=gvn('rd_amt'),date=gv('rd_date')||td(),mode=gv('rd_mode');
@@ -11527,6 +11621,7 @@ function recordDebtorReceipt(){
   // increase cash/bank
   postCB(mode,'receipt',amt,name,'Receipt from Debtor: '+name,date);
   sv();window._drForm=null;renderPage();toast('Receipt recorded!');
+  announceEntry('Payment of rupees '+Math.round(amt)+' received from '+name+'.', 'रुपये '+Math.round(amt)+' का भुगतान '+name+' से प्राप्त हुआ।');
 }
 function recordCreditorPayment(){
   var name=gv('cp_name'),amt=gvn('cp_amt'),date=gv('cp_date')||td(),mode=gv('cp_mode');
@@ -11538,6 +11633,7 @@ function recordCreditorPayment(){
   // decrease cash/bank
   postCB(mode,'payment',amt,name,'Payment to Creditor: '+name,date);
   sv();window._drForm=null;renderPage();toast('Payment recorded!');
+  announceEntry('Payment of rupees '+Math.round(amt)+' made to '+name+'.', 'रुपये '+Math.round(amt)+' का भुगतान '+name+' को किया गया।');
 }
 function recordExpensePayablePayment(){
   var name=gv('ep_name'),amt=gvn('ep_amt'),date=gv('ep_date')||td(),mode=gv('ep_mode');
