@@ -4484,7 +4484,7 @@ function pgDailyRegister(){
 
   h += card('What are you recording?',
     sl('Transaction Type','dr_type', BULK_IMPORT_TYPES.map(function(bt){return {v:bt.id, l:bt.icon+' '+bt.label};}), typeId)
-      .replace('id="dr_type"','id="dr_type" onchange="window._drType=this.value;renderPage()"')
+      .replace('id="dr_type"','id="dr_type" onchange="window._drType=this.value;window._drLastSaleId=null;renderPage()"')
   );
 
   // Datalists for autocomplete - items already in Inventory (from Purchase), and known
@@ -4498,6 +4498,8 @@ function pgDailyRegister(){
   window._acData.categories = D.expenseCategories.slice();
   window._acData.suppliers = Array.from(new Set(D.purchases.map(function(p){return p.supplierName;}).concat(D.creditors.map(function(c){return c.name;})).filter(Boolean)));
   window._acData.customers = Array.from(new Set(D.sales.map(function(s){return s.customerName;}).concat(D.debtors.map(function(d){return d.name;})).filter(Boolean)));
+  window._acData.beneficiaries = Array.from(new Set(D.expenses.map(function(e){return e.beneficiaryName;}).filter(Boolean)));
+  window._acData.sellers = Array.from(new Set(D.fixedAssets.map(function(a){return a.sellerName;}).filter(Boolean)));
 
   var fieldsHtml = inp('Date','dr_f0','date', td());
   if(typeId==='purchase'){
@@ -4507,12 +4509,13 @@ function pgDailyRegister(){
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='sale'){
     fieldsHtml += inpMic('Item Name','dr_f1','text','','Pick an existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
-      inpMic('Customer Name','dr_f2','text','').replace('<input ','<input data-ac="customers" ') +
+      inpMic('Customer Name','dr_f2','text','Walk-in Customer').replace('<input ','<input data-ac="customers" ') +
       g2(inpMic('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" '), inpMic('Selling Price','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='expense'){
     fieldsHtml += inpMic('Category','dr_f1','text','','Type or pick a category').replace('<input ','<input data-ac="categories" ') + inpMic('Amount','dr_f2','number','') +
-      sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
+      sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash') +
+      inpMic('Beneficiary Name (optional)','dr_f4','text','','Who was paid').replace('<input ','<input data-ac="beneficiaries" ');
   } else if(typeId==='debtorReceipt'){
     fieldsHtml += inpMic('Customer Name','dr_f1','text','','Pick an existing debtor').replace('<input ','<input data-ac="debtors" oninput="updateDRHint()" ') +
       inpMic('Amount Received','dr_f2','number','') +
@@ -4527,13 +4530,27 @@ function pgDailyRegister(){
       sl('Payment Mode','dr_f3',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'}],'cash');
   } else if(typeId==='fixedAsset'){
     fieldsHtml += inpMic('Asset Name','dr_f1','text','') + g2(inpMic('Cost','dr_f2','number',''), inpMic('Useful Life (Years)','dr_f3','number','')) +
-      sl('Payment Mode','dr_f4',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
+      sl('Payment Mode','dr_f4',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash') +
+      inpMic('Seller Name (optional)','dr_f5','text','','Who it was bought from').replace('<input ','<input data-ac="sellers" ');
   }
   fieldsHtml += '<div id="dr_hint"></div>';
 
   h += card(t.icon+' '+t.label+' — New Entry', fieldsHtml + btn('➕ Add Entry','addDailyRegisterEntry()','#2E7D32'));
 
   if(window._drLastError) h += '<div class="al ald">'+esc(window._drLastError)+'</div>';
+
+  // One-tap bill for the Sale just recorded here — lets a Daily-Register sale get a
+  // shareable invoice without switching to Sales → Create Bill.
+  if(typeId==='sale' && window._drLastSaleId){
+    var _drLastSale = D.sales.filter(function(s){return s.id===window._drLastSaleId;})[0];
+    if(_drLastSale){
+      h += card('🧾 Bill for Last Sale',
+        '<div style="font-size:12px;color:#546E7A;margin-bottom:8px">'+esc(_drLastSale.customerName)+' — '+esc(_drLastSale.itemName)+' — '+fc(_drLastSale.totalAmount)+
+        (_drLastSale.billNo?' <span style="color:#2E7D32;font-weight:700">(Bill '+esc(_drLastSale.billNo)+' already generated)</span>':'')+'</div>'+
+        btn((_drLastSale.billNo?'🧾 View / Share Bill':'🧾 Generate Bill & Share'),'generateBillFromDailyRegisterSale('+Q+_drLastSale.id+Q+')','#1565C0')
+      );
+    }
+  }
 
   // Today's entries across all types, most recent first - a quick visual confirmation of
   // what's actually been recorded today, regardless of which menu/path was used.
@@ -4614,16 +4631,48 @@ function addDailyRegisterEntry(){
   var sentences = {
     purchase: ['Purchase recorded for rupees '+amt+' from '+r0.supplier+', paid by '+r0.mode+'.', 'रुपये '+amt+' की खरीद '+r0.supplier+' से दर्ज हुई, '+r0.mode+' से।'],
     sale: ['Sale recorded for rupees '+amt+' to '+r0.customer+', paid by '+r0.mode+'.', 'रुपये '+amt+' की बिक्री '+r0.customer+' को दर्ज हुई, '+r0.mode+' से।'],
-    expense: ['Expense recorded for rupees '+amt+' for '+r0.category+', paid by '+r0.mode+'.', 'रुपये '+amt+' का खर्च '+r0.category+' के लिए दर्ज हुआ, '+r0.mode+' से।'],
+    expense: r0.beneficiary
+      ? ['Expense recorded for rupees '+amt+' for '+r0.category+', paid by '+r0.mode+' to '+r0.beneficiary+'.', 'रुपये '+amt+' का खर्च '+r0.category+' के लिए दर्ज हुआ, '+r0.mode+' से '+r0.beneficiary+' को।']
+      : ['Expense recorded for rupees '+amt+' for '+r0.category+', paid by '+r0.mode+'.', 'रुपये '+amt+' का खर्च '+r0.category+' के लिए दर्ज हुआ, '+r0.mode+' से।'],
     debtorReceipt: ['Payment of rupees '+amt+' received from '+r0.customer+'.', 'रुपये '+amt+' का भुगतान '+r0.customer+' से प्राप्त हुआ।'],
     creditorPayment: ['Payment of rupees '+amt+' made to '+r0.supplier+'.', 'रुपये '+amt+' का भुगतान '+r0.supplier+' को किया गया।'],
     loanInstalment: ['Loan instalment of rupees '+amt+' paid to '+r0.lender+'.', 'रुपये '+amt+' की लोन किश्त '+r0.lender+' को चुकाई गई।'],
-    fixedAsset: ['Fixed asset '+r0.assetName+' recorded for rupees '+amt+'.', r0.assetName+' संपत्ति रुपये '+amt+' में दर्ज हुई।']
+    fixedAsset: r0.seller
+      ? ['Fixed asset '+r0.assetName+' recorded for rupees '+amt+', purchased from '+r0.seller+'.', r0.assetName+' संपत्ति रुपये '+amt+' में दर्ज हुई, '+r0.seller+' से खरीदी गई।']
+      : ['Fixed asset '+r0.assetName+' recorded for rupees '+amt+'.', r0.assetName+' संपत्ति रुपये '+amt+' में दर्ज हुई।']
   };
   var s0 = sentences[typeId];
   if(s0) announceEntry(s0[0], s0[1]);
+  // Track the just-created Sale so a one-tap Bill can be generated and shared right away.
+  window._drLastSaleId = (typeId==='sale' && D.sales.length) ? D.sales[D.sales.length-1].id : null;
   toast('✅ Entry recorded — posted to '+t.label+'.');
   renderPage();
+}
+// Generates (or re-opens) a single-item Bill/Invoice for a Sale recorded via Daily Register,
+// reusing the same D.bills store, numbering sequence and invoice view as Sales -> Create Bill,
+// so a Daily-Register sale can be billed and shared (WhatsApp/Email) without re-entering anything.
+function generateBillFromDailyRegisterSale(saleId){
+  var sale = D.sales.filter(function(s){return s.id===saleId;})[0];
+  if(!sale){ toast('Sale not found','e'); return; }
+  if(sale.billNo){
+    var existingBill = D.bills.filter(function(b){return b.billNo===sale.billNo;})[0];
+    if(existingBill){ showBillInvoice(existingBill.id); return; }
+  }
+  var billNo = 'INV-' + String(D.nextBillNo).padStart(4,'0');
+  D.nextBillNo++;
+  var billGstRate = 0;
+  if(gstEnabled()){
+    var item = D.inventory.filter(function(it){return it.id===sale.itemId;})[0];
+    if(item && item.gstRate!==undefined) billGstRate = item.gstRate;
+  }
+  var billGstType = (D.gst&&D.gst.supplyType)||'intra';
+  var bill = {id:uid(), billNo:billNo, date:sale.date, customerName:sale.customerName,
+    items:[{itemName:sale.itemName, unit:sale.unit, qty:sale.qty, price:sale.sellingPrice, amount:sale.totalAmount}],
+    totalAmount:sale.totalAmount, paymentMode:sale.paymentMode, gstRate:billGstRate, gstType:billGstType};
+  D.bills.push(bill);
+  sale.billNo = billNo;
+  sv();
+  showBillInvoice(bill.id);
 }
 function pgProf(){
   var p=D.profile;
@@ -5082,6 +5131,7 @@ else if(tab==='fixedassets'){
         {l:'Rate%',k:'depRate',r:1},
         {l:'Accum. Dep.',r:1,fn:function(a){return fc(a.accumDep||0);},c:function(){return'#C62828';}},
         {l:'WDV (Book Value)',r:1,fn:function(a){return fc(faWDV(a));},c:function(){return'#2E7D32';}},
+        {l:'Seller',fn:function(a){return a.sellerName?esc(a.sellerName):'--';}},
         {l:'',fn:function(a){return '<button onclick="removeFA(\''+a.id+'\',\''+esc(a.name)+'\')" style="background:none;border:none;color:#C62828;font-weight:700;cursor:pointer;font-size:13px" title="Remove this asset entry (correcting a mistake)">✕ Remove</button>';}}
       ],active));
     } else {
@@ -7388,7 +7438,7 @@ function pgExp(){
   );
 
   h+=card('Add Expense',g2(inp('Date','ex_d','date',td()),sl('Category','ex_c',D.expenseCategories,D.expenseCategories[0]))+g2(inp('Amount','ex_a','number',0),payModeSel('ex_m','cash'))+advanceSettleSel('ex_adv','paid_expense')+inp('Remarks','ex_r','text','')+btn('+ Add Expense','addExp()','#C62828'));
-  h+=card('Expense Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('expense',r.id);}},{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'Remarks',k:'remarks'}],[].concat(D.expenses).reverse()));
+  h+=card('Expense Register',tbl([{l:'✎🗑',fn:function(r){return actBtns('expense',r.id);}},{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'₹',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'Remarks',k:'remarks'},{l:'Beneficiary',fn:function(r){return r.beneficiaryName?esc(r.beneficiaryName):'--';}}],[].concat(D.expenses).reverse()));
   return h;
 }
 function addCat(){var n=gv('newcat').trim();if(!n)return;if(D.expenseCategories.indexOf(n)>=0){toast('Category already exists','e');return;}D.expenseCategories.push(n);sv();renderPage();toast('Category added!');}
@@ -9045,7 +9095,7 @@ function pgRep(){
       '<div style="text-align:right;margin-top:4px">'+btn('Print Stock Register','window.print()','#546E7A')+'</div>'
     );
   }
-  else if(tab==='expense'){for(i=0;i<D.expenses.length;i++)tot+=D.expenses[i].amount;h+=card('Expense Register',tbl([{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'Remarks',k:'remarks'}],D.expenses)+'<div style="text-align:right;font-weight:700;padding:7px">Total: '+fc(tot)+'</div>');}
+  else if(tab==='expense'){for(i=0;i<D.expenses.length;i++)tot+=D.expenses[i].amount;h+=card('Expense Register',tbl([{l:'Date',k:'date'},{l:'Category',k:'category'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'Mode',fn:function(r){return pmChip(r.paymentMode||'cash');}},{l:'Remarks',k:'remarks'},{l:'Beneficiary',fn:function(r){return r.beneficiaryName?esc(r.beneficiaryName):'--';}}],D.expenses)+'<div style="text-align:right;font-weight:700;padding:7px">Total: '+fc(tot)+'</div>');}
   else if(tab==='loan'){h+=card('Loan Report',tbl([{l:'Bank',k:'bankName'},{l:'Type',k:'loanType'},{l:'Amount',r:1,fn:function(r){return fc(r.amount);}},{l:'%',k:'rate'},{l:'EMI',r:1,fn:function(r){return fc(r.emi);}},{l:'Outstanding',r:1,fn:function(r){return fc(r.outstandingBalance);},c:function(){return'#C62828';}}],D.loans));}
   else if(tab==='statements'){
     var stOpts=[{v:'',l:'-- Select Account --'}];
@@ -13137,8 +13187,8 @@ var BULK_IMPORT_TYPES = [
    cols:['Date (YYYY-MM-DD)','Item Name','Customer Name','Quantity','Selling Price','Payment Mode (cash/bank/upi/credit)'],
    example:['2026-08-01','Basmati Rice','Walk-in Customer','5','78','cash']},
   {id:'expense', label:'Expenses', icon:'📋',
-   cols:['Date (YYYY-MM-DD)','Category','Amount','Payment Mode (cash/bank)'],
-   example:['2026-08-01','Rent','15000','bank']},
+   cols:['Date (YYYY-MM-DD)','Category','Amount','Payment Mode (cash/bank)','Beneficiary Name (optional)'],
+   example:['2026-08-01','Rent','15000','bank','Landlord Name']},
   {id:'debtorReceipt', label:'Receipts from Debtors', icon:'👤',
    cols:['Date (YYYY-MM-DD)','Customer Name','Amount Received','Payment Mode (cash/bank)'],
    example:['2026-08-01','Sharma General Store','5000','bank']},
@@ -13149,8 +13199,8 @@ var BULK_IMPORT_TYPES = [
    cols:['Date (YYYY-MM-DD)','Lender Name','Amount Paid','Payment Mode (cash/bank)'],
    example:['2026-08-01','UCO Bank','4348','bank']},
   {id:'fixedAsset', label:'Fixed Asset Purchases', icon:'🪑',
-   cols:['Date (YYYY-MM-DD)','Asset Name','Cost','Useful Life (Years)','Payment Mode (cash/bank/credit)'],
-   example:['2026-08-01','Office Chair','3500','8','cash']},
+   cols:['Date (YYYY-MM-DD)','Asset Name','Cost','Useful Life (Years)','Payment Mode (cash/bank/credit)','Seller Name (optional)'],
+   example:['2026-08-01','Office Chair','3500','8','cash','ABC Furniture']},
 ];
 function getBulkImportType(id){ return BULK_IMPORT_TYPES.filter(function(t){return t.id===id;})[0]; }
 function downloadBulkTemplate(typeId){
@@ -13217,11 +13267,11 @@ function validateBulkRows(typeId, rows){
       if(qty2>totalAvail){ errors.push('Row '+rowNum+': Insufficient stock for "'+itemName2+'" - only '+fmt(totalAvail)+' available'); return; }
       valid.push({date:date, itemId:item.id, itemName:item.itemName, unit:item.unit, customer:customer, qty:qty2, price:price, mode:mode2});
     } else if(typeId==='expense'){
-      var cat=(r[1]||'').trim(), amt=+r[2], mode3=(r[3]||'').trim().toLowerCase();
+      var cat=(r[1]||'').trim(), amt=+r[2], mode3=(r[3]||'').trim().toLowerCase(), ben=(r[4]||'').trim();
       if(!cat){ errors.push('Row '+rowNum+': Category is required'); return; }
       if(!amt||amt<=0||isNaN(amt)){ errors.push('Row '+rowNum+': Amount must be a positive number'); return; }
       if(['cash','bank'].indexOf(mode3)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash or bank (got "'+(r[3]||'')+'")'); return; }
-      valid.push({date:date, category:cat, amount:amt, mode:mode3});
+      valid.push({date:date, category:cat, amount:amt, mode:mode3, beneficiary:ben});
     } else if(typeId==='debtorReceipt'){
       var cust2=(r[1]||'').trim(), amt2=+r[2], mode4=(r[3]||'').trim().toLowerCase();
       if(!cust2){ errors.push('Row '+rowNum+': Customer Name is required'); return; }
@@ -13243,12 +13293,12 @@ function validateBulkRows(typeId, rows){
       if(!loan){ errors.push('Row '+rowNum+': Loan from "'+lender+'" not found - add it in Capital/Loans first'); return; }
       valid.push({date:date, loanId:loan.id, lender:loan.lender, amount:amt4, mode:mode6});
     } else if(typeId==='fixedAsset'){
-      var assetName=(r[1]||'').trim(), cost=+r[2], life=+r[3], mode7=(r[4]||'').trim().toLowerCase();
+      var assetName=(r[1]||'').trim(), cost=+r[2], life=+r[3], mode7=(r[4]||'').trim().toLowerCase(), seller=(r[5]||'').trim();
       if(!assetName){ errors.push('Row '+rowNum+': Asset Name is required'); return; }
       if(!cost||cost<=0||isNaN(cost)){ errors.push('Row '+rowNum+': Cost must be a positive number'); return; }
       if(!life||life<=0||isNaN(life)){ errors.push('Row '+rowNum+': Useful Life must be a positive number of years'); return; }
       if(['cash','bank','credit'].indexOf(mode7)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, or credit (got "'+(r[4]||'')+'")'); return; }
-      valid.push({date:date, assetName:assetName, cost:cost, life:life, mode:mode7});
+      valid.push({date:date, assetName:assetName, cost:cost, life:life, mode:mode7, seller:seller});
     }
   });
   valid.forEach(function(r){
@@ -13280,9 +13330,9 @@ function commitBulkImport(typeId, validRows){
       if(r.mode==='credit') addDebtor(r.customer, tot, r.date, 'Sale: '+item2.itemName);
       else postCB(r.mode, 'receipt', tot, r.customer, 'Sale: '+item2.itemName, r.date);
     } else if(typeId==='expense'){
-      D.expenses.push({id:uid(), date:r.date, category:r.category, amount:r.amount, paymentMode:r.mode});
+      D.expenses.push({id:uid(), date:r.date, category:r.category, amount:r.amount, paymentMode:r.mode, beneficiaryName:r.beneficiary||''});
       if(D.expenseCategories.indexOf(r.category)<0) D.expenseCategories.push(r.category);
-      postCB(r.mode, 'payment', r.amount, r.category, r.category, r.date);
+      postCB(r.mode, 'payment', r.amount, r.beneficiary||r.category, r.category, r.date);
     } else if(typeId==='debtorReceipt'){
       addDebtor(r.customer, -r.amount, r.date, 'Payment Received');
       postCB(r.mode, 'receipt', r.amount, r.customer, 'Debtor Collection', r.date);
@@ -13297,9 +13347,9 @@ function commitBulkImport(typeId, validRows){
       loan.payments.push({date:r.date, amount:r.amount, principal:r.amount});
       postCB(r.mode, 'payment', r.amount, r.lender, 'Loan Instalment', r.date);
     } else if(typeId==='fixedAsset'){
-      D.fixedAssets.push({id:uid(), name:r.assetName, purchaseDate:r.date, cost:r.cost, life:r.life, accumDep:0, disposed:false});
-      if(r.mode==='credit') addCreditor(r.assetName+' (Asset Supplier)', r.cost, r.date, 'Fixed Asset Purchase: '+r.assetName);
-      else postCB(r.mode, 'payment', r.cost, 'Capital Expenditure', 'Fixed Asset Purchase: '+r.assetName, r.date);
+      D.fixedAssets.push({id:uid(), name:r.assetName, purchaseDate:r.date, cost:r.cost, life:r.life, accumDep:0, disposed:false, sellerName:r.seller||''});
+      if(r.mode==='credit') addCreditor(r.seller||(r.assetName+' (Asset Supplier)'), r.cost, r.date, 'Fixed Asset Purchase: '+r.assetName);
+      else postCB(r.mode, 'payment', r.cost, r.seller||'Capital Expenditure', 'Fixed Asset Purchase: '+r.assetName, r.date);
     }
     count++;
   });
@@ -15353,13 +15403,15 @@ function showBillInvoice(billId){
     b.onclick = onclick;
     return b;
   }
+  topBar.appendChild(actionBtn('💬 WhatsApp','#25D366',function(){ shareBillWhatsApp(billId); }));
+  topBar.appendChild(actionBtn('✉️ Email','#5B5BD6',function(){ shareBillEmail(billId); }));
   topBar.appendChild(actionBtn('📋 Copy Bill Details','#2E7D32',function(){ copyBillText(billId); }));
   topBar.appendChild(actionBtn('✕ Close','#C62828',function(){ document.body.removeChild(overlay); }));
 
   var helpNote = document.createElement('div');
   helpNote.className = 'invoice-actions';
   helpNote.style.cssText = 'font-size:11px;color:#90A4AE;margin-bottom:10px';
-  helpNote.textContent = 'Tap "Copy Bill Details", then go to WhatsApp/SMS/Email, tap the message box, and Paste (long-press the box and choose Paste) to send this bill to your customer.';
+  helpNote.textContent = 'Tap WhatsApp or Email to send this bill directly, or "Copy Bill Details" to paste it anywhere (SMS, etc.).';
 
   var content = document.createElement('div');
   content.innerHTML = buildInvoiceBodyHtml(bill);
