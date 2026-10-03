@@ -21,7 +21,7 @@ var _FAQ_DATA=[
 {q:"Report PDF mein kaise save karen / How to export PDF?",a:"Financials → koi bhi report kholen → Print This Report → iPhone: preview pinch out → Share → Save to Files. Ya Data tab → Export All Reports PDF button use karen. / Financials → open any report → Print This Report → iPhone: pinch preview → Share → Save to Files.",tags:["PDF","print","export","report"]},
 {q:"Health Check kya hai / What is Health Check?",a:"10 automatic checks jo aapki books verify karte hain — Balance Sheet, Stock, Cash balance etc. Run karo to errors milenge. / 10 automatic checks that verify your books — Balance Sheet, Stock, Cash etc. Run it to find errors.",tags:["health check","verify","accuracy"]},
 {q:"AI Advisor kya karta hai / What does AI Advisor do?",a:"Aapke actual data se 16 business questions ke jawab deta hai — internet ke bina bhi. Profit analysis, stock reorder, loan eligibility sab. / Answers 16 business questions from your actual data — works offline too. Profit analysis, stock reorder, loan eligibility and more.",tags:["AI","advisor","questions"]},
-{q:"Barcode scanner kaise use karen / How to use scanner?",a:"Purchase tab → green 📷 button tap karen → camera khulti hai → barcode scan karo → item auto select. Pehli baar iPhone camera permission maangega → Allow karo. / Purchase tab → tap green 📷 button → camera opens → scan barcode → item auto-selects. First time iPhone asks camera permission → Allow.",tags:["barcode","scanner","camera","scan"]},
+{q:"Barcode scanner kaise use karen / How to use scanner?",a:"Purchase, Sales ya Daily Register tab → green 📷 Scan Barcode button tap karen → camera khulti hai → barcode scan karo → item auto select ya naya item create karne ka option milega. Pehli baar iPhone camera permission maangega → Allow karo. / Purchase, Sales or Daily Register tab → tap the green 📷 Scan Barcode button → camera opens → scan barcode → item auto-selects, or you get the option to create a new item. First time iPhone asks camera permission → Allow.",tags:["barcode","scanner","camera","scan","daily register"]},
 {q:"GST kaise enable karen / How to enable GST?",a:"Profile → GST section → Enable GST → GSTIN enter karen → default rate set karen. Sales entry mein GST automatic calculate hoga. / Profile → GST section → Enable GST → enter GSTIN → set default rate. GST calculates automatically in sales.",tags:["GST","tax","GSTIN"]},
 {q:"Drawings kaise record karen / How to record drawings?",a:"Capital/Loans → Drawings → + Add Drawing → Date, Amount → Save. Capital automatically kam ho jaata hai. / Capital/Loans → Drawings → + Add Drawing → Date, Amount → Save. Capital reduces automatically.",tags:["drawing","withdrawal","owner"]},
 {q:"Imported purchase kaise enter karen / How to record import?",a:"Purchase tab → Imported checkbox tick karen → details bharen → Save. Import purchases alag track hoti hain. / Purchase tab → tick Imported checkbox → fill details → Save. Import purchases track separately.",tags:["import","imported","foreign"]},
@@ -712,6 +712,7 @@ function barcodeBtn(target){
 
 function openScanner(target){
   _scanTarget=target;
+  window._lastScanTarget=target; // survives closeScanner() clearing _scanTarget, so routing after a scan still knows where it came from
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     toast('Camera not available','e'); return;
   }
@@ -801,7 +802,8 @@ function processBarcode(code){
   }
   if(found){
     toast('Found: '+found.itemName+' ✅');
-    if(_scanTarget==='purchase'){window._purItem=found.id;go('purchase');}
+    if(window._lastScanTarget==='pu_item'){window._purItem=found.id;go('purchase');}
+    else if(window._lastScanTarget==='dr_item'){window._drPrefillItem=found.itemName;go('dailyregister');}
     else{window._salItem=found.id;go('sales');}
   } else {
     showBarcodeAssign(code);
@@ -837,7 +839,8 @@ function assignBarcode(code,itemId){
       var name=D.inventory[i].itemName;
       var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
       toast('Barcode assigned to '+name+' ✅');
-      if(_scanTarget==='purchase'){window._purItem=itemId;go('purchase');}
+      if(window._lastScanTarget==='pu_item'){window._purItem=itemId;go('purchase');}
+      else if(window._lastScanTarget==='dr_item'){window._drPrefillItem=name;go('dailyregister');}
       else{window._salItem=itemId;go('sales');}
       return;
     }
@@ -851,7 +854,8 @@ function createItemWithBarcode(code,name){
   D.inventory.push(item); sv();
   var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
   toast('Item created ✅');
-  if(_scanTarget==='purchase'){window._purItem=item.id;go('purchase');}
+  if(window._lastScanTarget==='pu_item'){window._purItem=item.id;go('purchase');}
+  else if(window._lastScanTarget==='dr_item'){window._drPrefillItem=item.itemName;go('dailyregister');}
   else{window._salItem=item.id;go('sales');}
 }
 
@@ -4722,16 +4726,21 @@ function pgDailyRegister(){
   window._acData.beneficiaries = Array.from(new Set(D.expenses.map(function(e){return e.beneficiaryName;}).filter(Boolean)));
   window._acData.sellers = Array.from(new Set(D.fixedAssets.map(function(a){return a.sellerName;}).filter(Boolean)));
 
+  var _drPrefillItem = window._drPrefillItem || '';
+  window._drPrefillItem = null;
+  var _drScanBtn = '<button onclick="openScanner(\'dr_item\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📷 Scan Barcode / QR Code to Select Item</button>';
   var fieldsHtml = inp('Date','dr_f0','date', td());
   if(typeId==='purchase'){
-    fieldsHtml += inpMic('Item Name','dr_f1','text','','Type or pick existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
+    fieldsHtml += _drScanBtn +
+      inpMic('Item Name','dr_f1','text',_drPrefillItem,'Type or pick existing item, or scan barcode above').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
       inpMic('Supplier Name','dr_f2','text','').replace('<input ','<input data-ac="suppliers" ') +
       g2(inpMic('Quantity','dr_f3','number',''), inpMic('Rate','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash') +
       sl('Unit (only used if this is a new item)','dr_f6',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.') +
       inpMic('Selling Price (₹, optional)','dr_f7','number','','We will work out and save this item\'s profit margin for you — leave blank to use the default margin');
   } else if(typeId==='sale'){
-    fieldsHtml += inpMic('Item Name','dr_f1','text','','Pick an existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
+    fieldsHtml += _drScanBtn +
+      inpMic('Item Name','dr_f1','text',_drPrefillItem,'Pick an existing item, or scan barcode above').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
       inpMic('Customer Name','dr_f2','text','Walk-in Customer').replace('<input ','<input data-ac="customers" ') +
       g2(inpMic('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" '), inpMic('Selling Price','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}],'cash');
@@ -13909,6 +13918,8 @@ function pgHelp(){
       'Scanner is disabled by default. Enable only when needed.</p>'+
       '<p><b>Step 2 — Scan while Recording a Purchase:</b><br>'+
       'Purchase tab → tap <b>📷 Scan Barcode</b> green button → camera opens → point at product barcode → item auto-selected in form.</p>'+
+      '<p><b>Step 2b — Scan in Daily Register too:</b><br>'+
+      'Daily Register → choose Purchase or Sale → tap <b>📷 Scan Barcode</b> green button above the Item Name field → camera opens → scan → item name fills in automatically.</p>'+
       '<p><b>Step 3 — Scan while Recording a Sale:</b><br>'+
       'Sales tab → tap <b>📷 Scan Barcode</b> green button → camera opens → scan → item auto-selected.</p>'+
       '<p><b>New Barcode (item not in system):</b><br>'+
@@ -13928,6 +13939,8 @@ function pgHelp(){
       'स्कैनर by default बंद रहता है। जरूरत पड़ने पर ही चालू करें।</p>'+
       '<p><b>Step 2 — Purchase करते समय Scan करें:</b><br>'+
       'Purchase tab → <b>📷 Scan Barcode</b> बटन दबाएं → Camera खुलेगा → Product का barcode scan करें → Item automatically select हो जाएगा।</p>'+
+      '<p><b>Step 2b — Daily Register में भी Scan करें:</b><br>'+
+      'Daily Register → Purchase या Sale चुनें → Item Name के ऊपर <b>📷 Scan Barcode</b> बटन दबाएं → Camera खुलेगा → Scan करें → Item name अपने आप भर जाएगा।</p>'+
       '<p><b>Step 3 — Sale करते समय Scan करें:</b><br>'+
       'Sales tab → <b>📷 Scan Barcode</b> बटन → Camera → Scan → Item auto-select।</p>'+
       '<p><b>नया Barcode (item system में नहीं है):</b><br>'+
