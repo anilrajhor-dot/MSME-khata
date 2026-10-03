@@ -51,10 +51,30 @@ var _FAQ_DATA=[
 body{font-family:sans-serif;margin:0;padding:0}
 #tb{position:sticky;top:0;z-index:100;background:var(--theme);padding:12px 15px;display:flex;align-items:center;justify-content:space-between;color:#fff}
 #tb b{font-size:14px;font-weight:800}
-#tb small{font-size:10px;opacity:.7;display:block}
+#tb small{font-size:11px;opacity:.85;display:block;font-weight:700}
 #tb button{background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer}
+#navToggle{font-size:18px;padding:6px 11px;margin-right:8px;flex-shrink:0}
 #app{max-width:480px;margin:0 auto;min-height:100vh;background:#F0F4FF;color:#0D2137}
-#nav{display:flex;overflow-x:auto;background:#fff;border-bottom:2px solid #BBDEFB;padding:0 6px}
+#layout{display:flex;align-items:flex-start;position:relative}
+#main{flex:1;min-width:0}
+#navOverlay{display:none;position:fixed;inset:0;background:rgba(13,33,55,.5);z-index:199}
+#navOverlay.open{display:block}
+/* Mobile: #nav is a slide-in drawer, grouped & collapsible */
+#nav{position:fixed;top:0;left:0;bottom:0;width:260px;max-width:82vw;background:#fff;
+  transform:translateX(-100%);transition:transform .22s ease;z-index:200;overflow-y:auto;
+  box-shadow:2px 0 16px rgba(0,0,0,.25);padding:10px 0}
+#nav.open{transform:translateX(0)}
+#nav .navprimary{padding:2px 8px 8px;border-bottom:1px solid #EEF2F7;margin-bottom:6px}
+#nav button.navitem{display:block;width:100%;text-align:left;padding:10px 12px;border:none;background:transparent;
+  cursor:pointer;font-size:13px;font-weight:600;border-radius:8px;color:#37474F;font-family:sans-serif}
+#nav button.navitem.act{background:#E3F2FD;color:#1565C0;font-weight:800}
+#nav .navgrp{margin:2px 8px}
+#nav .navgrphdr{width:100%;text-align:left;padding:9px 10px;font-size:11px;font-weight:800;color:#90A4AE;
+  text-transform:uppercase;letter-spacing:.4px;cursor:pointer;display:flex;justify-content:space-between;
+  align-items:center;background:transparent;border:none;font-family:sans-serif}
+#nav .navgrphdr.hasact{color:#1565C0}
+#nav .navgrpbody{display:none;padding-left:4px}
+#nav .navgrpbody.open{display:block}
 #pg{padding:14px;padding-bottom:80px;min-height:200px}
 #bn{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#fff;border-top:1px solid #BBDEFB;display:flex;z-index:90}
 #bn button{flex:1;padding:9px 3px 7px;border:none;background:transparent;cursor:pointer;font-size:10px;display:flex;flex-direction:column;align-items:center;gap:2px;color:#546E7A}
@@ -106,27 +126,35 @@ html, body { width:100%; margin:0; padding:0; overflow-x:hidden; }
   margin:0 auto !important;
   box-sizing:border-box !important;
 }
-#tb, #nav, #bn {
+#tb, #bn {
   width:100% !important;
   max-width:100% !important;
   box-sizing:border-box !important;
 }
+#nav { box-sizing:border-box !important; }
+#layout { width:100% !important; box-sizing:border-box !important; }
 #pg {
   width:100% !important;
   box-sizing:border-box !important;
   padding:0 12px !important;
 }
 @media (min-width:768px){
-  #app { max-width:960px !important; margin:0 auto !important; }
-  #tb  { max-width:960px !important; margin:0 auto !important; }
-  #nav { max-width:960px !important; margin:0 auto !important; overflow-x:visible !important; flex-wrap:wrap !important; }
-  #nav a, #nav>div { flex-shrink:0; }
+  #app { max-width:1000px !important; margin:0 auto !important; }
+  #tb  { max-width:1000px !important; margin:0 auto !important; }
+  #layout { max-width:1000px !important; margin:0 auto !important; }
+  /* Sidebar instead of a drawer - always visible, no overlay/hamburger needed */
+  #nav { position:static !important; transform:none !important; width:230px !important; max-width:230px !important;
+    height:auto !important; box-shadow:none !important; border-right:1.5px solid #BBDEFB; flex-shrink:0;
+    padding:10px 0 !important; }
+  #navOverlay { display:none !important; }
+  #navToggle { display:none !important; }
   #bn  { display:none !important; }
-  #pg  { max-width:960px !important; margin:0 auto !important; padding:16px !important; padding-bottom:16px !important; }
+  #pg  { max-width:100% !important; margin:0 !important; padding:16px !important; padding-bottom:16px !important; }
   #faq-fab { bottom:14px !important; }
 }
 @media (min-width:1200px){
-  #app, #tb, #nav, #pg { max-width:1100px !important; }
+  #app, #tb, #layout { max-width:1140px !important; }
+  #nav { width:250px !important; max-width:250px !important; }
 }
 /* Fix pointer events — ensure all elements clickable */
 * { pointer-events:auto; }
@@ -164,6 +192,7 @@ input[type=text], input[type=number], input[type=date], textarea { cursor:text !
 <div style="text-align:center;padding:8px 12px;background:linear-gradient(135deg,#1565C0,#0D47A1);border-bottom:3px solid #FFD700"><span style="font-size:11px;color:rgba(255,255,255,0.85);letter-spacing:0.5px">Application developed by</span> <b style="font-size:14px;color:#FFD700;letter-spacing:0.3px">Anil Sharma</b> <span style="font-size:11px;color:rgba(255,255,255,0.9)">| Former General Manager, Central Bank of India</span></div>
 <div id="biz-switcher-wrap"></div>
 <div id="tb">
+  <button onclick="toggleNavDrawer()" id="navToggle" title="Menu">☰</button>
   <div style="flex:1">
     <b id="tbn">🛒 Trade Accounts</b>
     <small id="tbp">Dashboard</small>
@@ -171,8 +200,13 @@ input[type=text], input[type=number], input[type=date], textarea { cursor:text !
   <button onclick="showDataHealthDetail()" id="dhi" title="Data save status" style="background:none;border:none;font-size:16px;cursor:pointer;padding:4px 6px;vertical-align:middle">💾</button>
   <button onclick="toggleHi()" id="lb">हि</button>
 </div>
+<div id="navOverlay" onclick="closeNavDrawer()"></div>
+<div id="layout">
 <div id="nav"></div>
+<div id="main">
 <div id="pg"><div style="padding:40px 20px;text-align:center;color:#90A4AE;font-size:13px">Loading your data...</div></div>
+</div>
+</div>
 <div id="bn"></div>
 <div style="height:60px"></div>
 </div>
@@ -4679,8 +4713,8 @@ function pgDailyRegister(){
     '</div>';
 
   h += card('What are you recording?',
-    sl('Transaction Type','dr_type', BULK_IMPORT_TYPES.map(function(bt){return {v:bt.id, l:bt.icon+' '+bt.label};}), typeId)
-      .replace('id="dr_type"','id="dr_type" onchange="window._drType=this.value;window._drLastSaleId=null;renderPage()"')
+    sl('Transaction Type','dr_type', BULK_IMPORT_TYPES.concat(DR_ONLY_TYPES).map(function(bt){return {v:bt.id, l:bt.icon+' '+bt.label};}), typeId)
+      .replace('id="dr_type"','id="dr_type" onchange="window._drType=this.value;window._drLastSaleId=null;window._drEntryWarning=null;renderPage()"')
   );
 
   // Datalists for autocomplete - items already in Inventory (from Purchase), and known
@@ -4702,7 +4736,9 @@ function pgDailyRegister(){
     fieldsHtml += inpMic('Item Name','dr_f1','text','','Type or pick existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
       inpMic('Supplier Name','dr_f2','text','').replace('<input ','<input data-ac="suppliers" ') +
       g2(inpMic('Quantity','dr_f3','number',''), inpMic('Rate','dr_f4','number','')) +
-      sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash');
+      sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash') +
+      sl('Unit (only used if this is a new item)','dr_f6',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.') +
+      inpMic('Selling Price (₹, optional)','dr_f7','number','','We will work out and save this item\'s profit margin for you — leave blank to use the default margin');
   } else if(typeId==='sale'){
     fieldsHtml += inpMic('Item Name','dr_f1','text','','Pick an existing item').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
       inpMic('Customer Name','dr_f2','text','Walk-in Customer').replace('<input ','<input data-ac="customers" ') +
@@ -4734,6 +4770,18 @@ function pgDailyRegister(){
   h += card(t.icon+' '+t.label+' — New Entry', fieldsHtml + btn('➕ Add Entry','addDailyRegisterEntry()','#2E7D32'));
 
   if(window._drLastError) h += '<div class="al ald">'+esc(window._drLastError)+'</div>';
+
+  // Real-time double-entry check — right after the entry is posted, not just at day-end, so a
+  // problem is caught the moment it happens.
+  if(window._drEntryWarning){
+    var _ew = window._drEntryWarning;
+    h += '<div class="al '+(_ew.causedByThisEntry?'ald':'alw')+'">'+
+      '<div class="alt">'+(_ew.causedByThisEntry?'⚠️ This entry may need a look':'⚠️ Books not tallying')+'</div>'+
+      '<p>'+esc(_ew.message)+'</p>'+
+      '<p><b>How to fix:</b> '+esc(_ew.fix)+'</p>'+
+      btn('🏥 Open Health Check','go(\'healthcheck\')','#2E7D32')+
+      '</div>';
+  }
 
   // One-tap bill for the Sale just recorded here — lets a Daily-Register sale get a
   // shareable invoice without switching to Sales → Create Bill.
@@ -4777,12 +4825,14 @@ function updateDRHint(){
     var name = (gv('dr_f1')||'').trim();
     var item = D.inventory.filter(function(it){return it.itemName.toLowerCase()===name.toLowerCase();})[0];
     if(item){
-      var margin = +(D.settings&&D.settings.defaultMargin)||20;
+      // Item-specific margin (set in Inventory) takes priority over the global default margin.
+      var hasItemMargin = item.itemMargin!=null && item.itemMargin>=0;
+      var margin = hasItemMargin ? item.itemMargin : (+(D.settings&&D.settings.defaultMargin)||20);
       var suggested = Math.round(item.avgCost*(1+margin/100));
       var priceField = document.getElementById('dr_f4');
       if(priceField && !priceField.value){ priceField.value = suggested; }
       var stockAvail = (item.currentStock||0)+(item.importedStock||0);
-      hint = '<div class="al ali" style="margin-top:6px;font-size:11px">Purchase Price: <b>'+fc(item.avgCost)+'</b>/'+esc(item.unit)+' | Suggested Selling Price ('+margin+'% margin): <b>'+fc(suggested)+'</b> | Stock available: <b>'+fmt(stockAvail)+'</b> '+esc(item.unit)+'</div>';
+      hint = '<div class="al ali" style="margin-top:6px;font-size:11px">Purchase Price: <b>'+fc(item.avgCost)+'</b>/'+esc(item.unit)+' | Suggested Selling Price ('+margin+'% margin'+(hasItemMargin?' — item-specific':'')+'): <b>'+fc(suggested)+'</b> | Stock available: <b>'+fmt(stockAvail)+'</b> '+esc(item.unit)+'</div>';
     }
   } else if(typeId==='purchase'){
     var name2 = (gv('dr_f1')||'').trim();
@@ -4807,9 +4857,71 @@ function updateDRHint(){
   }
   hintEl.innerHTML = hint;
 }
+// Checks whether the books still tally right after an entry was posted, and says plainly whether
+// THIS entry is implicated — since every Daily Register entry posts both sides of the transaction
+// together (double entry), a brand-new mismatch tracing back to it should be rare, but worth
+// catching immediately rather than waiting for day-end.
+function drSetEntryWarning(bsBefore){
+  var wasTallied = Math.abs(bsBefore.diff)<1;
+  var bsAfter = getBS();
+  var isTalliedNow = Math.abs(bsAfter.diff)<1;
+  if(wasTallied && !isTalliedNow){
+    var diagNow = diagnoseBSDifference();
+    var topFinding = (diagNow.findings||[])[0];
+    window._drEntryWarning = {causedByThisEntry:true,
+      message:'This entry looks like it caused a mismatch of '+fc(Math.abs(bsAfter.diff))+' between Assets and Liabilities+Capital.',
+      fix: topFinding ? topFinding.fix : 'Open Health Check for a full diagnosis of what changed.'};
+  } else if(!isTalliedNow){
+    window._drEntryWarning = {causedByThisEntry:false,
+      message:'Note: your books were already showing a mismatch of '+fc(Math.abs(bsAfter.diff))+' before this entry — not caused by it.',
+      fix:'Open Health Check to see exactly what needs fixing.'};
+  } else {
+    window._drEntryWarning = null;
+  }
+}
 function addDailyRegisterEntry(){
   var typeId = window._drType || 'sale';
   var t = getBulkImportType(typeId);
+  var _bsBeforeEntry = getBS();
+  // Sales Return / Purchase Return pick an existing original transaction rather than free-text
+  // item entry, so they bypass the row/validateBulkRows/commitBulkImport pipeline used by the
+  // other Daily Register types and call the same addSalesReturn()/addPurchaseReturn() used by
+  // the dedicated Returns page directly.
+  if(typeId==='salesReturn'){
+    var srSaleId=gv('dr_f1'), srQty=gvn('dr_f2'), srDate=gv('dr_f0')||td(), srNotes=gv('dr_f3');
+    if(!srSaleId){ window._drLastError='Select the original sale'; renderPage(); return; }
+    if(!srQty||srQty<=0){ window._drLastError='Enter a valid return quantity'; renderPage(); return; }
+    var srOrig = D.sales.filter(function(s){return s.id===srSaleId;})[0];
+    if(addSalesReturn(srSaleId, srQty, srDate, srNotes)){
+      window._drLastError = null;
+      drSetEntryWarning(_bsBeforeEntry);
+      var srItemNm = srOrig ? srOrig.itemName : 'item';
+      announceEntry('Sales return recorded: '+srQty+' of '+srItemNm+'.', srItemNm+' की '+srQty+' मात्रा वापस हुई, sales return दर्ज हुआ।');
+      toast('✅ Entry recorded — posted to Sales Return.');
+      renderPage();
+    } else {
+      window._drLastError = 'Could not record sales return — check quantity and try again.';
+      renderPage();
+    }
+    return;
+  } else if(typeId==='purchaseReturn'){
+    var prPurchId=gv('dr_f1'), prQty=gvn('dr_f2'), prDate=gv('dr_f0')||td(), prNotes=gv('dr_f3');
+    if(!prPurchId){ window._drLastError='Select the original purchase'; renderPage(); return; }
+    if(!prQty||prQty<=0){ window._drLastError='Enter a valid return quantity'; renderPage(); return; }
+    var prOrig = D.purchases.filter(function(p){return p.id===prPurchId;})[0];
+    if(addPurchaseReturn(prPurchId, prQty, prDate, prNotes)){
+      window._drLastError = null;
+      drSetEntryWarning(_bsBeforeEntry);
+      var prItemNm = prOrig ? prOrig.itemName : 'item';
+      announceEntry('Purchase return recorded: '+prQty+' of '+prItemNm+'.', prItemNm+' की '+prQty+' मात्रा वापस हुई, purchase return दर्ज हुआ।');
+      toast('✅ Entry recorded — posted to Purchase Return.');
+      renderPage();
+    } else {
+      window._drLastError = 'Could not record purchase return — check quantity and try again.';
+      renderPage();
+    }
+    return;
+  }
   var date = gv('dr_f0');
   var row = [date];
   for(var i=1;i<t.cols.length;i++){ row.push(gv('dr_f'+i)); }
@@ -4822,6 +4934,20 @@ function addDailyRegisterEntry(){
   }
   window._drLastError = null;
   commitBulkImport(typeId, result.valid);
+  // User-friendly margin entry: if a Selling Price was given alongside a Purchase, work out
+  // the item's profit margin % from (Selling Price vs Cost) and save it on the item right away,
+  // instead of requiring a separate trip to Inventory to type a margin percentage.
+  if(typeId==='purchase'){
+    var _drSp = gvn('dr_f7');
+    if(_drSp>0){
+      var _drPurchItem = D.inventory.filter(function(it){return it.itemName.toLowerCase()===(result.valid[0].itemName||'').toLowerCase();})[0];
+      if(_drPurchItem && _drPurchItem.avgCost>0){
+        _drPurchItem.itemMargin = Math.round(((_drSp-_drPurchItem.avgCost)/_drPurchItem.avgCost*100)*10)/10;
+        sv();
+      }
+    }
+  }
+  drSetEntryWarning(_bsBeforeEntry);
   var r0 = result.valid[0];
   var amt = r0.qty ? Math.round(r0.qty*(r0.rate||r0.price)) : Math.round(r0.amount||r0.cost||0);
   var sentences = {
@@ -5814,9 +5940,10 @@ function pgInv(){
     'नई business में Inventory पहले add करना जरूरी नहीं। Purchase में "+ New Item" से item add करें — stock automatic update होगा।</span>'+
   '</div>';
   h+=card('Add Item',
-      g2(inp('Item Name','iv_n','text',''),sl('Unit','iv_u',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
+      g2(inp('Item Name','iv_n','text',''),sl('Unit','iv_u',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
       g2(inp('Current Stock (on hand)','iv_os','number',0),inp('Cost per Unit (₹)','iv_pr','number',0))+
       inp('Reorder Level (for low-stock alert)','iv_rl','number',0)+
+      inp('Item-specific Profit Margin % (optional — leave blank to use the global default margin from Margin Settings)','iv_margin','number','')+
       sl('Category','iv_cat',['Resale','Raw Material','FG','Consumable'],window._invCat||['Resale','Raw Material','FG','Consumable'][0])+
       (gstEnabled() ?
         g2(inp('HSN / SAC Code','iv_hsn','text','')+
@@ -5838,7 +5965,21 @@ function pgInv(){
   ];
   if(hasImported) invCols.push({l:'Imp. Stock',r:1,fn:function(r){return fmt(r.importedStock||0);}},{l:'Imp. Cost',r:1,fn:function(r){return fc(r.importedAvgCost||0);}});
   invCols.push({l:'Value',r:1,fn:function(r){return fc(r.currentStock*r.avgCost+(r.importedStock||0)*(r.importedAvgCost||0));}});
-  h+=card('Inventory',tbl(invCols,D.inventory));
+  var _globalMargin=+(D.settings&&D.settings.defaultMargin)||20;
+  invCols.push({l:'Margin %',r:1,fn:function(r){
+    var hasOwn=r.itemMargin!=null&&r.itemMargin>=0;
+    return '<input type="number" value="'+(hasOwn?r.itemMargin:'')+'" placeholder="'+_globalMargin+' (global)" '+
+      'onchange="setItemMargin(\''+r.id+'\',this.value)" '+
+      'style="width:70px;padding:5px;border-radius:6px;border:1px solid '+(hasOwn?'#2E7D32':'#CFD8DC')+';font-size:11px;text-align:right">';
+  }});
+  invCols.push({l:'…or Selling Price ₹',r:1,fn:function(r){
+    var hasOwn=r.itemMargin!=null&&r.itemMargin>=0;
+    var curSp=hasOwn?(r.avgCost*(1+r.itemMargin/100)):(r.avgCost*(1+_globalMargin/100));
+    return '<input type="number" value="'+(curSp?Math.round(curSp*100)/100:'')+'" '+
+      'onchange="setItemSellingPrice(\''+r.id+'\',this.value)" '+
+      'style="width:80px;padding:5px;border-radius:6px;border:1px solid #CFD8DC;font-size:11px;text-align:right">';
+  }});
+  h+=card('Inventory',tbl(invCols,D.inventory)+'<div style="font-size:10px;color:#90A4AE;margin-top:6px">Don\'t know margin %? Just type the ₹ Selling Price in the last column and we\'ll work out the margin for you. Leave Margin % blank to use the global default margin (set in Profit Margin Settings). Either column — used to suggest Selling Price in Sales and Daily Register.</div>');
 
   // ── ABC ANALYSIS ──
   var abcTotSales = 0;
@@ -5966,9 +6107,11 @@ function addInv(){
     var lookup=lookupHSNFull(n);
     if(lookup){hsn=lookup[0]; gstRate=+lookup[1];}
   }
+  var ivMarginRaw=gv('iv_margin');
   var item={id:uid(),itemName:n,unit:gv('iv_u'),openingStock:os,currentStock:os,avgCost:pr,
             importedStock:0,importedAvgCost:0,
             reorderLevel:gvn('iv_rl'),
+            itemMargin:(ivMarginRaw!==''&&ivMarginRaw!=null&&!isNaN(+ivMarginRaw))?+ivMarginRaw:null,
             category:gv('iv_cat')||'Resale',
             mrp:gvn('iv_mrp')||0,
             priceRetail:gvn('iv_price_retail')||0,
@@ -5983,6 +6126,31 @@ function addInv(){
   if(gstRate!==undefined) item.gstRate=gstRate;
   D.inventory.push(item);
   sv();go('inventory');toast('Added!'+(hsn?' HSN:'+hsn+' GST:'+gstRate+'%':''));
+}
+// Sets or clears a per-item profit-margin override (used to suggest Selling Price in Sales and
+// Daily Register instead of the global default margin). Blank/invalid value clears the override.
+function setItemMargin(itemId, val){
+  var item = D.inventory.filter(function(it){return it.id===itemId;})[0];
+  if(!item) return;
+  var v = (val==='' || val==null) ? null : +val;
+  if(v!==null && (isNaN(v) || v<0)){ toast('Enter a valid margin % (0 or more), or leave blank for global default','e'); renderPage(); return; }
+  item.itemMargin = v;
+  sv();
+  toast(v!=null ? ('Margin for '+item.itemName+' set to '+v+'%') : ('Margin for '+item.itemName+' reset to global default'));
+}
+// User-friendly alternative to typing a margin %: lets the user type the rupee Selling Price
+// they actually want to charge, and we work out and save the equivalent margin % for them.
+function setItemSellingPrice(itemId, val){
+  var item = D.inventory.filter(function(it){return it.id===itemId;})[0];
+  if(!item) return;
+  if(val==='' || val==null){ renderPage(); return; } // blank = no change (use Margin % column to clear)
+  var sp = +val;
+  if(isNaN(sp) || sp<0){ toast('Enter a valid selling price','e'); renderPage(); return; }
+  if(!item.avgCost || item.avgCost<=0){ toast('Cost for this item is ₹0 — cannot work out a margin from it yet','e'); renderPage(); return; }
+  item.itemMargin = Math.round(((sp-item.avgCost)/item.avgCost*100)*10)/10;
+  sv();
+  toast('Selling Price for '+item.itemName+' set to '+fc(sp)+' (margin '+item.itemMargin+'%)');
+  renderPage();
 }
 function autoFillHSN(){
   var n=gv('iv_n');
@@ -6051,8 +6219,10 @@ function pgPur(){
   var newItemFields='';
   if(sel==='__new__'){
     var catOpts=[{v:'Resale',l:'Resale'},{v:'Raw Material',l:'Raw Material'},{v:'FG',l:'Finished Goods'},{v:'Consumable',l:'Consumable'}];
-    newItemFields = g2(inp('New Item Name','pu_newname','text',window._purNewName||''),sl('Unit','pu_newunit',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
-      sl('Category','pu_newcat',catOpts,window._purNewCat||'Resale');
+    newItemFields = g2(inp('New Item Name','pu_newname','text',window._purNewName||''),sl('Unit','pu_newunit',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
+      sl('Category','pu_newcat',catOpts,window._purNewCat||'Resale')+
+      inp('Selling Price (₹, optional — only if you plan to resell this item)','pu_newprice','number',window._purNewPrice||'')+
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Give this item\'s price here and we\'ll work out and save its profit margin automatically — no need to visit Inventory separately. Leave blank to use the global default margin (Settings → Margin).</div>';
   } else {
     var _selItem=null;for(var ki2=0;ki2<D.inventory.length;ki2++)if(D.inventory[ki2].id===sel){_selItem=D.inventory[ki2];break;}
     if(_selItem){var _cat=_selItem.category||'Resale';var _cat=_cat==='RM'?'Raw Material':_cat;var _cc={'Raw Material':'#E65100','FG':'#2E7D32','Consumable':'#6A1B9A','Resale':'#1565C0'};var _ccv=_cc[_cat]||'#546E7A';newItemFields='<div style="margin-bottom:8px"><span style="font-size:12px;font-weight:700;color:'+_ccv+';background:'+_ccv+'18;padding:4px 10px;border-radius:6px">'+esc(_cat)+'</span> <span style="font-size:11px;color:#546E7A">Avg Cost: '+fc(_selItem.avgCost)+' / '+esc(_selItem.unit)+' &nbsp;|&nbsp; Stock: '+fmt(_selItem.currentStock)+' '+esc(_selItem.unit)+'</span></div>';}
@@ -6098,6 +6268,7 @@ function addPur(){
     if(mode!=='credit' && !validateCCOD(mode)) return;
   }
   var item=null;
+  var purSellPrice = gvn('pu_newprice')||0;
   if(iid==='__new__'){
     var nn=gv('pu_newname')||window._purNewName||'';
     if(!nn){toast('Enter new item name','e');return;}
@@ -6122,6 +6293,9 @@ function addPur(){
       var tq=item.currentStock+q,tv2=item.currentStock*item.avgCost+amt;
       item.currentStock=tq;item.avgCost=tq>0?tv2/tq:r;
     }
+    if(purSellPrice>0 && item.avgCost>0){
+      item.itemMargin = Math.round(((purSellPrice-item.avgCost)/item.avgCost*100)*10)/10;
+    }
     var effMode = adv ? 'advance' : mode;
     var suppCode=getPartyCode(s,'supplier');
     var purchaseId=uid();
@@ -6140,7 +6314,7 @@ function addPur(){
     if(gstAmt>0.005){
       D.gstLedger.push({id:uid(), date:date, type:'input', amount:gstAmt, ref:'Purchase: '+item.itemName, purchaseId:purchaseId});
     }
-    sv();announceEntry('Purchase recorded for rupees '+Math.round(amtForPosting)+' from '+s+', paid by '+effMode+'.', 'रुपये '+Math.round(amtForPosting)+' की खरीद '+s+' से दर्ज हुई, '+effMode+' से।');window._purItem='__new__';window._purSupplier='';window._purNewName='';window._purImport=false;window._purDate=null;window._purQty=null;window._purRate=null;window._purMode=null;window._purGstRate=null;go('purchase');toast('Recorded! Stock updated.');
+    sv();announceEntry('Purchase recorded for rupees '+Math.round(amtForPosting)+' from '+s+', paid by '+effMode+'.', 'रुपये '+Math.round(amtForPosting)+' की खरीद '+s+' से दर्ज हुई, '+effMode+' से।');window._purItem='__new__';window._purSupplier='';window._purNewName='';window._purNewPrice=null;window._purImport=false;window._purDate=null;window._purQty=null;window._purRate=null;window._purMode=null;window._purGstRate=null;go('purchase');toast('Recorded! Stock updated.');
   });
 }
 // ===== SALES =====
@@ -6182,7 +6356,8 @@ function pgSal(){
   h+='<div style="margin-bottom:10px">'+btn('🧾 Create Bill (Multi-Item Invoice)','window._salMode=\'bill\';window._billCart=[];renderPage()','#1565C0')+'</div>';
 
   var _defM=+(D.settings&&D.settings.defaultMargin)||20;
-  var _curM=(window._salMargin!=null)?window._salMargin:_defM;
+  var _itemM=(selItem&&selItem.itemMargin!=null&&selItem.itemMargin>=0)?selItem.itemMargin:null;
+  var _curM=(window._salMargin!=null)?window._salMargin:(_itemM!=null?_itemM:_defM);
   if(selItem){
     // Always recalculate cost — blended (domestic + imported weighted average)
     var _initDom=(selItem.currentStock||0)*(selItem.avgCost||0);
@@ -11002,7 +11177,7 @@ function tbRow(i, row){
     html += '<div class="g3">';
     html += '<div class="fg"><label>Quantity</label><input type="number" inputmode="decimal" value="'+qtyVal+'" placeholder="0" oninput="tbUpdate('+i+',4,this.value)" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px"></div>';
     html += '<div class="fg"><label>Unit</label><select onchange="tbUpdate('+i+',6,this.value)" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px">'+
-      ['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag','Lot'].map(function(u){return '<option value="'+u+'"'+(u===(row.unit||'No.')?' selected':'')+'>'+u+'</option>';}).join('')+
+      ['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag','Lot'].map(function(u){return '<option value="'+u+'"'+(u===(row.unit||'No.')?' selected':'')+'>'+u+'</option>';}).join('')+
       '</select></div>';
     html += '<div class="fg"><label>Cost / Unit (Rs)</label><input type="number" inputmode="decimal" value="'+costVal+'" placeholder="0" oninput="tbUpdate('+i+',5,this.value)" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px"></div>';
     html += '</div>';
@@ -13331,8 +13506,8 @@ function downloadFullDataTemplateXlsx(){
 // different registers (sales vs purchases vs expenses) on different schedules through the day.
 var BULK_IMPORT_TYPES = [
   {id:'purchase', label:'Purchases', icon:'🛒',
-   cols:['Date (YYYY-MM-DD)','Item Name','Supplier Name','Quantity','Rate','Payment Mode (cash/bank/credit)'],
-   example:['2026-08-01','Basmati Rice','Agra Wholesale Traders','100','62','bank']},
+   cols:['Date (YYYY-MM-DD)','Item Name','Supplier Name','Quantity','Rate','Payment Mode (cash/bank/credit)','Unit (optional - only used when Item Name is new)'],
+   example:['2026-08-01','Basmati Rice','Agra Wholesale Traders','100','62','bank','Kg']},
   {id:'sale', label:'Sales', icon:'📈',
    cols:['Date (YYYY-MM-DD)','Item Name','Customer Name','Quantity','Selling Price','Payment Mode (cash/bank/upi/credit)'],
    example:['2026-08-01','Basmati Rice','Walk-in Customer','5','78','cash']},
@@ -13352,7 +13527,14 @@ var BULK_IMPORT_TYPES = [
    cols:['Date (YYYY-MM-DD)','Asset Name','Cost','Useful Life (Years)','Payment Mode (cash/bank/credit)','Seller Name (optional)'],
    example:['2026-08-01','Office Chair','3500','8','cash','ABC Furniture']},
 ];
-function getBulkImportType(id){ return BULK_IMPORT_TYPES.filter(function(t){return t.id===id;})[0]; }
+// Daily-Register-only transaction types - these work by picking an existing original Sale/Purchase
+// from a dropdown (same approach as the dedicated Returns page) rather than free-text item entry,
+// so they don't fit the flat-row CSV Bulk Import pipeline and are kept out of BULK_IMPORT_TYPES.
+var DR_ONLY_TYPES = [
+  {id:'salesReturn', label:'Sales Return', icon:'↩️'},
+  {id:'purchaseReturn', label:'Purchase Return', icon:'↩️'}
+];
+function getBulkImportType(id){ return BULK_IMPORT_TYPES.concat(DR_ONLY_TYPES).filter(function(t){return t.id===id;})[0]; }
 function downloadBulkTemplate(typeId){
   var t = getBulkImportType(typeId);
   if(!t) return;
@@ -13397,13 +13579,13 @@ function validateBulkRows(typeId, rows){
     var date = (r[0]||'').trim();
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ errors.push('Row '+rowNum+': Date must be YYYY-MM-DD (got "'+(r[0]||'')+'")'); return; }
     if(typeId==='purchase'){
-      var itemName=(r[1]||'').trim(), supplier=(r[2]||'').trim(), qty=+r[3], rate=+r[4], mode=(r[5]||'').trim().toLowerCase();
+      var itemName=(r[1]||'').trim(), supplier=(r[2]||'').trim(), qty=+r[3], rate=+r[4], mode=(r[5]||'').trim().toLowerCase(), unit=(r[6]||'').trim();
       if(!itemName){ errors.push('Row '+rowNum+': Item Name is required'); return; }
       if(!supplier){ errors.push('Row '+rowNum+': Supplier Name is required'); return; }
       if(!qty||qty<=0||isNaN(qty)){ errors.push('Row '+rowNum+': Quantity must be a positive number'); return; }
       if(!rate||rate<=0||isNaN(rate)){ errors.push('Row '+rowNum+': Rate must be a positive number'); return; }
       if(['cash','bank','credit'].indexOf(mode)<0){ errors.push('Row '+rowNum+': Payment Mode must be cash, bank, or credit (got "'+(r[5]||'')+'")'); return; }
-      valid.push({date:date, itemName:itemName, supplier:supplier, qty:qty, rate:rate, mode:mode});
+      valid.push({date:date, itemName:itemName, supplier:supplier, qty:qty, rate:rate, mode:mode, unit:unit});
     } else if(typeId==='sale'){
       var itemName2=(r[1]||'').trim(), customer=(r[2]||'').trim(), qty2=+r[3], price=+r[4], mode2=(r[5]||'').trim().toLowerCase();
       if(!itemName2){ errors.push('Row '+rowNum+': Item Name is required'); return; }
@@ -13463,7 +13645,7 @@ function commitBulkImport(typeId, validRows){
   var count=0;
   validRows.forEach(function(r){
     if(typeId==='purchase'){
-      var item = findOrCreateItem(r.itemName, '');
+      var item = findOrCreateItem(r.itemName, r.unit||'');
       var amt = r.qty*r.rate;
       var tq=item.currentStock+r.qty, tv=item.currentStock*item.avgCost+amt;
       item.currentStock=tq; item.avgCost=tq>0?tv/tq:r.rate;
@@ -21103,7 +21285,7 @@ function pgProduction(){
   var fgSel = window._prodFG || '__new__';
   var newFgFields='';
   if(fgSel==='__new__'){
-    newFgFields = g2(inp('New Finished Good Name','prod_newname','text',window._prodNewName||''),sl('Unit','prod_newunit',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'));
+    newFgFields = g2(inp('New Finished Good Name','prod_newname','text',window._prodNewName||''),sl('Unit','prod_newunit',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'));
   }
 
   // Items available to consume: RM/Consumable with stock
@@ -21215,7 +21397,7 @@ function pgConsumption(){
   var fgSel = window._prodFG || '__new__';
   var newFgFields='';
   if(fgSel==='__new__'){
-    newFgFields = g2(inp('New Item Name','prod_newname','text',window._prodNewName||''),sl('Unit','prod_newunit',['Kg','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'));
+    newFgFields = g2(inp('New Item Name','prod_newname','text',window._prodNewName||''),sl('Unit','prod_newunit',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'));
   }
 
   // Items available to consume: ALL categories — resale/FG items can also be consumed
@@ -22856,7 +23038,7 @@ function startApp(){ try{localStorage.setItem('mfm_welcome_done','1');}catch(e){
 
 // ===== NAVIGATION & RENDER =====
 var PAGES_HI = {dashboard:'डैशबोर्ड',profile:'प्रोफाइल',capital:'पूंजी/ऋण',inventory:'स्टॉक',purchase:'खरीद',sales:'बिक्री',expenses:'खर्च',cashbank:'नकद/बैंक',emi:'EMI',recon:'रिकॉन्सिलिएशन',financials:'वित्त',projections:'प्रोजेक्शन',analytics:'विश्लेषण',reports:'रिपोर्ट',data:'डेटा',help:'सहायता',loanassess:'बैंक ऋण आकलन',reminders:'भुगतान रिमाइंडर',margin:'मार्जिन सेटिंग',gstmodule:'GST मॉड्यूल',partycodes:'पार्टी कोड',hsnmaster:'HSN/SAC मास्टर',incometax:'आयकर',production:'उत्पादन',consumption:'उपभोग',bizmanager:'व्यवसाय प्रबंधक',interunit:'अंतर-इकाई स्थानांतरण',template:'डेटा टेम्पलेट',ledgerstmt:'खाता विवरण',monthlystmt:'मासिक विवरण',dailyregister:'दैनिक रजिस्टर'};
-var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',dailyregister:'Daily Register',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',monthlystmt:'Monthly Statements',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template'};
+var PAGES_EN = {dashboard:'Dashboard',profile:'Profile',dailyregister:'Daily Register',capital:'Capital/Loans',inventory:'Inventory',purchase:'Purchase',sales:'Sales',returns:'Sales/Purchase Returns',journal:'Journal Voucher',debtcred:'Debtors & Creditors',ledgerstmt:'Statement Generator',stockstmt:'Stock Statement',monthlystmt:'Monthly Statements',expenses:'Expenses',cashbank:'Cash/Bank',emi:'EMI Calc',bankcalc:'Bank Calculators',recon:'Bank Recon',financials:'Financials',projections:'Projections',analytics:'Analytics',reports:'Reports',data:'Data',help:'Help / Manual',loanassess:'Bank Loan Assessment',cma:'CMA Data',reminders:'Payment Reminders',margin:'Profit Margin Setting',gstmodule:'GST Module',partycodes:'Party Codes',hsnmaster:'HSN / SAC Master',incometax:'Income Tax',production:'Production',consumption:'Consumption',bizmanager:'Business Manager',interunit:'Inter-Unit Transfers',template:'Data Template',healthcheck:'Health Check',training:'Training Mode',aiadvisor:'AI Advisor'};
 function getNavAll(){
   var biz = getBizType();
   var base = ['bizmanager','profile','dailyregister','dashboard','capital','inventory'];
@@ -22871,17 +23053,84 @@ var NAV_ALL = getNavAll();
 var BN_PAGES = ['dashboard','sales','purchase','financials','data'];
 var BN_ICONS = ['🏠','🏷️','🛒','📄','⚙️'];
 
+// Simplified-first navigation: a short primary list (the everyday flow for someone who isn't an
+// accountant) plus the rest grouped into collapsible sections so all pages stay reachable without
+// showing them all at once. Computed fresh from getNavAll() on every buildNav() call (not cached)
+// because the active business's type can change at runtime here and the page list changes with it
+// (e.g. 'production' only for a Manufacturing unit). Every list is filtered against the current
+// getNavAll() result, and anything left unplaced automatically falls into an "Other" group, so a
+// page can never silently disappear from the menu just because this grouping wasn't updated for it.
+var NAV_PRIMARY_WISH = ['dashboard','profile','capital','dailyregister','healthcheck','help'];
+var NAV_GROUPS_WISH = [
+  {label:'Buy, Sell & Stock', items:['purchase','sales','returns','production','consumption','inventory']},
+  {label:'Money & Parties', items:['expenses','debtcred','cashbank','recon']},
+  {label:'Loans & Calculators', items:['emi','bankcalc','loanassess','cma','reminders']},
+  {label:'Reports & Statements', items:['journal','ledgerstmt','stockstmt','monthlystmt','financials','projections','analytics','reports']},
+  {label:'Tax & Compliance', items:['gstmodule','partycodes','hsnmaster','incometax']},
+  {label:'Tools & Setup', items:['margin','aiadvisor','training','data','template','bizmanager','interunit']}
+];
+function computeNavGroups(navAll){
+  var primary = NAV_PRIMARY_WISH.filter(function(p){ return navAll.indexOf(p)>=0; });
+  var placed = primary.slice();
+  var groups = [];
+  NAV_GROUPS_WISH.forEach(function(g){
+    var items = g.items.filter(function(p){ return navAll.indexOf(p)>=0; });
+    if(items.length){ groups.push({label:g.label, items:items}); placed = placed.concat(items); }
+  });
+  var leftover = navAll.filter(function(p){ return placed.indexOf(p)<0; });
+  if(leftover.length) groups.push({label:'Other', items:leftover});
+  return {primary:primary, groups:groups};
+}
+
 function t(key) { return (window._hi ? PAGES_HI[key] : PAGES_EN[key]) || key; }
+
+function navItemBtn(p){
+  return '<button class="navitem'+(curPg===p?' act':'')+'" onclick="go(\''+p+'\')">'+t(p)+'</button>';
+}
+function toggleNavGroup(idx){
+  window._navGroupOpen = window._navGroupOpen || {};
+  window._navGroupOpen[idx] = !window._navGroupOpen[idx];
+  buildNav();
+}
+function toggleNavDrawer(){
+  var nb=document.getElementById('nav'), ov=document.getElementById('navOverlay');
+  if(nb) nb.classList.toggle('open');
+  if(ov) ov.classList.toggle('open');
+}
+function closeNavDrawer(){
+  var nb=document.getElementById('nav'), ov=document.getElementById('navOverlay');
+  if(nb) nb.classList.remove('open');
+  if(ov) ov.classList.remove('open');
+}
 
 function buildNav() {
   var nb = document.getElementById('nav');
   var bb = document.getElementById('bn');
   if (!nb || !bb) return;
-  var ns = '';
-  var navList = getNavAll(); navList.forEach(function(p) {
-    ns += '<button onclick="go(\''+p+'\')" style="padding:8px 12px;border:none;background:transparent;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;color:'+(curPg===p?'#1565C0':'#546E7A')+';border-bottom:'+(curPg===p?'2px solid #1565C0':'2px solid transparent')+'">'+t(p)+'</button>';
+  window._navGroupOpen = window._navGroupOpen || {};
+  var navList = getNavAll();
+  NAV_ALL = navList;
+  var nav = computeNavGroups(navList);
+  var ns = '<div class="navprimary">';
+  nav.primary.forEach(function(p){ ns += navItemBtn(p); });
+  ns += '</div>';
+  nav.groups.forEach(function(g, idx){
+    var hasAct = g.items.indexOf(curPg)>=0;
+    // Auto-open the group containing the current page so it's never hidden from view.
+    if(hasAct && window._navGroupOpen[idx]===undefined) window._navGroupOpen[idx]=true;
+    var isOpen = !!window._navGroupOpen[idx];
+    ns += '<div class="navgrp">'+
+      '<button class="navgrphdr'+(hasAct?' hasact':'')+'" onclick="toggleNavGroup('+idx+')">'+
+        '<span>'+esc(g.label)+'</span><span>'+(isOpen?'\u25be':'\u25b8')+'</span>'+
+      '</button>'+
+      '<div class="navgrpbody'+(isOpen?' open':'')+'">'+
+        g.items.map(navItemBtn).join('')+
+      '</div></div>';
   });
   nb.innerHTML = ns;
+  // Keep the top bar's page-name heading in sync with the current page (previously static/stuck).
+  var tbpEl = document.getElementById('tbp');
+  if(tbpEl) tbpEl.textContent = t(curPg);
   var bs = '';
   BN_PAGES.forEach(function(p, i) {
     bs += '<button onclick="go(\''+p+'\')" class="'+(curPg===p?'act':'')+'"><span class="ic">'+BN_ICONS[i]+'</span>'+t(p)+'</button>';
@@ -22889,7 +23138,7 @@ function buildNav() {
   bb.innerHTML = bs;
 }
 
-function go(pg) { curPg = pg; window._editType=null; window._editId=null; buildNav(); renderPage(); window.scrollTo(0,0); }
+function go(pg) { curPg = pg; window._editType=null; window._editId=null; buildNav(); renderPage(); window.scrollTo(0,0); closeNavDrawer(); }
 
 function renderPage() {
   try{ BIZ_TYPE = getBizType(); }catch(e){ BIZ_TYPE='Trading'; }
