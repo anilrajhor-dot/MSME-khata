@@ -3163,6 +3163,8 @@ if(q.indexOf('demo data')>=0||(q.indexOf('demo')>=0&&(q.indexOf('load')>=0||q.in
     return analyseDemoDataInfo();
 if(q.indexOf('daily register')>=0||(q.indexOf('quick entry')>=0)||(q.indexOf('record')>=0&&q.indexOf('transaction')>=0))
     return analyseDailyRegisterInfo();
+if(q.indexOf('margin')>=0||(q.indexOf('selling price')>=0&&(q.indexOf('set')>=0||q.indexOf('how')>=0)))
+    return analyseMarginInfo();
       if(q.indexOf('profit')>=0&&(q.indexOf('reduc')>=0||q.indexOf('low')>=0||q.indexOf('why')>=0||q.indexOf('fall')>=0||q.indexOf('less')>=0))
     return analyseWhyProfitReduced();
   if(q.indexOf('reorder')>=0||q.indexOf('stock')>=0&&q.indexOf('order')>=0||q.indexOf('buy')>=0||q.indexOf('purchase')>=0&&q.indexOf('should')>=0)
@@ -3270,11 +3272,34 @@ function analyseDemoDataInfo(){
 // ── Q0a4: Daily Register info ─────────────────────────
 function analyseDailyRegisterInfo(){
   var reply='<b>📝 Daily Register</b><br><br>';
-  reply+='• Menu mein Profile ke turant baad <b>"Daily Register"</b> hai — Purchase, Sale, Expense, Debtor Receipt, Creditor Payment, Loan Instalment, ya Fixed Asset, sab ek hi screen se, alag-alag menu mein gaye bina.<br>';
-  reply+='• Sale karte waqt item chuno to Purchase Price, margin-based Suggested Selling Price, aur current Stock dikh jata hai — Selling Price field apne aap bhar jata hai.<br>';
+  reply+='• Main menu ke top bar mein <b>"Daily Register"</b> hai — Purchase, Sale, Expense, Sales Return, Purchase Return, Debtor Receipt, Creditor Payment, Loan Instalment, Production, ya Fixed Asset, sab ek hi screen se, alag-alag menu mein gaye bina.<br>';
+  reply+='• Sale karte waqt item chuno to Purchase Price, margin-based Suggested Selling Price, aur current Stock dikh jata hai — Selling Price field apne aap bhar jata hai. Margin pehle item ke apne itemMargin se liya jata hai, warna global default margin se.<br>';
+  reply+='• Purchase/Production mein bilkul naya item naam type karne par ek <b>Unit dropdown</b> (Kg, Quintal, Gram, Litre, No., Metre, Box, Dozen, Piece, Packet, Bag) dikhta hai, taaki item sahi unit ke saath bane.<br>';
+  reply+='• Naya item purchase karte waqt ek optional <b>"Selling Price ₹"</b> box bhi hota hai — jo price rakhna hai woh type karo, app uska margin % khud calculate karke save kar deta hai — Inventory mein alag se jaane ki zaroorat nahi.<br>';
+  reply+='• <b>Sales Return</b> aur <b>Purchase Return</b> ab apne alag Daily Register types hain — list se original Sale ya Purchase chuno, return quantity daalo, stock aur balance apne aap adjust ho jaate hain.<br>';
+  reply+='• Har entry save karte hi app turant check karta hai ki Assets abhi bhi Liabilities + Capital ke barabar hain — agar naya mismatch bana hai to turant plain-language mein bataya jaata hai aur fix suggest kiya jaata hai.<br>';
   reply+='• Debtor Receipt/Creditor Payment mein naam dalte hi unka current Due amount dikh jata hai.<br>';
   reply+='• Har entry turant sahi jagah post ho jati hai — Sales/Purchase/Expenses/Debtors & Creditors mein turant dikhega.<br>';
+  reply+='• Din khatam karne se pehle <b>Health Check</b> (ab main menu mein) chalayein — poori jaanch 10 mein se score ke saath aur fix-it guidance ke saath.<br>';
   reply+='• Bahut saari entries ek saath spreadsheet se karni hain? Data Template → Bulk Import istemal karein.<br>';
+  return reply;
+}
+
+// ── Q0a3: Profit Margin — global vs item-wise, how to set it ─────────
+function analyseMarginInfo(){
+  var gm=+(D.settings&&D.settings.defaultMargin)||20;
+  var itemsWithOwnMargin=D.inventory.filter(function(it){return it.itemMargin!=null&&it.itemMargin>=0;});
+  var reply='<b>💰 Profit Margin</b><br><br>';
+  reply+='Aapka current global default margin: <b>'+gm+'%</b> (sabhi items par apply hota hai jin ka apna margin set nahi hai). Isse badalne ke liye: <b>Profit Margin Setting</b> menu.<br><br>';
+  reply+='<b>Kisi ek item ka alag margin set karna:</b><br>';
+  reply+='• <b>Naya item purchase karte waqt</b> (Purchase page ya Daily Register → Purchase) — Cost ke bagal mein optional "Selling Price ₹" box hai. Jo price rakhna hai woh type karo, margin % apne aap calculate ho kar us item par save ho jaata hai.<br>';
+  reply+='• <b>Inventory mein</b> — har item ki row mein "Margin %" box aur "…or Selling Price ₹" box dono hote hain. Jo aasan lage woh bharo — dono saath mein sync rehte hain. Dono khaali chhodne par global default margin lagu rahega.<br><br>';
+  if(itemsWithOwnMargin.length){
+    reply+='<b>Abhi '+itemsWithOwnMargin.length+' item(s) ka apna margin set hai:</b> '+itemsWithOwnMargin.slice(0,8).map(function(it){return esc(it.itemName)+' ('+it.itemMargin+'%)';}).join(', ')+(itemsWithOwnMargin.length>8?' aur '+(itemsWithOwnMargin.length-8)+' aur...':'')+'.<br><br>';
+  } else {
+    reply+='Abhi koi bhi item ka apna margin set nahi hai — sabhi global default ('+gm+'%) use kar rahe hain.<br><br>';
+  }
+  reply+='Sales aur Daily Register mein Selling Price hamesha pehle item ke apne margin se suggest hota hai, warna global default margin se.';
   return reply;
 }
 
@@ -3876,7 +3901,7 @@ function pgAIAdvisor(){
   '</div><div style="font-size:10px;color:#546E7A">'+(proxyUrl2?'AI Advisor is ready to use':'Set up proxy to enable AI')+'</div></div>';
   h+='<button onclick="go(\'data\')" style="padding:5px 10px;background:'+(proxyUrl2?'#2E7D32':'#E65100')+';color:#fff;border:none;border-radius:6px;font-size:10px;cursor:pointer">'+(proxyUrl2?'⚙️ Settings':'Setup ▶')+'</button>';
   h+='</div>';
-  h+=card('⚡ Quick Questions — 16 Topics (Smart AI)',
+  h+=card('⚡ Quick Questions — 20 Topics (Smart AI)',
     '<div style="font-size:11px;color:#2E7D32;background:#E8F5E9;border-radius:6px;padding:6px 8px;margin-bottom:8px">✅ Smart AI — reads your actual data, works offline!</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">'+
     ['Why has my profit reduced?',
@@ -3898,6 +3923,7 @@ function pgAIAdvisor(){
      'What is my monthly CC & TL interest?',
      'Is my term loan affordable (DSCR)?',
      'How healthy are my bank credit ratios?',
+     'How do I set item-wise profit margin?',
     ].map(function(q){
       return '<button onclick="askAI(\''+q.replace(/'/g,"\\'")+'\')" style="text-align:left;padding:7px 8px;background:#F3E5F5;border:1px solid #CE93D8;border-radius:8px;font-size:11px;color:#4A148C;cursor:pointer;line-height:1.3">'+q+'</button>';
     }).join('')+
@@ -13960,16 +13986,28 @@ function pgHelp(){
 
 
   h += hs(
-    bi('11. Auto Sale Price & Item-wise Profit', '11. Auto Sale Price & Item-wise Profit'),
+    bi('11. Auto Sale Price, Item-wise Margin & Item-wise Profit', '11. Auto Sale Price, Item-wise Margin और Item-wise Profit'),
     bi(
-      '<p><b>Auto Sale Price:</b> In Sales page, select an item — the app shows Cost Price and auto-calculates Selling Price from your Default Margin %. Change margin for that sale anytime, price updates instantly. Or type price directly — margin updates automatically.</p>' +
-      '<p><b>Set Default Margin:</b> Reminders menu → Credit & Margin Settings → Default Sale Margin % (e.g. 20 = 20% profit on cost). Applies to all items. Change anytime.</p>' +
+      '<p><b>Auto Sale Price:</b> In Sales page or Daily Register, select an item — the app shows Cost Price and auto-calculates a Suggested Selling Price. Change margin for that sale anytime, price updates instantly. Or type price directly — margin updates automatically.</p>' +
+      '<p><b>Set the Global Default Margin:</b> <b>Profit Margin Setting</b> menu → Default Sale Margin % (e.g. 20 = 20% profit on cost). Applies to every item that doesn\'t have its own margin. Change anytime.</p>' +
+      '<p><b>Set a different margin for ONE item (two easy ways):</b></p>' +
+      '<ol style="margin:4px 0 10px 16px">' +
+      '<li><b>While purchasing a new item</b> — Purchase page or Daily Register → Purchase has an optional "Selling Price ₹" box right next to Cost/Rate. Type what you plan to sell it for, and the app works out and saves that item\'s margin % automatically.</li>' +
+      '<li><b>In Inventory</b> — each item\'s row has a "Margin %" box and a "…or Selling Price ₹" box side by side. Fill in whichever is easier for you; the other updates to match. Leave both blank to keep using the global default.</li>' +
+      '</ol>' +
+      '<p>An item with its own margin is always used in preference to the global default, everywhere a Selling Price is suggested (Sales page and Daily Register).</p>' +
       '<p><b>Example:</b> Cost ₹100, Margin 30% → Price ₹130, Profit ₹30.</p>' +
-      '<p><b>Item-wise Profit:</b> Analytics menu → scroll down → 📦 Item-wise Profit Analysis. Items come automatically from Sales — nothing extra to enter. No change in any other menu.</p>',
-      '<p><b>Auto Sale Price:</b> Sales page में item select करें — app Cost Price दिखाता है और Default Margin % से Selling Price calculate करता है। Margin बदलें — price तुरंत update। या price खुद टाइप करें — margin update हो जाता है।</p>' +
-      '<p><b>Default Margin set करें:</b> Reminders → Credit & Margin Settings → Default Sale Margin % डालें। सभी items पर apply। कभी भी बदलें।</p>' +
+      '<p><b>Item-wise Profit:</b> Analytics menu → scroll down → 📦 Item-wise Profit Analysis. Items come automatically from Sales — nothing extra to enter.</p>',
+      '<p><b>Auto Sale Price:</b> Sales page या Daily Register में item select करें — app Cost Price दिखाता है और Suggested Selling Price calculate करता है। Margin बदलें — price तुरंत update। या price खुद टाइप करें — margin update हो जाता है।</p>' +
+      '<p><b>Global Default Margin set करें:</b> <b>Profit Margin Setting</b> menu → Default Sale Margin % डालें। हर उस item पर apply होता है जिसका अपना margin सेट नहीं है। कभी भी बदलें।</p>' +
+      '<p><b>किसी एक item का अलग margin सेट करना (दो आसान तरीके):</b></p>' +
+      '<ol style="margin:4px 0 10px 16px">' +
+      '<li><b>नया item purchase करते समय</b> — Purchase page या Daily Register → Purchase में Cost/Rate के बगल में optional "Selling Price ₹" box है। जो price रखना है वो type करें, app उस item का margin % अपने आप calculate करके save कर देगा।</li>' +
+      '<li><b>Inventory में</b> — हर item की row में "Margin %" box और "…or Selling Price ₹" box साथ-साथ हैं। जो आसान लगे वो भरें; दूसरा अपने आप match हो जाएगा। दोनों खाली छोड़ने पर global default चलता रहेगा।</li>' +
+      '</ol>' +
+      '<p>जिस item का अपना margin सेट है, वह हमेशा global default से पहले इस्तेमाल होता है — Sales page और Daily Register दोनों में।</p>' +
       '<p><b>Example:</b> Cost ₹100, Margin 30% → Price ₹130, Profit ₹30।</p>' +
-      '<p><b>Item-wise Profit:</b> Analytics menu → नीचे → 📦 Item-wise Profit Analysis। Items sales से automatically आते हैं। कोई दूसरा menu नहीं बदला।</p>'
+      '<p><b>Item-wise Profit:</b> Analytics menu → नीचे → 📦 Item-wise Profit Analysis। Items sales से automatically आते हैं।</p>'
     )
   );
   // ── SECTION 11: MANUFACTURING APP ──
@@ -14242,20 +14280,24 @@ h += hs(
   );  h += hs(
     bi('21. Daily Register', '21. डेली रजिस्टर'),
     bi(
-      '<p><b>Daily Register</b> (right after Profile in the menu) is a single, fast screen for recording any transaction — Purchase, Sale, Expense, Receipt from a Debtor, Payment to a Creditor, Loan Instalment, or Fixed Asset purchase — without navigating between separate menus. Pick the type, fill in the fields, tap Add Entry, and it posts immediately to the right place, exactly like using Sales/Purchase/Expenses/Debtors & Creditors directly.</p>' +
+      '<p><b>Daily Register</b> (top menu bar, right after Profile and Capital/Loans) is a single, fast screen for recording any transaction — Purchase, Sale, Sales Return, Purchase Return, Expense, Receipt from a Debtor, Payment to a Creditor, Loan Instalment, Production, or Fixed Asset purchase — without navigating between separate menus. Pick the type, fill in the fields, tap Add Entry, and it posts immediately to the right place, exactly like using Sales/Purchase/Expenses/Debtors & Creditors directly.</p>' +
       '<p><b>Smart hints as you type:</b></p>' +
       '<p>• <b>Item Name</b> (Purchase/Sale) autocompletes from your existing Inventory, so spelling always matches exactly — no accidental duplicate items from a near-miss spelling.</p>' +
-      '<p>• <b>Selling a known item</b> shows its Purchase Price, the Suggested Selling Price based on your global margin (Profit Margin Setting), and current Stock available — and auto-fills the Selling Price field with the suggested amount (still fully editable if you want to charge something different).</p>' +
-      '<p>• <b>Purchasing a known item</b> shows its current Stock and Average Cost; a genuinely new item name shows a note that it will be added to Inventory automatically.</p>' +
+      '<p>• <b>Selling a known item</b> shows its Purchase Price, a Suggested Selling Price (from that item\'s own margin if one is set, otherwise your global default margin), and current Stock available — and auto-fills the Selling Price field with the suggested amount (still fully editable if you want to charge something different).</p>' +
+      '<p>• <b>Purchasing a known item</b> shows its current Stock and Average Cost; a genuinely new item name shows a <b>Unit</b> dropdown (Kg, Quintal, Gram, Litre, No., Metre, Box, Dozen, Piece, Packet, Bag) and an optional <b>Selling Price ₹</b> box — give the price you plan to charge and the app works out and saves that item\'s profit margin for you right away.</p>' +
+      '<p>• <b>Sales Return / Purchase Return</b> — pick the original Sale or Purchase from the list (only ones with quantity still available to return are shown), enter the quantity being returned, and stock plus the customer\'s/supplier\'s balance adjust automatically.</p>' +
+      '<p>• <b>Production</b> — pick the material consumed and, optionally, the Finished Good produced and its quantity; leaving Output blank records a write-off/usage-only entry.</p>' +
       '<p>• <b>Debtor Receipt / Creditor Payment / Loan Instalment</b> — typing or picking a name shows their current Due/Outstanding amount, so you can check the amount you\'re entering against what\'s actually owed.</p>' +
-      '<p>A live tally indicator at the top always shows whether your Balance Sheet is balanced, and Today\'s Entries at the bottom lists everything recorded today, regardless of which menu was used.</p>',
-      '<p><b>Daily Register</b> (मेनू में Profile के ठीक बाद) कोई भी transaction रिकॉर्ड करने के लिए एक तेज़, अकेली screen है — Purchase, Sale, Expense, किसी Debtor से Receipt, किसी Creditor को Payment, Loan Instalment, या Fixed Asset purchase — अलग-अलग मेनू में जाए बिना। Type चुनें, fields भरें, Add Entry दबाएं, और यह तुरंत सही जगह post हो जाता है — बिल्कुल वैसे ही जैसे Sales/Purchase/Expenses/Debtors & Creditors सीधे इस्तेमाल करने पर होता।</p>' +
+      '<p>A live tally indicator at the top always shows whether your Balance Sheet is balanced, and the moment you save an entry the app re-checks this — if that entry caused a NEW mismatch, it\'s flagged right away with a plain-language explanation and a suggested fix. Today\'s Entries at the bottom lists everything recorded today, regardless of which menu was used. Run <b>Health Check</b> (also in the top menu) at day-end for the full set of checks with a score and fix-it guidance.</p>',
+      '<p><b>Daily Register</b> (ऊपर मुख्य menu bar में, Profile और Capital/Loans के ठीक बाद) कोई भी transaction रिकॉर्ड करने के लिए एक तेज़, अकेली screen है — Purchase, Sale, Sales Return, Purchase Return, Expense, किसी Debtor से Receipt, किसी Creditor को Payment, Loan Instalment, Production, या Fixed Asset purchase — अलग-अलग मेनू में जाए बिना। Type चुनें, fields भरें, Add Entry दबाएं, और यह तुरंत सही जगह post हो जाता है — बिल्कुल वैसे ही जैसे Sales/Purchase/Expenses/Debtors & Creditors सीधे इस्तेमाल करने पर होता।</p>' +
       '<p><b>टाइप करते समय स्मार्ट हिंट्स:</b></p>' +
       '<p>• <b>Item Name</b> (Purchase/Sale) आपके मौजूदा Inventory से autocomplete होता है, ताकि spelling हमेशा बिल्कुल मैच करे — गलत spelling से duplicate item नहीं बनता।</p>' +
-      '<p>• <b>किसी जाने-पहचाने item की Sale</b> करने पर उसकी Purchase Price, आपके global margin (Profit Margin Setting) पर आधारित Suggested Selling Price, और मौजूदा Stock दिखता है — और Selling Price field अपने आप उस suggested amount से भर जाता है (फिर भी पूरी तरह edit कर सकते हैं अगर अलग price रखना हो)।</p>' +
-      '<p>• <b>किसी जाने-पहचाने item की Purchase</b> करने पर उसका मौजूदा Stock और Average Cost दिखता है; बिल्कुल नए item का नाम टाइप करने पर बताता है कि यह Inventory में अपने आप जुड़ जाएगा।</p>' +
+      '<p>• <b>किसी जाने-पहचाने item की Sale</b> करने पर उसकी Purchase Price, Suggested Selling Price (पहले उस item के अपने margin से, वरना global default margin से), और मौजूदा Stock दिखता है — और Selling Price field अपने आप उस suggested amount से भर जाता है (फिर भी पूरी तरह edit कर सकते हैं अगर अलग price रखना हो)।</p>' +
+      '<p>• <b>किसी जाने-पहचाने item की Purchase</b> करने पर उसका मौजूदा Stock और Average Cost दिखता है; बिल्कुल नए item का नाम टाइप करने पर एक <b>Unit</b> dropdown (Kg, Quintal, Gram, Litre, No., Metre, Box, Dozen, Piece, Packet, Bag) और एक optional <b>Selling Price ₹</b> box दिखता है — जो price रखना है वो दें, app उस item का profit margin अपने आप calculate करके तुरंत save कर देगा।</p>' +
+      '<p>• <b>Sales Return / Purchase Return</b> — list से original Sale या Purchase चुनें (सिर्फ वही दिखते हैं जिनमें अभी भी वापस करने लायक quantity बची है), return की जा रही quantity डालें, और stock व customer/supplier का balance अपने आप adjust हो जाता है।</p>' +
+      '<p>• <b>Production</b> — उपयोग किया गया material चुनें और, optional रूप से, बना हुआ Finished Good और उसकी quantity; Output खाली छोड़ने पर write-off/usage-only entry दर्ज होती है।</p>' +
       '<p>• <b>Debtor Receipt / Creditor Payment / Loan Instalment</b> — नाम टाइप या चुनने पर उनका मौजूदा Due/Outstanding amount दिखता है, ताकि आप जो amount डाल रहे हैं उसे असली बकाया राशि से मिला सकें।</p>' +
-      '<p>ऊपर एक live tally indicator हमेशा दिखाता है कि आपकी Balance Sheet balanced है या नहीं, और नीचे Today\'s Entries आज दर्ज हुई हर चीज़ दिखाता है, चाहे किसी भी मेनू से की गई हो।</p>'
+      '<p>ऊपर एक live tally indicator हमेशा दिखाता है कि आपकी Balance Sheet balanced है या नहीं, और entry save करते ही app इसे फिर से जांचता है — अगर उस entry से कोई नया mismatch बना है तो उसे तुरंत आसान भाषा में समझाया जाता है और सुधार सुझाया जाता है। नीचे Today\'s Entries आज दर्ज हुई हर चीज़ दिखाता है, चाहे किसी भी मेनू से की गई हो। दिन के अंत में पूरी जांच के लिए <b>Health Check</b> (यह भी top menu में है) चलाएं — score और fix-it guidance के साथ।</p>'
     )
   );  h += hs(
     bi('22. Bulk Import', '22. बल्क इम्पोर्ट'),
@@ -14328,6 +14370,32 @@ h += hs(
       '<p><b>Test Connection button:</b> validates the URL actually works before you save it — catches a typo immediately instead of discovering it later when a chat fails.</p>',
       '<p><b>Data → 🤖 AI Proxy Setup (वैकल्पिक)</b> — पूरे Claude-powered AI Advisor को जोड़ता है। इसके बिना भी AI Advisor built-in smart answers से offline काम करता है।</p>' +
       '<p><b>Test Connection बटन:</b> save करने से पहले पक्का करता है कि URL वाकई काम करता है — बाद में chat fail होने के बजाय गलती तुरंत पकड़ लेता है।</p>'
+    )
+  );
+  h += hs(
+    bi('29. What\'s New — Sidebar Menu, Real-Time Mismatch Alerts, Returns & Item-wise Margin', '29. नया क्या है — Sidebar Menu, Real-Time Mismatch Alerts, Returns और Item-wise Margin'),
+    bi(
+      '<p><b>🧭 New menu layout:</b> The most-used pages — Profile, Capital/Loans, Daily Register, Health Check, Help — now sit in the main bar at the top so a first-time user always knows where to start. Everything else is grouped by purpose in the sidebar (tap the ☰ icon on mobile, always visible on a larger screen).</p>' +
+      '<p><b>⚖️ Mismatch checking, both live and at day-end:</b> The moment you save any Daily Register entry, the app re-checks whether Assets still equal Liabilities + Capital. If saving that entry caused a NEW mismatch, you\'ll see it flagged right there with a plain-language explanation and a suggested fix — you don\'t have to wait until day-end to discover something went wrong. <b>Health Check</b> (now in the main menu) runs the full set of checks any time, with a score out of 10 and step-by-step fix guidance — use it as your final check before closing the day.</p>' +
+      '<p><b>↩️ Sales Return / Purchase Return in Daily Register:</b> Both are now their own Daily Register transaction types. Pick the original Sale or Purchase from the list, enter the quantity returned, and stock plus the customer/supplier balance adjust automatically — no separate menu hunting.</p>' +
+      '<p><b>📏 Unit shown for Purchase & Production:</b> When you type a brand-new item name in Daily Register\'s Purchase or Production screen, a Unit dropdown (Kg, Quintal, Gram, Litre, No., Metre, Box, Dozen, Piece, Packet, Bag) appears so the item is created with the right unit from day one.</p>' +
+      '<p><b>💰 Item-wise Profit Margin — set it the easy way:</b> Margin used to be only a single global percentage (Profit Margin Setting). Now any item can have its own margin, set however is easiest for you:</p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:1.9">' +
+      '<li><b>While purchasing a new item</b> (Purchase page or Daily Register → Purchase) — an optional "Selling Price ₹" box sits right next to Cost. Type the price you plan to charge, and the app works out and saves that item\'s margin % for you automatically.</li>' +
+      '<li><b>In Inventory</b> — each item\'s row has both a "Margin %" box and a "…or Selling Price ₹" box. Fill in whichever one you find easier; they stay in sync. Leave both blank to keep using the global default margin.</li>' +
+      '</ul>' +
+      '<p>Sales and Daily Register always suggest a Selling Price using an item\'s own margin first, and only fall back to the global default when that item has no margin of its own set.</p>',
+
+      '<p><b>🧭 नया मेनू लेआउट:</b> सबसे ज्यादा उपयोग होने वाले पेज — Profile, Capital/Loans, Daily Register, Health Check, Help — अब ऊपर मुख्य bar में हैं, ताकि पहली बार इस्तेमाल करने वाले को हमेशा पता रहे कि कहाँ से शुरू करें। बाकी सब कुछ sidebar में काम के हिसाब से group किया गया है (mobile पर ☰ icon दबाएं, बड़ी screen पर हमेशा दिखता है)।</p>' +
+      '<p><b>⚖️ Mismatch checking, तुरंत और day-end दोनों पर:</b> Daily Register में कोई भी entry save करते ही, app फिर से जांचता है कि Assets अब भी Liabilities + Capital के बराबर हैं या नहीं। अगर उस entry से कोई नया mismatch बना है, तो वहीं उसे आसान भाषा में समझाया जाता है और सुझाव भी दिया जाता है — day-end तक इंतज़ार नहीं करना पड़ता। <b>Health Check</b> (अब मुख्य मेनू में) कभी भी पूरी जांच करता है, 10 में से score के साथ और step-by-step सुधार बताता है — दिन बंद करने से पहले इसे आखिरी जांच की तरह इस्तेमाल करें।</p>' +
+      '<p><b>↩️ Daily Register में Sales Return / Purchase Return:</b> अब ये दोनों अपने अलग Daily Register transaction types हैं। list से मूल Sale या Purchase चुनें, वापस की गई quantity डालें, और stock व customer/supplier का balance अपने आप adjust हो जाता है — अलग मेनू ढूंढने की जरूरत नहीं।</p>' +
+      '<p><b>📏 Purchase और Production में Unit दिखना:</b> Daily Register की Purchase या Production screen में बिल्कुल नया item नाम टाइप करने पर एक Unit dropdown (Kg, Quintal, Gram, Litre, No., Metre, Box, Dozen, Piece, Packet, Bag) दिखता है, ताकि item पहले दिन से सही unit के साथ बने।</p>' +
+      '<p><b>💰 Item-wise Profit Margin — आसान तरीके से सेट करें:</b> पहले margin सिर्फ एक global percentage होता था (Profit Margin Setting)। अब हर item का अपना अलग margin हो सकता है, जो भी तरीका आपको आसान लगे उससे सेट करें:</p>' +
+      '<ul style="margin:6px 0 10px 16px;line-height:1.9">' +
+      '<li><b>नया item purchase करते समय</b> (Purchase page या Daily Register → Purchase) — Cost के बगल में एक optional "Selling Price ₹" box होता है। आप जो price रखना चाहते हैं वो टाइप करें, app उस item का margin % अपने आप calculate करके save कर देगा।</li>' +
+      '<li><b>Inventory में</b> — हर item की row में "Margin %" box और "…or Selling Price ₹" box दोनों होते हैं। जो आसान लगे वो भरें; दोनों आपस में sync रहते हैं। दोनों खाली छोड़ने पर global default margin लागू होता रहेगा।</li>' +
+      '</ul>' +
+      '<p>Sales और Daily Register हमेशा पहले item के अपने margin से Selling Price सुझाते हैं, और सिर्फ तभी global default पर जाते हैं जब उस item का कोई अपना margin सेट न हो।</p>'
     )
   );
     // Developer credit at bottom
