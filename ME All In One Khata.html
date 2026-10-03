@@ -1154,10 +1154,14 @@ function setupCustomAutocomplete(){
     var box = document.createElement('div');
     box.style.cssText = 'display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #BBDEFB;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-height:180px;overflow-y:auto;z-index:500;margin-top:2px;';
     wrap.appendChild(box);
-    function showMatches(){
+    function showMatches(showAll){
       var val = inp.value.trim().toLowerCase();
       var list = (window._acData && window._acData[key]) || [];
-      var matches = val ? list.filter(function(o){ return o.toLowerCase().indexOf(val)>=0; }) : list;
+      // On focus, always show the full list (even when a value is already pre-filled, e.g. a
+      // default like "Walk-in Customer") so existing names and the option to type a new one are
+      // never hidden just because the current text happens to match nothing. While typing, the
+      // list still narrows down to matches as usual.
+      var matches = (val && !showAll) ? list.filter(function(o){ return o.toLowerCase().indexOf(val)>=0; }) : list;
       matches = matches.slice(0,8);
       if(!matches.length){ box.style.display='none'; return; }
       box.innerHTML = matches.map(function(o){ return '<div style="padding:9px 12px;font-size:13px;border-bottom:1px solid #F0F0F0;cursor:pointer" class="_ac_opt">'+esc(o)+'</div>'; }).join('');
@@ -1173,8 +1177,8 @@ function setupCustomAutocomplete(){
         el.addEventListener('touchstart', pick, {passive:false});
       });
     }
-    inp.addEventListener('focus', showMatches);
-    inp.addEventListener('input', showMatches);
+    inp.addEventListener('focus', function(){ inp.select(); showMatches(true); });
+    inp.addEventListener('input', function(){ showMatches(false); });
     inp.addEventListener('blur', function(){ setTimeout(function(){ box.style.display='none'; }, 150); });
   });
 }
