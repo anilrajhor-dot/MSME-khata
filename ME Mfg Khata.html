@@ -4876,15 +4876,15 @@ function pgDailyRegister(){
     fieldsHtml += _drScanBtn +
       inpMic('Item Name','dr_f1','text',_drPrefillItem,'Type or pick existing item, or scan barcode above').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
       inpMic('Supplier Name','dr_f2','text','').replace('<input ','<input data-ac="suppliers" ') +
-      g2(inpMic('Quantity','dr_f3','number',''), inpMic('Rate','dr_f4','number','')) +
+      g2(inpMic('Quantity','dr_f3','number','').replace('<label>Quantity</label>','<label id="dr_qty_label">Quantity</label>'), inpMic('Rate','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash') +
-      sl('Unit (only used if this is a new item)','dr_f6',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.') +
+      sl('Unit (only used if this is a new item)','dr_f6',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.').replace('<select ','<select onchange="updateDRHint()" ') +
       inpMic('Selling Price (₹, optional)','dr_f7','number','','We will work out and save this item\'s profit margin for you — leave blank to use the default margin');
   } else if(typeId==='sale'){
     fieldsHtml += _drScanBtn +
       inpMic('Item Name','dr_f1','text',_drPrefillItem,'Pick an existing item, or scan barcode above').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
       inpMic('Customer Name','dr_f2','text','Walk-in Customer').replace('<input ','<input data-ac="customers" ') +
-      g2(inpMic('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" '), inpMic('Selling Price','dr_f4','number','')) +
+      g2(inpMic('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" ').replace('<label>Quantity</label>','<label id="dr_qty_label">Quantity</label>'), inpMic('Selling Price','dr_f4','number','')) +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='expense'){
     fieldsHtml += inpMic('Category','dr_f1','text','','Type or pick a category').replace('<input ','<input data-ac="categories" ') + inpMic('Amount','dr_f2','number','') +
@@ -4991,6 +4991,8 @@ function updateDRHint(){
   var hintEl = document.getElementById('dr_hint');
   if(!hintEl) return;
   var hint = '';
+  var qtyLabelEl = document.getElementById('dr_qty_label');
+  if(qtyLabelEl) qtyLabelEl.textContent = 'Quantity'; // reset; set to "Quantity (Unit)" below when an item is matched
   if(typeId==='sale'){
     var name = (gv('dr_f1')||'').trim();
     var item = D.inventory.filter(function(it){return it.itemName.toLowerCase()===name.toLowerCase();})[0];
@@ -5003,14 +5005,18 @@ function updateDRHint(){
       if(priceField && !priceField.value){ priceField.value = suggested; }
       var stockAvail = (item.currentStock||0)+(item.importedStock||0);
       hint = '<div class="al ali" style="margin-top:6px;font-size:11px">Purchase Price: <b>'+fc(item.avgCost)+'</b>/'+esc(item.unit)+' | Suggested Selling Price ('+margin+'% margin'+(hasItemMargin?' — item-specific':'')+'): <b>'+fc(suggested)+'</b> | Stock available: <b>'+fmt(stockAvail)+'</b> '+esc(item.unit)+'</div>';
+      if(qtyLabelEl) qtyLabelEl.textContent = 'Quantity ('+item.unit+')';
     }
   } else if(typeId==='purchase'){
     var name2 = (gv('dr_f1')||'').trim();
     var item2 = D.inventory.filter(function(it){return it.itemName.toLowerCase()===name2.toLowerCase();})[0];
     if(item2){
       hint = '<div class="al ali" style="margin-top:6px;font-size:11px">Existing item — Current Stock: <b>'+fmt((item2.currentStock||0)+(item2.importedStock||0))+'</b> '+esc(item2.unit)+' | Current Avg Cost: <b>'+fc(item2.avgCost)+'</b>/'+esc(item2.unit)+'</div>';
+      if(qtyLabelEl) qtyLabelEl.textContent = 'Quantity ('+item2.unit+')';
     } else if(name2){
       hint = '<div class="al alw" style="margin-top:6px;font-size:11px">New item — will be added to Inventory automatically.</div>';
+      var unitSel = document.getElementById('dr_f6');
+      if(qtyLabelEl && unitSel) qtyLabelEl.textContent = 'Quantity ('+unitSel.value+')';
     }
   } else if(typeId==='debtorReceipt'){
     var name3 = (gv('dr_f1')||'').trim();
