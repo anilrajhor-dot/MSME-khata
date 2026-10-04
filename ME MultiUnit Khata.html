@@ -5799,7 +5799,13 @@ function pgInv(){
   var invCols=[
     {l:'Item',fn:function(r){return esc(r.itemName)+gstBadge(r);}},
     {l:'Cat',fn:function(r){var cat=r.category||'—';var catLabel=cat==='RM'?'Raw Material':cat;return '<span style="font-size:10px;font-weight:700;color:'+catColor(cat)+';background:'+catColor(cat)+'18;padding:2px 5px;border-radius:4px">'+esc(catLabel)+'</span>';}},
-    {l:'Unit',k:'unit'},
+    {l:'Unit',fn:function(r){
+      var units=['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'];
+      if(units.indexOf(r.unit)<0) units=[r.unit].concat(units); // keep an unrecognized/legacy unit selectable too
+      return '<select onchange="setItemUnit(\''+r.id+'\',this.value)" style="padding:5px;border-radius:6px;border:1px solid #CFD8DC;font-size:11px">'+
+        units.map(function(u){return '<option value="'+u+'"'+(u===r.unit?' selected':'')+'>'+u+'</option>';}).join('')+
+        '</select>';
+    }},
     {l:'Stock',r:1,fn:function(r){return fmt(r.currentStock);}},
     {l:'Cost',r:1,fn:function(r){return fc(r.avgCost);}}
   ];
@@ -5819,7 +5825,7 @@ function pgInv(){
       'onchange="setItemSellingPrice(\''+r.id+'\',this.value)" '+
       'style="width:80px;padding:5px;border-radius:6px;border:1px solid #CFD8DC;font-size:11px;text-align:right">';
   }});
-  h+=card('Inventory',tbl(invCols,D.inventory)+'<div style="font-size:10px;color:#90A4AE;margin-top:6px">Don\'t know margin %? Just type the ₹ Selling Price in the last column and we\'ll work out the margin for you. Leave Margin % blank to use the global default margin (set in Profit Margin Settings). Either column — used to suggest Selling Price in Sales and Daily Register.</div>');
+  h+=card('Inventory',tbl(invCols,D.inventory)+'<div style="font-size:10px;color:#90A4AE;margin-top:6px">Don\'t know margin %? Just type the ₹ Selling Price in the last column and we\'ll work out the margin for you. Leave Margin % blank to use the global default margin (set in Profit Margin Settings). Either column — used to suggest Selling Price in Sales and Daily Register. Tap the Unit dropdown on any item to correct it anytime.</div>');
 
   // ── ABC ANALYSIS ──
   var abcTotSales = 0;
@@ -5969,6 +5975,14 @@ function addInv(){
 }
 // Sets or clears a per-item profit-margin override (used to suggest Selling Price in Sales and
 // Daily Register instead of the global default margin). Blank/invalid value clears the override.
+function setItemUnit(itemId, val){
+  var item = D.inventory.filter(function(it){return it.id===itemId;})[0];
+  if(!item || !val) return;
+  var old = item.unit;
+  item.unit = val;
+  sv();
+  toast('Unit for '+item.itemName+' changed from '+old+' to '+val+'. Past purchase/sale entries keep the unit used at the time.');
+}
 function setItemMargin(itemId, val){
   var item = D.inventory.filter(function(it){return it.id===itemId;})[0];
   if(!item) return;
@@ -19117,7 +19131,10 @@ function showBarcodeAssign(code){
     'style="width:100%;padding:12px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px">Assign Barcode</button>'+
     '<div style="font-weight:700;font-size:13px;margin-bottom:6px">OR create new item:</div>'+
     '<input id="bc_name" placeholder="New item name" style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
-    '<button onclick="createItemWithBarcode(\''+code+'\',document.getElementById(\'bc_name\').value)" '+
+    '<select id="bc_unit" style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:13px;margin-bottom:8px">'+
+    ['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'].map(function(u){return '<option value="'+u+'"'+(u==='No.'?' selected':'')+'>'+u+'</option>';}).join('')+
+    '</select>'+
+    '<button onclick="createItemWithBarcode(\''+code+'\',document.getElementById(\'bc_name\').value,document.getElementById(\'bc_unit\').value)" '+
     'style="width:100%;padding:12px;background:#2E7D32;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px">+ Create New Item</button>'+
     '<button onclick="this.closest(\'div[style*=fixed]\').remove()" '+
     'style="width:100%;padding:10px;background:#F5F5F5;color:#546E7A;border:none;border-radius:8px;font-size:13px;cursor:pointer">Cancel</button>'+
@@ -19141,9 +19158,9 @@ function assignBarcode(code,itemId){
   }
 }
 
-function createItemWithBarcode(code,name){
+function createItemWithBarcode(code,name,unit){
   if(!name||!name.trim()){toast('Enter item name','e');return;}
-  var item={id:uid(),itemName:name.trim(),unit:'No.',openingStock:0,currentStock:0,avgCost:0,
+  var item={id:uid(),itemName:name.trim(),unit:unit||'No.',openingStock:0,currentStock:0,avgCost:0,
     importedStock:0,importedAvgCost:0,reorderLevel:0,category:'Resale',barcode:code};
   D.inventory.push(item); sv();
   var dlg=document.querySelector('div[style*="fixed"]');if(dlg)dlg.remove();
