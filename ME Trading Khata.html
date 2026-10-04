@@ -22,7 +22,7 @@ var _FAQ_DATA=[
 {q:"Health Check kya hai / What is Health Check?",a:"10 automatic checks jo aapki books verify karte hain — Balance Sheet, Stock, Cash balance etc. Run karo to errors milenge. / 10 automatic checks that verify your books — Balance Sheet, Stock, Cash etc. Run it to find errors.",tags:["health check","verify","accuracy"]},
 {q:"AI Advisor kya karta hai / What does AI Advisor do?",a:"Aapke actual data se 16 business questions ke jawab deta hai — internet ke bina bhi. Profit analysis, stock reorder, loan eligibility sab. / Answers 16 business questions from your actual data — works offline too. Profit analysis, stock reorder, loan eligibility and more.",tags:["AI","advisor","questions"]},
 {q:"Barcode scanner kaise use karen / How to use scanner?",a:"Purchase, Sales ya Daily Register tab → green 📷 Scan Barcode button tap karen → camera khulti hai → barcode scan karo → item auto select ya naya item create karne ka option milega. Pehli baar iPhone camera permission maangega → Allow karo. / Purchase, Sales or Daily Register tab → tap the green 📷 Scan Barcode button → camera opens → scan barcode → item auto-selects, or you get the option to create a new item. First time iPhone asks camera permission → Allow.",tags:["barcode","scanner","camera","scan","daily register"]},
-{q:"Dozen mein khareeda Piece mein becha / Bought in Dozen but sell in Piece, what to do?",a:"Quantity box ke neeche ek chhota nila link hai: '🔄 Bought/counted in a different unit? Tap to convert'. Usme 'I have' mein apni quantity (jaise 5 Dozen) aur 'how many Piece in each' mein 12 bharen — yeh khud 60 calculate karke Quantity box mein bhar dega. Item ka asli unit (jaise Piece) kabhi nahi badalta, yeh sirf ek calculator hai jo haath se guna karne se bachata hai. Purchase, Sale, Daily Register aur Returns sabhi jagah available hai. / There's a small blue link under any Quantity box: '🔄 Bought/counted in a different unit? Tap to convert'. Enter your quantity in 'I have' (e.g. 5 Dozen) and 12 in 'how many Piece in each' — it calculates 60 and fills the Quantity box for you. The item's real unit (e.g. Piece) never changes — it's just a calculator that saves you doing the multiplication by hand. Available on Purchase, Sale, Daily Register and Returns.",tags:["dozen","piece","unit","convert","conversion","box","bulk"]},
+{q:"50kg khareeda 500gram becha / Bought 50kg sold 500 grams, quantity kaise bharein? Dozen mein khareeda Piece mein becha / Bought in Dozen but sell in Piece, what to do?",a:"Quantity box ke neeche ek chhota nila link hai: '🔄 Entering a different unit (e.g. Grams, Dozen)? Tap to convert'. Usme apni quantity type karo (jaise 500) aur dropdown se seedha unit chuno (jaise Gram) — koi conversion number type karne ki zaroorat nahi, app khud 0.5 Kg calculate karke Quantity box mein bhar dega. Weight wale item (Kg) ke liye Gram/Kg/Quintal/Ton aur count wale item (Piece) ke liye Piece/No./Dozen — sab dropdown mein already hain. Kisi anjaan unit (Box, Bag) ke liye 'Other unit…' chuno, chhota manual calculator khulega. Item ka asli unit kabhi nahi badalta. Purchase, Sale, Daily Register aur Returns sabhi jagah available hai. / There's a small blue link under any Quantity box: '🔄 Entering a different unit (e.g. Grams, Dozen)? Tap to convert'. Just type your quantity (e.g. 500) and pick the unit from the dropdown (e.g. Gram) — no conversion number to type, the app automatically works out 0.5 Kg and fills the Quantity box for you. Weight-tracked items (Kg) get Gram/Kg/Quintal/Ton, and count-tracked items (Piece) get Piece/No./Dozen, ready in the dropdown. For an unusual unit (Box, Bag) pick 'Other unit…' for a small manual calculator. The item's real unit never changes. Available on Purchase, Sale, Daily Register and Returns.",tags:["dozen","piece","unit","convert","conversion","box","bulk","kg","gram","quintal","ton","weight"]},
 {q:"GST kaise enable karen / How to enable GST?",a:"Profile → GST section → Enable GST → GSTIN enter karen → default rate set karen. Sales entry mein GST automatic calculate hoga. / Profile → GST section → Enable GST → enter GSTIN → set default rate. GST calculates automatically in sales.",tags:["GST","tax","GSTIN"]},
 {q:"Drawings kaise record karen / How to record drawings?",a:"Capital/Loans → Drawings → + Add Drawing → Date, Amount → Save. Capital automatically kam ho jaata hai. / Capital/Loans → Drawings → + Add Drawing → Date, Amount → Save. Capital reduces automatically.",tags:["drawing","withdrawal","owner"]},
 {q:"Imported purchase kaise enter karen / How to record import?",a:"Purchase tab → Imported checkbox tick karen → details bharen → Save. Import purchases alag track hoti hain. / Purchase tab → tick Imported checkbox → fill details → Save. Import purchases track separately.",tags:["import","imported","foreign"]},
@@ -1359,23 +1359,55 @@ function inpMic(lbl, id, type, val, ph, listId){
   var micBtn = micButtonHtml(id, isNumber);
   return base.replace(/(<input[^>]*>|<textarea[^>]*>[\s\S]*?<\/textarea>)/, '<div style="display:flex;gap:6px;align-items:center">$1'+micBtn+'</div>');
 }
-// ── "Bought in one unit, track stock in another" helper (e.g. bought 5 Dozen, item is tracked in Piece) ──
-// This is a plain calculator, nothing more: it multiplies two numbers the user types and drops the
-// already-converted total straight into the Quantity box. It does NOT change the item's unit, add any
-// new field to the item, or touch stock/cost/margin logic in any way — those all keep working exactly
-// as before, using whatever final number ends up in Quantity. Safe to attach to any quantity field.
+// ── "Entering a different unit than the item's stock unit" helper ──
+// (e.g. item is tracked in Kg; user bought/is selling in Gram, Quintal, Ton or Dozen)
+// For the common weight and counting units, the conversion factor is fixed and well known, so we just
+// show a dropdown of compatible units — no typing of a conversion factor needed. For anything unusual
+// (Box, Bag, Packet, Metre…) there is no single fixed factor, so a "Other unit…" option reveals a small
+// manual calculator where the user supplies the conversion themselves, same as before.
+// This is purely a quantity calculator: it does NOT change the item's unit, add any field to the item,
+// or touch stock/cost/margin logic — those all keep working exactly as before, off whatever final
+// number ends up in the Quantity box. Safe to attach to any quantity field.
+var UNIT_CONV_GROUPS = [
+  {'Gram':1, 'Kg':1000, 'Quintal':100000, 'Ton':1000000},   // weight, relative to Gram
+  {'Piece':1, 'No.':1, 'Dozen':12}                           // count, relative to one Piece/No.
+];
+function findUnitGroup(unit){
+  for(var i=0;i<UNIT_CONV_GROUPS.length;i++){
+    if(Object.prototype.hasOwnProperty.call(UNIT_CONV_GROUPS[i], unit)) return UNIT_CONV_GROUPS[i];
+  }
+  return null;
+}
+function qtyConvUnitOptions(baseUnit){
+  var group = findUnitGroup(baseUnit);
+  var opts = '';
+  if(group){
+    Object.keys(group).forEach(function(u){
+      opts += '<option value="'+esc(u)+'"'+(u===baseUnit?' selected':'')+'>'+esc(u)+'</option>';
+    });
+  } else {
+    opts += '<option value="'+esc(baseUnit)+'" selected>'+esc(baseUnit)+'</option>';
+  }
+  opts += '<option value="__other__">Other unit…</option>';
+  return opts;
+}
 function qtyConvHtml(qtyFieldId, unitLabel){
-  var ul = esc(unitLabel || "the item's unit");
+  var ul = unitLabel || 'No.';
   var bid = 'qc_'+qtyFieldId;
   return '<div style="margin:-2px 0 10px 0">'+
-    '<a href="#" onclick="qtyConvToggle(\''+bid+'\');return false;" style="font-size:11.5px;color:#1565C0;text-decoration:underline;display:inline-block;padding:2px 0">🔄 Bought/counted in a different unit (e.g. Dozen, Box)? Tap to convert</a>'+
+    '<a href="#" onclick="qtyConvToggle(\''+bid+'\');return false;" style="font-size:11.5px;color:#1565C0;text-decoration:underline;display:inline-block;padding:2px 0">🔄 Entering a different unit (e.g. Grams, Dozen)? Tap to convert</a>'+
     '<div id="'+bid+'" style="display:none;background:#F5F9FF;border:1px solid #BBDEFB;border-radius:8px;padding:10px;margin-top:6px">'+
-      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Example: you bought 5 Dozen, but this item\'s stock is tracked in <b id="'+bid+'_ul1">'+ul+'</b>. Fill in the two boxes — we\'ll work out the <span id="'+bid+'_ul2">'+ul+'</span> quantity and fill it in for you.</div>'+
+      '<input type="hidden" id="'+bid+'_base" value="'+esc(ul)+'">'+
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">This item\'s stock is tracked in <b id="'+bid+'_ul1">'+esc(ul)+'</b>. Type your quantity, pick the unit you\'re counting in, and we\'ll convert it for you.</div>'+
       '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'+
         '<span style="font-size:12px;color:#37474F">I have</span>'+
-        '<input id="'+bid+'_n" type="number" inputmode="decimal" placeholder="5" oninput="qtyConvPreview(\''+bid+'\')" style="width:64px;padding:7px;border-radius:6px;border:1px solid #BBDEFB;font-size:13px">'+
-        '<input id="'+bid+'_u" type="text" placeholder="Dozen" style="width:84px;padding:7px;border-radius:6px;border:1px solid #BBDEFB;font-size:13px">'+
-        '<span style="font-size:12px;color:#37474F">= how many <span id="'+bid+'_ul3">'+ul+'</span> in <u>each</u> one?</span>'+
+        '<input id="'+bid+'_n" type="number" inputmode="decimal" placeholder="500" oninput="qtyConvPreview(\''+bid+'\')" style="width:72px;padding:7px;border-radius:6px;border:1px solid #BBDEFB;font-size:13px">'+
+        '<select id="'+bid+'_su" onchange="qtyConvUnitChanged(\''+bid+'\')" style="padding:7px;border-radius:6px;border:1px solid #BBDEFB;font-size:13px">'+qtyConvUnitOptions(ul)+'</select>'+
+      '</div>'+
+      '<div id="'+bid+'_manual" style="display:none;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'+
+        '<span style="font-size:12px;color:#37474F">Unit name</span>'+
+        '<input id="'+bid+'_u" type="text" placeholder="e.g. Box" style="width:84px;padding:7px;border-radius:6px;border:1px solid #BBDEFB;font-size:13px">'+
+        '<span style="font-size:12px;color:#37474F">= how many <span id="'+bid+'_ul3">'+esc(ul)+'</span> in <u>each</u> one?</span>'+
         '<input id="'+bid+'_f" type="number" inputmode="decimal" placeholder="12" oninput="qtyConvPreview(\''+bid+'\')" style="width:64px;padding:7px;border-radius:6px;border:1px solid #BBDEFB;font-size:13px">'+
       '</div>'+
       '<div style="font-size:13px;font-weight:700;color:#2E7D32;margin-bottom:8px;min-height:18px" id="'+bid+'_res"></div>'+
@@ -1387,28 +1419,75 @@ function qtyConvToggle(bid){
   var e=document.getElementById(bid);
   if(e) e.style.display=(e.style.display==='none'?'block':'none');
 }
-// Called whenever the matched item changes (e.g. from updateDRHint), so the helper always talks about
-// the item actually selected instead of a generic placeholder.
+function qtyConvUnitChanged(bid){
+  var sel=document.getElementById(bid+'_su');
+  var manual=document.getElementById(bid+'_manual');
+  if(manual) manual.style.display = (sel && sel.value==='__other__') ? 'flex' : 'none';
+  qtyConvPreview(bid);
+}
+// Called whenever the matched item changes (e.g. from updateDRHint, or the new-item Unit picker), so the
+// helper always offers the right conversion family for whatever unit is actually selected right now.
 function qtyConvSetUnit(qtyFieldId, unitLabel){
   var bid='qc_'+qtyFieldId;
-  var lbl = unitLabel || "the item's unit";
-  ['_ul1','_ul2','_ul3'].forEach(function(suf){
-    var e=document.getElementById(bid+suf);
-    if(e) e.textContent=lbl;
-  });
+  var lbl = unitLabel || 'No.';
+  var baseEl = document.getElementById(bid+'_base');
+  if(baseEl) baseEl.value = lbl;
+  var ul1 = document.getElementById(bid+'_ul1'); if(ul1) ul1.textContent = lbl;
+  var ul3 = document.getElementById(bid+'_ul3'); if(ul3) ul3.textContent = lbl;
+  var sel = document.getElementById(bid+'_su');
+  if(sel) sel.innerHTML = qtyConvUnitOptions(lbl);
+  qtyConvUnitChanged(bid);
 }
 function qtyConvPreview(bid){
-  var n=+((document.getElementById(bid+'_n')||{}).value)||0;
-  var f=+((document.getElementById(bid+'_f')||{}).value)||0;
-  var r=document.getElementById(bid+'_res');
-  if(r) r.textContent = (n>0&&f>0) ? ('= '+fmt(n*f)+' total') : '';
+  var baseUnit = ((document.getElementById(bid+'_base')||{}).value)||'';
+  var n = +((document.getElementById(bid+'_n')||{}).value)||0;
+  var sel = document.getElementById(bid+'_su');
+  var selUnit = sel ? sel.value : baseUnit;
+  var r = document.getElementById(bid+'_res');
+  var total=0, ok=false;
+  if(selUnit==='__other__'){
+    var f=+((document.getElementById(bid+'_f')||{}).value)||0;
+    if(n>0&&f>0){ total=n*f; ok=true; }
+  } else if(selUnit===baseUnit){
+    if(n>0){ total=n; ok=true; }
+  } else {
+    var group=findUnitGroup(baseUnit);
+    if(n>0 && group && group.hasOwnProperty(selUnit) && group.hasOwnProperty(baseUnit)){
+      total=n*group[selUnit]/group[baseUnit]; ok=true;
+    }
+  }
+  if(r) r.textContent = ok ? ('= '+fmtQtyConv(total)+' '+baseUnit) : '';
+}
+function fmtQtyConv(n){
+  n = Math.round((+n||0)*10000)/10000;
+  var s = n.toFixed(4).replace(/0+$/,'').replace(/\.$/,'');
+  return s===''?'0':s;
 }
 function applyQtyConv(bid, qtyFieldId){
-  var n=+((document.getElementById(bid+'_n')||{}).value)||0;
-  var f=+((document.getElementById(bid+'_f')||{}).value)||0;
-  var u=((document.getElementById(bid+'_u')||{}).value||'').trim();
-  if(n<=0||f<=0){ toast('Enter both boxes to convert','e'); return; }
-  var total = Math.round(n*f*10000)/10000;
+  var baseUnit = ((document.getElementById(bid+'_base')||{}).value)||'';
+  var n = +((document.getElementById(bid+'_n')||{}).value)||0;
+  var sel = document.getElementById(bid+'_su');
+  var selUnit = sel ? sel.value : baseUnit;
+  var total=0, label='';
+  if(selUnit==='__other__'){
+    var f=+((document.getElementById(bid+'_f')||{}).value)||0;
+    var u=((document.getElementById(bid+'_u')||{}).value||'').trim();
+    if(n<=0||f<=0){ toast('Enter both boxes to convert','e'); return; }
+    total = Math.round(n*f*10000)/10000;
+    label = (u?u+' ':'')+n+' × '+f;
+  } else if(selUnit===baseUnit){
+    if(n<=0){ toast('Enter a quantity to convert','e'); return; }
+    total = Math.round(n*10000)/10000;
+    label = n+' '+selUnit;
+  } else {
+    var group=findUnitGroup(baseUnit);
+    if(n<=0){ toast('Enter a quantity to convert','e'); return; }
+    if(!group || !group.hasOwnProperty(selUnit) || !group.hasOwnProperty(baseUnit)){
+      toast('Could not convert — pick "Other unit" and enter the conversion','e'); return;
+    }
+    total = Math.round((n*group[selUnit]/group[baseUnit])*10000)/10000;
+    label = n+' '+selUnit;
+  }
   var qf=document.getElementById(qtyFieldId);
   if(qf){
     qf.value=total;
@@ -1416,7 +1495,7 @@ function applyQtyConv(bid, qtyFieldId){
     if(typeof updateDRHint==='function'){ try{ updateDRHint(); }catch(e){} }
   }
   var box=document.getElementById(bid); if(box) box.style.display='none';
-  toast((u?u+' ':'')+n+' × '+f+' = '+fmt(total)+' — filled into Quantity');
+  toast(label+' = '+fmtQtyConv(total)+' '+baseUnit+' — filled into Quantity');
 }
 function startMicInput(inputId, isNumber, btnEl){
   var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -14112,29 +14191,33 @@ function pgHelp(){
 
   // ── QUANTITY UNIT CONVERTER HELP ──
   h += hs(
-    bi('🔄 Bought in Dozen/Box but track stock in Piece? Here\'s how', '🔄 Dozen/Box में खरीदा पर stock Piece में रखते हैं? ऐसे करें'),
+    bi('🔄 Buying/selling in Kg, Gram, Quintal, Ton or Dozen? Here\'s how', '🔄 Kg, Gram, Quintal, Ton या Dozen में खरीद/बिक्री? ऐसे करें'),
     bi(
-      '<p>Every item in this app has <b>one unit</b> (set in Inventory) that all its stock, sales and reports use — for example, "Piece". That never needs to change.</p>'+
-      '<p>But sometimes you <i>buy</i> in a different unit — e.g. you buy rice in Bags but track stock in Kg, or you buy bangles in Dozen but sell them one at a time in Piece. For exactly this, look for this small blue link under any Quantity box:</p>'+
-      '<p style="color:#1565C0;font-weight:700">🔄 Bought/counted in a different unit (e.g. Dozen, Box)? Tap to convert</p>'+
-      '<p><b>Example — you bought 5 Dozen of an item tracked in Piece:</b><br>'+
-      '1. Tap that blue link → a small calculator opens.<br>'+
-      '2. "I have" → type <b>5</b>. In the unit box → type <b>Dozen</b> (just a note for yourself, optional).<br>'+
-      '3. "= how many Piece in each one?" → type <b>12</b>.<br>'+
-      '4. It shows <b>= 60 total</b> → tap <b>✓ Use this quantity</b> → Quantity box is filled with <b>60</b> automatically.<br>'+
+      '<p>Every item in this app has <b>one unit</b> (set in Inventory) that all its stock, sales and reports use — for example, "Kg" or "Piece". That never needs to change.</p>'+
+      '<p>But sometimes you buy or sell in a different, related unit — e.g. an item is tracked in Kg but you sell 500 Grams to a customer, or you buy a sack in Quintal/Ton but issue stock in Kg, or an item is tracked in Piece/No. but a customer orders by the Dozen. For exactly this, look for this small blue link under any Quantity box:</p>'+
+      '<p style="color:#1565C0;font-weight:700">🔄 Entering a different unit (e.g. Grams, Dozen)? Tap to convert</p>'+
+      '<p><b>Example — item tracked in Kg, customer wants 500 Grams:</b><br>'+
+      '1. Tap that blue link → a small box opens.<br>'+
+      '2. Type <b>500</b> in the quantity box.<br>'+
+      '3. In the dropdown next to it, just <b>pick "Gram"</b> — no typing a conversion factor, no maths.<br>'+
+      '4. It instantly shows <b>= 0.5 Kg</b> → tap <b>✓ Use this quantity</b> → Quantity box is filled with <b>0.5</b> automatically.<br>'+
       '5. Continue filling Rate/Price as normal and submit — everything from here works exactly as before.</p>'+
-      '<p style="background:#E8F5E9;padding:8px;border-radius:6px"><b>Good to know:</b> This is just a calculator to save you from doing the multiplication by hand — it does not change the item\'s unit or add any setup. It\'s available on Purchase, Sale, Daily Register and Returns, wherever you enter a quantity.</p>',
+      '<p>The dropdown automatically offers the right related units for the item: <b>Gram / Kg / Quintal / Ton</b> for any weight-tracked item, and <b>Piece / No. / Dozen</b> for any count-tracked item — pick any of them and the conversion happens on its own.</p>'+
+      '<p>For an unusual unit the dropdown doesn\'t know (like Box, Bag, Packet or Metre), choose <b>"Other unit…"</b> from the dropdown — a small manual calculator appears where you can type your own conversion (e.g. "1 Box = how many Piece").</p>'+
+      '<p style="background:#E8F5E9;padding:8px;border-radius:6px"><b>Good to know:</b> This never changes the item\'s own unit or adds any setup — it only fills the Quantity box for you. It\'s available on Purchase, Sale, Daily Register and Returns, wherever you enter a quantity.</p>',
 
-      '<p>इस app में हर item का <b>एक unit</b> होता है (Inventory में set किया हुआ) जिसमें उसकी stock, sales और reports हमेशा दिखती हैं — जैसे "Piece"। यह कभी बदलने की ज़रूरत नहीं।</p>'+
-      '<p>लेकिन कभी-कभी आप <i>खरीदते</i> समय अलग unit में सोचते हैं — जैसे चावल Bag में खरीदते हैं पर stock Kg में रखते हैं, या चूड़ियाँ Dozen में खरीदते हैं पर Piece में बेचते हैं। इसी के लिए, किसी भी Quantity box के नीचे यह नीला link देखें:</p>'+
-      '<p style="color:#1565C0;font-weight:700">🔄 Bought/counted in a different unit (e.g. Dozen, Box)? Tap to convert</p>'+
-      '<p><b>उदाहरण — आपने 5 Dozen खरीदा, item Piece में track होता है:</b><br>'+
-      '1. वह नीला link दबाएं → एक छोटा calculator खुलेगा।<br>'+
-      '2. "I have" में → <b>5</b> टाइप करें। Unit box में → <b>Dozen</b> लिख सकते हैं (सिर्फ याद रखने के लिए, ज़रूरी नहीं)।<br>'+
-      '3. "= how many Piece in each one?" में → <b>12</b> टाइप करें।<br>'+
-      '4. यह <b>= 60 total</b> दिखाएगा → <b>✓ Use this quantity</b> दबाएं → Quantity box में अपने आप <b>60</b> भर जाएगा।<br>'+
+      '<p>इस app में हर item का <b>एक unit</b> होता है (Inventory में set किया हुआ) जिसमें उसकी stock, sales और reports हमेशा दिखती हैं — जैसे "Kg" या "Piece"। यह कभी बदलने की ज़रूरत नहीं।</p>'+
+      '<p>लेकिन कभी-कभी आप खरीदते/बेचते समय किसी जुड़े हुए अलग unit में सोचते हैं — जैसे item Kg में track होता है पर आप customer को 500 Gram बेचते हैं, या Quintal/Ton में खरीदकर Kg में issue करते हैं, या item Piece/No. में track होता है पर customer Dozen में order करता है। इसी के लिए, किसी भी Quantity box के नीचे यह नीला link देखें:</p>'+
+      '<p style="color:#1565C0;font-weight:700">🔄 Entering a different unit (e.g. Grams, Dozen)? Tap to convert</p>'+
+      '<p><b>उदाहरण — item Kg में track होता है, customer को 500 Gram देना है:</b><br>'+
+      '1. वह नीला link दबाएं → एक छोटा box खुलेगा।<br>'+
+      '2. quantity box में <b>500</b> टाइप करें।<br>'+
+      '3. उसके बगल वाले dropdown में सिर्फ <b>"Gram" चुनें</b> — कोई conversion number टाइप करने की ज़रूरत नहीं।<br>'+
+      '4. यह तुरंत <b>= 0.5 Kg</b> दिखाएगा → <b>✓ Use this quantity</b> दबाएं → Quantity box में अपने आप <b>0.5</b> भर जाएगा।<br>'+
       '5. बाकी Rate/Price हमेशा की तरह भरें और submit करें — आगे सब कुछ पहले जैसा ही काम करता है।</p>'+
-      '<p style="background:#E8F5E9;padding:8px;border-radius:6px"><b>जानने योग्य:</b> यह सिर्फ एक calculator है जो आपको हाथ से गुणा करने से बचाता है — यह item का unit नहीं बदलता और कोई नया setup नहीं माँगता। यह Purchase, Sale, Daily Register और Returns — जहाँ भी quantity भरनी हो, वहाँ उपलब्ध है।</p>'
+      '<p>Dropdown अपने आप item के हिसाब से सही unit दिखाता है: weight वाले item के लिए <b>Gram / Kg / Quintal / Ton</b>, और count वाले item के लिए <b>Piece / No. / Dozen</b> — कोई भी चुनें, conversion खुद हो जाएगा।</p>'+
+      '<p>किसी अनजान unit के लिए (जैसे Box, Bag, Packet या Metre) जो dropdown में नहीं है, <b>"Other unit…"</b> चुनें — एक छोटा manual calculator खुलेगा जिसमें आप अपना conversion टाइप कर सकते हैं।</p>'+
+      '<p style="background:#E8F5E9;padding:8px;border-radius:6px"><b>जानने योग्य:</b> यह item का unit कभी नहीं बदलता और कोई नया setup नहीं माँगता — यह सिर्फ Quantity box अपने आप भर देता है। यह Purchase, Sale, Daily Register और Returns — जहाँ भी quantity भरनी हो, वहाँ उपलब्ध है।</p>'
     )
   );
 
