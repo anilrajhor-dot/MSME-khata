@@ -855,6 +855,20 @@ function checkTBHeadMatch(heads, afterTotal, label){
   return false;
 }
 // ──────────────────────────────────────────────────────────────────────────
+// Guards against accidental duplicate submissions (e.g. double-click/double-tap on a Save/Add
+// button). Call with a short tag identifying the form and a signature string built from its key
+// field values; returns true (and the caller should abort) if an identical submission for the
+// same tag was made within the last 1.5 seconds.
+function dupGuard(tag,sig){
+  var now=Date.now();
+  window._lastSubmit=window._lastSubmit||{};
+  var prev=window._lastSubmit[tag];
+  if(prev && prev.sig===sig && (now-prev.time)<1500){
+    return true;
+  }
+  window._lastSubmit[tag]={sig:sig,time:now};
+  return false;
+}
 function addDebtor(name,amount,date,ref){
   if(!amount)return;
   D.debtors.push({id:uid(),name:name||'Customer',amount:amount,date:date||td(),ref:ref||''});
@@ -3122,8 +3136,8 @@ var _aiHistory=[];
 
 // ── Q10: GST Liability ──────────────────────────────────────────────
 function analyseGSTLiability(){
-  var gstEnabled=D.gst&&D.gst.enabled;
-  if(!gstEnabled){
+  var gstOn=D.gst&&D.gst.enabled;
+  if(!gstOn){
     return '<b>📋 GST Analysis</b><br><br>'+
       '<div style="background:#E3F2FD;border-radius:8px;padding:10px">'+
       'GST is not enabled for this business.<br><br>'+
@@ -3134,25 +3148,12 @@ function analyseGSTLiability(){
       '<b>GST enable karne ke liye:</b> Profile → GST Module → Enable → GSTIN enter karein'+
       '</div>';
   }
-  // Calculate output GST (collected from customers)
-  var outputGST=0, inputGST=0;
-  var gstBySlab={};
-  D.sales.forEach(function(s){
-    var inv=D.inventory.find(function(i){return i.id===s.itemId;});
-    var rate=inv&&inv.gstRate?inv.gstRate:(D.gst.defaultRate||5);
-    var gst=Math.round((s.totalAmount||0)*rate/(100+rate));
-    outputGST+=gst;
-    gstBySlab[rate]=(gstBySlab[rate]||{out:0,inp:0});
-    gstBySlab[rate].out+=gst;
-  });
-  D.purchases.forEach(function(p){
-    var inv=D.inventory.find(function(i){return i.id===p.itemId;});
-    var rate=inv&&inv.gstRate?inv.gstRate:(D.gst.defaultRate||5);
-    var gst=Math.round((p.amount||0)*rate/(100+rate));
-    inputGST+=gst;
-    gstBySlab[rate]=(gstBySlab[rate]||{out:0,inp:0});
-    gstBySlab[rate].inp=(gstBySlab[rate].inp||0)+gst;
-  });
+  // Use the same authoritative source as the GST Module's own reports (computeGSTSummary, built
+  // from each transaction's own STORED gstAmount) rather than recomputing GST here from today's
+  // item rates - that older approach also wrongly treated totalAmount as GST-inclusive, and used
+  // the item's CURRENT rate even for old transactions recorded under a different rate (or none).
+  var gstSum = computeGSTSummary();
+  var outputGST = gstSum.outputGST, inputGST = gstSum.itc;
   var netGST=outputGST-inputGST;
 
   var reply='<b>📋 GST Liability Analysis</b><br>';
@@ -5171,12 +5172,11 @@ function generateBillFromDailyRegisterSale(saleId){
   }
   var billNo = 'INV-' + String(D.nextBillNo).padStart(4,'0');
   D.nextBillNo++;
-  var billGstRate = 0;
-  if(gstEnabled()){
-    var item = D.inventory.filter(function(it){return it.id===sale.itemId;})[0];
-    if(item && item.gstRate!==undefined) billGstRate = item.gstRate;
-  }
-  var billGstType = (D.gst&&D.gst.supplyType)||'intra';
+  // Use the GST rate actually posted on THIS sale (sale.gstRate), not the item's current default
+  // rate - otherwise reprinting an older invoice after GST was turned on/off, or after the item's
+  // rate changed, would show GST that was never actually charged or booked for that sale.
+  var billGstRate = sale.gstRate!=null ? sale.gstRate : 0;
+  var billGstType = sale.gstType || (D.gst&&D.gst.supplyType)||'intra';
   var bill = {id:uid(), billNo:billNo, date:sale.date, customerName:sale.customerName,
     items:[{itemName:sale.itemName, unit:sale.unit, qty:sale.qty, price:sale.sellingPrice, amount:sale.totalAmount}],
     totalAmount:sale.totalAmount, paymentMode:sale.paymentMode, gstRate:billGstRate, gstType:billGstType};
@@ -6000,13 +6000,17 @@ function updateLoanDisbOptions(){
   }
 }
 function addLoan(){
+  if(!allowNewEntry()) return;
   var b=gv('l_b'),a=gvn('l_a'),lt=gv('l_type');
   if(!b){toast('Enter Lender Name','e');return;}
   var isCcOd = (lt==='Cash Credit (CC)' || lt==='Overdraft (OD)');
-  if(!isCcOd && !a){toast('Enter Loan Amount','e');return;}
+  if(!isCcOd && (!a||a<0)){toast('Enter a valid positive Loan Amount','e');return;}
   var acctnum=gv('l_acctnum').trim();
   if(!acctnum){toast('Enter the Loan/CC/OD Account Number','e');return;}
   var r=gvn('l_r'),n=isCcOd?0:gvn('l_t');
+  if(r<0){toast('Interest rate cannot be negative','e');return;}
+  if(!isCcOd && n<0){toast('Tenure cannot be negative','e');return;}
+  if(dupGuard('addLoan',b+'|'+a+'|'+lt+'|'+acctnum)){toast('Duplicate entry ignored — already added','e');return;}
   var moratMonths=isCcOd?0:gvn('l_morat'), moratTreat=gv('l_morat_treat')||'paid';
   var moratResult = (!isCcOd && r && n && moratMonths>0) ? calcEMIWithMoratorium(a,r,n,moratMonths,moratTreat) : null;
   var e=(!isCcOd && r && n) ? (moratResult ? moratResult.emi : calcEMI(a,r,n)) : 0;
@@ -6303,7 +6307,7 @@ function addInv(){
     if(lookup){hsn=lookup[0]; gstRate=+lookup[1];}
   }
   var ivMarginRaw=gv('iv_margin');
-  var item={id:uid(),itemName:n,unit:gv('iv_u'),openingStock:os,currentStock:os,avgCost:pr,
+  var item={id:uid(),itemName:n,unit:gv('iv_u'),openingStock:os,openingRate:pr,currentStock:os,avgCost:pr,
             importedStock:0,importedAvgCost:0,
             reorderLevel:gvn('iv_rl'),
             itemMargin:(ivMarginRaw!==''&&ivMarginRaw!=null&&!isNaN(+ivMarginRaw))?+ivMarginRaw:null,
@@ -6432,6 +6436,7 @@ function pgPur(){
   }
   window._acData = window._acData || {};
   window._acData.suppliers = Array.from(new Set(D.purchases.map(function(p){return p.supplierName;}).concat(D.creditors.map(function(c){return c.name;})).filter(Boolean)));
+  var _puGstDefault=(window._purGstRate!=null?window._purGstRate:(D.gst.defaultRate||0));
   h+=card('Record Purchase',
     g2(inp('Date','pu_d','date',window._purDate||td()),inp('Supplier','pu_s','text',window._purSupplier||'').replace('<input ','<input data-ac="suppliers" '))+
     _scanPurBtn+
@@ -6439,9 +6444,10 @@ function pgPur(){
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===sel?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
     '</select></div>'+
     '<div id="pu_newwrap">'+newItemFields+'</div>'+
-    g2(inp('Qty','pu_q','number',window._purQty||0),inp('Rate (₹, excl. GST)','pu_r','number',window._purRate||0))+
+    g2(inp('Qty','pu_q','number',window._purQty||0).replace('<input ','<input oninput="updatePurCalcPreview()" '),inp('Rate (₹, excl. GST)','pu_r','number',window._purRate||0).replace('<input ','<input oninput="updatePurCalcPreview()" '))+
     qtyConvHtml('pu_q', _selItem ? _selItem.unit : (gv('pu_newunit')||'No.'))+
-    (gstEnabled() ? inp('GST Rate % (0 = exempt)','pu_gst','number',(window._purGstRate!=null?window._purGstRate:(D.gst.defaultRate||0))) : '')+
+    (gstEnabled() ? inp('GST Rate % (0 = exempt)','pu_gst','number',_puGstDefault).replace('<input ','<input oninput="updatePurCalcPreview()" ') : '')+
+    '<div id="pu_calcprev">'+calcPreviewHtml({qty:window._purQty||0,rate:window._purRate||0,gstRate:(gstEnabled()?_puGstDefault:0)})+'</div>'+
     advanceSettleSel('pu_adv','paid_supplier')+
     payModeSel('pu_m',window._purMode||'cash')+
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="pu_import" '+(window._purImport?'checked':'')+' style="width:auto"> This is an Imported purchase (sourced from outside India)</label>'+
@@ -6459,8 +6465,9 @@ function addPur(){
   if(!allowNewEntry()) return;
   var s=gv('pu_s')||window._purSupplier||'',iid=gv('pu_i'),q=gvn('pu_q'),r=gvn('pu_r');
   if(!s){toast('Enter supplier name','e');return;}
-  if(!q||!r){toast('Enter quantity and rate','e');return;}
+  if(!q||!r||q<0||r<0){toast('Enter a valid positive quantity and rate','e');return;}
   var mode=gv('pu_m'),date=gv('pu_d')||td();
+  if(dupGuard('addPur',s+'|'+iid+'|'+q+'|'+r+'|'+mode+'|'+date)){toast('Duplicate entry ignored — already added','e');return;}
   var advId = gv('pu_adv')||'';
   var amt=q*r;
   var adv=null;
@@ -6626,15 +6633,22 @@ function pgSal(){
       h += '<div style="margin-bottom:8px"><button onclick="openScanner(\'inv_barcode\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📷 Scan Barcode / QR Code</button></div>';
   window._acData = window._acData || {};
   window._acData.customers = Array.from(new Set(D.sales.map(function(s){return s.customerName;}).concat(D.debtors.map(function(d){return d.name;})).filter(Boolean)));
+  var _slGstDefault=(window._salGstRate!=null?window._salGstRate:(selItem&&selItem.gstRate!==undefined?selItem.gstRate:(D.gst.defaultRate||0)));
+  var _slCogs0=null;
+  if(selItem && (window._salQty||0)>0){
+    var _slAvail0=(selItem.currentStock||0)+(selItem.importedStock||0);
+    _slCogs0=drawStockPreview(selItem, Math.min(window._salQty||0,_slAvail0)).cogs;
+  }
   h+=card('Record Sale',
     g2(inp('Date','sl_d','date',window._salDate||td()),inp('Customer','sl_c','text',window._salCustomer||'').replace('<input ','<input data-ac="customers" '))+
     '<div class="fg"><label>Item</label><select id="sl_i" onchange="onSalItemChange()" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px;background:#fff;color:#0D2137">'+
     iOpts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===selId?' selected':'')+'>'+esc(o.l)+'</option>';}).join('')+
     '</select></div>'+
     costInfo+
-    g2(inp('Qty','sl_q','number',window._salQty||0),inp('Selling Price (₹/unit, excl. GST)','sl_p','number',window._salPrice||0))+
+    g2(inp('Qty','sl_q','number',window._salQty||0).replace('<input ','<input oninput="updateSalCalcPreview()" '),inp('Selling Price (₹/unit, excl. GST)','sl_p','number',window._salPrice||0).replace('<input ','<input oninput="updateSalCalcPreview()" '))+
     (selItem ? qtyConvHtml('sl_q', selItem.unit) : '')+
-    (gstEnabled() ? inp('GST Rate % (0 = exempt)','sl_gst','number',(window._salGstRate!=null?window._salGstRate:(selItem&&selItem.gstRate!==undefined?selItem.gstRate:(D.gst.defaultRate||0)))) : '')+
+    (gstEnabled() ? inp('GST Rate % (0 = exempt)','sl_gst','number',_slGstDefault).replace('<input ','<input oninput="updateSalCalcPreview()" ') : '')+
+    '<div id="sl_calcprev">'+calcPreviewHtml({qty:window._salQty||0,rate:window._salPrice||0,gstRate:(gstEnabled()?_slGstDefault:0),cogs:selItem?_slCogs0:null})+'</div>'+
     advanceSettleSel('sl_adv','received')+
     payModeSel('sl_m',window._salMode||'cash')+
     '<label style="font-size:12px;color:#546E7A;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="sl_export" '+(window._salExport?'checked':'')+' style="width:auto"> This is an Export Sale (sold to a buyer outside India)</label>'+
@@ -6726,8 +6740,14 @@ function pgStockStatement(){
       {l:'Item',k:'itemName'},{l:'HSN',fn:function(r){return r.hsnCode||'—';}},{l:'Unit',k:'unit'},
       {l:'Opening Qty',r:1,fn:function(r){return fmt(r.openingQty);}},
       {l:'Purchases',r:1,fn:function(r){return fmt(r.purchaseQty);}},
+      {l:'Production',r:1,fn:function(r){return fmt(r.productionQty||0);}},
       {l:'Sales/Consumption',r:1,fn:function(r){return fmt(r.salesQty);}},
       {l:'Closing Qty',r:1,fn:function(r){return fmt(r.closingQty);}},
+      {l:'Reco.',fn:function(r){
+        var expected = r.openingQty + r.purchaseQty + (r.productionQty||0) - r.salesQty;
+        var ok = Math.abs(expected - r.closingQty) < 0.01;
+        return ok ? '✅' : '⚠️ exp '+fmt(expected);
+      }},
       {l:'Rate',r:1,fn:function(r){return fc(r.rate);}},
       {l:'Closing Value',r:1,fn:function(r){return fc(r.closingValue);}},
       {l:'Origin',fn:function(r){
@@ -6735,12 +6755,19 @@ function pgStockStatement(){
         return 'Dom: '+fmt(r.indigenousQty)+' / Imp: '+fmt(r.importedQty);
       }}
     ];
+    var anyMismatch = rows.some(function(r){
+      var expected = r.openingQty + r.purchaseQty + (r.productionQty||0) - r.salesQty;
+      return Math.abs(expected - r.closingQty) >= 0.01;
+    });
     setLedgerShareData('Item-wise Stock Statement — '+selMonth+' — '+(D.profile.businessName||''), cols, rows,
       ['Business: '+(D.profile.businessName||''), 'Month-End: '+selMonth, 'Total Closing Value: '+fc(totalClosingValue)]);
     h += card('Item-wise Stock — as of '+selMonth,
       (rows.length ? tbl(cols, rows)+ledgerActionButtons() : '<div class="al ali">No stock activity recorded for this item as of this date.</div>')+
       '<div style="text-align:right;font-weight:800;padding:8px;font-size:13px">Total Closing Value: '+fc(totalClosingValue)+'</div>'
     );
+    if(anyMismatch){
+      h += '<div class="al alw">⚠️ One or more items above do not satisfy Opening + Purchases + Production − Sales/Consumption = Closing. Check the "Reco." column for the affected item(s).</div>';
+    }
 
     if(toDate>=td()){
       var bsStock = getF().cs;
@@ -7714,6 +7741,46 @@ function drawStockExact(item, fromIndig, fromImp, indigCostEach, impCostEach){
     item.importedStock=Math.max(0,itq); item.importedAvgCost = item.importedStock>0 ? Math.max(0,itv)/item.importedStock : 0;
   }
 }
+// Live before-save calculation preview (Qty x Rate = Value, GST, Total, and - when cogs is
+// given - COGS/Gross Profit%) shown on the Sale/Purchase entry forms so the user can see the
+// numbers their entry will post before they click Save.
+function calcPreviewHtml(opts){
+  var q=opts.qty||0, rate=opts.rate||0, gstRate=opts.gstRate||0;
+  var tot=q*rate;
+  var gstAmt = gstRate>0 ? Math.round(tot*gstRate/100*100)/100 : 0;
+  var grand = tot+gstAmt;
+  var rows = '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="color:#546E7A">'+fmt(q)+' × '+fc(rate)+'</span><span><b>'+fc(tot)+'</b></span></div>';
+  if(gstRate>0){
+    rows += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="color:#546E7A">GST @ '+gstRate+'%</span><span>'+fc(gstAmt)+'</span></div>';
+  }
+  rows += '<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1px solid #BBDEFB;padding-top:4px;margin-top:2px"><span>Total'+(gstRate>0?' (incl. GST)':'')+'</span><span>'+fc(grand)+'</span></div>';
+  if(opts.cogs!=null){
+    var gp=tot-opts.cogs, pct=tot>0?Math.round(gp/tot*10000)/100:0;
+    var col=gp>=0?'#2E7D32':'#C62828';
+    rows += '<div style="display:flex;justify-content:space-between;font-size:11px;color:#546E7A;margin-top:4px"><span>COGS</span><span>'+fc(opts.cogs)+'</span></div>';
+    rows += '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:'+col+'"><span>Gross Profit</span><span>'+fc(gp)+' ('+pct+'%)</span></div>';
+  }
+  return '<div class="al ali" style="margin-bottom:8px">'+rows+'</div>';
+}
+function updateSalCalcPreview(){
+  var el=document.getElementById('sl_calcprev'); if(!el) return;
+  var q=gvn('sl_q')||0,p=gvn('sl_p')||0;
+  var gstRate = gstEnabled() ? (gvn('sl_gst')||0) : 0;
+  var iid=gv('sl_i'),item=null; for(var i=0;i<D.inventory.length;i++) if(D.inventory[i].id===iid){item=D.inventory[i];break;}
+  var cogs=null;
+  if(item && q>0){
+    var totalAvail=(item.currentStock||0)+(item.importedStock||0);
+    var draw=drawStockPreview(item, Math.min(q,totalAvail));
+    cogs=draw.cogs;
+  }
+  el.innerHTML = calcPreviewHtml({qty:q,rate:p,gstRate:gstRate,cogs:cogs});
+}
+function updatePurCalcPreview(){
+  var el=document.getElementById('pu_calcprev'); if(!el) return;
+  var q=gvn('pu_q')||0,r=gvn('pu_r')||0;
+  var gstRate = gstEnabled() ? (gvn('pu_gst')||0) : 0;
+  el.innerHTML = calcPreviewHtml({qty:q,rate:r,gstRate:gstRate});
+}
 function drawStockPreview(item, q){
   var fromIndig = Math.min(q, item.currentStock);
   var fromImp = q - fromIndig;
@@ -7951,12 +8018,13 @@ function addSal(){
   var c2=gv('sl_c')||window._salCustomer||'',iid=gv('sl_i'),q=gvn('sl_q'),p=gvn('sl_p');
   if(!c2){toast('Enter customer name','e');return;}
   if(!iid){toast('Select an item','e');return;}
-  if(!q||!p){toast('Enter quantity and selling price','e');return;}
+  if(!q||!p||q<0||p<0){toast('Enter a valid positive quantity and selling price','e');return;}
   var item=null,i;for(i=0;i<D.inventory.length;i++)if(D.inventory[i].id===iid){item=D.inventory[i];break;}
   if(!item)return;
   var totalAvail = item.currentStock + (item.importedStock||0);
   if(q>totalAvail){toast('Insufficient stock! Available: '+fmt(totalAvail),'e');return;}
   var mode=gv('sl_m'),date=gv('sl_d')||td();
+  if(dupGuard('addSal',c2+'|'+iid+'|'+q+'|'+p+'|'+mode+'|'+date)){toast('Duplicate entry ignored — already added','e');return;}
   var advId = gv('sl_adv')||'';
   var draw = drawStockPreview(item, q);
   var tot=q*p,cogs=draw.cogs,gp=tot-cogs,pct=+(tot>0?((gp/tot)*100).toFixed(1):0);
@@ -8045,8 +8113,9 @@ function renameCat(i){
 }
 function addExp(){
   if(!allowNewEntry()) return;
-  var a=gvn('ex_a');if(!a){toast('Enter amount','e');return;}
+  var a=gvn('ex_a');if(!a||a<0){toast('Enter a valid positive amount','e');return;}
   var mode=gv('ex_m'),date=gv('ex_d')||td(),cat=gv('ex_c'),rem=gv('ex_r');
+  if(dupGuard('addExp',a+'|'+mode+'|'+date+'|'+cat+'|'+rem)){toast('Duplicate entry ignored — already added','e');return;}
   var advId = gv('ex_adv')||'';
   var adv=null;
   if(advId){
@@ -8625,6 +8694,7 @@ function removePartner(idx){
 }
 
 function addAdvance(){
+  if(!allowNewEntry()) return;
   var date=gv('adv_d')||td(), amt=gvn('adv_a'), typeSel=gv('adv_type'), party=gv('adv_party')||'', mode=gv('adv_mode')||'cash', notes=gv('adv_notes')||'';
   if(!amt || amt<=0){toast('Enter the advance amount','e');return;}
   if(!party){toast('Enter the party name','e');return;}
@@ -8634,6 +8704,7 @@ function addAdvance(){
   else { type='received'; category='customer'; }
   if(mode==='credit'){toast('Advances must be paid/received via Cash, Bank, UPI, CC or OD - not Credit','e');return;}
   if(!validateCCOD(mode)) return;
+  if(dupGuard('addAdvance',date+'|'+amt+'|'+typeSel+'|'+party+'|'+mode)){toast('Duplicate entry ignored — already added','e');return;}
 
   var desc = (type==='paid'?'Advance Paid to ':'Advance Received from ')+party+(notes?' - '+notes:'');
   if(type==='paid'){
@@ -8663,9 +8734,11 @@ function deleteAdvance(id){
   });
 }
 function addTransfer(){
+  if(!allowNewEntry()) return;
   var date=gv('tr_d')||td(), amt=gvn('tr_a'), from=gv('tr_from'), to=gv('tr_to'), ds=gv('tr_ds')||'';
   if(!amt || amt<=0){toast('Enter the transfer amount','e');return;}
   if(from===to){toast('From and To accounts must be different','e');return;}
+  if(dupGuard('addTransfer',date+'|'+amt+'|'+from+'|'+to+'|'+ds)){toast('Duplicate entry ignored — already added','e');return;}
   var desc = 'Transfer'+(ds?' - '+ds:'')+' ('+modeLabel(from)+' \u2192 '+modeLabel(to)+')';
   postCB(from,'payment',amt,'',desc,date);
   postCB(to,'receipt',amt,'',desc,date);
@@ -8682,8 +8755,10 @@ function modeLabel(mode){
   return mode;
 }
 function addCB(){
+  if(!allowNewEntry()) return;
   var a=gvn('cb_a'),ds=gv('cb_ds'),m=gv('cb_m');
-  if(!a){toast('Enter amount','e');return;}
+  if(!a||a<0){toast('Enter a valid positive amount','e');return;}
+  if(dupGuard('addCB',a+'|'+ds+'|'+m+'|'+gv('cb_t')+'|'+(gv('cb_d')||td()))){toast('Duplicate entry ignored — already added','e');return;}
   var cbMode, bankAccountId;
   if(m.indexOf('bank:')===0){ cbMode='bank'; bankAccountId=m.slice(5); } else { cbMode='cash'; }
   var entry={id:uid(),date:gv('cb_d')||td(),type:gv('cb_t'),mode:cbMode,subMode:m,amount:a,party:gv('cb_p'),description:ds||'Manual Entry'};
@@ -9312,7 +9387,8 @@ function pgFin(){
     if(isMfgBiz()) h+=mfgCostingCard(f);
   }
   else if(tab===1){
-    var erH='',i,ec,ea,j;for(i=0;i<D.expenseCategories.length;i++){ec=D.expenseCategories[i];if(isDirectExpenseCategory(ec))continue;ea=0;for(j=0;j<D.expenses.length;j++)if(D.expenses[j].category===ec)ea+=D.expenses[j].amount;if(ea>0)erH+=fsr(ec,ea,0,1);}
+    var mfgMappedCats = (f.mfg && f.mfgReconciled) ? (D.mfgCosting.directLabourCategories||[]).concat(D.mfgCosting.factoryOverheadCategories||[]) : [];
+    var erH='',i,ec,ea,j;for(i=0;i<D.expenseCategories.length;i++){ec=D.expenseCategories[i];if(isDirectExpenseCategory(ec))continue;if(mfgMappedCats.indexOf(ec)>=0)continue;ea=0;for(j=0;j<D.expenses.length;j++)if(D.expenses[j].category===ec)ea+=D.expenses[j].amount;if(ea>0)erH+=fsr(ec,ea,0,1);}
     h+=card('P &amp; L Account (Current Period)',fsr('Gross Profit b/d',f.gp,1)+'<div style="font-size:10px;font-weight:700;color:#546E7A;padding:5px 8px">LESS: OPERATING EXPENSES</div>'+erH+fsr('Total Expenses',f.indirectExpenses,0,1)+fsr('NET PROFIT',f.np,1,0,1));
     if(f.directExpenses>0)h+='<div class="al ali">Direct Expenses of '+fc(f.directExpenses)+' (Freight/Carriage Inward etc.) are included in the Trading Account\'s Cost of Goods Sold above, not repeated here.</div>';
 
@@ -11516,7 +11592,7 @@ function postTBExecute(){
     else if(r.head==='stock'){
       open.stock += amt;
       if(D.inventory.length===0){
-        D.inventory.push({id:uid(),itemName:'Opening Stock (General)',unit:'Lot',openingStock:1,currentStock:1,avgCost:amt,reorderLevel:0,fromTB:true});
+        D.inventory.push({id:uid(),itemName:'Opening Stock (General)',unit:'Lot',openingStock:1,openingRate:amt,currentStock:1,avgCost:amt,reorderLevel:0,fromTB:true});
       }
     }
     else if(r.head==='stockitem'){
@@ -11530,6 +11606,7 @@ function postTBExecute(){
         existing.currentStock = newQty;
         existing.avgCost = newQty>0 ? newVal/newQty : 0;
         existing.openingStock = (existing.openingStock||0) + qty;
+        existing.openingRate = existing.avgCost;
         if(!existing.unit || existing.unit==='No.')existing.unit = r.unit||existing.unit;
         if(wasNew) existing.fromTB = true;
       }
@@ -11809,38 +11886,58 @@ function saveEditSale(id){
     oldIndigCost = old.indigCostEach||0; oldImpCost = old.impCostEach||0;
   }
   if(oldItem) restoreStock(oldItem, oldFromIndig, oldFromImp, oldIndigCost, oldImpCost);
-  if(old.paymentMode==='credit')removeDebtorByRef('Sale: '+old.itemName,old.totalAmount);
-  else if(old.paymentMode==='advance')restoreAdvance(old.advanceId,old.totalAmount,'received','customer',old.customerName,old);
-  else reverseCB(old.paymentMode,'receipt',old.totalAmount,'Sale: '+old.itemName);
+  // Reverse the FULL amount actually posted, including any GST, and remove the stale GST ledger
+  // entry for this sale - otherwise editing a GST sale leaves a phantom balance behind and an
+  // orphaned line in GST reports that no longer matches any real sale.
+  var oldPosted = (old.totalAmount||0) + (old.gstAmount||0);
+  if(old.paymentMode==='credit')removeDebtorByRef('Sale: '+old.itemName,oldPosted);
+  else if(old.paymentMode==='advance'){
+    restoreAdvance(old.advanceId,old.totalAmount,'received','customer',old.customerName,old);
+    if(old.gstAmount>0.005) reverseCB(old.gstPaymentMode||'cash','receipt',old.gstAmount,'GST on Sale (advance-settled): '+old.itemName);
+  }
+  else reverseCB(old.paymentMode,'receipt',oldPosted,'Sale: '+old.itemName);
+  if(old.gstAmount>0.005){ D.gstLedger = D.gstLedger.filter(function(g){ return g.saleId!==old.id; }); }
 
   var iid=gv('es_i'),q=gvn('es_q'),p=gvn('es_p'),c2=gv('es_c'),date=gv('es_d')||td(),mode=gv('es_m');
   var item=null;for(i=0;i<D.inventory.length;i++)if(D.inventory[i].id===iid)item=D.inventory[i];
   if(!item||!c2||!q||!p){
     // restore old state since we reversed it
     if(oldItem) drawStockExact(oldItem, oldFromIndig, oldFromImp, oldIndigCost, oldImpCost);
-    if(old.paymentMode==='credit')addDebtor(old.customerName,old.totalAmount,old.date,'Sale: '+old.itemName);
+    if(old.paymentMode==='credit')addDebtor(old.customerName,oldPosted,old.date,'Sale: '+old.itemName);
     else if(old.paymentMode==='advance'){
       for(var ai=0;ai<(D.advances||[]).length;ai++) if(D.advances[ai].id===old.advanceId) D.advances[ai].amount = (+D.advances[ai].amount||0) - old.totalAmount;
+      if(old.gstAmount>0.005) postCB(old.gstPaymentMode||'cash','receipt',old.gstAmount,old.customerName,'GST on Sale (advance-settled): '+old.itemName,old.date);
     }
-    else postCB(old.paymentMode,'receipt',old.totalAmount,old.customerName,'Sale: '+old.itemName,old.date);
+    else postCB(old.paymentMode,'receipt',oldPosted,old.customerName,'Sale: '+old.itemName,old.date);
+    if(old.gstAmount>0.005){ D.gstLedger.push({id:uid(), date:old.date, type:'output', amount:old.gstAmount, ref:'Sale: '+old.itemName, saleId:old.id}); }
     toast('Fill all fields','e');return;
   }
   var newTotalAvail = item.currentStock + (item.importedStock||0);
   if(q>newTotalAvail){
     if(oldItem) drawStockExact(oldItem, oldFromIndig, oldFromImp, oldIndigCost, oldImpCost);
-    if(old.paymentMode==='credit')addDebtor(old.customerName,old.totalAmount,old.date,'Sale: '+old.itemName);
+    if(old.paymentMode==='credit')addDebtor(old.customerName,oldPosted,old.date,'Sale: '+old.itemName);
     else if(old.paymentMode==='advance'){
       for(var ai2=0;ai2<(D.advances||[]).length;ai2++) if(D.advances[ai2].id===old.advanceId) D.advances[ai2].amount = (+D.advances[ai2].amount||0) - old.totalAmount;
+      if(old.gstAmount>0.005) postCB(old.gstPaymentMode||'cash','receipt',old.gstAmount,old.customerName,'GST on Sale (advance-settled): '+old.itemName,old.date);
     }
-    else postCB(old.paymentMode,'receipt',old.totalAmount,old.customerName,'Sale: '+old.itemName,old.date);
+    else postCB(old.paymentMode,'receipt',oldPosted,old.customerName,'Sale: '+old.itemName,old.date);
+    if(old.gstAmount>0.005){ D.gstLedger.push({id:uid(), date:old.date, type:'output', amount:old.gstAmount, ref:'Sale: '+old.itemName, saleId:old.id}); }
     toast('Insufficient stock for edited quantity','e');return;
   }
   var draw=drawStockPreview(item,q);
   var tot=q*p,cogs=draw.cogs,gp=tot-cogs,pct=+(tot>0?((gp/tot)*100).toFixed(1):0);
-  D.sales[idx]={id:id,date:date,customerName:c2,itemId:iid,itemName:item.itemName,unit:item.unit,qty:q,sellingPrice:p,totalAmount:tot,cogs:cogs,grossProfit:gp,profitPct:pct,paymentMode:mode,fromIndig:draw.fromIndig,fromImp:draw.fromImp,indigCostEach:item.avgCost,impCostEach:item.importedAvgCost||0};
+  // The Edit form doesn't expose a GST-rate control, so re-apply the sale's ORIGINAL GST rate
+  // (if any) to the new taxable value, instead of silently dropping GST just because a qty/price
+  // was corrected. If GST has since been turned off, gstEnabled() forces this back to zero.
+  var gstRate = old.gstRate || 0;
+  var gstType = old.gstType || (D.gst&&D.gst.supplyType) || 'intra';
+  var gstAmt = (gstEnabled() && gstRate>0) ? Math.round(tot*gstRate/100*100)/100 : 0;
+  var totForPosting = tot + gstAmt;
+  D.sales[idx]={id:id,date:date,customerName:c2,itemId:iid,itemName:item.itemName,unit:item.unit,qty:q,sellingPrice:p,totalAmount:tot,cogs:cogs,grossProfit:gp,profitPct:pct,paymentMode:mode,fromIndig:draw.fromIndig,fromImp:draw.fromImp,indigCostEach:item.avgCost,impCostEach:item.importedAvgCost||0,gstRate:gstRate,gstType:gstType,taxableValue:tot,gstAmount:gstAmt,isExport:old.isExport||false};
   drawStock(item,q);
-  if(mode==='credit')addDebtor(c2,tot,date,'Sale: '+item.itemName);
-  else postCB(mode,'receipt',tot,c2,'Sale: '+item.itemName,date);
+  if(mode==='credit')addDebtor(c2,totForPosting,date,'Sale: '+item.itemName);
+  else postCB(mode,'receipt',totForPosting,c2,'Sale: '+item.itemName,date);
+  if(gstAmt>0.005){ D.gstLedger.push({id:uid(), date:date, type:'output', amount:gstAmt, ref:'Sale: '+item.itemName, saleId:id}); }
   sv();cancelEdit();toast('Sale updated!');
 }
 
@@ -11922,19 +12019,29 @@ function saveEditPurchase(id){
       oldItem.avgCost=oldItem.currentStock>0?Math.max(0,totalVal)/oldItem.currentStock:0;
     }
   }
-  if(old.paymentMode==='credit')removeCreditorByRef('Purchase: '+old.itemName,old.amount);
-  else if(old.paymentMode==='advance')restoreAdvance(old.advanceId,old.amount,'paid','supplier',old.supplierName,old);
-  else reverseCB(old.paymentMode,'payment',old.amount,'Purchase: '+old.itemName);
+  // Reverse the FULL amount actually posted, including any GST, and remove the stale GST ledger
+  // entry for this purchase - otherwise editing a GST purchase leaves a phantom balance behind
+  // and an orphaned line in GST reports that no longer matches any real purchase.
+  var oldPostedP = (old.amount||0) + (old.gstAmount||0);
+  if(old.paymentMode==='credit')removeCreditorByRef('Purchase: '+old.itemName,oldPostedP);
+  else if(old.paymentMode==='advance'){
+    restoreAdvance(old.advanceId,old.amount,'paid','supplier',old.supplierName,old);
+    if(old.gstAmount>0.005) reverseCB(old.gstPaymentMode||'cash','payment',old.gstAmount,'GST on Purchase (advance-settled): '+old.itemName);
+  }
+  else reverseCB(old.paymentMode,'payment',oldPostedP,'Purchase: '+old.itemName);
+  if(old.gstAmount>0.005){ D.gstLedger = D.gstLedger.filter(function(g){ return g.purchaseId!==old.id; }); }
 
   var iid=gv('ep_i'),q=gvn('ep_q'),r=gvn('ep_r'),s2=gv('ep_s'),date=gv('ep_d')||td(),mode=gv('ep_m');
   var item=null;for(i=0;i<D.inventory.length;i++)if(D.inventory[i].id===iid)item=D.inventory[i];
   if(!item||!s2||!q||!r){
     if(oldItem){oldItem.currentStock=savedStock;oldItem.avgCost=savedCost;oldItem.importedStock=savedImpStock;oldItem.importedAvgCost=savedImpCost;}
-    if(old.paymentMode==='credit')addCreditor(old.supplierName,old.amount,old.date,'Purchase: '+old.itemName);
+    if(old.paymentMode==='credit')addCreditor(old.supplierName,oldPostedP,old.date,'Purchase: '+old.itemName);
     else if(old.paymentMode==='advance'){
       for(var api=0;api<(D.advances||[]).length;api++) if(D.advances[api].id===old.advanceId) D.advances[api].amount = (+D.advances[api].amount||0) - old.amount;
+      if(old.gstAmount>0.005) postCB(old.gstPaymentMode||'cash','payment',old.gstAmount,old.supplierName,'GST on Purchase (advance-settled): '+old.itemName,old.date);
     }
-    else postCB(old.paymentMode,'payment',old.amount,old.supplierName,'Purchase: '+old.itemName,old.date);
+    else postCB(old.paymentMode,'payment',oldPostedP,old.supplierName,'Purchase: '+old.itemName,old.date);
+    if(old.gstAmount>0.005){ D.gstLedger.push({id:uid(), date:old.date, type:'input', amount:old.gstAmount, ref:'Purchase: '+old.itemName, purchaseId:old.id}); }
     toast('Fill all fields','e');return;
   }
   var isImported = document.getElementById('ep_import') ? document.getElementById('ep_import').checked : false;
@@ -11946,9 +12053,16 @@ function saveEditPurchase(id){
     var tq=item.currentStock+q,tv2=item.currentStock*item.avgCost+amt;
     item.currentStock=tq;item.avgCost=tq>0?tv2/tq:r;
   }
-  D.purchases[idx]={id:id,date:date,supplierName:s2,itemId:item.id,itemName:item.itemName,qty:q,rate:r,amount:amt,paymentMode:mode,isImported:isImported};
-  if(mode==='credit')addCreditor(s2,amt,date,'Purchase: '+item.itemName);
-  else postCB(mode,'payment',amt,s2,'Purchase: '+item.itemName,date);
+  // The Edit form doesn't expose a GST-rate control, so re-apply the purchase's ORIGINAL GST
+  // rate (if any) to the new amount, instead of silently dropping GST/ITC just because a
+  // qty/rate was corrected. If GST has since been turned off, gstEnabled() forces this to zero.
+  var gstRateP = old.gstRate || 0;
+  var gstAmtP = (gstEnabled() && gstRateP>0) ? Math.round(amt*gstRateP/100*100)/100 : 0;
+  var amtForPosting = amt + gstAmtP;
+  D.purchases[idx]={id:id,date:date,supplierName:s2,itemId:item.id,itemName:item.itemName,qty:q,rate:r,amount:amt,paymentMode:mode,isImported:isImported,gstRate:gstRateP,gstAmount:gstAmtP,taxableValue:amt};
+  if(mode==='credit')addCreditor(s2,amtForPosting,date,'Purchase: '+item.itemName);
+  else postCB(mode,'payment',amtForPosting,s2,'Purchase: '+item.itemName,date);
+  if(gstAmtP>0.005){ D.gstLedger.push({id:uid(), date:date, type:'input', amount:gstAmtP, ref:'Purchase: '+item.itemName, purchaseId:id}); }
   sv();cancelEdit();toast('Purchase updated!');
 }
 
@@ -12046,9 +12160,11 @@ function addManualCreditor(){
   announceEntry('Creditor added: '+name+', opening balance rupees '+Math.round(amt)+'.', name+' creditor जोड़ा गया, opening balance रुपये '+Math.round(amt)+'।');
 }
 function recordDebtorReceipt(){
+  if(!allowNewEntry()) return;
   var name=gv('rd_name'),amt=gvn('rd_amt'),date=gv('rd_date')||td(),mode=gv('rd_mode');
   if(!name){toast('Select a debtor','e');return;}
-  if(!amt){toast('Enter amount','e');return;}
+  if(!amt||amt<0){toast('Enter a valid positive amount','e');return;}
+  if(dupGuard('recordDebtorReceipt',name+'|'+amt+'|'+mode+'|'+date)){toast('Duplicate entry ignored — already added','e');return;}
   if(!validateCCOD(mode)) return;
   // reduce debtor balance (negative entry)
   var rdId=gv('rd_id')||'';
@@ -12063,9 +12179,11 @@ function recordDebtorReceipt(){
   announceEntry('Payment of rupees '+Math.round(amt)+' received from '+name+'.', 'रुपये '+Math.round(amt)+' का भुगतान '+name+' से प्राप्त हुआ।');
 }
 function recordCreditorPayment(){
+  if(!allowNewEntry()) return;
   var name=gv('cp_name'),amt=gvn('cp_amt'),date=gv('cp_date')||td(),mode=gv('cp_mode');
   if(!name){toast('Select a creditor','e');return;}
-  if(!amt){toast('Enter amount','e');return;}
+  if(!amt||amt<0){toast('Enter a valid positive amount','e');return;}
+  if(dupGuard('recordCreditorPayment',name+'|'+amt+'|'+mode+'|'+date)){toast('Duplicate entry ignored — already added','e');return;}
   if(!validateCCOD(mode)) return;
   // reduce creditor balance (negative entry)
   D.creditors.push({id:uid(),name:name,amount:-amt,date:date,ref:'Payment',type:'supplier'});
@@ -12075,9 +12193,11 @@ function recordCreditorPayment(){
   announceEntry('Payment of rupees '+Math.round(amt)+' made to '+name+'.', 'रुपये '+Math.round(amt)+' का भुगतान '+name+' को किया गया।');
 }
 function recordExpensePayablePayment(){
+  if(!allowNewEntry()) return;
   var name=gv('ep_name'),amt=gvn('ep_amt'),date=gv('ep_date')||td(),mode=gv('ep_mode');
   if(!name){toast('Select an expense payable item','e');return;}
-  if(!amt){toast('Enter amount','e');return;}
+  if(!amt||amt<0){toast('Enter a valid positive amount','e');return;}
+  if(dupGuard('recordExpensePayablePayment',name+'|'+amt+'|'+mode+'|'+date)){toast('Duplicate entry ignored — already added','e');return;}
   if(!validateCCOD(mode)) return;
   D.creditors.push({id:uid(),name:name,amount:-amt,date:date,ref:'Payment',type:'expense'});
   postCB(mode,'payment',amt,name,'Payment of Expense Payable: '+name,date);
@@ -13309,11 +13429,32 @@ function renderReconResult(r){
 // Balance Sheet stays tallied. Any depreciation already applied is also reversed.
 // Use "Sell / Dispose" for actual disposals; use "Remove" only to fix data entry errors.
 function removeFA(id, name){
-  confirmDialog('Remove fixed asset "'+name+'"? This deletes the asset record and reverses its cost from the Balance Sheet. Use this only to correct a mistake - for an actual sale, use "Sell / Dispose Asset" instead. This cannot be undone.', function(){
+  confirmDialog('Remove fixed asset "'+name+'"? This deletes the asset record, reverses its cost from the Balance Sheet, AND reverses whatever cash/bank, creditor, or loan drawdown originally paid for it. Use this only to correct a mistake - for an actual sale, use "Sell / Dispose Asset" instead. This cannot be undone.', function(){
     var idx=-1, i;
     for(i=0;i<D.fixedAssets.length;i++) if(D.fixedAssets[i].id===id){idx=i;break;}
     if(idx<0){toast('Asset not found','e');return;}
     var a = D.fixedAssets[idx];
+    // Reverse whatever originally paid for this asset (BUG fixed - this used to be skipped
+    // entirely, leaving an orphaned cash/bank debit, creditor liability, or loan balance behind).
+    // Older asset records (added before this fix) have no financeMode stored; for those we can't
+    // know how they were paid, so we leave the payment side untouched and warn the user instead.
+    var reversed = true;
+    if(a.financeMode==='credit'){
+      reversed = removeCreditorByRef('Purchase: '+a.name, a.cost);
+    } else if(a.financeMode && a.financeMode.indexOf('splitloan:')===0){
+      var splitLoan=null; for(var si=0;si<D.loans.length;si++) if(D.loans[si].id===a.financeLoanId) splitLoan=D.loans[si];
+      if(splitLoan){ splitLoan.outstandingBalance = Math.max(0,(+splitLoan.outstandingBalance||0) - (+a.financeLoanAmt||0)); }
+      else reversed = false;
+      if(a.marginAmt>0.5){ if(!reverseCB(a.marginMode,'payment',a.marginAmt,'Margin Money for Purchase of Fixed Asset: '+a.name)) reversed = false; }
+    } else if(a.financeMode && a.financeMode.indexOf('loan:')===0){
+      var loan=null; for(var li=0;li<D.loans.length;li++) if(D.loans[li].id===a.financeLoanId) loan=D.loans[li];
+      if(loan){ loan.outstandingBalance = Math.max(0,(+loan.outstandingBalance||0) - (+a.cost||0)); }
+      else reversed = false;
+    } else if(a.financeMode){
+      reversed = reverseCB(a.financeMode,'payment',a.cost,'Purchase of Fixed Asset: '+a.name);
+    } else {
+      reversed = null; // unknown - pre-existing record from before this fix
+    }
     // Reverse cost from otherAssets (which holds gross cost of all FA)
     D.otherAssets = Math.max(0, (+D.otherAssets||0) - (+a.cost||0));
     // Remove from otherAssetsNotes if present
@@ -13324,16 +13465,30 @@ function removeFA(id, name){
     }
     D.fixedAssets.splice(idx,1);
     sv(); renderPage();
-    toast('Asset removed. Check your Balance Sheet and re-add the asset with the correct payment mode if needed.');
+    if(reversed===null){
+      toast('Asset removed. This asset predates automatic payment-reversal - please manually check and correct the cash/bank, creditor or loan entry it was paid with.','w');
+    } else if(reversed===false){
+      toast('Asset removed, but its original payment entry could not be found to reverse automatically - please check your Cash/Bank, Creditors or Loans for a stale entry.','w');
+    } else {
+      toast('Asset removed and its original payment reversed.');
+    }
   });
 }
 // Remove an intangible asset entry (same logic as removeFA)
 function removeIA(id, name){
-  confirmDialog('Remove intangible asset "'+name+'"? This deletes the record and reverses its cost from the Balance Sheet. Use only to correct a mistake.', function(){
+  confirmDialog('Remove intangible asset "'+name+'"? This deletes the record, reverses its cost from the Balance Sheet, and reverses whatever cash/bank or creditor entry originally paid for it. Use only to correct a mistake.', function(){
     var idx=-1, i;
     for(i=0;i<D.intangibleAssets.length;i++) if(D.intangibleAssets[i].id===id){idx=i;break;}
     if(idx<0){toast('Asset not found','e');return;}
     var a = D.intangibleAssets[idx];
+    var reversed = true;
+    if(a.financeMode==='credit'){
+      reversed = removeCreditorByRef('Purchase: '+a.name, a.cost);
+    } else if(a.financeMode){
+      reversed = reverseCB(a.financeMode,'payment',a.cost,'Purchase of Intangible Asset: '+a.name);
+    } else {
+      reversed = null; // pre-existing record from before this fix
+    }
     D.otherAssets = Math.max(0, (+D.otherAssets||0) - (+a.cost||0));
     if(D.otherAssetsNotes){
       D.otherAssetsNotes = D.otherAssetsNotes.filter(function(n){
@@ -13342,7 +13497,13 @@ function removeIA(id, name){
     }
     D.intangibleAssets.splice(idx,1);
     sv(); renderPage();
-    toast('Intangible asset removed. Re-add with correct details if needed.');
+    if(reversed===null){
+      toast('Intangible asset removed. This asset predates automatic payment-reversal - please manually check and correct the cash/bank or creditor entry it was paid with.','w');
+    } else if(reversed===false){
+      toast('Asset removed, but its original payment entry could not be found to reverse automatically - please check your Cash/Bank or Creditors for a stale entry.','w');
+    } else {
+      toast('Intangible asset removed and its original payment reversed.');
+    }
   });
 }
 function faWDV(a){
@@ -13419,9 +13580,12 @@ function updateFaSplitFields(){
 }
 
 function purchaseFA(){
+  if(!allowNewEntry()) return;
   var name=gv('fa_name'), cat=gv('fa_cat'), cost=gvn('fa_cost'), rate=gvn('fa_rate'), date=gv('fa_date')||td(), mode=gv('fa_mode');
   if(!name){toast('Enter asset name','e');return;}
-  if(!cost){toast('Enter cost','e');return;}
+  if(!cost||cost<0){toast('Enter a valid positive cost','e');return;}
+  if(rate<0){toast('Depreciation rate cannot be negative','e');return;}
+  if(dupGuard('purchaseFA',name+'|'+cat+'|'+cost+'|'+rate+'|'+date+'|'+mode)){toast('Duplicate entry ignored — already added','e');return;}
   // Validate split-loan inputs BEFORE making any changes to D, so a validation error never leaves
   // behind an orphaned asset with no corresponding liability/payment.
   var splitLoanId='', loanAmt2=0, marginMode='cash', marginAmt=0;
@@ -13434,13 +13598,20 @@ function purchaseFA(){
     marginAmt = cost - loanAmt2;
   }
   D.fixedAssets = D.fixedAssets || [];
-  D.fixedAssets.push({id:uid(),name:name,category:cat,cost:cost,depRate:rate,purchaseDate:date,accumDep:0,lastDepDate:date,disposed:false});
+  // financeMode/creditorName/financeLoanId/financeLoanAmt/marginMode/marginAmt are stored on the
+  // asset record itself so removeFA() can later reverse the exact original payment/liability it
+  // created, regardless of which of the 4 financing paths below was used (BUG fixed: deleting a
+  // fixed asset used to only reverse its Balance Sheet cost figure, leaving the cash/bank debit,
+  // creditor liability, or loan drawdown it was paid with permanently orphaned).
+  var creditorNameForFA = (mode==='credit') ? (gv('fa_creditor')||'Supplier') : undefined;
+  D.fixedAssets.push({id:uid(),name:name,category:cat,cost:cost,depRate:rate,purchaseDate:date,accumDep:0,lastDepDate:date,disposed:false,
+    financeMode:mode, creditorName:creditorNameForFA, financeLoanId:(mode.indexOf('splitloan:')===0?splitLoanId:(mode.indexOf('loan:')===0?mode.slice(5):undefined)),
+    financeLoanAmt:(mode.indexOf('splitloan:')===0?loanAmt2:undefined), marginMode:(mode.indexOf('splitloan:')===0?marginMode:undefined), marginAmt:(mode.indexOf('splitloan:')===0?marginAmt:undefined)});
   D.otherAssets = (+D.otherAssets||0) + cost;
   D.otherAssetsNotes = D.otherAssetsNotes || [];
   D.otherAssetsNotes.push({label:name+' ('+cat+')',amount:cost});
   if(mode==='credit'){
-    var creditorName=gv('fa_creditor')||'Supplier';
-    D.creditors.push({id:uid(),name:creditorName,amount:cost,date:date,ref:'Purchase: '+name});
+    D.creditors.push({id:uid(),name:creditorNameForFA,amount:cost,date:date,ref:'Purchase: '+name});
   } else if(mode.indexOf('splitloan:')===0){
     // Part of the cost financed by a term loan drawdown, rest paid as margin money (cash/bank/cc/od)
     var splitLoan=null; for(var si=0;si<D.loans.length;si++) if(D.loans[si].id===splitLoanId) splitLoan=D.loans[si];
@@ -13543,17 +13714,21 @@ function applyAmortization(){
 }
 
 function purchaseIntangible(){
+  if(!allowNewEntry()) return;
   var name=gv('ia_name'), cat=gv('ia_cat'), cost=gvn('ia_cost'), life=gvn('ia_life'), date=gv('ia_date')||td(), mode=gv('ia_mode');
   if(!name){toast('Enter asset name','e');return;}
-  if(!cost){toast('Enter cost','e');return;}
+  if(!cost||cost<0){toast('Enter a valid positive cost','e');return;}
+  if(life<0){toast('Useful life cannot be negative','e');return;}
+  if(dupGuard('purchaseIntangible',name+'|'+cat+'|'+cost+'|'+life+'|'+date+'|'+mode)){toast('Duplicate entry ignored — already added','e');return;}
   D.intangibleAssets = D.intangibleAssets || [];
-  D.intangibleAssets.push({id:uid(),name:name,category:cat,cost:cost,usefulLife:life,purchaseDate:date,accumAmort:0,lastAmortDate:date,disposed:false});
+  var creditorNameForIA = (mode==='credit') ? (gv('ia_creditor')||'Supplier') : undefined;
+  D.intangibleAssets.push({id:uid(),name:name,category:cat,cost:cost,usefulLife:life,purchaseDate:date,accumAmort:0,lastAmortDate:date,disposed:false,
+    financeMode:mode, creditorName:creditorNameForIA});
   D.otherAssets = (+D.otherAssets||0) + cost;
   D.otherAssetsNotes = D.otherAssetsNotes || [];
   D.otherAssetsNotes.push({label:name+' ('+cat+')',amount:cost});
   if(mode==='credit'){
-    var creditorName=gv('ia_creditor')||'Supplier';
-    D.creditors.push({id:uid(),name:creditorName,amount:cost,date:date,ref:'Purchase: '+name});
+    D.creditors.push({id:uid(),name:creditorNameForIA,amount:cost,date:date,ref:'Purchase: '+name});
   } else {
     postCB(mode,'payment',cost,name,'Purchase of Intangible Asset: '+name,date);
   }
@@ -15338,7 +15513,7 @@ function importFullBusinessData(sheets){
       if(existing){
         existing.currentStock = stock; existing.avgCost = cost; existing.unit = unit; existing.reorderLevel = reorder;
       } else {
-        D.inventory.push({id:uid(), itemName:name, unit:unit, openingStock:stock, currentStock:stock,
+        D.inventory.push({id:uid(), itemName:name, unit:unit, openingStock:stock, openingRate:cost, currentStock:stock,
           avgCost:cost, importedStock:0, importedAvgCost:0, reorderLevel:reorder});
       }
       summary.inventory++;
@@ -15893,40 +16068,10 @@ function generateBill(){
   var billNo = 'INV-' + String(D.nextBillNo).padStart(4,'0');
   D.nextBillNo++;
 
-  var total=0;
-  var items=[];
-  var newSaleTotal=0, newSaleMode=mode;
-  cart.forEach(function(c){
-    var item=null; for(var i=0;i<D.inventory.length;i++) if(D.inventory[i].id===c.itemId){item=D.inventory[i];break;}
-    var tot=c.amount;
-    total += tot;
-    items.push({itemName:c.itemName, unit:c.unit, qty:c.qty, price:c.price, amount:tot});
-
-    if(c.fromSaleId){
-      // This item was loaded from an EXISTING sale entry - just tag it with the bill number,
-      // do not re-record stock/cash movements (already posted when that sale was made).
-      var existing=null; for(var j=0;j<D.sales.length;j++) if(D.sales[j].id===c.fromSaleId){existing=D.sales[j];break;}
-      if(existing) existing.billNo = billNo;
-    } else {
-      // New item being sold now - record as a normal sale
-      if(!item) return;
-      var cogs=c.qty*item.avgCost, gp=tot-cogs, pct=+(tot>0?((gp/tot)*100).toFixed(1):0);
-      D.sales.push({id:uid(),date:date,customerName:cust,itemId:c.itemId,itemName:item.itemName,unit:item.unit,qty:c.qty,sellingPrice:c.price,totalAmount:tot,cogs:cogs,grossProfit:gp,profitPct:pct,paymentMode:mode,billNo:billNo});
-      item.currentStock -= c.qty;
-      newSaleTotal += tot;
-    }
-  });
-
-  // Only post NEW cash/debtor movements for items that were not already recorded as sales
-  if(newSaleTotal>0){
-    if(newSaleMode==='credit'){
-      addDebtor(cust, newSaleTotal, date, 'Bill '+billNo);
-    } else {
-      postCB(newSaleMode, 'receipt', newSaleTotal, cust, 'Bill '+billNo, date);
-    }
-  }
-
-  // Auto-read GST rate from inventory item
+  // Work out the GST rate for this bill BEFORE posting anything, so the same GST that will be
+  // shown on the printed invoice is also the GST actually posted to cash/debtor and the GST
+  // ledger below - previously this was computed only after posting, so GST appeared on the
+  // invoice/QR code but never reached the books or GST reports.
   var billGstRate = 0;
   if(gstEnabled()){
     var billGstOverride = gvn('bill_gst');
@@ -15945,6 +16090,49 @@ function generateBill(){
     }
   }
   var billGstType = (D.gst&&D.gst.supplyType)||'intra';
+
+  var total=0;
+  var items=[];
+  var newSaleTotal=0, newSaleGstTotal=0, newSaleMode=mode;
+  cart.forEach(function(c){
+    var item=null; for(var i=0;i<D.inventory.length;i++) if(D.inventory[i].id===c.itemId){item=D.inventory[i];break;}
+    var tot=c.amount;
+    total += tot;
+    items.push({itemName:c.itemName, unit:c.unit, qty:c.qty, price:c.price, amount:tot});
+
+    if(c.fromSaleId){
+      // This item was loaded from an EXISTING sale entry - just tag it with the bill number,
+      // do not re-record stock/cash movements (already posted when that sale was made).
+      var existing=null; for(var j=0;j<D.sales.length;j++) if(D.sales[j].id===c.fromSaleId){existing=D.sales[j];break;}
+      if(existing) existing.billNo = billNo;
+    } else {
+      // New item being sold now - record as a normal sale, with the same GST treatment as the
+      // regular Sales page (separate taxable value + gstAmount, posted and ledgered).
+      if(!item) return;
+      var cogs=c.qty*item.avgCost, gp=tot-cogs, pct=+(tot>0?((gp/tot)*100).toFixed(1):0);
+      var itemGstAmt = billGstRate>0 ? Math.round(tot*billGstRate/100*100)/100 : 0;
+      var newSaleId = uid();
+      D.sales.push({id:newSaleId,date:date,customerName:cust,itemId:c.itemId,itemName:item.itemName,unit:item.unit,qty:c.qty,sellingPrice:c.price,totalAmount:tot,cogs:cogs,grossProfit:gp,profitPct:pct,paymentMode:mode,billNo:billNo,gstRate:billGstRate,gstType:billGstType,taxableValue:tot,gstAmount:itemGstAmt});
+      item.currentStock -= c.qty;
+      newSaleTotal += tot;
+      if(itemGstAmt>0.005){
+        newSaleGstTotal += itemGstAmt;
+        D.gstLedger.push({id:uid(), date:date, type:'output', amount:itemGstAmt, ref:'Bill '+billNo+': '+item.itemName, saleId:newSaleId});
+      }
+    }
+  });
+
+  // Only post NEW cash/debtor movements for items that were not already recorded as sales -
+  // and include the GST actually computed above, so the amount posted matches the invoice shown.
+  var newSaleTotalWithGst = newSaleTotal + newSaleGstTotal;
+  if(newSaleTotalWithGst>0.005){
+    if(newSaleMode==='credit'){
+      addDebtor(cust, newSaleTotalWithGst, date, 'Bill '+billNo);
+    } else {
+      postCB(newSaleMode, 'receipt', newSaleTotalWithGst, cust, 'Bill '+billNo, date);
+    }
+  }
+
   var bill = {id:uid(), billNo:billNo, date:date, customerName:cust, items:items, totalAmount:total, paymentMode:mode, gstRate:billGstRate, gstType:billGstType};
   D.bills.push(bill);
 
@@ -16018,7 +16206,7 @@ function billShareText(bill){
   var p = D.profile;
   var lines=['Invoice '+bill.billNo+' - '+(p.businessName||''),'Date: '+bill.date,'Bill To: '+bill.customerName,''];
   bill.items.forEach(function(it){ lines.push(it.itemName+' x '+fmt(it.qty)+' '+it.unit+' @ '+fc(it.price)+' = '+fc(it.amount)); });
-  if(bill.gstRate&&bill.gstRate>0){
+  if(gstEnabled()&&bill.gstRate&&bill.gstRate>0){
     var gstAmt=Math.round(bill.totalAmount*bill.gstRate/100);
     lines.push('GST ('+bill.gstRate+'%): '+fc(gstAmt));
     lines.push('Grand Total: '+fc(bill.totalAmount+gstAmt));
@@ -18739,19 +18927,52 @@ function computeItemWiseStockMovement(fromDate, toDate){
       var fromImp = origSale ? (origSale.fromImp||0)*frac : 0;
       events.push({date:r.date, type:'sr', qty:r.qty, fromIndig:fromIndig, fromImp:fromImp});
     });
+    // Production inward (this item produced as a Finished Good) and the raw-material outward it
+    // consumed - both come from D.productions, plus standalone write-off consumptions from
+    // D.consumptions. Without these, a manufactured item's stock movement was invisible to this
+    // statement (BUG fixed: Opening+Inward-Outward now actually includes Production/Consumption).
+    (D.productions||[]).forEach(function(p){
+      if(p.fgItemId===it.id){
+        events.push({date:p.date, type:'prod', qty:p.qtyProduced, cost:p.totalCost});
+      }
+      (p.consumedItems||[]).forEach(function(ci){
+        if(ci.itemId===it.id){
+          events.push({date:p.date, type:'cons', qty:ci.qty, fromIndig:(ci.fromIndig!==undefined?ci.fromIndig:ci.qty), fromImp:(ci.fromImp||0)});
+        }
+      });
+    });
+    (D.consumptions||[]).forEach(function(c){
+      if(c.itemId===it.id){
+        events.push({date:c.date, type:'cons', qty:c.qty, fromIndig:(c.fromIndig!==undefined?c.fromIndig:c.qty), fromImp:(c.fromImp||0)});
+      }
+    });
     events.sort(function(a,b){ return (a.date||'')<(b.date||'')?-1:((a.date||'')>(b.date||'')?1:0); });
+    // Seed with any opening balance recorded directly on the item (e.g. via Trial Balance opening
+    // entry or "add item with opening stock") - this was never represented as a dated event, so
+    // without this seed it was permanently invisible to the replay (BUG fixed). Dated earliest so
+    // it always falls into the opening balance of every period.
+    var openingSeedQty = it.openingStock||0;
+    var openingSeedRate = (it.openingRate!=null) ? it.openingRate : (it.avgCost||0);
+    if(openingSeedQty>0.005){
+      events.unshift({date:'0000-01-01', type:'p', qty:openingSeedQty, rate:openingSeedRate, isImported:false});
+    }
 
     var indigQty=0, indigVal=0, impQty=0, impVal=0;
     var openIndigQty=0, openImpQty=0;
-    var purchQty=0, purchImpQty=0, salesQty=0, purchReturnQty=0, salesReturnQty=0;
+    var purchQty=0, purchImpQty=0, salesQty=0, purchReturnQty=0, salesReturnQty=0, prodQty=0;
     var openingCaptured = false;
 
     events.forEach(function(ev){
-      if(!openingCaptured && (ev.date||'')>=fromDate){
+      // fromDate is the PREVIOUS period's closing date (month-end). An event dated exactly on
+      // fromDate was already counted as part of that prior period's activity, so it belongs to
+      // the opening balance here, not to this period's movement — hence the strict '>' below
+      // (using '>=' here would double-count any transaction dated on a month-end boundary into
+      // both the month it closes and the month that opens on the same date).
+      if(!openingCaptured && (ev.date||'')>fromDate){
         openIndigQty = indigQty; openImpQty = impQty;
         openingCaptured = true;
       }
-      var inRange = (ev.date||'')>=fromDate && (ev.date||'')<=toDate;
+      var inRange = (ev.date||'')>fromDate && (ev.date||'')<=toDate;
       if(ev.type==='p'){
         if(ev.isImported){ impVal += ev.qty*ev.rate; impQty += ev.qty; if(inRange){purchQty+=ev.qty; purchImpQty+=ev.qty;} }
         else { indigVal += ev.qty*ev.rate; indigQty += ev.qty; if(inRange) purchQty+=ev.qty; }
@@ -18767,6 +18988,16 @@ function computeItemWiseStockMovement(fromDate, toDate){
       } else if(ev.type==='sr'){
         indigQty += ev.fromIndig; impQty += ev.fromImp;
         if(inRange) salesReturnQty+=ev.qty;
+      } else if(ev.type==='prod'){
+        var prodRate = ev.qty>0 ? ev.cost/ev.qty : 0;
+        indigVal += ev.qty*prodRate; indigQty += ev.qty;
+        if(inRange) prodQty+=ev.qty;
+      } else if(ev.type==='cons'){
+        var ciq=Math.min(ev.fromIndig, indigQty), cimpq=Math.min(ev.fromImp, impQty);
+        indigVal -= ciq*(indigQty>0?indigVal/indigQty:0); indigQty -= ciq;
+        impVal -= cimpq*(impQty>0?impVal/impQty:0); impQty -= cimpq;
+        if(indigQty<0){indigQty=0;indigVal=0;} if(impQty<0){impQty=0;impVal=0;}
+        if(inRange) salesQty+=ev.qty;
       }
     });
     if(!openingCaptured){ openIndigQty = indigQty; openImpQty = impQty; }
@@ -18784,11 +19015,11 @@ function computeItemWiseStockMovement(fromDate, toDate){
       closingQty = indigQty+impQty;
       closingVal = indigVal+impVal;
     }
-    if(closingQty<=0.005 && openingQty<=0.005 && purchQty<=0.005 && salesQty<=0.005) return; // no activity for this item at all
+    if(closingQty<=0.005 && openingQty<=0.005 && purchQty<=0.005 && salesQty<=0.005 && prodQty<=0.005) return; // no activity for this item at all
 
     rows.push({
       itemId: it.id, itemName: it.itemName, unit: it.unit, hsnCode: it.hsnCode||'',
-      openingQty: openingQty, purchaseQty: purchQty, salesQty: salesQty,
+      openingQty: openingQty, purchaseQty: purchQty, productionQty: prodQty, salesQty: salesQty,
       purchaseReturnQty: purchReturnQty, salesReturnQty: salesReturnQty,
       closingQty: closingQty, closingValue: closingVal,
       rate: closingQty>0 ? closingVal/closingQty : 0,
@@ -19328,12 +19559,15 @@ function saveLoanAssess() {
 // PAYMENT REMINDER SYSTEM
 // ===================================================================
 function addProduction(){
+  if(!allowNewEntry()) return;
   window._prodFG=gv('prod_fg');window._prodNewName=gv('prod_newname');window._prodDate=gv('prod_d');window._prodQty=gv('prod_qty');window._prodNotes=gv('prod_notes');
   var cart = window._prodCart||[];
   if(cart.length===0){toast('Add at least one material consumed','e');return;}
   var hasOutput = window._prodHasOutput!==false;
   var date = gv('prod_d')||td();
   var notes = gv('prod_notes')||'';
+  var prodSig = hasOutput+'|'+date+'|'+notes+'|'+cart.map(function(c){return c.itemId+':'+c.qty;}).join(',')+'|'+gv('prod_qty');
+  if(dupGuard('addProduction',prodSig)){toast('Duplicate entry ignored — already added','e');return;}
 
   if(!hasOutput){
     // Write-off path: each cart item becomes its own consumption entry, no FG involved
