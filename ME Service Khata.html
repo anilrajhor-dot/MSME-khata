@@ -6533,8 +6533,9 @@ function pgSal(){
     var _slAvail0=(selItem.currentStock||0)+(selItem.importedStock||0);
     _slCogs0=drawStockPreview(selItem, Math.min(window._salQty||0,_slAvail0)).cogs;
   }
+  var _svcGstDefault=(window._salSvcGstRate!=null?window._salSvcGstRate:(D.gst.defaultRate||0));
   var serviceFields = isService
-    ? g2(inp('Service Description','sl_svcdesc','text',window._salSvcDesc||''),inp('Amount (₹)','sl_svcamt','number',window._salSvcAmt||0).replace('<input ','<input oninput="updateSalCalcPreview()" '))+'<div id="sl_calcprev">'+calcPreviewHtml({qty:1,rate:window._salSvcAmt||0,gstRate:0})+'</div>'
+    ? g2(inp('Service Description','sl_svcdesc','text',window._salSvcDesc||''),inp('Amount (₹, excl. GST)','sl_svcamt','number',window._salSvcAmt||0).replace('<input ','<input oninput="updateSalCalcPreview()" '))+(gstEnabled() ? inp('GST Rate % (0 = exempt)','sl_svcgst','number',_svcGstDefault).replace('<input ','<input oninput="updateSalCalcPreview()" ') : '')+'<div id="sl_calcprev">'+calcPreviewHtml({qty:1,rate:window._salSvcAmt||0,gstRate:(gstEnabled()?_svcGstDefault:0)})+'</div>'
     : g2(inp('Qty','sl_q','number',window._salQty||0).replace('<input ','<input oninput="updateSalCalcPreview()" '),inp('Selling Price (₹/unit, excl. GST)','sl_p','number',window._salPrice||0).replace('<input ','<input oninput="updateSalCalcPreview()" '))+(selItem ? qtyConvHtml('sl_q', selItem.unit) : '')+(gstEnabled() ? inp('GST Rate % (0 = exempt)','sl_gst','number',_slGstDefault).replace('<input ','<input oninput="updateSalCalcPreview()" ') : '')+'<div id="sl_calcprev">'+calcPreviewHtml({qty:window._salQty||0,rate:window._salPrice||0,gstRate:(gstEnabled()?_slGstDefault:0),cogs:selItem?_slCogs0:null})+'</div>';
 
       h += '<div style="margin-bottom:8px"><button onclick="openScanner(\'inv_barcode\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📷 Scan Barcode / QR Code</button></div>';
@@ -7663,7 +7664,9 @@ function calcPreviewHtml(opts){
 function updateSalCalcPreview(){
   var el=document.getElementById('sl_calcprev'); if(!el) return;
   if(document.getElementById('sl_svcamt')){
-    el.innerHTML = calcPreviewHtml({qty:1,rate:gvn('sl_svcamt')||0,gstRate:0});
+    var sIsExp = document.getElementById('sl_export') ? document.getElementById('sl_export').checked : false;
+    var svcGstRate = (gstEnabled() && !sIsExp) ? (gvn('sl_svcgst')||0) : 0;
+    el.innerHTML = calcPreviewHtml({qty:1,rate:gvn('sl_svcamt')||0,gstRate:svcGstRate});
     return;
   }
   var q=gvn('sl_q')||0,p=gvn('sl_p')||0;
@@ -7934,19 +7937,31 @@ function addSal(){
     }
     var sIsExport = document.getElementById('sl_export') ? document.getElementById('sl_export').checked : false;
     var sEffMode = sadv ? 'advance' : smode;
-    lastSale={gp:amt,pct:100,tot:amt,unit:''};
-    D.sales.push({id:uid(),date:sdate,customerName:c2,itemId:'',itemName:desc,unit:'',qty:1,sellingPrice:amt,totalAmount:amt,cogs:0,grossProfit:amt,profitPct:100,paymentMode:sEffMode,isExport:sIsExport,advanceId:sadv?sadv.id:undefined,isService:true});
+    // GST: the entered Amount is always the taxable value (excl. GST), exactly like a goods sale.
+    // Export service sales are zero-rated. GST itself is never part of income/profit - it is
+    // collected on the customer's behalf and owed to the government via D.gstLedger.
+    var sGstRate = (gstEnabled() && !sIsExport) ? (gvn('sl_svcgst')||0) : 0;
+    var sGstType = (D.gst&&D.gst.supplyType) || 'intra';
+    var sGstAmt = sGstRate>0 ? Math.round(amt*sGstRate/100*100)/100 : 0;
+    var sTotForPosting = amt + sGstAmt;
+    lastSale={gp:amt,pct:100,tot:amt,unit:'',amountDue:sTotForPosting,custName:c2,itemName:desc,mode:sEffMode};
+    var sSaleId=uid();
+    D.sales.push({id:sSaleId,date:sdate,customerName:c2,itemId:'',itemName:desc,unit:'',qty:1,sellingPrice:amt,totalAmount:amt,cogs:0,grossProfit:amt,profitPct:100,paymentMode:sEffMode,isExport:sIsExport,advanceId:sadv?sadv.id:undefined,isService:true,gstRate:sGstRate,gstType:sGstType,taxableValue:amt,gstAmount:sGstAmt,gstPaymentMode:sadv?smode:undefined});
     if(sadv){
       sadv.amount = (+sadv.amount||0) - amt;
       if(sadv.amount<=0.005){
         D.advances = D.advances.filter(function(a){return a.id!==sadv.id;});
       }
+      if(sGstAmt>0.005) postCB(smode,'receipt',sGstAmt,c2,'GST on Sale (advance-settled): '+desc,sdate);
     } else if(smode==='credit'){
-      addDebtor(c2,amt,sdate,'Sale: '+desc);
+      addDebtor(c2,sTotForPosting,sdate,'Sale: '+desc);
     }else{
-      postCB(smode,'receipt',amt,c2,'Sale: '+desc,sdate);
+      postCB(smode,'receipt',sTotForPosting,c2,'Sale: '+desc,sdate);
     }
-    sv();window._salItem='';window._salCustomer='';window._salDate=null;window._salSvcDesc=null;window._salSvcAmt=null;window._salMode=null;window._salExport=false;go('sales');toast('Service sale recorded!');
+    if(sGstAmt>0.005){
+      D.gstLedger.push({id:uid(), date:sdate, type:'output', amount:sGstAmt, ref:'Sale: '+desc, saleId:sSaleId});
+    }
+    sv();window._salItem='';window._salCustomer='';window._salDate=null;window._salSvcDesc=null;window._salSvcAmt=null;window._salMode=null;window._salExport=false;window._salSvcGstRate=null;go('sales');toast('Service sale recorded!');
     return;
   }
   var q=gvn('sl_q'),p=gvn('sl_p');
@@ -11769,7 +11784,8 @@ function editSaleForm(s){
   if(s.isService){
     return card('Edit Sale (Service Charge)',
       g2(inp('Date','es_d','date',s.date),inp('Customer','es_c','text',s.customerName))+
-      g2(inp('Service Description','es_svcdesc','text',s.itemName),inp('Amount (₹)','es_svcamt','number',s.totalAmount))+
+      g2(inp('Service Description','es_svcdesc','text',s.itemName),inp('Amount (₹, excl. GST)','es_svcamt','number',s.totalAmount))+
+      (gstEnabled() ? inp('GST Rate % (0 = exempt)','es_svcgst','number',s.gstRate||0) : '')+
       payModeSel('es_m',s.paymentMode==='advance'?'cash':(s.paymentMode||'cash'))+
       btn('Save Changes','saveEditSale('+Q+s.id+Q+')','#2E7D32')+' '+btn('Cancel','cancelEdit()','#546E7A')
     );
@@ -11797,22 +11813,33 @@ function saveEditSale(id){
   if(old.isService){
     var newMode2=gv('es_m');
     if(newMode2!=='credit' && !validateCCOD(newMode2)) return;
-    if(old.paymentMode==='credit')removeDebtorByRef('Sale: '+old.itemName,old.totalAmount);
-    else if(old.paymentMode==='advance')restoreAdvance(old.advanceId,old.totalAmount,'received','customer',old.customerName,old);
-    else reverseCB(old.paymentMode,'receipt',old.totalAmount,'Sale: '+old.itemName);
+    var oldPosted2 = (old.totalAmount||0) + (old.gstAmount||0);
+    if(old.paymentMode==='credit')removeDebtorByRef('Sale: '+old.itemName,oldPosted2);
+    else if(old.paymentMode==='advance'){
+      restoreAdvance(old.advanceId,old.totalAmount,'received','customer',old.customerName,old);
+      if(old.gstAmount>0.005) reverseCB(old.gstPaymentMode||'cash','receipt',old.gstAmount,'GST on Sale (advance-settled): '+old.itemName);
+    }
+    else reverseCB(old.paymentMode,'receipt',oldPosted2,'Sale: '+old.itemName);
+    if(old.gstAmount>0.005){ D.gstLedger = D.gstLedger.filter(function(g){ return g.saleId!==old.id; }); }
 
     var desc2=gv('es_svcdesc')||'',amt2=gvn('es_svcamt'),c22=gv('es_c'),date2=gv('es_d')||td(),mode2=gv('es_m');
     if(!desc2||!amt2||!c22){
-      if(old.paymentMode==='credit')addDebtor(old.customerName,old.totalAmount,old.date,'Sale: '+old.itemName);
+      if(old.paymentMode==='credit')addDebtor(old.customerName,oldPosted2,old.date,'Sale: '+old.itemName);
       else if(old.paymentMode==='advance'){
         for(var avi=0;avi<(D.advances||[]).length;avi++) if(D.advances[avi].id===old.advanceId) D.advances[avi].amount = (+D.advances[avi].amount||0) - old.totalAmount;
+        if(old.gstAmount>0.005) postCB(old.gstPaymentMode||'cash','receipt',old.gstAmount,old.customerName,'GST on Sale (advance-settled): '+old.itemName,old.date);
       }
-      else postCB(old.paymentMode,'receipt',old.totalAmount,old.customerName,'Sale: '+old.itemName,old.date);
+      else postCB(old.paymentMode,'receipt',oldPosted2,old.customerName,'Sale: '+old.itemName,old.date);
+      if(old.gstAmount>0.005){ D.gstLedger.push({id:uid(), date:old.date, type:'output', amount:old.gstAmount, ref:'Sale: '+old.itemName, saleId:old.id}); }
       toast('Fill all fields','e');return;
     }
-    D.sales[idx]={id:id,date:date2,customerName:c22,itemId:'',itemName:desc2,unit:'',qty:1,sellingPrice:amt2,totalAmount:amt2,cogs:0,grossProfit:amt2,profitPct:100,paymentMode:mode2,isService:true};
-    if(mode2==='credit')addDebtor(c22,amt2,date2,'Sale: '+desc2);
-    else postCB(mode2,'receipt',amt2,c22,'Sale: '+desc2,date2);
+    var gstRate2 = (gstEnabled() && !old.isExport) ? (gvn('es_svcgst')||0) : 0;
+    var gstAmt2 = gstRate2>0 ? Math.round(amt2*gstRate2/100*100)/100 : 0;
+    var amtForPosting2 = amt2 + gstAmt2;
+    D.sales[idx]={id:id,date:date2,customerName:c22,itemId:'',itemName:desc2,unit:'',qty:1,sellingPrice:amt2,totalAmount:amt2,cogs:0,grossProfit:amt2,profitPct:100,paymentMode:mode2,isService:true,isExport:old.isExport,gstRate:gstRate2,gstType:(D.gst&&D.gst.supplyType)||'intra',taxableValue:amt2,gstAmount:gstAmt2};
+    if(mode2==='credit')addDebtor(c22,amtForPosting2,date2,'Sale: '+desc2);
+    else postCB(mode2,'receipt',amtForPosting2,c22,'Sale: '+desc2,date2);
+    if(gstAmt2>0.005){ D.gstLedger.push({id:uid(), date:date2, type:'output', amount:gstAmt2, ref:'Sale: '+desc2, saleId:id}); }
     sv();cancelEdit();toast('Sale updated!');
     return;
   }
