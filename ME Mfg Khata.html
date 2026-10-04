@@ -23,6 +23,7 @@ var _FAQ_DATA=[
 {q:"AI Advisor kya karta hai / What does AI Advisor do?",a:"Aapke actual data se 16 business questions ke jawab deta hai — internet ke bina bhi. Profit analysis, stock reorder, loan eligibility sab. / Answers 16 business questions from your actual data — works offline too. Profit analysis, stock reorder, loan eligibility and more.",tags:["AI","advisor","questions"]},
 {q:"Barcode scanner kaise use karen / How to use scanner?",a:"Purchase, Sales ya Daily Register tab → green 📷 Scan Barcode button tap karen → camera khulti hai → barcode scan karo → item auto select ya naya item create karne ka option milega. Pehli baar iPhone camera permission maangega → Allow karo. / Purchase, Sales or Daily Register tab → tap the green 📷 Scan Barcode button → camera opens → scan barcode → item auto-selects, or you get the option to create a new item. First time iPhone asks camera permission → Allow.",tags:["barcode","scanner","camera","scan","daily register"]},
 {q:"50kg khareeda 500gram becha / Bought 50kg sold 500 grams, quantity kaise bharein? Dozen mein khareeda Piece mein becha / Bought in Dozen but sell in Piece, what to do?",a:"Quantity box ke neeche ek chhota nila link hai: '🔄 Entering a different unit (e.g. Grams, Dozen)? Tap to convert'. Usme apni quantity type karo (jaise 500) aur dropdown se seedha unit chuno (jaise Gram) — koi conversion number type karne ki zaroorat nahi, app khud 0.5 Kg calculate karke Quantity box mein bhar dega. Weight wale item (Kg) ke liye Gram/Kg/Quintal/Ton aur count wale item (Piece) ke liye Piece/No./Dozen — sab dropdown mein already hain. Kisi anjaan unit (Box, Bag) ke liye 'Other unit…' chuno, chhota manual calculator khulega. Item ka asli unit kabhi nahi badalta. Purchase, Sale, Daily Register aur Returns sabhi jagah available hai. / There's a small blue link under any Quantity box: '🔄 Entering a different unit (e.g. Grams, Dozen)? Tap to convert'. Just type your quantity (e.g. 500) and pick the unit from the dropdown (e.g. Gram) — no conversion number to type, the app automatically works out 0.5 Kg and fills the Quantity box for you. Weight-tracked items (Kg) get Gram/Kg/Quintal/Ton, and count-tracked items (Piece) get Piece/No./Dozen, ready in the dropdown. For an unusual unit (Box, Bag) pick 'Other unit…' for a small manual calculator. The item's real unit never changes. Available on Purchase, Sale, Daily Register and Returns.",tags:["dozen","piece","unit","convert","conversion","box","bulk","kg","gram","quintal","ton","weight"]},
+{q:"Mera item Sales dropdown mein nahi dikh raha / My item is not showing in the Sales dropdown, why?",a:"Sales ka Item dropdown ab Inventory ke SABHI item dikhata hai, zero stock wale bhi — koi bhi purchased ya naya banaya item kabhi gayab nahi hota. Jis item mein abhi stock nahi hai use '(Out of stock)' likha dikhega, taaki pata chale ki kya ho raha hai. Agar aapne purchase record kiya aur phir bhi (Out of stock) dikh raha hai: 1) Inventory mein check karo ki Current Stock sach mein badha hai ya nahi — nahi toh purchase save nahi hua. 2) item ka naam bilkul wahi hai jo aapne sale ke time type kiya — spelling thodi alag hone se app use ek nayi, alag item samajh leta hai. 3) agar item barcode scan karke 'Create new item' se bana tha, woh zero stock se shuru hota hai — pehle Purchase record karo. / The Sales Item dropdown now lists EVERY item in Inventory, even at zero stock — a purchased or newly created item is never simply missing. One with no stock yet is labelled '(Out of stock)' so you can see why. If you just recorded a Purchase and it still shows (Out of stock): 1) Check Inventory — did Current Stock actually increase? If not, the purchase didn't save. 2) Check the item name matches exactly what you typed at Sale time — a spelling difference creates what looks like a separate new item. 3) If the item was created by scanning a barcode and choosing 'Create new item', it starts at zero stock on purpose — record a Purchase for it first.",tags:["sales","dropdown","item","missing","out of stock","not showing","inventory"]},
 {q:"GST kaise enable karen / How to enable GST?",a:"Profile → GST section → Enable GST → GSTIN enter karen → default rate set karen. Sales entry mein GST automatic calculate hoga. / Profile → GST section → Enable GST → enter GSTIN → set default rate. GST calculates automatically in sales.",tags:["GST","tax","GSTIN"]},
 {q:"Drawings kaise record karen / How to record drawings?",a:"Capital/Loans → Drawings → + Add Drawing → Date, Amount → Save. Capital automatically kam ho jaata hai. / Capital/Loans → Drawings → + Add Drawing → Date, Amount → Save. Capital reduces automatically.",tags:["drawing","withdrawal","owner"]},
 {q:"Imported purchase kaise enter karen / How to record import?",a:"Purchase tab → Imported checkbox tick karen → details bharen → Save. Import purchases alag track hoti hain. / Purchase tab → tick Imported checkbox → fill details → Save. Import purchases track separately.",tags:["import","imported","foreign"]},
@@ -6960,18 +6961,21 @@ function pgSal(){
   for(i=0;i<D.inventory.length;i++){
     var _item=D.inventory[i];
     var _totStock=_item.currentStock+(_item.importedStock||0);
-    if(_totStock>0){
-      var _sc=_item.category||'';
-      var _sl=_sc&&_sc!=='Resale'?(' ['+(_sc==='Raw Material'?'RM':_sc)+']'):'';
-      var _stockLbl2='';
-      if((_item.importedStock||0)>0&&(_item.currentStock||0)>0)
-        _stockLbl2=' (Dom:'+fmt(_item.currentStock)+' + Imp:'+fmt(_item.importedStock||0)+' '+_item.unit+')';
-      else if((_item.importedStock||0)>0)
-        _stockLbl2=' (Imp:'+fmt(_item.importedStock||0)+' '+_item.unit+')';
-      else
-        _stockLbl2=' (Stock:'+fmt(_item.currentStock)+' '+_item.unit+')';
-      iOpts.push({v:_item.id,l:_item.itemName+_sl+_stockLbl2});
-    }
+    // Every item is listed, even at zero stock, so a freshly purchased or newly created item is
+    // never simply missing from the dropdown - "Out of stock" tells you why instead of hiding it.
+    // Actually selling more than available is still blocked separately, in addSal() below.
+    var _sc=_item.category||'';
+    var _sl=_sc&&_sc!=='Resale'?(' ['+(_sc==='Raw Material'?'RM':_sc)+']'):'';
+    var _stockLbl2='';
+    if(_totStock<=0)
+      _stockLbl2=' (Out of stock)';
+    else if((_item.importedStock||0)>0&&(_item.currentStock||0)>0)
+      _stockLbl2=' (Dom:'+fmt(_item.currentStock)+' + Imp:'+fmt(_item.importedStock||0)+' '+_item.unit+')';
+    else if((_item.importedStock||0)>0)
+      _stockLbl2=' (Imp:'+fmt(_item.importedStock||0)+' '+_item.unit+')';
+    else
+      _stockLbl2=' (Stock:'+fmt(_item.currentStock)+' '+_item.unit+')';
+    iOpts.push({v:_item.id,l:_item.itemName+_sl+_stockLbl2});
   }
   var selId=window._salItem||'';
   var selItem=null;for(i=0;i<D.inventory.length;i++)if(D.inventory[i].id===selId)selItem=D.inventory[i];
@@ -14642,6 +14646,26 @@ function pgHelp(){
       '<p>Dropdown अपने आप item के हिसाब से सही unit दिखाता है: weight वाले item के लिए <b>Gram / Kg / Quintal / Ton</b>, और count वाले item के लिए <b>Piece / No. / Dozen</b> — कोई भी चुनें, conversion खुद हो जाएगा।</p>'+
       '<p>किसी अनजान unit के लिए (जैसे Box, Bag, Packet या Metre) जो dropdown में नहीं है, <b>"Other unit…"</b> चुनें — एक छोटा manual calculator खुलेगा जिसमें आप अपना conversion टाइप कर सकते हैं।</p>'+
       '<p style="background:#E8F5E9;padding:8px;border-radius:6px"><b>जानने योग्य:</b> यह item का unit कभी नहीं बदलता और कोई नया setup नहीं माँगता — यह सिर्फ Quantity box अपने आप भर देता है। यह Purchase, Sale, Daily Register और Returns — जहाँ भी quantity भरनी हो, वहाँ उपलब्ध है।</p>'
+    )
+  );
+
+  // ── ITEM NOT SHOWING IN SALES DROPDOWN HELP ──
+  h += hs(
+    bi('🔍 Item not showing in the Sales dropdown? Here\'s why', '🔍 Sales dropdown में item नहीं दिख रहा? वजह ये है'),
+    bi(
+      '<p>The Sales page\'s Item dropdown now lists <b>every item</b> in your Inventory, including ones with zero stock — a freshly purchased or newly created item is never simply missing. One with no stock yet is labelled <b>(Out of stock)</b> right in the dropdown, so you can see exactly what\'s going on instead of wondering where it went.</p>'+
+      '<p><b>If you just recorded a Purchase and the item still shows (Out of stock):</b><br>'+
+      '1. Check <b>Inventory</b> — does the item\'s Current Stock actually show the quantity you purchased? If not, the purchase entry likely didn\'t save (check for an error message, or that you tapped Add Entry / the record button).<br>'+
+      '2. Check the <b>item name</b> matches exactly what you typed at Sale time — spelling differences create what looks like a second, separate item. Inventory lists every item name once; if you see two very similar names, that\'s the usual cause.<br>'+
+      '3. If the item was created by scanning an unrecognised barcode on the Sales page and choosing "Create new item", it starts at zero stock on purpose — record a Purchase for it first (Purchase page or Daily Register), then come back to Sales.</p>'+
+      '<p style="background:#E8F5E9;padding:8px;border-radius:6px"><b>Good to know:</b> You can still select an out-of-stock item to see its details, but the app will block you from recording a sale for more than is actually available — exactly as before, just visible now instead of hidden.</p>',
+
+      '<p>Sales page का Item dropdown अब Inventory के <b>हर item</b> को दिखाता है, भले ही उसमें stock शून्य हो — कोई नया purchase किया या बनाया item कभी गायब नहीं होगा। जिस item में अभी stock नहीं है उसे dropdown में ही <b>(Out of stock)</b> लिखा दिखेगा, ताकि आपको साफ पता चले कि क्या हो रहा है, न कि सिर्फ confusion हो।</p>'+
+      '<p><b>अगर आपने अभी Purchase दर्ज किया और item अब भी (Out of stock) दिख रहा है:</b><br>'+
+      '1. <b>Inventory</b> में देखें — क्या उस item का Current Stock सच में उतनी quantity दिखा रहा है जो आपने खरीदी? अगर नहीं, तो purchase entry ठीक से save नहीं हुई (कोई error message चेक करें, या Add Entry/record बटन दबाया था या नहीं)।<br>'+
+      '2. <b>item का नाम</b> बिल्कुल वैसा ही है जो आपने Sale के समय टाइप किया — spelling में हल्का अंतर भी एक अलग, दूसरा item बना देता है। Inventory में हर item नाम एक ही बार दिखता है; अगर दो बहुत मिलते-जुलते नाम दिखें, तो यही वजह आम तौर पर होती है।<br>'+
+      '3. अगर item किसी अनजान barcode को Sales page पर scan करके "Create new item" चुनने से बना था, तो वह जानबूझकर zero stock से शुरू होता है — पहले उसके लिए एक Purchase दर्ज करें (Purchase page या Daily Register), फिर Sales पर वापस आएं।</p>'+
+      '<p style="background:#E8F5E9;padding:8px;border-radius:6px"><b>जानने योग्य:</b> आप out-of-stock item चुन तो सकते हैं और उसकी जानकारी देख सकते हैं, पर app उपलब्ध stock से ज़्यादा quantity की sale दर्ज नहीं होने देगा — पहले जैसा ही व्यवहार, बस अब छुपा नहीं है।</p>'
     )
   );
 
