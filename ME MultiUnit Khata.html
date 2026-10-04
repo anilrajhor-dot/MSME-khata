@@ -22,6 +22,7 @@ var _FAQ_DATA=[
 {q:"Health Check kya hai / What is Health Check?",a:"10 automatic checks jo aapki books verify karte hain — Balance Sheet, Stock, Cash balance etc. Run karo to errors milenge. / 10 automatic checks that verify your books — Balance Sheet, Stock, Cash etc. Run it to find errors.",tags:["health check","verify","accuracy"]},
 {q:"AI Advisor kya karta hai / What does AI Advisor do?",a:"Aapke actual data se 16 business questions ke jawab deta hai — internet ke bina bhi. Profit analysis, stock reorder, loan eligibility sab. / Answers 16 business questions from your actual data — works offline too. Profit analysis, stock reorder, loan eligibility and more.",tags:["AI","advisor","questions"]},
 {q:"Barcode scanner kaise use karen / How to use scanner?",a:"Purchase, Sales ya Daily Register tab → green 📷 Scan Barcode button tap karen → camera khulti hai → barcode scan karo → item auto select ya naya item create karne ka option milega. Pehli baar iPhone camera permission maangega → Allow karo. / Purchase, Sales or Daily Register tab → tap the green 📷 Scan Barcode button → camera opens → scan barcode → item auto-selects, or you get the option to create a new item. First time iPhone asks camera permission → Allow.",tags:["barcode","scanner","camera","scan","daily register"]},
+{q:"Dozen mein khareeda Piece mein becha / Bought in Dozen but sell in Piece, what to do?",a:"Quantity box ke neeche ek chhota nila link hai: '🔄 Bought/counted in a different unit? Tap to convert'. Usme 'I have' mein apni quantity (jaise 5 Dozen) aur 'how many Piece in each' mein 12 bharen — yeh khud 60 calculate karke Quantity box mein bhar dega. Item ka asli unit (jaise Piece) kabhi nahi badalta, yeh sirf ek calculator hai jo haath se guna karne se bachata hai. Purchase, Sale, Daily Register aur Returns sabhi jagah available hai. / There's a small blue link under any Quantity box: '🔄 Bought/counted in a different unit? Tap to convert'. Enter your quantity in 'I have' (e.g. 5 Dozen) and 12 in 'how many Piece in each' — it calculates 60 and fills the Quantity box for you. The item's real unit (e.g. Piece) never changes — it's just a calculator that saves you doing the multiplication by hand. Available on Purchase, Sale, Daily Register and Returns.",tags:["dozen","piece","unit","convert","conversion","box","bulk"]},
 {q:"GST kaise enable karen / How to enable GST?",a:"Profile → GST section → Enable GST → GSTIN enter karen → default rate set karen. Sales entry mein GST automatic calculate hoga. / Profile → GST section → Enable GST → enter GSTIN → set default rate. GST calculates automatically in sales.",tags:["GST","tax","GSTIN"]},
 {q:"Naya business unit kaise add karen / How to add a new business unit?",a:"Sabse upar ki Business bar mein + Add button tap karen (ya menu se Business Manager kholen) → Add New Business ke neeche business type (Trading, Manufacturing, Service, etc.) tap karen → naya khaali business ban jayega aur aap usi mein switch ho jayenge → phir uski Profile bharen. / Tap + Add in the Business bar at the top (or open Business Manager from the menu) → under Add New Business tap a business type (Trading, Manufacturing, Service, etc.) → a fresh blank business is created and you're switched into it → then fill in its Profile.",tags:["business","unit","add business","multi business","new business","switch"]},
 {q:"Drawings kaise record karen / How to record drawings?",a:"Capital/Loans → Drawings → + Add Drawing → Date, Amount → Save. Capital automatically kam ho jaata hai. / Capital/Loans → Drawings → + Add Drawing → Date, Amount → Save. Capital reduces automatically.",tags:["drawing","withdrawal","owner"]},
@@ -1064,6 +1065,65 @@ function inpMic(lbl, id, type, val, ph, listId){
   var isNumber = type==='number';
   var micBtn = micButtonHtml(id, isNumber);
   return base.replace(/(<input[^>]*>|<textarea[^>]*>[\s\S]*?<\/textarea>)/, '<div style="display:flex;gap:6px;align-items:center">$1'+micBtn+'</div>');
+}
+// ── "Bought in one unit, track stock in another" helper (e.g. bought 5 Dozen, item is tracked in Piece) ──
+// This is a plain calculator, nothing more: it multiplies two numbers the user types and drops the
+// already-converted total straight into the Quantity box. It does NOT change the item's unit, add any
+// new field to the item, or touch stock/cost/margin logic in any way — those all keep working exactly
+// as before, using whatever final number ends up in Quantity. Safe to attach to any quantity field.
+function qtyConvHtml(qtyFieldId, unitLabel){
+  var ul = esc(unitLabel || "the item's unit");
+  var bid = 'qc_'+qtyFieldId;
+  return '<div style="margin:-2px 0 10px 0">'+
+    '<a href="#" onclick="qtyConvToggle(\''+bid+'\');return false;" style="font-size:11.5px;color:#1565C0;text-decoration:underline;display:inline-block;padding:2px 0">🔄 Bought/counted in a different unit (e.g. Dozen, Box)? Tap to convert</a>'+
+    '<div id="'+bid+'" style="display:none;background:#F5F9FF;border:1px solid #BBDEFB;border-radius:8px;padding:10px;margin-top:6px">'+
+      '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Example: you bought 5 Dozen, but this item\'s stock is tracked in <b id="'+bid+'_ul1">'+ul+'</b>. Fill in the two boxes — we\'ll work out the <span id="'+bid+'_ul2">'+ul+'</span> quantity and fill it in for you.</div>'+
+      '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'+
+        '<span style="font-size:12px;color:#37474F">I have</span>'+
+        '<input id="'+bid+'_n" type="number" inputmode="decimal" placeholder="5" oninput="qtyConvPreview(\''+bid+'\')" style="width:64px;padding:7px;border-radius:6px;border:1px solid #BBDEFB;font-size:13px">'+
+        '<input id="'+bid+'_u" type="text" placeholder="Dozen" style="width:84px;padding:7px;border-radius:6px;border:1px solid #BBDEFB;font-size:13px">'+
+        '<span style="font-size:12px;color:#37474F">= how many <span id="'+bid+'_ul3">'+ul+'</span> in <u>each</u> one?</span>'+
+        '<input id="'+bid+'_f" type="number" inputmode="decimal" placeholder="12" oninput="qtyConvPreview(\''+bid+'\')" style="width:64px;padding:7px;border-radius:6px;border:1px solid #BBDEFB;font-size:13px">'+
+      '</div>'+
+      '<div style="font-size:13px;font-weight:700;color:#2E7D32;margin-bottom:8px;min-height:18px" id="'+bid+'_res"></div>'+
+      '<button type="button" onclick="applyQtyConv(\''+bid+'\',\''+qtyFieldId+'\')" style="padding:9px 16px;background:#2E7D32;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ Use this quantity</button>'+
+    '</div>'+
+  '</div>';
+}
+function qtyConvToggle(bid){
+  var e=document.getElementById(bid);
+  if(e) e.style.display=(e.style.display==='none'?'block':'none');
+}
+// Called whenever the matched item changes (e.g. from updateDRHint), so the helper always talks about
+// the item actually selected instead of a generic placeholder.
+function qtyConvSetUnit(qtyFieldId, unitLabel){
+  var bid='qc_'+qtyFieldId;
+  var lbl = unitLabel || "the item's unit";
+  ['_ul1','_ul2','_ul3'].forEach(function(suf){
+    var e=document.getElementById(bid+suf);
+    if(e) e.textContent=lbl;
+  });
+}
+function qtyConvPreview(bid){
+  var n=+((document.getElementById(bid+'_n')||{}).value)||0;
+  var f=+((document.getElementById(bid+'_f')||{}).value)||0;
+  var r=document.getElementById(bid+'_res');
+  if(r) r.textContent = (n>0&&f>0) ? ('= '+fmt(n*f)+' total') : '';
+}
+function applyQtyConv(bid, qtyFieldId){
+  var n=+((document.getElementById(bid+'_n')||{}).value)||0;
+  var f=+((document.getElementById(bid+'_f')||{}).value)||0;
+  var u=((document.getElementById(bid+'_u')||{}).value||'').trim();
+  if(n<=0||f<=0){ toast('Enter both boxes to convert','e'); return; }
+  var total = Math.round(n*f*10000)/10000;
+  var qf=document.getElementById(qtyFieldId);
+  if(qf){
+    qf.value=total;
+    // Nudge any live hint/suggestion logic (Daily Register) to recompute with the new quantity.
+    if(typeof updateDRHint==='function'){ try{ updateDRHint(); }catch(e){} }
+  }
+  var box=document.getElementById(bid); if(box) box.style.display='none';
+  toast((u?u+' ':'')+n+' × '+f+' = '+fmt(total)+' — filled into Quantity');
 }
 function startMicInput(inputId, isNumber, btnEl){
   var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -4575,14 +4635,16 @@ function pgDailyRegister(){
       inpMic('Item Name','dr_f1','text',_drPrefillItem,'Type or pick existing item, or scan barcode above').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
       inpMic('Supplier Name','dr_f2','text','').replace('<input ','<input data-ac="suppliers" ') +
       g2(inpMic('Quantity','dr_f3','number','').replace('<label>Quantity</label>','<label id="dr_qty_label">Quantity</label>'), inpMic('Rate','dr_f4','number','')) +
+      qtyConvHtml('dr_f3','No.') +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'credit',l:'Credit'}],'cash') +
-      sl('Unit (only used if this is a new item)','dr_f6',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.').replace('<select ','<select onchange="updateDRHint()" ') +
+      sl('Unit (only used if this is a new item)','dr_f6',['Kg','Quintal','Gram','Ton','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.').replace('<select ','<select onchange="updateDRHint()" ') +
       inpMic('Selling Price (₹, optional)','dr_f7','number','','We will work out and save this item\'s profit margin for you — leave blank to use the default margin');
   } else if(typeId==='sale'){
     fieldsHtml += _drScanBtn +
       inpMic('Item Name','dr_f1','text',_drPrefillItem,'Pick an existing item, or scan barcode above').replace('<input ','<input data-ac="items" oninput="updateDRHint()" ') +
       inpMic('Customer Name','dr_f2','text','Walk-in Customer').replace('<input ','<input data-ac="customers" ') +
       g2(inpMic('Quantity','dr_f3','number','').replace('<input ','<input oninput="updateDRHint()" ').replace('<label>Quantity</label>','<label id="dr_qty_label">Quantity</label>'), inpMic('Selling Price','dr_f4','number','')) +
+      qtyConvHtml('dr_f3',"the item's unit") +
       sl('Payment Mode','dr_f5',[{v:'cash',l:'Cash'},{v:'bank',l:'Bank'},{v:'upi',l:'UPI'},{v:'credit',l:'Credit'}],'cash');
   } else if(typeId==='expense'){
     fieldsHtml += inpMic('Category','dr_f1','text','','Type or pick a category').replace('<input ','<input data-ac="categories" ') + inpMic('Amount','dr_f2','number','') +
@@ -4676,6 +4738,7 @@ function updateDRHint(){
       var stockAvail = (item.currentStock||0)+(item.importedStock||0);
       hint = '<div class="al ali" style="margin-top:6px;font-size:11px">Purchase Price: <b>'+fc(item.avgCost)+'</b>/'+esc(item.unit)+' | Suggested Selling Price ('+margin+'% margin'+(hasItemMargin?' — item-specific':'')+'): <b>'+fc(suggested)+'</b> | Stock available: <b>'+fmt(stockAvail)+'</b> '+esc(item.unit)+'</div>';
       if(qtyLabelEl) qtyLabelEl.textContent = 'Quantity ('+item.unit+')';
+      qtyConvSetUnit('dr_f3', item.unit);
     }
   } else if(typeId==='purchase'){
     var name2 = (gv('dr_f1')||'').trim();
@@ -4683,10 +4746,12 @@ function updateDRHint(){
     if(item2){
       hint = '<div class="al ali" style="margin-top:6px;font-size:11px">Existing item — Current Stock: <b>'+fmt((item2.currentStock||0)+(item2.importedStock||0))+'</b> '+esc(item2.unit)+' | Current Avg Cost: <b>'+fc(item2.avgCost)+'</b>/'+esc(item2.unit)+'</div>';
       if(qtyLabelEl) qtyLabelEl.textContent = 'Quantity ('+item2.unit+')';
+      qtyConvSetUnit('dr_f3', item2.unit);
     } else if(name2){
       hint = '<div class="al alw" style="margin-top:6px;font-size:11px">New item — will be added to Inventory automatically.</div>';
       var unitSel = document.getElementById('dr_f6');
       if(qtyLabelEl && unitSel) qtyLabelEl.textContent = 'Quantity ('+unitSel.value+')';
+      if(unitSel) qtyConvSetUnit('dr_f3', unitSel.value);
     }
   } else if(typeId==='debtorReceipt'){
     var name3 = (gv('dr_f1')||'').trim();
@@ -5786,7 +5851,7 @@ function pgInv(){
     'नई business में Inventory पहले add करना जरूरी नहीं। Purchase में "+ New Item" से item add करें — stock automatic update होगा।</span>'+
   '</div>';
   h+=card('Add Item',
-      g2(inp('Item Name','iv_n','text',''),sl('Unit','iv_u',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
+      g2(inp('Item Name','iv_n','text',''),sl('Unit','iv_u',['Kg','Quintal','Gram','Ton','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
       g2(inp('Current Stock (on hand)','iv_os','number',0),inp('Cost per Unit (₹)','iv_pr','number',0))+
       inp('Reorder Level (for low-stock alert)','iv_rl','number',0)+
       inp('Item-specific Profit Margin % (optional — leave blank to use the global default margin from Margin Settings)','iv_margin','number','')+
@@ -5806,7 +5871,7 @@ function pgInv(){
     {l:'Item',fn:function(r){return esc(r.itemName)+gstBadge(r);}},
     {l:'Cat',fn:function(r){var cat=r.category||'—';var catLabel=cat==='RM'?'Raw Material':cat;return '<span style="font-size:10px;font-weight:700;color:'+catColor(cat)+';background:'+catColor(cat)+'18;padding:2px 5px;border-radius:4px">'+esc(catLabel)+'</span>';}},
     {l:'Unit',fn:function(r){
-      var units=['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'];
+      var units=['Kg','Quintal','Gram','Ton','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'];
       if(units.indexOf(r.unit)<0) units=[r.unit].concat(units); // keep an unrecognized/legacy unit selectable too
       return '<select onchange="setItemUnit(\''+r.id+'\',this.value)" style="padding:5px;border-radius:6px;border:1px solid #CFD8DC;font-size:11px">'+
         units.map(function(u){return '<option value="'+u+'"'+(u===r.unit?' selected':'')+'>'+u+'</option>';}).join('')+
@@ -6079,7 +6144,7 @@ function pgPur(){
   var newItemFields='';
   if(sel==='__new__'){
     var catOpts=[{v:'Resale',l:'Resale'},{v:'Raw Material',l:'Raw Material'},{v:'FG',l:'Finished Goods'},{v:'Consumable',l:'Consumable'}];
-    newItemFields = g2(inp('New Item Name','pu_newname','text',window._purNewName||''),sl('Unit','pu_newunit',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'))+
+    newItemFields = g2(inp('New Item Name','pu_newname','text',window._purNewName||''),sl('Unit','pu_newunit',['Kg','Quintal','Gram','Ton','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.').replace('<select ','<select onchange="qtyConvSetUnit(\'pu_q\',this.value)" '))+
       sl('Category','pu_newcat',catOpts,window._purNewCat||'Resale')+
       inp('Selling Price (₹, optional — only if you plan to resell this item)','pu_newprice','number',window._purNewPrice||'')+
       '<div style="font-size:11px;color:#546E7A;margin-bottom:8px">Give this item\'s price here and we\'ll work out and save its profit margin automatically — no need to visit Inventory separately. Leave blank to use the global default margin (Settings → Margin).</div>';
@@ -6097,6 +6162,7 @@ function pgPur(){
     '</select></div>'+
     '<div id="pu_newwrap">'+newItemFields+'</div>'+
     g2(inp('Qty','pu_q','number',window._purQty||0),inp('Rate (₹, excl. GST)','pu_r','number',window._purRate||0))+
+    qtyConvHtml('pu_q', _selItem ? _selItem.unit : (gv('pu_newunit')||'No.'))+
     (gstEnabled() ? inp('GST Rate % (0 = exempt)','pu_gst','number',(window._purGstRate!=null?window._purGstRate:(D.gst.defaultRate||0))) : '')+
     advanceSettleSel('pu_adv','paid_supplier')+
     payModeSel('pu_m',window._purMode||'cash')+
@@ -6286,6 +6352,7 @@ function pgSal(){
     '</select></div>'+
     costInfo+
     g2(inp('Qty','sl_q','number',window._salQty||0),inp('Selling Price (₹/unit, excl. GST)','sl_p','number',window._salPrice||0))+
+    (selItem ? qtyConvHtml('sl_q', selItem.unit) : '')+
     (gstEnabled() ? inp('GST Rate % (0 = exempt)','sl_gst','number',(window._salGstRate!=null?window._salGstRate:(selItem&&selItem.gstRate!==undefined?selItem.gstRate:(D.gst.defaultRate||0)))) : '')+
     advanceSettleSel('sl_adv','received')+
     payModeSel('sl_m',window._salMode||'cash')+
@@ -7269,6 +7336,7 @@ function pgReturns(){
         return {v:s.id, l:s.date+' — '+s.customerName+' — '+s.itemName+' (qty '+fmt(s.qty)+', returnable '+fmt(rem)+', '+fc(s.sellingPrice)+'/unit)'};
       }), '')+
       inpMic('Return Quantity','ret_sale_qty','number','')+
+      qtyConvHtml('ret_sale_qty',"the item's unit")+
       inp('Return Date','ret_sale_date','date',td())+
       inpMic('Reason / Notes (optional)','ret_sale_notes','text','')+
       btn('↩ Record Sales Return','submitSalesReturn()','#C62828')
@@ -7284,6 +7352,7 @@ function pgReturns(){
         return {v:p.id, l:p.date+' — '+p.supplierName+' — '+p.itemName+' (qty '+fmt(p.qty)+', returnable '+fmt(rem)+', '+fc(p.rate)+'/unit)'};
       }), '')+
       inpMic('Return Quantity','ret_purch_qty','number','')+
+      qtyConvHtml('ret_purch_qty',"the item's unit")+
       inp('Return Date','ret_purch_date','date',td())+
       inpMic('Reason / Notes (optional)','ret_purch_notes','text','')+
       btn('↩ Record Purchase Return','submitPurchaseReturn()','#C62828')
@@ -11061,7 +11130,7 @@ function tbRow(i, row){
     html += '<div class="g3">';
     html += '<div class="fg"><label>Quantity</label><input type="number" inputmode="decimal" value="'+qtyVal+'" placeholder="0" oninput="tbUpdate('+i+',4,this.value)" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px"></div>';
     html += '<div class="fg"><label>Unit</label><select onchange="tbUpdate('+i+',6,this.value)" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px">'+
-      ['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag','Lot'].map(function(u){return '<option value="'+u+'"'+(u===(row.unit||'No.')?' selected':'')+'>'+u+'</option>';}).join('')+
+      ['Kg','Quintal','Gram','Ton','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag','Lot'].map(function(u){return '<option value="'+u+'"'+(u===(row.unit||'No.')?' selected':'')+'>'+u+'</option>';}).join('')+
       '</select></div>';
     html += '<div class="fg"><label>Cost / Unit (Rs)</label><input type="number" inputmode="decimal" value="'+costVal+'" placeholder="0" oninput="tbUpdate('+i+',5,this.value)" style="width:100%;padding:9px;border-radius:8px;border:1px solid #BBDEFB;font-size:13px"></div>';
     html += '</div>';
@@ -13814,6 +13883,34 @@ function pgHelp(){
       '<div style="margin-top:8px"><button onclick="showBusinessChoice()" style="padding:10px 18px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🚀 Quick Start Guide</button></div>'
     ),
     true  // open by default
+  );
+
+  // ── QUANTITY UNIT CONVERTER HELP ──
+  h += hs(
+    bi('🔄 Bought in Dozen/Box but track stock in Piece? Here\'s how', '🔄 Dozen/Box में खरीदा पर stock Piece में रखते हैं? ऐसे करें'),
+    bi(
+      '<p>Every item in this app has <b>one unit</b> (set in Inventory) that all its stock, sales and reports use — for example, "Piece". That never needs to change.</p>'+
+      '<p>But sometimes you <i>buy</i> in a different unit — e.g. you buy rice in Bags but track stock in Kg, or you buy bangles in Dozen but sell them one at a time in Piece. For exactly this, look for this small blue link under any Quantity box:</p>'+
+      '<p style="color:#1565C0;font-weight:700">🔄 Bought/counted in a different unit (e.g. Dozen, Box)? Tap to convert</p>'+
+      '<p><b>Example — you bought 5 Dozen of an item tracked in Piece:</b><br>'+
+      '1. Tap that blue link → a small calculator opens.<br>'+
+      '2. "I have" → type <b>5</b>. In the unit box → type <b>Dozen</b> (just a note for yourself, optional).<br>'+
+      '3. "= how many Piece in each one?" → type <b>12</b>.<br>'+
+      '4. It shows <b>= 60 total</b> → tap <b>✓ Use this quantity</b> → Quantity box is filled with <b>60</b> automatically.<br>'+
+      '5. Continue filling Rate/Price as normal and submit — everything from here works exactly as before.</p>'+
+      '<p style="background:#E8F5E9;padding:8px;border-radius:6px"><b>Good to know:</b> This is just a calculator to save you from doing the multiplication by hand — it does not change the item\'s unit or add any setup. It\'s available on Purchase, Sale, Daily Register and Returns, wherever you enter a quantity.</p>',
+
+      '<p>इस app में हर item का <b>एक unit</b> होता है (Inventory में set किया हुआ) जिसमें उसकी stock, sales और reports हमेशा दिखती हैं — जैसे "Piece"। यह कभी बदलने की ज़रूरत नहीं।</p>'+
+      '<p>लेकिन कभी-कभी आप <i>खरीदते</i> समय अलग unit में सोचते हैं — जैसे चावल Bag में खरीदते हैं पर stock Kg में रखते हैं, या चूड़ियाँ Dozen में खरीदते हैं पर Piece में बेचते हैं। इसी के लिए, किसी भी Quantity box के नीचे यह नीला link देखें:</p>'+
+      '<p style="color:#1565C0;font-weight:700">🔄 Bought/counted in a different unit (e.g. Dozen, Box)? Tap to convert</p>'+
+      '<p><b>उदाहरण — आपने 5 Dozen खरीदा, item Piece में track होता है:</b><br>'+
+      '1. वह नीला link दबाएं → एक छोटा calculator खुलेगा।<br>'+
+      '2. "I have" में → <b>5</b> टाइप करें। Unit box में → <b>Dozen</b> लिख सकते हैं (सिर्फ याद रखने के लिए, ज़रूरी नहीं)।<br>'+
+      '3. "= how many Piece in each one?" में → <b>12</b> टाइप करें।<br>'+
+      '4. यह <b>= 60 total</b> दिखाएगा → <b>✓ Use this quantity</b> दबाएं → Quantity box में अपने आप <b>60</b> भर जाएगा।<br>'+
+      '5. बाकी Rate/Price हमेशा की तरह भरें और submit करें — आगे सब कुछ पहले जैसा ही काम करता है।</p>'+
+      '<p style="background:#E8F5E9;padding:8px;border-radius:6px"><b>जानने योग्य:</b> यह सिर्फ एक calculator है जो आपको हाथ से गुणा करने से बचाता है — यह item का unit नहीं बदलता और कोई नया setup नहीं माँगता। यह Purchase, Sale, Daily Register और Returns — जहाँ भी quantity भरनी हो, वहाँ उपलब्ध है।</p>'
+    )
   );
 
   // ── BARCODE SCANNER HELP ──
@@ -19138,7 +19235,7 @@ function showBarcodeAssign(code){
     '<div style="font-weight:700;font-size:13px;margin-bottom:6px">OR create new item:</div>'+
     '<input id="bc_name" placeholder="New item name" style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
     '<select id="bc_unit" style="width:100%;padding:10px;border-radius:8px;border:1px solid #E0E0E0;font-size:13px;margin-bottom:8px">'+
-    ['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'].map(function(u){return '<option value="'+u+'"'+(u==='No.'?' selected':'')+'>'+u+'</option>';}).join('')+
+    ['Kg','Quintal','Gram','Ton','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'].map(function(u){return '<option value="'+u+'"'+(u==='No.'?' selected':'')+'>'+u+'</option>';}).join('')+
     '</select>'+
     '<button onclick="createItemWithBarcode(\''+code+'\',document.getElementById(\'bc_name\').value,document.getElementById(\'bc_unit\').value)" '+
     'style="width:100%;padding:12px;background:#2E7D32;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px">+ Create New Item</button>'+
@@ -21286,7 +21383,7 @@ function pgProduction(){
   var fgSel = window._prodFG || '__new__';
   var newFgFields='';
   if(fgSel==='__new__'){
-    newFgFields = g2(inp('New Finished Good Name','prod_newname','text',window._prodNewName||''),sl('Unit','prod_newunit',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'));
+    newFgFields = g2(inp('New Finished Good Name','prod_newname','text',window._prodNewName||''),sl('Unit','prod_newunit',['Kg','Quintal','Gram','Ton','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'));
   }
 
   // Items available to consume: RM/Consumable with stock
@@ -21398,7 +21495,7 @@ function pgConsumption(){
   var fgSel = window._prodFG || '__new__';
   var newFgFields='';
   if(fgSel==='__new__'){
-    newFgFields = g2(inp('New Item Name','prod_newname','text',window._prodNewName||''),sl('Unit','prod_newunit',['Kg','Quintal','Gram','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'));
+    newFgFields = g2(inp('New Item Name','prod_newname','text',window._prodNewName||''),sl('Unit','prod_newunit',['Kg','Quintal','Gram','Ton','Litre','No.','Metre','Box','Dozen','Piece','Packet','Bag'],'No.'));
   }
 
   // Items available to consume: ALL categories — resale/FG items can also be consumed
